@@ -1,0 +1,12 @@
+[Desktop Entry]
+Name=Jira Quick Task
+Name[pt_BR]=Tarefa Rápida Jira
+Comment=Create Jira issues with modern Kirigami interface
+Comment[pt_BR]=Criar issues do Jira com interface moderna Kirigami
+Exec=@SCRIPT_DIR@/jira-quick-task.sh
+Path=@SCRIPT_DIR@
+Icon=jira-quick-task
+Type=Application
+Terminal=false
+Categories=Utility;Development;
+StartupNotify=true
