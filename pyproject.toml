@@ -1,0 +1,54 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "jira-quick-task"
+version = "1.0.0"
+description = "Aplicação para criar issues no Jira com interface"
+readme = "README.md"
+requires-python = ">=3.12"
+# Nota: PySide2 deve ser instalado via pacotes do sistema para compatibilidade
+# com Kirigami 2 (KF5). Não incluir nas dependências do pip.
+# Instalar com: sudo apt install python3-pyside2.qtcore python3-pyside2.qtgui python3-pyside2.qtqml
+dependencies = []
+
+[project.scripts]
+jira-quick-task = "src.app:main"
+
+[tool.setuptools]
+packages = ["src", "config", "core", "src.models"]
+
+[tool.setuptools.package-data]
+"src" = ["qml/*.qml"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-q --tb=short --disable-warnings"
+filterwarnings = [
+    "ignore::DeprecationWarning:PySide2",
+    "ignore::DeprecationWarning",
+]
+
+[tool.coverage.run]
+source = ["src", "core", "config"]
+omit = [
+    "*/tests/*",
+    "*/__pycache__/*",
+    "*/qml/*",
+    "*/__main__.py",
+    "*/__init__.py",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+]
