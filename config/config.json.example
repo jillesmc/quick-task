@@ -1,0 +1,34 @@
+{
+  "project": "PLATFORM",
+  "issue_type": "Task",
+  "assignee": "auto",
+  "custom_fields": {
+    "tipo_atividade": "customfield_12088",
+    "documentacao_anexa": "customfield_14840",
+    "utilizacao_ia": "customfield_14841"
+  },
+  "tipo_atividade_values": [
+    "Novas iniciativas/Novas funcionalidades/Melhorias funcionais",
+    "Melhorias Técnicas/Atualizações Técnicas/Plataforma/Segurança",
+    "Suporte Dúvidas/Suporte uso incorreto",
+    "Bugs/Incidentes/Retrabalho Técnico",
+    "Mudança de escopo"
+  ],
+  "status_sequence": [
+    "TO DO",
+    "WAITING DEVELOPMENT",
+    "IN DEVELOPMENT",
+    "CODE REVIEW",
+    "WAITING FOR HOMOLOG",
+    "IN HOMOLOGATION",
+    "READY FOR DEPLOY",
+    "DONE"
+  ],
+  "worklog_timezone": "America/Sao_Paulo",
+  "epic_filters": {
+    "created_by_me": false,
+    "assigned_to_me": false,
+    "project_platform": true,
+    "exclude_done": true
+  }
+}

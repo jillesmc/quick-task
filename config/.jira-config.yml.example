@@ -1,0 +1,83 @@
+auth_type: basic
+board:
+    id: 1856
+    name: PLATFORM Board
+    type: kanban
+epic:
+    name: customfield_10011
+    link: customfield_10014
+installation: Cloud
+issue:
+    fields:
+        custom:
+            - name: Documentacao anexa
+              key: customfield_14840
+              schema:
+                datatype: option
+            - name: Utilizacao de IA
+              key: customfield_14841
+              schema:
+                datatype: option
+            - name: Tipo de atividade
+              key: customfield_12088
+              schema:
+                datatype: option
+            - name: Clockwork Timer
+              key: customfield_10196
+              schema:
+                datatype: string
+    types:
+        - id: "10046"
+          name: Initiative
+          handle: Initiative
+          subtask: false
+        - id: "10006"
+          name: Epic
+          handle: Epic
+          subtask: false
+        - id: "10294"
+          name: Technical Debt
+          handle: Technical Debt
+          subtask: false
+        - id: "10008"
+          name: Task
+          handle: Task
+          subtask: false
+        - id: "10007"
+          name: Story
+          handle: Story
+          subtask: false
+        - id: "10004"
+          name: Bug
+          handle: Bug
+          subtask: false
+        - id: "10261"
+          name: Spike
+          handle: Spike
+          subtask: false
+        - id: "10003"
+          name: Sub-task
+          handle: Sub-task
+          subtask: true
+# IMPORTANTE: Este é um arquivo template.
+# O script setup.sh irá criar o arquivo .jira-config.yml a partir deste template
+# e pedir seu e-mail para preencher automaticamente.
+#
+# Se precisar criar manualmente:
+#   1. Copie este arquivo: cp config/.jira-config.yml.example config/.jira-config.yml
+#   2. Edite o arquivo e preencha o campo 'login' abaixo com seu e-mail
+#   3. Configure o token Jira como variável de ambiente (OBRIGATÓRIO):
+#      export JIRA_API_TOKEN=<seu-token>
+#   4. Autentique-se com o ACLI:
+#      echo $JIRA_API_TOKEN | acli jira auth login --site "madeiramadeira.atlassian.net" --email "seu-email@exemplo.com" --token
+#      
+#      O ACLI usa autenticação via token. O token JIRA_API_TOKEN é necessário
+#      tanto para autenticação do ACLI quanto para operações de worklog via REST API.
+#      NÃO configure o token no arquivo de configuração por questões de segurança.
+#
+login: # PREENCHA COM SEU EMAIL AQUI (será preenchido automaticamente pelo setup.sh)
+project:
+    key: PLATFORM
+    type: classic
+server: https://madeiramadeira.atlassian.net
+timezone: America/Sao_Paulo
