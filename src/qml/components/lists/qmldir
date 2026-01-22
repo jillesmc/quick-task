@@ -1,0 +1,4 @@
+IssueList IssueList.qml
+IssueListItem IssueListItem.qml
+EpicList EpicList.qml
+EpicListItem EpicListItem.qml

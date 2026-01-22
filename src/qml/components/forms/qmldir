@@ -1,0 +1,4 @@
+WorklogForm WorklogForm.qml
+EpicSearchForm EpicSearchForm.qml
+IssueFieldsForm IssueFieldsForm.qml
+IssueSearchForm IssueSearchForm.qml
