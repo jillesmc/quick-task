@@ -1,8 +1,8 @@
 // Diálogo de sucesso
-import QtQuick 2.12
-import QtQuick.Controls 2.12 as Controls
-import QtQuick.Layouts 1.12
-import org.kde.kirigami 2.12 as Kirigami
+import QtQuick
+import QtQuick.Controls as Controls
+import QtQuick.Layouts
+import org.kde.kirigami as Kirigami
 
 Controls.Dialog {
     id: dialog

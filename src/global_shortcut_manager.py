@@ -1,12 +1,12 @@
 """
 Gerenciador de atalho global para Jira Quick Task
 Implementa atalho Super+J (Meta+J) para restaurar janela
-Usa python-xlib diretamente para compatibilidade com PySide2
+Usa python-xlib diretamente para compatibilidade com PySide6
 """
 
 import sys
 import threading
-from PySide2.QtCore import QObject, Signal  # type: ignore[import]
+from PySide6.QtCore import QObject, Signal  # type: ignore[import]
 
 
 class GlobalShortcutManager(QObject):

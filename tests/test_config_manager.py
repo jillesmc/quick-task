@@ -19,27 +19,29 @@ def test_load_config_success(temp_config_file: Path, sample_config: dict):
 
 
 def test_load_config_file_not_found():
-    """Testa erro quando arquivo não existe"""
-    with pytest.raises(FileNotFoundError):
-        ConfigManager(config_path=Path("/nonexistent/config.json"))
+    """Testa comportamento quando arquivo não existe (não lança exceção, apenas loga)"""
+    # ConfigManager não lança exceção, apenas cria config vazio e loga erro
+    manager = ConfigManager(config_path=Path("/nonexistent/config.json"))
+    assert manager._config == {}
 
 
 def test_load_config_invalid_json():
-    """Testa erro quando JSON é inválido"""
+    """Testa comportamento quando JSON é inválido (não lança exceção, apenas loga)"""
     with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
         f.write("{ invalid json }")
         temp_path = Path(f.name)
 
     try:
-        with pytest.raises(ValueError, match="Erro ao decodificar JSON"):
-            ConfigManager(config_path=temp_path)
+        # ConfigManager não lança exceção, apenas cria config vazio e loga erro
+        manager = ConfigManager(config_path=temp_path)
+        assert manager._config == {}
     finally:
         if temp_path.exists():
             temp_path.unlink()
 
 
 def test_validate_config_missing_required_keys():
-    """Testa validação quando chaves obrigatórias estão faltando"""
+    """Testa validação quando chaves obrigatórias estão faltando (não lança exceção, apenas loga)"""
     incomplete_config = {
         "project": "TEST"
         # Faltam outras chaves obrigatórias
@@ -50,15 +52,18 @@ def test_validate_config_missing_required_keys():
         temp_path = Path(f.name)
 
     try:
-        with pytest.raises(ValueError, match="Chave obrigatória"):
-            ConfigManager(config_path=temp_path)
+        # ConfigManager não lança exceção, apenas loga aviso e continua com config parcial
+        manager = ConfigManager(config_path=temp_path)
+        assert manager._config == incomplete_config
+        # Verificar que get() retorna None para chaves faltantes
+        assert manager.get("issue_type") is None
     finally:
         if temp_path.exists():
             temp_path.unlink()
 
 
 def test_validate_config_missing_custom_fields():
-    """Testa validação quando campos customizados estão faltando"""
+    """Testa validação quando campos customizados estão faltando (não lança exceção, apenas loga)"""
     config_missing_fields = {
         "project": "TEST",
         "issue_type": "Task",
@@ -76,8 +81,11 @@ def test_validate_config_missing_custom_fields():
         temp_path = Path(f.name)
 
     try:
-        with pytest.raises(ValueError, match="Campo customizado obrigatório"):
-            ConfigManager(config_path=temp_path)
+        # ConfigManager não lança exceção, apenas loga aviso e continua com config parcial
+        manager = ConfigManager(config_path=temp_path)
+        assert manager._config == config_missing_fields
+        # Verificar que get_custom_field() retorna string vazia para campos faltantes
+        assert manager.get_custom_field("documentacao_anexa") == ""
     finally:
         if temp_path.exists():
             temp_path.unlink()

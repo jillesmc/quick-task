@@ -4,15 +4,15 @@ Gerenciador de System Tray Icon para Jira Quick Task
 
 import sys
 from pathlib import Path
-from PySide2.QtCore import QObject, Signal, QTimer  # type: ignore[import]
-from PySide2.QtGui import QIcon  # type: ignore[import]
+from PySide6.QtCore import QObject, Signal, QTimer  # type: ignore[import]
+from PySide6.QtGui import QIcon, QAction  # type: ignore[import]
 
-# Importar QtWidgets (necessário para QSystemTrayIcon)
+# Importar QtWidgets (necessário para QSystemTrayIcon e QMenu)
 try:
-    from PySide2.QtWidgets import QSystemTrayIcon, QMenu, QAction  # type: ignore[import]
+    from PySide6.QtWidgets import QSystemTrayIcon, QMenu  # type: ignore[import]
 except ImportError as e:
-    print("Aviso: PySide2.QtWidgets não está disponível.", file=sys.stderr)
-    print("  Instale o pacote: sudo apt install python3-pyside2.qtwidgets", file=sys.stderr)
+    print("Aviso: PySide6.QtWidgets não está disponível.", file=sys.stderr)
+    print("  Instale o pacote: sudo apt install python3-pyside6.qtwidgets", file=sys.stderr)
     print(f"  Detalhes: {e}", file=sys.stderr)
     # Criar classes dummy para não quebrar o código
     QSystemTrayIcon = None

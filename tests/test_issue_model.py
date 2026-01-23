@@ -7,7 +7,10 @@ from datetime import datetime
 from unittest.mock import patch, MagicMock
 
 # Adicionar pacotes do sistema ao path
-if "/usr/lib/python3/dist-packages" not in sys.path:
+# No Flatpak, PySide6 vem do runtime, então não precisamos adicionar este caminho
+import os
+is_flatpak = os.path.exists("/.flatpak-info")
+if not is_flatpak and "/usr/lib/python3/dist-packages" not in sys.path:
     sys.path.insert(0, "/usr/lib/python3/dist-packages")
 
 import pytest

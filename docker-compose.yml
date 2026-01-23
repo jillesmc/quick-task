@@ -1,0 +1,15 @@
+services:
+  dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    volumes:
+      - .:/app
+      - pip-cache:/root/.cache/pip
+    environment:
+      - QT_QPA_PLATFORM=offscreen
+      - DISPLAY=:99
+    command: tail -f /dev/null  # Mantém container rodando para desenvolvimento
+
+volumes:
+  pip-cache:

@@ -23,7 +23,7 @@
  * - reset(): reseta estado do controller
  * - createIssue(): inicia criação de issue
  */
-import QtQuick 2.12
+import QtQuick
 import "../utils/Validators.js" as Validators
 
 Item {

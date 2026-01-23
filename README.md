@@ -4,7 +4,7 @@ Aplicação desktop moderna para criar issues no Jira com interface gráfica usa
 
 ## Características
 
-- Interface gráfica moderna com Kirigami 2 (KDE)
+- Interface gráfica moderna com Kirigami 6 (KDE)
 - Criação de issues com campos customizados
 - Transição sequencial de status
 - Registro automático de worklog após transição para "IN DEVELOPMENT"
@@ -13,38 +13,26 @@ Aplicação desktop moderna para criar issues no Jira com interface gráfica usa
 
 ## Pré-requisitos
 
-### mise (Obrigatório)
+### Python 3.11 ou superior
 
-O projeto usa `mise` (anteriormente `rtx`) para gerenciar a versão do Python. O arquivo `.mise.toml` define Python 3.12.3 como versão requerida.
-
-**Instalação do mise:**
+O projeto requer Python 3.11 ou superior. Verifique se está instalado:
 
 ```bash
-curl https://mise.run | sh
+python3 --version
 ```
-
-Após instalar, reinicie o terminal ou execute:
-
-```bash
-source ~/.bashrc  # ou ~/.zshrc
-```
-
-**Mais informações:** [mise.jdx.dev](https://mise.jdx.dev)
 
 ### Dependências do Sistema (Ubuntu/Debian)
 
-Os pacotes PySide2 e Kirigami devem ser instalados do sistema para serem usados pelo Python gerenciado via `mise`:
+Os pacotes PySide6 e Kirigami devem ser instalados do sistema:
 
 ```bash
 sudo apt update
 sudo apt install \
-    python3-pyside2.qtcore python3-pyside2.qtgui python3-pyside2.qtqml \
-    python3-pyside2.qtwidgets \
-    qml-module-org-kde-kirigami2 \
+    python3-pyside6.qtcore python3-pyside6.qtgui python3-pyside6.qtqml \
+    python3-pyside6.qtwidgets \
+    qml-module-org-kde-kirigami \
     python3-xlib
 ```
-
-> **Nota:** Não é necessário instalar Python do sistema, pois o `mise` gerencia a versão do Python automaticamente.
 
 ### Token de API do Jira
 
@@ -84,28 +72,21 @@ git clone <url-do-repositorio>
 cd jira-quick-task
 ```
 
-### 2. Instalar ferramentas do mise
+### 2. Instalar dependências do sistema
 
-Instale as ferramentas definidas no `.mise.toml`:
-
-```bash
-mise install
-```
-
-Isso instalará automaticamente Python 3.12.3 conforme definido no `.mise.toml`.
-
-### 3. Executar setup (Recomendado)
-
-O script `setup.sh` verifica e instala as dependências do sistema:
+Instale as dependências do sistema necessárias:
 
 ```bash
-./setup.sh
+sudo apt install python3-pyside6.qtcore python3-pyside6.qtgui python3-pyside6.qtqml python3-pyside6.qtwidgets qml-module-org-kde-kirigami python3-xlib
 ```
 
-O script irá:
-- Verificar e instalar dependências do sistema (PySide2, Kirigami, etc.)
-- Criar arquivo de configuração `.jira-config.yml` a partir do template
-- Instalar ícones e arquivo `.desktop`
+### 3. Instalar dependências Python
+
+Instale as dependências Python definidas em `requirements.txt`:
+
+```bash
+pip3 install -r requirements.txt
+```
 
 ### 4. Configurar Autenticação
 
@@ -127,33 +108,125 @@ source ~/.bashrc  # ou source ~/.zshrc
 
 **Configuração do arquivo .jira-config.yml:**
 
-O projeto inclui um template de configuração em `config/.jira-config.yml.example`. O script `setup.sh` cria automaticamente o arquivo `config/.jira-config.yml` e pede seu e-mail.
+O projeto inclui um template de configuração em `config/.jira-config.yml.example`. 
 
-Se precisar criar manualmente:
+Para criar o arquivo de configuração:
 
 ```bash
 # Copiar o template
 cp config/.jira-config.yml.example config/.jira-config.yml
 
-# Editar e preencher o campo 'login' com seu e-mail
+# Editar e preencher os campos necessários
 nano config/.jira-config.yml
 ```
+
+Preencha os seguintes campos:
+- `login`: Seu e-mail do Jira
+- `server`: URL do seu servidor Jira (ex: `https://seu-projeto.atlassian.net`)
 
 **Nota sobre o Token:**
 
 O token `JIRA_API_TOKEN` é necessário para todas as operações via REST API (criação de issues, atualizações, transições, worklogs, etc.).
 
-### 5. Instalar dependências Python
-
-Instale as dependências Python definidas em `requirements.txt`:
-
-```bash
-mise run -- pip install -r requirements.txt
-```
-
-### 6. Configurar campos customizados
+### 5. Configurar campos customizados
 
 O arquivo `config/.jira-config.yml` já contém os IDs dos campos customizados. Se você precisar descobrir os IDs dos campos em outra instância Jira, use a API do Jira ou verifique no próprio Jira.
+
+## Instalação via Flatpak
+
+A aplicação pode ser empacotada e distribuída como Flatpak. Para construir e instalar:
+
+```bash
+# Instalar dependências do Flatpak (primeira vez)
+make flatpak-install-deps
+
+# Construir e instalar
+make flatpak-build
+
+# Executar
+flatpak run org.kde.jira-quick-task
+```
+
+### Configuração no Flatpak
+
+Após instalar o Flatpak, você precisa configurar os arquivos de configuração:
+
+**Opção 1: Usar o script helper (recomendado)**
+
+```bash
+# As variáveis de ambiente do host são passadas automaticamente
+flatpak run --command=jira-quick-task-config-setup org.kde.jira-quick-task
+```
+
+Este script:
+- Pede seu email do Jira interativamente
+- Cria os arquivos de configuração em `~/.config/jira-quick-task/` a partir dos templates
+- Configura o email automaticamente no `.jira-config.yml`
+- Se `JIRA_API_TOKEN` estiver configurado, busca o `accountId` automaticamente via API
+
+**Opção 2: Configuração manual**
+
+1. Criar diretório de configuração:
+   ```bash
+   mkdir -p ~/.config/jira-quick-task
+   ```
+
+2. Copiar templates:
+   ```bash
+   # Os templates estão em /app/share/jira-quick-task/config/ dentro do Flatpak
+   # Você pode copiar manualmente ou usar o script helper acima
+   ```
+
+3. Editar `~/.config/jira-quick-task/config.json` com as configurações do seu projeto
+
+4. Editar `~/.config/jira-quick-task/.jira-config.yml` com suas credenciais:
+   - `server`: URL do seu servidor Jira
+   - `login`: Seu email do Jira
+   - `token`: Seu token de API (obtenha em https://id.atlassian.com/manage-profile/security/api-tokens)
+
+5. Configurar variável de ambiente `JIRA_API_TOKEN`:
+   ```bash
+   export JIRA_API_TOKEN=<seu-token>
+   # Adicione ao ~/.bashrc ou ~/.zshrc para tornar permanente
+   ```
+
+### Certificados SSL/CA no Flatpak
+
+A aplicação usa certificados CA do sistema host via bind mount (`--filesystem=host-etc:ro`). Esta abordagem:
+
+- **Vantagens:**
+  - Certificados sempre atualizados (não copiados para o sandbox)
+  - Funciona com certificados corporativos (ex: Netskope) automaticamente
+  - Compatível com diferentes distribuições Linux
+  - Não requer rebuild quando certificados são atualizados
+  - **Sem hardcoding**: Variáveis de ambiente são herdadas automaticamente do host
+
+- **Como funciona:**
+  - O Flatpak herda automaticamente variáveis de ambiente do host (incluindo `SSL_CERT_FILE`, `SSL_CERT_DIR`, etc.)
+  - Certificados do host ficam acessíveis em `/run/host/etc/ssl/certs/` dentro do sandbox
+  - O wrapper script (`flatpak-wrapper.sh`) apenas ajusta os caminhos herdados:
+    - Se o host tem `SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt`, o wrapper ajusta para `/run/host/etc/ssl/certs/ca-certificates.crt`
+    - Não cria variáveis se não existirem - deixa o Flatpak/herança fazer isso
+  - O `requests` Python detecta automaticamente essas variáveis
+
+- **Configuração no host (opcional):**
+  ```bash
+  # ~/.bashrc ou ~/.zshenv (opcional - funciona sem isso também)
+  export SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+  export SSL_CERT_DIR=/etc/ssl/certs
+  ```
+
+- **Trade-off:**
+  - Expõe acesso de leitura a `/etc` do host (reduz isolamento do sandbox)
+  - Para maior isolamento, seria necessário copiar certificados durante o build, mas isso deixaria os certificados desatualizados
+
+### Atalho Global (Super+J) no Flatpak
+
+O atalho global **Super+J** está disponível no Flatpak! O `python-xlib` foi incluído como dependência e deve funcionar normalmente.
+
+**Nota:** O atalho global requer X11 (não funciona em Wayland puro). Se você estiver usando Wayland, o atalho não estará disponível, mas você pode:
+- Use o ícone na system tray para restaurar a janela
+- Use o atalho de teclado local (Ctrl+Return) quando a janela estiver em foco
 
 ## Configuração
 
@@ -226,36 +299,19 @@ Exemplo de `config.json`:
 
 ## Execução
 
-### Via script bash (Recomendado)
+### Via Flatpak (Recomendado)
+
+Após construir e instalar o Flatpak:
 
 ```bash
-./jira-quick-task.sh
+# Executar aplicação
+flatpak run org.kde.jira-quick-task
+
+# Ou usar o target do Makefile
+make flatpak-test
 ```
 
-O script usa automaticamente o `mise` para garantir a versão correta do Python definida no `.mise.toml`.
-
-### Via Python direto
-
-```bash
-mise run -- python -m src
-```
-
-### Via desktop file
-
-Instale o arquivo `.desktop` no sistema:
-
-```bash
-# Copiar para aplicações do usuário
-cp org.kde.jira-quick-task.desktop ~/.local/share/applications/
-
-# Ou para aplicações do sistema (requer sudo)
-sudo cp org.kde.jira-quick-task.desktop /usr/share/applications/
-
-# Atualizar cache
-update-desktop-database ~/.local/share/applications/
-```
-
-Depois, você pode executar a aplicação pelo menu de aplicações do KDE.
+A aplicação também estará disponível no menu de aplicações do seu desktop environment.
 
 ## Uso
 
@@ -287,7 +343,7 @@ jira-quick-task/
 │   ├── jira_client.py       # Cliente para Jira REST API v3
 │   └── status_transition.py # Lógica de transição de status
 ├── src/
-│   ├── app.py               # Aplicação principal PySide2
+│   ├── app.py               # Aplicação principal PySide6
 │   ├── jira_service.py      # Serviço Jira (QObject)
 │   ├── models/
 │   │   └── issue_model.py   # Modelo de dados (QObject)
@@ -297,7 +353,7 @@ jira-quick-task/
 │       ├── ProgressDialog.qml
 │       ├── SuccessDialog.qml
 │       └── ErrorDialog.qml
-├── jira-quick-task.sh       # Script de execução
+├── scripts/                 # Scripts utilitários
 ├── org.kde.jira-quick-task.desktop
 └── requirements.txt
 ```
@@ -342,14 +398,14 @@ jira-quick-task/
 - Verifique se contém os campos `server` e `login`
 - Copie o template se necessário: `cp config/.jira-config.yml.example config/.jira-config.yml`
 
-### "ModuleNotFoundError: No module named 'PySide2'"
+### "ModuleNotFoundError: No module named 'PySide6'"
 
-- Instale os pacotes do sistema: `sudo apt install python3-pyside2.qtcore python3-pyside2.qtgui python3-pyside2.qtqml python3-pyside2.qtwidgets`
-- Certifique-se de que os pacotes estão instalados: `dpkg -l | grep pyside2`
+- Instale os pacotes do sistema: `sudo apt install python3-pyside6.qtcore python3-pyside6.qtgui python3-pyside6.qtqml python3-pyside6.qtwidgets`
+- Certifique-se de que os pacotes estão instalados: `dpkg -l | grep pyside6`
 
 ### "module 'org.kde.kirigami' is not installed"
 
-- Instale o módulo Kirigami: `sudo apt install qml-module-org-kde-kirigami2`
+- Instale o módulo Kirigami: `sudo apt install qml-module-org-kde-kirigami`
 - Verifique se o caminho do Qt 5 está correto em `src/app.py`
 
 ### "Qt: Session management error"
@@ -389,4 +445,4 @@ Este projeto é de uso pessoal.
 
 - [Jira REST API v3](https://developer.atlassian.com/cloud/jira/platform/rest/v3/) - Documentação oficial da API
 - [Kirigami](https://develop.kde.org/frameworks/kirigami/) - Framework UI do KDE
-- [PySide2](https://wiki.qt.io/Qt_for_Python) - Bindings Python para Qt 5
+- [PySide6](https://wiki.qt.io/Qt_for_Python) - Bindings Python para Qt 6

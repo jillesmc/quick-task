@@ -1,12 +1,11 @@
 # Requirements for Jira Quick Task
 # 
-# NOTA IMPORTANTE: PySide2 deve ser instalado via pacotes do sistema para 
-# compatibilidade com Kirigami 2 (KF5) e plugins QML do sistema:
-#   sudo apt install python3-pyside2.qtcore python3-pyside2.qtgui python3-pyside2.qtqml
+# NOTA IMPORTANTE: PySide6 deve ser instalado via pacotes do sistema para 
+# compatibilidade com Kirigami 6 (KF6) e plugins QML do sistema:
+#   sudo apt install python3-pyside6.qtcore python3-pyside6.qtgui python3-pyside6.qtqml python3-pyside6.qtwidgets
 #
-# O projeto usa mise para gerenciar a versão do Python e pacotes do sistema
-# para PySide2. Instale as dependências com:
-#   mise run -- pip install -r requirements.txt
+# Instale as dependências com:
+#   pip3 install -r requirements.txt
 
 # Dependência para atalho global (Super+J)
 # python-xlib deve ser instalado via pacote do sistema:

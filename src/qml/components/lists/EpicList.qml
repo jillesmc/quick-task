@@ -19,9 +19,9 @@
  * - selectEpic(string epicKey): seleciona epic programaticamente
  * - clearSelection(): limpa seleção
  */
-import QtQuick 2.12
-import QtQuick.Controls 2.12 as Controls
-import org.kde.kirigami 2.12 as Kirigami
+import QtQuick
+import QtQuick.Controls as Controls
+import org.kde.kirigami as Kirigami
 import "."
 
 Controls.Frame {

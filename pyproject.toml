@@ -7,11 +7,16 @@ name = "jira-quick-task"
 version = "1.0.0"
 description = "Aplicação para criar issues no Jira com interface"
 readme = "README.md"
-requires-python = ">=3.12"
-# Nota: PySide2 deve ser instalado via pacotes do sistema para compatibilidade
-# com Kirigami 2 (KF5). Não incluir nas dependências do pip.
-# Instalar com: sudo apt install python3-pyside2.qtcore python3-pyside2.qtgui python3-pyside2.qtqml
-dependencies = []
+requires-python = ">=3.11"
+# Nota: PySide6 deve ser instalado via pacotes do sistema para compatibilidade
+# com Kirigami 6 (KF6). Não incluir nas dependências do pip.
+# Instalar com: sudo apt install python3-pyside6.qtcore python3-pyside6.qtgui python3-pyside6.qtqml
+# No Flatpak, PySide6 vem do io.qt.PySide.BaseApp.
+dependencies = [
+    "requests>=2.31.0",
+    "pytz>=2023.3",
+    "pyyaml>=6.0",
+]
 
 [project.scripts]
 jira-quick-task = "src.app:main"
@@ -29,7 +34,7 @@ python_classes = ["Test*"]
 python_functions = ["test_*"]
 addopts = "-q --tb=short --disable-warnings"
 filterwarnings = [
-    "ignore::DeprecationWarning:PySide2",
+    "ignore::DeprecationWarning:PySide6",
     "ignore::DeprecationWarning",
 ]
 

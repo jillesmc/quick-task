@@ -5,8 +5,8 @@ Previne múltiplas instâncias da aplicação usando QLockFile e QLocalServer
 
 import sys
 from pathlib import Path
-from PySide2.QtCore import QObject, Signal, QLockFile, QDir, QByteArray  # type: ignore[import]
-from PySide2.QtNetwork import QLocalServer, QLocalSocket  # type: ignore[import]
+from PySide6.QtCore import QObject, Signal, QLockFile, QDir, QByteArray  # type: ignore[import]
+from PySide6.QtNetwork import QLocalServer, QLocalSocket  # type: ignore[import]
 
 
 class SingleInstanceManager(QObject):

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Jira Quick Task - Aplicação principal PySide2 + Kirigami 2
+Jira Quick Task - Aplicação principal PySide6 + Kirigami 6
 """
 
 import os
@@ -20,29 +20,26 @@ os.environ.setdefault("QT_LOGGING_RULES",
 )
 
 # Tentar importar QApplication de QtWidgets (necessário para QSystemTrayIcon)
-# Nota: PySide2 do sistema está em /usr/lib/python3/dist-packages
-# O PYTHONPATH já está configurado no script jira-quick-task.sh
+# Nota: PySide6 do sistema está em /usr/lib/python3/dist-packages
+# O PYTHONPATH é configurado no Makefile ou pode ser exportado manualmente
 try:
-    from PySide2.QtWidgets import QApplication  # type: ignore[import]
+    from PySide6.QtWidgets import QApplication  # type: ignore[import]
 except ImportError as e:
-    print("Erro: PySide2.QtWidgets não está disponível.", file=sys.stderr)
+    print("Erro: PySide6.QtWidgets não está disponível.", file=sys.stderr)
     print("", file=sys.stderr)
-    print("  O pacote python3-pyside2.qtwidgets não está instalado.", file=sys.stderr)
-    print("  Instale com: sudo apt install python3-pyside2.qtwidgets", file=sys.stderr)
-    print("", file=sys.stderr)
-    print("  Ou execute o setup.sh que verifica e instala automaticamente:", file=sys.stderr)
-    print("    ./setup.sh", file=sys.stderr)
+    print("  O pacote python3-pyside6.qtwidgets não está instalado.", file=sys.stderr)
+    print("  Instale com: sudo apt install python3-pyside6.qtwidgets", file=sys.stderr)
     print("", file=sys.stderr)
     print(f"  Detalhes do erro: {e}", file=sys.stderr)
     sys.exit(1)
 
-from PySide2.QtGui import QIcon  # type: ignore[import]
-from PySide2.QtCore import QUrl  # type: ignore[import]
-from PySide2.QtQml import QQmlApplicationEngine, qmlRegisterType  # type: ignore[import]
+from PySide6.QtGui import QIcon  # type: ignore[import]
+from PySide6.QtCore import QUrl  # type: ignore[import]
+from PySide6.QtQml import QQmlApplicationEngine, qmlRegisterType  # type: ignore[import]
 
-# Tentar importar qInstallMessageHandler (disponível no Qt 5.5+)
+# Tentar importar qInstallMessageHandler (disponível no Qt 6)
 try:
-    from PySide2.QtCore import qInstallMessageHandler  # type: ignore[import]
+    from PySide6.QtCore import qInstallMessageHandler  # type: ignore[import]
     HAS_MESSAGE_HANDLER = True
 except ImportError:
     HAS_MESSAGE_HANDLER = False
@@ -132,10 +129,6 @@ def main():
         # Fallback: tentar usar o ícone do tema pelo nome
         app.setWindowIcon(QIcon.fromTheme("jira-quick-task"))
 
-    # Desabilitar fallback session management (solução semântica)
-    # Isso evita o warning "Session management error"
-    QApplication.setFallbackSessionManagementEnabled(False)
-    
     # Configurar para não fechar quando última janela fecha (manter no tray)
     app.setQuitOnLastWindowClosed(False)
 
@@ -143,16 +136,11 @@ def main():
     signal.signal(signal.SIGINT, signal.SIG_DFL)
 
     # Configurar estilo KDE (necessário para usar tema KDE fora do Plasma)
-    # Para Kirigami 2 (KF5), usar "org.kde.desktop" ou "org.kde.desktopstyle"
+    # Para Kirigami 6 (KF6), usar "org.kde.desktop" ou "org.kde.desktopstyle"
     # O "org.kde.desktop" é mais compatível e resolve o warning do platform plugin
     # Não definir se já estiver definido (permite override via variável de ambiente)
     if not os.environ.get("QT_QUICK_CONTROLS_STYLE"):
         os.environ["QT_QUICK_CONTROLS_STYLE"] = "org.kde.desktop"
-    
-    # Controls 1.4 (SplitView) usa variável de ambiente diferente
-    # Definir estilo Base para Controls 1 para evitar warning de estilo não encontrado
-    if not os.environ.get("QT_QUICK_CONTROLS_1_STYLE"):
-        os.environ["QT_QUICK_CONTROLS_1_STYLE"] = "Plasma"
 
     # Criar engine QML
     engine = QQmlApplicationEngine()
@@ -161,11 +149,25 @@ def main():
     qml_dir = Path(__file__).parent / "qml"
     engine.addImportPath(str(qml_dir.absolute()))
 
-    # Adicionar caminho do Qt 5 do sistema para encontrar módulos Kirigami 2
-    # Agora que usamos pacotes do sistema (Qt 5.15), os plugins são compatíveis
-    qt5_qml_path = "/usr/lib/x86_64-linux-gnu/qt5/qml"
-    if os.path.exists(qt5_qml_path):
-        engine.addImportPath(qt5_qml_path)
+    # Detectar se está rodando no Flatpak
+    is_flatpak = os.path.exists("/.flatpak-info")
+
+    if is_flatpak:
+        # Flatpak: usar caminhos do runtime KDE Platform
+        # BaseApp tem /app/qml, mas Kirigami vem do runtime em /usr/qml
+        qml_paths = [
+            "/app/qml",  # Módulos QML do BaseApp
+            "/usr/qml",  # Módulos QML do KDE Platform runtime (inclui Kirigami)
+        ]
+        for path in qml_paths:
+            if os.path.exists(path):
+                engine.addImportPath(path)
+    else:
+        # Sistema: usar caminho do sistema (desenvolvimento local)
+        # Agora que usamos pacotes do sistema (Qt 6), os plugins são compatíveis
+        qt6_qml_path = "/usr/lib/x86_64-linux-gnu/qt6/qml"
+        if os.path.exists(qt6_qml_path):
+            engine.addImportPath(qt6_qml_path)
 
     # Registrar tipos Python no QML
     qmlRegisterType(IssueModel, "JiraQuickTask", 1, 0, "IssueModel")
@@ -269,7 +271,7 @@ def main():
         tray_manager.show()
 
     # Executar aplicação
-    exit_code = app.exec_()
+    exit_code = app.exec()
     
     # Cleanup
     shortcut_manager.unregister()

@@ -25,7 +25,7 @@
  * - updateIssue(string issueKey, object fieldData, object worklogData, string epicKey): atualiza issue
  * - resetFields(): reseta campos para valores padrão
  */
-import QtQuick 2.12
+import QtQuick
 import "../utils/Validators.js" as Validators
 
 Item {

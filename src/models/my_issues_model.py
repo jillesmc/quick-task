@@ -8,7 +8,7 @@ from pathlib import Path
 import sys
 from typing import Any, Dict, List, Optional
 
-from PySide2.QtCore import QObject, Property, Signal, Slot, QThread  # type: ignore[import]
+from PySide6.QtCore import QObject, Property, Signal, Slot, QThread  # type: ignore[import]
 
 # Adicionar diretório raiz ao path
 ROOT_DIR = Path(__file__).parent.parent.parent

@@ -8,7 +8,7 @@ import sys
 from datetime import datetime
 from typing import Optional
 
-from PySide2.QtCore import QObject, Property, Signal, QDateTime, Slot  # type: ignore[import]
+from PySide6.QtCore import QObject, Property, Signal, QDateTime, Slot  # type: ignore[import]
 
 # Adicionar diretório raiz ao path para importar config
 ROOT_DIR = Path(__file__).parent.parent.parent
@@ -162,7 +162,7 @@ class IssueModel(QObject):
             self.utilizacaoIAChanged.emit(value)
 
     # Propriedade: tipoAtividadeValues (read-only)
-    # Nota: PySide2 5.15.13 tem bug com constant=True, usando read-only com notify
+    # Nota: Usando read-only com notify para compatibilidade
     @Property(list, notify=tipoAtividadeValuesChanged)
     def tipoAtividadeValues(self):
         """Retorna lista de valores para tipo de atividade"""
@@ -171,7 +171,7 @@ class IssueModel(QObject):
         return []
 
     # Propriedade: statusSequence (read-only)
-    # Nota: PySide2 5.15.13 tem bug com constant=True, usando read-only com notify
+    # Nota: Usando read-only com notify para compatibilidade
     @Property(list, notify=statusSequenceChanged)
     def statusSequence(self):
         """Retorna sequência de status"""

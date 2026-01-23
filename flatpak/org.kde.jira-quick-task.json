@@ -1,30 +1,23 @@
 {
   "app-id": "org.kde.jira-quick-task",
   "runtime": "org.kde.Platform",
-  "runtime-version": "6.8",
+  "runtime-version": "6.7",
   "sdk": "org.kde.Sdk",
-  "sdk-extensions": [
-    "org.freedesktop.Sdk.Extension.python312"
-  ],
+  "base": "io.qt.PySide.BaseApp",
+  "base-version": "6.7",
   "command": "jira-quick-task",
   "finish-args": [
-    "--socket=x11",
-    "--socket=wayland",
-    "--device=dri",
     "--share=ipc",
     "--share=network",
+    "--socket=fallback-x11",
+    "--socket=wayland",
+    "--device=dri",
+    "--socket=pulseaudio",
     "--filesystem=xdg-config/jira-quick-task:create",
     "--filesystem=xdg-data/jira-quick-task:create",
-    "--env=QT_QPA_PLATFORM_PLUGIN_PATH=/app/lib/plugins",
-    "--env=QML2_IMPORT_PATH=/app/lib/qml:/app/share/kirigami",
-    "--env=PYTHONPATH=/app/lib/python3.12/site-packages:/app/lib/python312.zip",
-    "--dbus-user=talk",
-    "--talk-name=org.freedesktop.StatusNotifierWatcher",
-    "--talk-name=org.kde.StatusNotifierWatcher",
-    "--talk-name=com.canonical.AppMenu.Registrar",
-    "--own-name=org.kde.jira-quick-task",
-    "--system-talk-name=org.freedesktop.DBus",
-    "--env=XDG_CURRENT_DESKTOP=KDE"
+    "--filesystem=host-etc:ro",
+    "--talk-name=org.freedesktop.portal.*",
+    "--own-name=org.kde.jira-quick-task"
   ],
   "cleanup": [
     "/include",
@@ -36,84 +29,37 @@
     "*.la"
   ],
   "modules": [
-    {
-      "name": "dbus-python",
-      "buildsystem": "simple",
-      "build-commands": [
-        "pip3 install --verbose --exists-action=i --no-index --find-links \"file://${PWD}\" --prefix=${FLATPAK_DEST} \"dbus-python>=1.2.18\""
-      ],
-      "sources": [
-        {
-          "type": "file",
-          "url": "https://files.pythonhosted.org/packages/ad/0a/a5b0c1cd3d27d8b6a1e3a0e6e8f0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0/dbus-python-1.3.0.tar.gz",
-          "sha256": "e2f1d537372cfb46acceee6c81623cf9f69b58b91b66ca492e5b1b8b3c87e6e"
-        }
-      ]
-    },
-    {
-      "name": "pynput",
-      "buildsystem": "simple",
-      "build-commands": [
-        "pip3 install --verbose --exists-action=i --no-index --find-links \"file://${PWD}\" --prefix=${FLATPAK_DEST} \"pynput>=1.7.6\""
-      ],
-      "sources": [
-        {
-          "type": "file",
-          "url": "https://files.pythonhosted.org/packages/c0/96/77cecfe57457d10a91a4e8662acab9a1a84c4b1fdd14b8e8a1e6e5f5f5f5/pynput-1.7.6-py2.py3-none-any.whl",
-          "sha256": "cea7c882e57dc00981ad1080cc27cfd0b58eaea685997f11ab51e8e708ca977e"
-        }
-      ]
-    },
-    {
-      "name": "pyyaml",
-      "buildsystem": "simple",
-      "build-commands": [
-        "pip3 install --verbose --exists-action=i --no-index --find-links \"file://${PWD}\" --prefix=${FLATPAK_DEST} \"pyyaml>=6.0\""
-      ],
-      "sources": [
-        {
-          "type": "file",
-          "url": "https://files.pythonhosted.org/packages/54/ed/79a7b6b7e22dca7d434dbdf36cde7ea5f49db370aae4c451a007f67f2142/pyyaml-6.0.1-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
-          "sha256": "bfdf460b1736c775f2ba9f6a92bbd8b38c6c16db236364f25d4f9f0f78aaab6e"
-        }
-      ]
-    },
-    {
-      "name": "requests",
-      "buildsystem": "simple",
-      "build-commands": [
-        "pip3 install --verbose --exists-action=i --no-index --find-links \"file://${PWD}\" --prefix=${FLATPAK_DEST} \"requests>=2.31.0\""
-      ],
-      "sources": [
-        {
-          "type": "file",
-          "url": "https://files.pythonhosted.org/packages/63/70/2bf7780ad2d390a8d301ad811fece0b108d7d81528e92fc2f753f1286ff3/requests-2.31.0-py3-none-any.whl",
-          "sha256": "942c5a758f98d790eaa1694a3651cff7ee0be8b9b480d3fe9cc1d48c4d8de8e"
-        }
-      ]
-    },
+    "python3-requests.json",
+    "python3-pytz.json",
+    "python3-pyyaml.json",
+    "python3-xlib.json",
     {
       "name": "jira-quick-task",
       "buildsystem": "simple",
       "build-commands": [
-        "pip3 install --verbose --exists-action=i --no-index --find-links \"file://${PWD}\" --prefix=${FLATPAK_DEST} .",
+        "pip3 install --no-build-isolation --prefix=/app .",
+        "sed 's|Exec=@SCRIPT_DIR@/jira-quick-task.sh|Exec=jira-quick-task|g' org.kde.jira-quick-task.desktop.in > org.kde.jira-quick-task.desktop",
         "install -Dm644 org.kde.jira-quick-task.desktop /app/share/applications/org.kde.jira-quick-task.desktop",
         "mkdir -p /app/share/jira-quick-task/config",
-        "cp config/.jira-config.yml.example /app/share/jira-quick-task/config/ || true",
-        "cp config/config.json /app/share/jira-quick-task/config/ || true",
-        "install -Dm644 assets/icon.svg /app/share/icons/hicolor/scalable/apps/org.kde.jira-quick-task.svg || true"
-      ],
-      "post-install": [
-        "mkdir -p ${HOME}/.config/jira-quick-task",
-        "mkdir -p ${HOME}/.local/share/jira-quick-task"
+        "cp config/.jira-config.yml.example /app/share/jira-quick-task/config/.jira-config.yml.example || true",
+        "cp config/config.json.example /app/share/jira-quick-task/config/config.json.example || true",
+        "cp config/.jira-config.yml.example /app/share/jira-quick-task/config/.jira-config.yml || true",
+        "cp config/config.json.example /app/share/jira-quick-task/config/config.json || true",
+        "install -Dm644 assets/jira-quick-task.svg /app/share/icons/hicolor/scalable/apps/org.kde.jira-quick-task.svg || true",
+        "install -Dm755 flatpak-wrapper.sh /app/bin/jira-quick-task || true",
+        "install -Dm755 flatpak-config-setup.sh /app/bin/jira-quick-task-config-setup || true",
+        "mkdir -p /app/scripts/lib || true",
+        "cp scripts/lib/common.sh /app/scripts/lib/common.sh || true"
       ],
       "sources": [
         {
-          "type": "git",
-          "url": "https://github.com/jillesmc/quick-task.git",
-          "branch": "production"
+          "type": "dir",
+          "path": ".."
         }
       ]
     }
+  ],
+  "cleanup-commands": [
+    "/app/cleanup-BaseApp.sh"
   ]
 }

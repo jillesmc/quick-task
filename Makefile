@@ -1,4 +1,7 @@
-.PHONY: help test test-verbose test-coverage test-watch install install-dev clean lint format run icons setup check-mise check-deps
+# ============================================================================
+# Makefile para Jira Quick Task
+# Desenvolvimento/Testes: Docker | Distribuição: Flatpak
+# ============================================================================
 
 # Cores usando tput
 ifneq ($(TERM),)
@@ -6,7 +9,6 @@ ifneq ($(TERM),)
 	GREEN := $(shell tput setaf 2)
 	YELLOW := $(shell tput setaf 3)
 	BLUE := $(shell tput setaf 4)
-	MAGENTA := $(shell tput setaf 5)
 	CYAN := $(shell tput setaf 6)
 	RESET := $(shell tput sgr0)
 else
@@ -14,148 +16,155 @@ else
 	GREEN :=
 	YELLOW :=
 	BLUE :=
-	MAGENTA :=
 	CYAN :=
 	RESET :=
 endif
 
-# Variáveis
-PYTHON := mise exec -- python
-PIP := mise exec -- pip
-PYTEST := mise exec -- pytest
-BLACK := mise exec -- python -m black
-PYTHON_FILES := src/ core/ config/ tests/
-TEST_DIR := tests
+# Variáveis Flatpak
+APP_ID := org.kde.jira-quick-task
+MANIFEST := flatpak/org.kde.jira-quick-task.json
+BUILD_DIR := build-dir
 
-# Help padrão
+# ============================================================================
+# Help
+# ============================================================================
+
+.PHONY: help
 help:
 	@echo "$(CYAN)Comandos disponíveis:$(RESET)"
 	@echo ""
-	@echo "$(GREEN)Setup:$(RESET)"
-	@echo "  $(YELLOW)make setup$(RESET)              - Executa setup completo do projeto"
-	@echo "  $(YELLOW)make install$(RESET)            - Instala dependências Python"
-	@echo "  $(YELLOW)make install-dev$(RESET)        - Instala dependências de desenvolvimento"
-	@echo "  $(YELLOW)make check-mise$(RESET)         - Verifica se mise está instalado"
-	@echo "  $(YELLOW)make check-deps$(RESET)         - Verifica dependências do sistema"
+	@echo "$(GREEN)Desenvolvimento e Testes (Docker):$(RESET)"
+	@echo "  $(YELLOW)make docker-build$(RESET)      - Constrói imagem Docker para desenvolvimento"
+	@echo "  $(YELLOW)make docker-test$(RESET)       - Executa testes unitários no Docker"
+	@echo "  $(YELLOW)make docker-shell$(RESET)      - Abre shell interativo no container Docker"
+	@echo "  $(YELLOW)make docker-clean$(RESET)      - Remove containers e imagens Docker"
 	@echo ""
-	@echo "$(GREEN)Testes:$(RESET)"
-	@echo "  $(YELLOW)make test$(RESET)               - Executa todos os testes"
-	@echo "  $(YELLOW)make test-verbose$(RESET)       - Executa testes em modo verbose"
-	@echo "  $(YELLOW)make test-coverage$(RESET)      - Executa testes com cobertura"
-	@echo "  $(YELLOW)make test-watch$(RESET)         - Executa testes em modo watch (instala pytest-watch se necessário)"
+	@echo "$(GREEN)Flatpak (Distribuição):$(RESET)"
+	@echo "  $(YELLOW)make flatpak-install-deps$(RESET) - Instala SDKs e dependências do Flatpak"
+	@echo "  $(YELLOW)make flatpak-build$(RESET)     - Constrói e instala o Flatpak localmente"
+	@echo "  $(YELLOW)make flatpak-run$(RESET)       - Executa a aplicação Flatpak instalada"
+	@echo "  $(YELLOW)make flatpak-clean$(RESET)     - Remove build e aplicação Flatpak instalada"
 	@echo ""
-	@echo "$(GREEN)Qualidade de código:$(RESET)"
-	@echo "  $(YELLOW)make lint$(RESET)               - Verifica estilo de código (black --check)"
-	@echo "  $(YELLOW)make format$(RESET)             - Formata código com black"
-	@echo ""
-	@echo "$(GREEN)Execução:$(RESET)"
-	@echo "  $(YELLOW)make run$(RESET)               - Executa a aplicação"
-	@echo "  $(YELLOW)make icons$(RESET)            - Gera ícones PNG a partir do SVG"
-	@echo ""
-	@echo "$(GREEN)Limpeza:$(RESET)"
+	@echo "$(GREEN)Utilitários:$(RESET)"
+	@echo "  $(YELLOW)make format$(RESET)             - Formata código com black (requer black no host ou Docker)"
 	@echo "  $(YELLOW)make clean$(RESET)             - Remove arquivos gerados (__pycache__, .pyc, etc)"
-	@echo "  $(YELLOW)make clean-all$(RESET)         - Remove tudo incluindo .coverage e htmlcov"
 	@echo ""
 
-# Verificações
-check-mise:
-	@echo "$(CYAN)Verificando mise...$(RESET)"
-	@if command -v mise >/dev/null 2>&1; then \
-		echo "$(GREEN)✓ mise encontrado: $$(mise --version)$(RESET)"; \
-	else \
-		echo "$(RED)✗ mise não encontrado$(RESET)"; \
-		echo "$(YELLOW)Instale com: curl https://mise.run | sh$(RESET)"; \
+# ============================================================================
+# Docker (Desenvolvimento e Testes)
+# ============================================================================
+
+.PHONY: check-docker
+check-docker:
+	@echo "$(CYAN)Verificando Docker...$(RESET)"
+	@if ! command -v docker >/dev/null 2>&1; then \
+		echo "$(RED)✗ docker não está instalado$(RESET)"; \
+		echo "$(YELLOW)Instale com: sudo apt install docker.io docker-compose$(RESET)"; \
 		exit 1; \
 	fi
-
-check-deps:
-	@echo "$(CYAN)Verificando dependências do sistema...$(RESET)"
-	@for pkg in python3-pyside2.qtcore python3-pyside2.qtgui python3-pyside2.qtqml python3-pyside2.qtwidgets qml-module-org-kde-kirigami2 python3-xlib; do \
-		if dpkg -l | grep -q "^ii  $$pkg "; then \
-			echo "$(GREEN)✓ $$pkg instalado$(RESET)"; \
-		else \
-			echo "$(YELLOW)⚠ $$pkg não encontrado$(RESET)"; \
-		fi; \
-	done
-
-# Setup
-setup: check-mise
-	@echo "$(CYAN)Executando setup...$(RESET)"
-	@./setup.sh
-
-install: check-mise
-	@echo "$(CYAN)Instalando dependências Python...$(RESET)"
-	@$(PIP) install -r requirements.txt
-	@echo "$(GREEN)✓ Dependências instaladas$(RESET)"
-
-install-dev: install
-	@echo "$(CYAN)Instalando dependências de desenvolvimento...$(RESET)"
-	@$(PIP) install pytest pytest-mock pytest-qt pytest-cov black
-	@echo "$(GREEN)✓ Dependências de desenvolvimento instaladas$(RESET)"
-
-# Testes
-test: check-mise
-	@echo "$(CYAN)Executando testes...$(RESET)"
-	@$(PYTEST) -q --tb=short --disable-warnings $(TEST_DIR) || (echo "$(RED)✗ Testes falharam$(RESET)" && exit 1)
-	@echo "$(GREEN)✓ Todos os testes passaram$(RESET)"
-
-test-verbose: check-mise
-	@echo "$(CYAN)Executando testes (verbose)...$(RESET)"
-	@$(PYTEST) -v --tb=short --disable-warnings $(TEST_DIR)
-
-test-coverage: check-mise
-	@echo "$(CYAN)Executando testes com cobertura...$(RESET)"
-	@$(PYTEST) --cov=src --cov=core --cov=config \
-		--cov-report=term-missing --cov-report=html \
-		-q --tb=short --disable-warnings \
-		$(TEST_DIR) || (echo "$(RED)✗ Testes falharam$(RESET)" && exit 1)
-	@echo "$(GREEN)✓ Cobertura gerada em htmlcov/index.html$(RESET)"
-
-test-watch: check-mise
-	@echo "$(CYAN)Executando testes em modo watch...$(RESET)"
-	@if ! mise exec -- python -c "import pytest_watch" 2>/dev/null; then \
-		echo "$(YELLOW)⚠ pytest-watch não encontrado, instalando...$(RESET)"; \
-		mise exec -- pip install -q pytest-watch; \
+	@echo "$(GREEN)✓ docker instalado$(RESET)"
+	@if ! docker info >/dev/null 2>&1; then \
+		echo "$(RED)✗ docker não está rodando ou você não tem permissão$(RESET)"; \
+		echo "$(YELLOW)Verifique: sudo systemctl start docker$(RESET)"; \
+		echo "$(YELLOW)Ou adicione seu usuário ao grupo docker: sudo usermod -aG docker $$USER$(RESET)"; \
+		exit 1; \
 	fi
-	@mise exec -- python -m pytest_watch --config /dev/null $(TEST_DIR) -- -q --tb=short --disable-warnings
+	@echo "$(GREEN)✓ docker está rodando$(RESET)"
 
-# Qualidade de código
-lint: check-mise
-	@echo "$(CYAN)Verificando estilo de código...$(RESET)"
-	@$(BLACK) --check $(PYTHON_FILES) || (echo "$(RED)✗ Código não está formatado$(RESET)" && exit 1)
-	@echo "$(GREEN)✓ Código está formatado corretamente$(RESET)"
+# Detectar versão do Docker Compose (v2: docker compose, v1: docker-compose)
+DOCKER_COMPOSE := $(shell docker compose version >/dev/null 2>&1 && echo "docker compose" || echo "docker-compose")
 
-format: check-mise
+.PHONY: docker-build
+docker-build: check-docker
+	@echo "$(CYAN)Construindo imagem Docker para desenvolvimento...$(RESET)"
+	@$(DOCKER_COMPOSE) build
+
+.PHONY: docker-test
+docker-test: check-docker
+	@echo "$(CYAN)Executando testes no Docker...$(RESET)"
+	@$(DOCKER_COMPOSE) run --rm dev python3 -m pytest tests/ -v --tb=short
+
+.PHONY: docker-shell
+docker-shell: check-docker
+	@echo "$(CYAN)Abrindo shell interativo no container...$(RESET)"
+	@$(DOCKER_COMPOSE) run --rm dev /bin/bash
+
+.PHONY: docker-format
+docker-format: check-docker
+	@echo "$(CYAN)Formatando código com black no Docker...$(RESET)"
+	@$(DOCKER_COMPOSE) run --rm dev black src/ core/ config/ tests/
+
+.PHONY: docker-clean
+docker-clean: check-docker
+	@echo "$(CYAN)Limpando containers e imagens Docker...$(RESET)"
+	@$(DOCKER_COMPOSE) down -v
+	@docker rmi jira-quick-task_dev 2>/dev/null || true
+	@echo "$(GREEN)✓ Limpeza concluída$(RESET)"
+
+# ============================================================================
+# Flatpak (Distribuição)
+# ============================================================================
+
+.PHONY: check-flatpak
+check-flatpak:
+	@echo "$(CYAN)Verificando Flatpak...$(RESET)"
+	@if ! command -v flatpak >/dev/null 2>&1; then \
+		echo "$(RED)✗ flatpak não está instalado$(RESET)"; \
+		echo "$(YELLOW)Instale com: sudo apt install flatpak$(RESET)"; \
+		exit 1; \
+	fi
+	@echo "$(GREEN)✓ flatpak instalado: $$(flatpak --version)$(RESET)"
+	@if ! command -v flatpak-builder >/dev/null 2>&1; then \
+		echo "$(RED)✗ flatpak-builder não está instalado$(RESET)"; \
+		echo "$(YELLOW)Instale com: sudo apt install flatpak-builder$(RESET)"; \
+		exit 1; \
+	fi
+	@echo "$(GREEN)✓ flatpak-builder instalado$(RESET)"
+	@if [ ! -f "$(MANIFEST)" ]; then \
+		echo "$(RED)✗ Arquivo '$(MANIFEST)' não encontrado$(RESET)"; \
+		exit 1; \
+	fi
+	@echo "$(GREEN)✓ Manifest encontrado: $(MANIFEST)$(RESET)"
+
+.PHONY: flatpak-install-deps
+flatpak-install-deps: check-flatpak
+	@echo "$(CYAN)Instalando dependências do Flatpak...$(RESET)"
+	@./build-flatpak.sh install-deps
+
+.PHONY: flatpak-build
+flatpak-build: check-flatpak
+	@echo "$(CYAN)Construindo Flatpak...$(RESET)"
+	@./build-flatpak.sh build
+
+.PHONY: flatpak-run
+flatpak-run: check-flatpak
+	@echo "$(CYAN)Executando aplicação Flatpak...$(RESET)"
+	@./build-flatpak.sh test
+
+
+.PHONY: flatpak-clean
+flatpak-clean: check-flatpak
+	@echo "$(CYAN)Limpando dados do Flatpak...$(RESET)"
+	@./build-flatpak.sh clean
+
+# ============================================================================
+# Utilitários
+# ============================================================================
+
+.PHONY: format
+format:
 	@echo "$(CYAN)Formatando código...$(RESET)"
-	@$(BLACK) $(PYTHON_FILES)
-	@echo "$(GREEN)✓ Código formatado$(RESET)"
-
-# Geração de ícones
-icons: check-mise
-	@echo "$(CYAN)Gerando ícones PNG a partir do SVG...$(RESET)"
-	@if command -v rsvg-convert >/dev/null 2>&1; then \
-		echo "$(GREEN)Usando rsvg-convert (melhor qualidade para gradientes)$(RESET)"; \
-		cd assets && for s in 16 22 24 32 48 64 128 256; do \
-			rsvg-convert -w $$s -h $$s -o "jira-quick-task-$$s.png" jira-quick-task.svg; \
-		done; \
-	elif command -v convert >/dev/null 2>&1; then \
-		echo "$(YELLOW)Usando ImageMagick (fallback)$(RESET)"; \
-		cd assets && for s in 16 22 24 32 48 64 128 256; do \
-			convert -background transparent -density 300 -colorspace sRGB -alpha on -resize "$${s}x$${s}" jira-quick-task.svg "jira-quick-task-$$s.png"; \
-		done; \
+	@if command -v black >/dev/null 2>&1; then \
+		black src/ core/ config/ tests/; \
+		echo "$(GREEN)✓ Código formatado$(RESET)"; \
 	else \
-		echo "$(RED)Erro: rsvg-convert ou ImageMagick não encontrados$(RESET)"; \
-		echo "Instale: sudo apt-get install librsvg2-bin imagemagick"; \
+		echo "$(YELLOW)⚠ black não encontrado no host$(RESET)"; \
+		echo "$(YELLOW)Instale com: pip3 install black$(RESET)"; \
+		echo "$(YELLOW)Ou formate dentro do Flatpak após o build$(RESET)"; \
 		exit 1; \
 	fi
-	@echo "$(GREEN)✓ Ícones PNG gerados$(RESET)"
 
-# Execução
-run: check-mise
-	@echo "$(CYAN)Executando aplicação...$(RESET)"
-	@./jira-quick-task.sh
-
-# Limpeza
+.PHONY: clean
 clean:
 	@echo "$(CYAN)Limpando arquivos gerados...$(RESET)"
 	@find . -type d -name "__pycache__" -exec rm -r {} + 2>/dev/null || true
@@ -163,9 +172,7 @@ clean:
 	@find . -type f -name "*.pyo" -delete 2>/dev/null || true
 	@find . -type f -name "*.qmlc" -delete 2>/dev/null || true
 	@find . -type d -name "*.egg-info" -exec rm -r {} + 2>/dev/null || true
+	@find . -type d -name ".pytest_cache" -exec rm -r {} + 2>/dev/null || true
+	@find . -type d -name ".mypy_cache" -exec rm -r {} + 2>/dev/null || true
+	@rm -rf .coverage htmlcov .tox .nox 2>/dev/null || true
 	@echo "$(GREEN)✓ Limpeza concluída$(RESET)"
-
-clean-all: clean
-	@echo "$(CYAN)Limpando arquivos de teste e cobertura...$(RESET)"
-	@rm -rf .coverage htmlcov .pytest_cache .mypy_cache .tox .nox
-	@echo "$(GREEN)✓ Limpeza completa concluída$(RESET)"

@@ -79,8 +79,6 @@ dmypy.json
 *~
 .DS_Store
 
-# Mise
-.mise/
 
 # Local configuration (se houver)
 config.local.json
@@ -93,3 +91,11 @@ config/.jira-config.yml
 
 # Generated .desktop file (template is .desktop.in)
 org.kde.jira-quick-task.desktop
+
+
+# Docker
+.docker/
+pip-cache/
+
+# Flatpak
+.flatpak-builder/

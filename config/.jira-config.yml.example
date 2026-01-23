@@ -60,24 +60,23 @@ issue:
           handle: Sub-task
           subtask: true
 # IMPORTANTE: Este é um arquivo template.
-# O script setup.sh irá criar o arquivo .jira-config.yml a partir deste template
-# e pedir seu e-mail para preencher automaticamente.
-#
-# Se precisar criar manualmente:
+# Para criar o arquivo de configuração:
 #   1. Copie este arquivo: cp config/.jira-config.yml.example config/.jira-config.yml
-#   2. Edite o arquivo e preencha o campo 'login' abaixo com seu e-mail
+#   2. Edite o arquivo e preencha os campos abaixo:
+#      - login: Seu e-mail do Jira
+#      - server: URL do seu servidor Jira (ex: https://seu-projeto.atlassian.net)
 #   3. Configure o token Jira como variável de ambiente (OBRIGATÓRIO):
 #      export JIRA_API_TOKEN=<seu-token>
 #   4. Autentique-se com o ACLI:
-#      echo $JIRA_API_TOKEN | acli jira auth login --site "madeiramadeira.atlassian.net" --email "seu-email@exemplo.com" --token
+#      echo $JIRA_API_TOKEN | acli jira auth login --site "seu-projeto.atlassian.net" --email "seu-email@exemplo.com" --token
 #      
 #      O ACLI usa autenticação via token. O token JIRA_API_TOKEN é necessário
 #      tanto para autenticação do ACLI quanto para operações de worklog via REST API.
 #      NÃO configure o token no arquivo de configuração por questões de segurança.
 #
-login: # PREENCHA COM SEU EMAIL AQUI (será preenchido automaticamente pelo setup.sh)
+login: # PREENCHA COM SEU EMAIL AQUI
 project:
     key: PLATFORM
     type: classic
-server: https://madeiramadeira.atlassian.net
+server: # PREENCHA COM A URL DO SEU SERVIDOR JIRA AQUI (ex: https://seu-projeto.atlassian.net)
 timezone: America/Sao_Paulo

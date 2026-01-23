@@ -5,11 +5,11 @@
  * Refatorado seguindo Clean Code e SOLID
  * Usa componentes reutilizáveis e controllers
  */
-import QtQuick 2.12
-import QtQuick.Layouts 1.12
-import QtQuick.Controls 2.15 as Controls
-import QtQuick.Controls 2.15
-import org.kde.kirigami 2.12 as Kirigami
+import QtQuick
+import QtQuick.Layouts
+import QtQuick.Controls as Controls
+import QtQuick.Controls
+import org.kde.kirigami as Kirigami
 import "../components/forms"
 import "../components/lists"
 import "../controllers"
@@ -60,19 +60,21 @@ Kirigami.Page {
         // (a aplicação deve estar configurada corretamente)
     }
 
-    // Ação principal: Buscar issues
-    mainAction: Kirigami.Action {
-        id: refreshAction
-        text: qsTr("Buscar")
-        icon.name: "search"
-        enabled: !(myIssuesModel && myIssuesModel.isLoading)
-        onTriggered: {
-            if (issueSearchForm) {
-                var query = issueSearchForm.getQuery()
-                refreshIssues(query)
+    // Ações da página (Kirigami 6 usa 'actions' ao invés de 'mainAction')
+    actions: [
+        Kirigami.Action {
+            id: refreshAction
+            text: qsTr("Buscar")
+            icon.name: "search"
+            enabled: !(myIssuesModel && myIssuesModel.isLoading)
+            onTriggered: {
+                if (issueSearchForm) {
+                    var query = issueSearchForm.getQuery()
+                    refreshIssues(query)
+                }
             }
         }
-    }
+    ]
 
     // Função pública para botão global (Main.qml)
     function refreshIssuesFromToolbar() {
@@ -214,7 +216,7 @@ Kirigami.Page {
         }
     }
 
-    SplitView {
+    Controls.SplitView {
         id: splitView
         anchors.fill: parent
         orientation: Qt.Vertical

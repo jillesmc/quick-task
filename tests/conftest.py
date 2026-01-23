@@ -9,9 +9,12 @@ from pathlib import Path
 from unittest.mock import MagicMock, Mock
 from typing import Dict, Any, Generator
 
-# Adicionar pacotes do sistema ao path para acessar PySide2
-# PySide2 está instalado via apt em /usr/lib/python3/dist-packages
-if "/usr/lib/python3/dist-packages" not in sys.path:
+# Adicionar pacotes do sistema ao path para acessar PySide6
+# PySide6 está instalado via apt em /usr/lib/python3/dist-packages
+# No Flatpak, PySide6 vem do runtime, então não precisamos adicionar este caminho
+import os
+is_flatpak = os.path.exists("/.flatpak-info")
+if not is_flatpak and "/usr/lib/python3/dist-packages" not in sys.path:
     sys.path.insert(0, "/usr/lib/python3/dist-packages")
 
 import pytest
