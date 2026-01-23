@@ -69,7 +69,6 @@ class GlobalShortcutManager(QObject):
             )
             self._listener_thread.start()
             self._is_registered = True
-            # Mensagem de debug removida
         except Exception as e:
             print(f"Erro ao registrar atalho global: {e}", file=sys.stderr)
     
@@ -91,7 +90,6 @@ class GlobalShortcutManager(QObject):
                 
                 # Verificar se record extension está disponível
                 if not record_dpy.has_extension("RECORD"):
-                    # Aviso removido (debug)
                     return
                 
                 # Função callback para eventos de teclado

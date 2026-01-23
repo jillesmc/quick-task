@@ -113,20 +113,17 @@ def main():
     single_instance = SingleInstanceManager("jira-quick-task")
     if not single_instance.try_lock():
         # Outra instância já está rodando
-        # Mensagem removida (debug)
         sys.exit(0)
     
     # Criar QApplication (necessário para QSystemTrayIcon)
     app = QApplication(sys.argv)
 
-    # Definir ícone da aplicação
-    # Primeiro tenta usar o ícone do tema (jira-quick-task)
-    # Se não encontrar, usa o SVG local como fallback
-    icon_path = ROOT_DIR / "assets" / "jira-quick-task.svg"
-    if icon_path.exists():
-        app.setWindowIcon(QIcon(str(icon_path)))
+    # Definir ícone da aplicação (Flatpak: ícone está em /app/share/icons)
+    flatpak_icon = Path("/app/share/icons/hicolor/scalable/apps/org.kde.jira-quick-task.svg")
+    icon_path = flatpak_icon  # Usar mesmo se não existir (SystemTrayManager tem fallbacks)
+    if flatpak_icon.exists():
+        app.setWindowIcon(QIcon(str(flatpak_icon)))
     else:
-        # Fallback: tentar usar o ícone do tema pelo nome
         app.setWindowIcon(QIcon.fromTheme("jira-quick-task"))
 
     # Configurar para não fechar quando última janela fecha (manter no tray)
@@ -149,25 +146,15 @@ def main():
     qml_dir = Path(__file__).parent / "qml"
     engine.addImportPath(str(qml_dir.absolute()))
 
-    # Detectar se está rodando no Flatpak
-    is_flatpak = os.path.exists("/.flatpak-info")
-
-    if is_flatpak:
-        # Flatpak: usar caminhos do runtime KDE Platform
-        # BaseApp tem /app/qml, mas Kirigami vem do runtime em /usr/qml
-        qml_paths = [
-            "/app/qml",  # Módulos QML do BaseApp
-            "/usr/qml",  # Módulos QML do KDE Platform runtime (inclui Kirigami)
-        ]
-        for path in qml_paths:
-            if os.path.exists(path):
-                engine.addImportPath(path)
-    else:
-        # Sistema: usar caminho do sistema (desenvolvimento local)
-        # Agora que usamos pacotes do sistema (Qt 6), os plugins são compatíveis
-        qt6_qml_path = "/usr/lib/x86_64-linux-gnu/qt6/qml"
-        if os.path.exists(qt6_qml_path):
-            engine.addImportPath(qt6_qml_path)
+    # Flatpak: usar caminhos do runtime KDE Platform
+    # BaseApp tem /app/qml, mas Kirigami vem do runtime em /usr/qml
+    qml_paths = [
+        "/app/qml",  # Módulos QML do BaseApp
+        "/usr/qml",  # Módulos QML do KDE Platform runtime (inclui Kirigami)
+    ]
+    for path in qml_paths:
+        if os.path.exists(path):
+            engine.addImportPath(path)
 
     # Registrar tipos Python no QML
     qmlRegisterType(IssueModel, "JiraQuickTask", 1, 0, "IssueModel")
@@ -179,7 +166,14 @@ def main():
     jira_service = JiraService()
     
     # Criar SystemTrayManager
-    tray_manager = SystemTrayManager(icon_path, app)
+    try:
+        tray_manager = SystemTrayManager(icon_path, app)
+    except Exception as e:
+        import traceback
+        print(f"Erro ao criar SystemTrayManager: {e}", file=sys.stderr)
+        traceback.print_exc(file=sys.stderr)
+        # Continuar sem tray manager
+        tray_manager = None
     
     # Criar GlobalShortcutManager
     shortcut_manager = GlobalShortcutManager(app)
@@ -263,12 +257,38 @@ def main():
     try:
         shortcut_manager.register_with_window(main_window)
     except Exception:
-        # Aviso removido (debug)
         pass
     
     # Mostrar tray icon
-    if tray_manager.is_available():
-        tray_manager.show()
+    def show_tray_icon():
+        """Função para mostrar o tray icon (pode ser chamada múltiplas vezes)"""
+        try:
+            # Verificar diretamente se system tray está disponível
+            from PySide6.QtWidgets import QSystemTrayIcon
+            tray_available = QSystemTrayIcon.isSystemTrayAvailable()
+            
+            if tray_available:
+                # Tentar usar is_available() primeiro (que tenta criar se necessário)
+                if tray_manager.is_available():
+                    tray_manager.show()
+                elif hasattr(tray_manager, 'tray_icon') and tray_manager.tray_icon is not None:
+                    # Tray icon existe mas is_available() retornou False - mostrar diretamente
+                    tray_manager.show()
+                else:
+                    # Tentar criar tray icon diretamente
+                    tray_manager._setup_tray_icon()
+                    if hasattr(tray_manager, 'tray_icon') and tray_manager.tray_icon is not None:
+                        tray_manager.show()
+        except Exception:
+            pass  # Falha silenciosa - tray icon não é crítico
+    
+    # Tentar mostrar imediatamente
+    show_tray_icon()
+    
+    # Também tentar mostrar após um pequeno delay (para garantir que QApplication está pronto)
+    from PySide6.QtCore import QTimer
+    QTimer.singleShot(100, show_tray_icon)  # Tentar novamente após 100ms
+    QTimer.singleShot(500, show_tray_icon)  # Tentar novamente após 500ms (fallback)
 
     # Executar aplicação
     exit_code = app.exec()

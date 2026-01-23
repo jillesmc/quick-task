@@ -57,7 +57,6 @@ class SingleInstanceManager(QObject):
             # Se falhar, tentar remover e escutar novamente
             QLocalServer.removeServer(server_name)
             if not self.local_server.listen(server_name):
-                # Aviso removido (debug)
                 return
         
         # Conectar sinal de nova conexão

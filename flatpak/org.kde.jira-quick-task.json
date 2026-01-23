@@ -13,10 +13,13 @@
     "--socket=wayland",
     "--device=dri",
     "--socket=pulseaudio",
+    "--socket=session-bus",
     "--filesystem=xdg-config/jira-quick-task:create",
     "--filesystem=xdg-data/jira-quick-task:create",
     "--filesystem=host-etc:ro",
     "--talk-name=org.freedesktop.portal.*",
+    "--talk-name=org.kde.StatusNotifierWatcher",
+    "--talk-name=org.freedesktop.Notifications",
     "--own-name=org.kde.jira-quick-task"
   ],
   "cleanup": [

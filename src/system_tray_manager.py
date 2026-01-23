@@ -39,12 +39,15 @@ class SystemTrayManager(QObject):
         """Configura o ícone do system tray e menu"""
         # Verificar se QtWidgets está disponível
         if QSystemTrayIcon is None:
-            # Aviso removido (debug)
             return
         
         # Verificar se system tray está disponível
-        if not QSystemTrayIcon.isSystemTrayAvailable():
-            # Aviso removido (debug)
+        try:
+            tray_available = QSystemTrayIcon.isSystemTrayAvailable()
+        except Exception:
+            tray_available = False
+        
+        if not tray_available:
             return
         
         # Criar ícone
@@ -78,28 +81,34 @@ class SystemTrayManager(QObject):
     
     def _load_icon(self) -> QIcon:
         """Carrega o ícone do tray"""
+        # Flatpak: tentar usar o ícone instalado primeiro
+        flatpak_icon = Path("/app/share/icons/hicolor/scalable/apps/org.kde.jira-quick-task.svg")
+        if flatpak_icon.exists():
+            return QIcon(str(flatpak_icon))
+        
         # System tray funciona melhor com PNG ao invés de SVG
         # Tentar usar PNG 22x22 ou 24x24 primeiro
-        icon_dir = self.icon_path.parent
-        
-        # Tentar PNG 22x22 (tamanho comum para tray icons)
-        png_22 = icon_dir / "jira-quick-task-22.png"
-        if png_22.exists():
-            return QIcon(str(png_22))
-        
-        # Tentar PNG 24x24
-        png_24 = icon_dir / "jira-quick-task-24.png"
-        if png_24.exists():
-            return QIcon(str(png_24))
-        
-        # Tentar PNG 32x32
-        png_32 = icon_dir / "jira-quick-task-32.png"
-        if png_32.exists():
-            return QIcon(str(png_32))
-        
-        # Fallback: tentar SVG
-        if self.icon_path.exists():
-            return QIcon(str(self.icon_path))
+        if self.icon_path and self.icon_path.exists():
+            icon_dir = self.icon_path.parent
+            
+            # Tentar PNG 22x22 (tamanho comum para tray icons)
+            png_22 = icon_dir / "jira-quick-task-22.png"
+            if png_22.exists():
+                return QIcon(str(png_22))
+            
+            # Tentar PNG 24x24
+            png_24 = icon_dir / "jira-quick-task-24.png"
+            if png_24.exists():
+                return QIcon(str(png_24))
+            
+            # Tentar PNG 32x32
+            png_32 = icon_dir / "jira-quick-task-32.png"
+            if png_32.exists():
+                return QIcon(str(png_32))
+            
+            # Fallback: tentar SVG
+            if self.icon_path.exists():
+                return QIcon(str(self.icon_path))
         
         # Último fallback: ícone do tema
         return QIcon.fromTheme("jira-quick-task")
@@ -124,4 +133,15 @@ class SystemTrayManager(QObject):
         """Verifica se system tray está disponível"""
         if QSystemTrayIcon is None:
             return False
-        return QSystemTrayIcon.isSystemTrayAvailable() and self.tray_icon is not None
+        
+        # Sempre verificar se system tray está disponível (pode mudar durante execução)
+        try:
+            tray_available = QSystemTrayIcon.isSystemTrayAvailable()
+        except Exception:
+            tray_available = False
+        
+        # Se tray_icon não foi criado E system tray está disponível, tentar criar
+        if self.tray_icon is None and tray_available:
+            self._setup_tray_icon()
+        
+        return tray_available and self.tray_icon is not None

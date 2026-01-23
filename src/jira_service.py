@@ -87,16 +87,12 @@ class JiraWorker(QThread):
                 custom_fields[uso_ia_alias] = self.uso_ia if self.uso_ia else "Não"
 
             # Obter assignee: usar do config ou inferir do usuário atual do jira-cli
-            print(f"[DEBUG] JiraWorker.run: Obtendo assignee...", file=sys.stderr)
             assignee = self.config.get_assignee()
             if not assignee:
                 # Tentar obter do usuário atual do jira-cli
-                print(f"[DEBUG] JiraWorker.run: Assignee não encontrado no config, tentando get_current_user...", file=sys.stderr)
                 assignee = self.jira_client.get_current_user()
                 # Se não conseguir obter, assignee será None e a issue será criada sem assignee
-            print(f"[DEBUG] JiraWorker.run: Assignee={assignee}", file=sys.stderr)
 
-            print(f"[DEBUG] JiraWorker.run: Chamando create_issue...", file=sys.stderr)
             result = self.jira_client.create_issue(
                 project=self.config.get_project(),
                 issue_type=self.config.get_issue_type(),
@@ -106,12 +102,9 @@ class JiraWorker(QThread):
                 custom_fields=custom_fields,
                 parent_issue_key=self.parent_epic_key or None,
             )
-            print(f"[DEBUG] JiraWorker.run: create_issue retornou: {result}", file=sys.stderr)
 
             issue_key = result["issue_key"]
             issue_url = result["issue_url"]
-
-            print(f"[DEBUG] JiraWorker.run: Issue criada - key={issue_key}, url={issue_url}", file=sys.stderr)
             self.progressUpdated.emit(50, "Issue criada com sucesso!")
 
             # Os campos customizados já foram passados na criação da issue
