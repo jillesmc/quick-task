@@ -1,7 +1,7 @@
 """
 Modelo para lista de issues do usuário logado
 
-Expõe uma lista simples de issues para uso em QML, obtida via ACLI (Atlassian CLI).
+Expõe uma lista simples de issues para uso em QML, obtida via Jira REST API v3.
 """
 
 from pathlib import Path
@@ -115,8 +115,48 @@ class MyIssuesModel(QObject):
                 account_id = self._config.get_account_id()
             self._jira_client = JiraClient(jira_cli_config_path=jira_cli_config_path, account_id=account_id)
         except RuntimeError as e:  # pragma: no cover - log simples
-            print(f"Erro ao inicializar JiraClient em MyIssuesModel: {e}", file=sys.stderr)
+            # Não é erro crítico - é esperado na primeira inicialização sem config
+            # Usar debug_log para não alarmar
+            try:
+                from src.utils.debug import debug_log
+                debug_log("MyIssuesModel", "__init__", 
+                         "JiraClient não inicializado: %s (normal se configuração ainda não foi feita)", e)
+            except ImportError:
+                # Se debug não estiver disponível, não fazer nada (silencioso)
+                pass
             self._jira_client = None
+
+    @Slot()
+    def reloadConfiguration(self) -> None:
+        """
+        Recarrega configuração e recria JiraClient.
+        Deve ser chamado após salvar configurações.
+        """
+        try:
+            from src.utils.debug import debug_log
+            debug_log("MyIssuesModel", "reloadConfiguration", "Recarregando configuração...")
+            
+            # Recarregar ConfigManager
+            self._config = ConfigManager()
+            
+            # Recriar JiraClient com nova config
+            jira_cli_config_path = None
+            account_id = None
+            if self._config:
+                jira_cli_config_path = self._config.get_jira_cli_config_path()
+                account_id = self._config.get_account_id()
+            
+            try:
+                self._jira_client = JiraClient(jira_cli_config_path=jira_cli_config_path, account_id=account_id)
+                debug_log("MyIssuesModel", "reloadConfiguration", "JiraClient recriado com sucesso")
+            except RuntimeError as e:
+                debug_log("MyIssuesModel", "reloadConfiguration", 
+                         "JiraClient não pôde ser recriado: %s", e)
+                self._jira_client = None
+        except Exception as e:
+            from src.utils.debug import debug_log
+            debug_log("MyIssuesModel", "reloadConfiguration", "Erro ao recarregar: %s", e)
+            # Manter estado anterior em caso de erro
 
     # ------------------------------------------------------------------
     # Propriedades
@@ -150,7 +190,7 @@ class MyIssuesModel(QObject):
         Resolve o email do assignee padrão:
 
         1. Usa o assignee configurado em config.json, se houver
-        2. Caso contrário, tenta obter o usuário atual via ACLI ou .jira-config.yml
+        2. Caso contrário, tenta obter o usuário atual via .jira-config.yml
         """
         if not self._config:
             return None
@@ -180,7 +220,7 @@ class MyIssuesModel(QObject):
             query: Texto opcional para buscar por summary ou key. Se vazio, busca todas as issues.
         """
         if not self._jira_client:
-            self.errorOccurred.emit("ACLI não inicializado para MyIssuesModel")
+            self.errorOccurred.emit("JiraClient não inicializado. Configure a conexão na aba de Configurações.")
             return
 
         assignee_email = self._resolve_assignee_email()

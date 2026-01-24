@@ -28,6 +28,30 @@ Kirigami.ApplicationWindow {
     // Inicializar Kirigami (ajuda a reduzir warnings)
     Component.onCompleted: {
         Kirigami.Theme.inherit = true
+        
+        // Verificar se precisa configurar antes de abrir
+        // (stack e tabBar são definidos depois, então usamos Qt.callLater para garantir que estejam prontos)
+        Qt.callLater(function() {
+            if (stack && tabBar && settingsModel) {
+                // Verificar se configuração está completa
+                // needsConfiguration verifica se arquivos existem E se valores estão preenchidos
+                if (settingsModel.needsConfiguration || !settingsModel.isConfigured) {
+                    // Não está configurado - abrir na aba de Configuração (índice 2)
+                    stack.currentIndex = 2
+                    tabBar.currentIndex = 2
+                } else {
+                    // Está configurado - abrir na primeira aba (Criar Issue, índice 0)
+                    stack.currentIndex = 0
+                    tabBar.currentIndex = 0
+                }
+            } else {
+                // Se settingsModel não estiver disponível, abrir na primeira aba por padrão
+                if (stack && tabBar) {
+                    stack.currentIndex = 0
+                    tabBar.currentIndex = 0
+                }
+            }
+        })
     }
 
     // -----------------------------------------------------------------
@@ -37,12 +61,16 @@ Kirigami.ApplicationWindow {
         id: shortcutCreateOrUpdate
         sequences: [ "Ctrl+Return", "Ctrl+Enter" ]
         onActivated: {
-            if (tabBar.currentIndex === 0) {
-                // Aba 1: Criar Issue - delega a validação e feedback ao controller
+            // Não fazer nada se estiver na página de configuração (índice 2)
+            if (stack.currentIndex === 2) return
+            
+            if (stack.currentIndex === 0) {
+                // Aba Criar Issue - delega a validação e feedback ao controller
                 if (createPage && createPage.createIssueFromToolbar) {
                     createPage.createIssueFromToolbar()
                 }
-            } else {
+            } else if (stack.currentIndex === 1) {
+                // Aba Minhas Issues: Atualizar task
                 if (issuesPage && issuesPage.updateIssue) {
                     issuesPage.updateIssue()
                 }
@@ -68,15 +96,28 @@ Kirigami.ApplicationWindow {
         id: shortcutSwitchTab
         sequence: "Ctrl+Tab"
         onActivated: {
-            // Alternar para a próxima aba (avançar)
-            if (tabBar.currentIndex === 0) {
+            // Alternar apenas entre as duas abas principais (índices 0 e 1)
+            // Ignorar a aba de Configuração (índice 2)
+            var currentIdx = stack.currentIndex
+            
+            // Se estiver na aba de Configuração (2), ir para Criar Issue (0)
+            if (currentIdx === 2) {
+                stack.currentIndex = 0
+                tabBar.currentIndex = 0
+            }
+            // Se estiver em Criar Issue (0), ir para Minhas Issues (1)
+            else if (currentIdx === 0) {
+                stack.currentIndex = 1
                 tabBar.currentIndex = 1
                 // Buscar issues automaticamente apenas na primeira vez
                 if (issuesPage && !issuesPage.initialSearchDone) {
                     issuesPage.refreshIssues("")
                     issuesPage.initialSearchDone = true
                 }
-            } else {
+            }
+            // Se estiver em Minhas Issues (1), voltar para Criar Issue (0)
+            else {
+                stack.currentIndex = 0
                 tabBar.currentIndex = 0
             }
         }
@@ -86,15 +127,33 @@ Kirigami.ApplicationWindow {
         id: shortcutSwitchTabBack
         sequence: "Ctrl+Shift+Tab"
         onActivated: {
-            // Alternar para a aba anterior (voltar)
-            if (tabBar.currentIndex === 0) {
+            // Alternar apenas entre as duas abas principais (índices 0 e 1)
+            // Ignorar a aba de Configuração (índice 2)
+            var currentIdx = stack.currentIndex
+            
+            // Se estiver na aba de Configuração (2), ir para Minhas Issues (1)
+            if (currentIdx === 2) {
+                stack.currentIndex = 1
                 tabBar.currentIndex = 1
                 // Buscar issues automaticamente apenas na primeira vez
                 if (issuesPage && !issuesPage.initialSearchDone) {
                     issuesPage.refreshIssues("")
                     issuesPage.initialSearchDone = true
                 }
-            } else {
+            }
+            // Se estiver em Criar Issue (0), ir para Minhas Issues (1)
+            else if (currentIdx === 0) {
+                stack.currentIndex = 1
+                tabBar.currentIndex = 1
+                // Buscar issues automaticamente apenas na primeira vez
+                if (issuesPage && !issuesPage.initialSearchDone) {
+                    issuesPage.refreshIssues("")
+                    issuesPage.initialSearchDone = true
+                }
+            }
+            // Se estiver em Minhas Issues (1), voltar para Criar Issue (0)
+            else {
+                stack.currentIndex = 0
                 tabBar.currentIndex = 0
             }
         }
@@ -112,10 +171,14 @@ Kirigami.ApplicationWindow {
         Controls.TabBar {
             id: tabBar
             Layout.fillWidth: true
+            currentIndex: stack.currentIndex
 
+            // Aba Criar Issue
             Controls.TabButton {
                 text: "Criar Issue"
             }
+            
+            // Aba Minhas Issues
             Controls.TabButton {
                 text: "Minhas Issues"
                 onClicked: {
@@ -126,16 +189,33 @@ Kirigami.ApplicationWindow {
                     }
                 }
             }
+
+            // Aba de Configuração (última, à direita)
+            Controls.TabButton {
+                icon.name: "configure"
+            }
         }
 
         // Botão global que muda dinamicamente baseado na aba ativa
         Controls.ToolButton {
             id: globalActionButton
-            text: tabBar.currentIndex === 0 ? qsTr("Criar") : qsTr("Atualizar task")
-            icon.name: tabBar.currentIndex === 0 ? "document-new" : "document-save"
+            text: {
+                if (stack.currentIndex === 2) return ""  // Página de configuração não tem ação global
+                if (stack.currentIndex === 0) return qsTr("Criar")
+                if (stack.currentIndex === 1) return qsTr("Atualizar task")
+                return ""
+            }
+            icon.name: {
+                if (stack.currentIndex === 2) return ""  // Página de configuração não tem ação global
+                if (stack.currentIndex === 0) return "document-new"
+                if (stack.currentIndex === 1) return "document-save"
+                return ""
+            }
+            visible: stack.currentIndex !== 2  // Ocultar na página de configuração
             enabled: {
-                if (tabBar.currentIndex === 0) {
-                    // Aba 1: Criar Issue
+                if (stack.currentIndex === 2) return false  // Página de configuração
+                if (stack.currentIndex === 0) {
+                    // Aba Criar Issue
                     if (!createPage)
                         return false
                     if (createPage.isProcessing !== undefined && createPage.isProcessing)
@@ -145,8 +225,8 @@ Kirigami.ApplicationWindow {
                         return false
                     var s = issueModel.summary ? issueModel.summary.trim() : ""
                     return s.length > 0
-                } else {
-                    // Aba 2: Atualizar task
+                } else if (stack.currentIndex === 1) {
+                    // Aba Minhas Issues: Atualizar task
                     if (!issuesPage) return false
                     if (issuesPage.controller === undefined || !issuesPage.controller) return false
                     if (issuesPage.selectedIssueKey === undefined || issuesPage.selectedIssueKey === "") return false
@@ -155,15 +235,17 @@ Kirigami.ApplicationWindow {
                     if (typeof jiraService.isAvailable !== "function") return false
                     return jiraService.isAvailable()
                 }
+                return false
             }
             onClicked: {
-                if (tabBar.currentIndex === 0) {
-                    // Aba 1: Criar Issue
+                if (stack.currentIndex === 2) return  // Página de configuração
+                if (stack.currentIndex === 0) {
+                    // Aba Criar Issue
                     if (createPage && createPage.createIssueFromToolbar) {
                         createPage.createIssueFromToolbar()
                     }
-                } else {
-                    // Aba 2: Atualizar task
+                } else if (stack.currentIndex === 1) {
+                    // Aba Minhas Issues: Atualizar task
                     if (issuesPage && issuesPage.updateIssue) {
                         issuesPage.updateIssue()
                     }
@@ -176,14 +258,17 @@ Kirigami.ApplicationWindow {
     property string sharedEpicKey: ""
     property string sharedEpicSummary: ""
 
+
     // -----------------------------------------------------------------
     // Conteúdo principal: abas empilhadas
     // -----------------------------------------------------------------
     StackLayout {
         id: stack
         anchors.fill: parent
+        // Sincronizar com TabBar
         currentIndex: tabBar.currentIndex
 
+        // Índice 0: Criar Issue
         IssueFormPage {
             id: createPage
             sharedEpicKey: root.sharedEpicKey
@@ -194,6 +279,7 @@ Kirigami.ApplicationWindow {
             }
         }
 
+        // Índice 1: Minhas Issues
         MyIssuesPage {
             id: issuesPage
             sharedEpicKey: root.sharedEpicKey
@@ -202,6 +288,19 @@ Kirigami.ApplicationWindow {
                 root.sharedEpicKey = key
                 root.sharedEpicSummary = summary
             }
+        }
+
+        // Índice 2: Configuração
+        SettingsPage {
+            id: settingsPage
+        }
+    }
+
+    // Sincronizar TabBar com StackLayout quando mudar de aba
+    Connections {
+        target: tabBar
+        function onCurrentIndexChanged() {
+            stack.currentIndex = tabBar.currentIndex
         }
     }
 

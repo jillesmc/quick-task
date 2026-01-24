@@ -326,7 +326,10 @@ class JiraService(QObject):
 
         # Carregar configuração
         try:
+            from src.utils.debug import debug_log
+            debug_log("JiraService", "__init__", "Carregando configuração...")
             self._config = ConfigManager()
+            debug_log("JiraService", "__init__", "Configuração carregada com sucesso")
         except Exception as e:
             print(f"Erro ao carregar configuração: {e}", file=sys.stderr)
             self._config = None
@@ -340,13 +343,53 @@ class JiraService(QObject):
                 account_id = self._config.get_account_id()
             self._jira_client = JiraClient(jira_cli_config_path=jira_cli_config_path, account_id=account_id)
         except RuntimeError as e:
-            print(f"Erro ao inicializar cliente Jira: {e}", file=sys.stderr)
+            # Não é erro crítico - é esperado na primeira inicialização sem config
+            # Usar debug_log para não alarmar
+            try:
+                from src.utils.debug import debug_log
+                debug_log("JiraService", "__init__", 
+                         "JiraClient não inicializado: %s (normal se configuração ainda não foi feita)", e)
+            except ImportError:
+                # Se debug não estiver disponível, não fazer nada (silencioso)
+                pass
             self._jira_client = None
 
         self._worker: Optional[JiraWorker] = None
         self._update_worker: Optional[UpdateWorker] = None
         self._epic_search_worker: Optional[QThread] = None
         self._issue_details_worker: Optional[QThread] = None
+
+    @Slot()
+    def reloadConfiguration(self) -> None:
+        """
+        Recarrega configuração e recria JiraClient.
+        Deve ser chamado após salvar configurações.
+        """
+        try:
+            from src.utils.debug import debug_log
+            debug_log("JiraService", "reloadConfiguration", "Recarregando configuração...")
+            
+            # Recarregar ConfigManager
+            self._config = ConfigManager()
+            
+            # Recriar JiraClient com nova config
+            jira_cli_config_path = None
+            account_id = None
+            if self._config:
+                jira_cli_config_path = self._config.get_jira_cli_config_path()
+                account_id = self._config.get_account_id()
+            
+            try:
+                self._jira_client = JiraClient(jira_cli_config_path=jira_cli_config_path, account_id=account_id)
+                debug_log("JiraService", "reloadConfiguration", "JiraClient recriado com sucesso")
+            except RuntimeError as e:
+                debug_log("JiraService", "reloadConfiguration", 
+                         "JiraClient não pôde ser recriado: %s", e)
+                self._jira_client = None
+        except Exception as e:
+            from src.utils.debug import debug_log
+            debug_log("JiraService", "reloadConfiguration", "Erro ao recarregar: %s", e)
+            # Manter estado anterior em caso de erro
 
     @Slot(str, str, str, str, str, str, bool, str, int, str, str, str, result=bool)
     def createIssue(  # NOSONAR - camelCase necessário para compatibilidade com QML
@@ -458,11 +501,11 @@ class JiraService(QObject):
         """Retorna mensagem de erro se houver"""
         if not self._jira_client:
             return (
-                "acli (Atlassian CLI) não encontrado. Instale com:\n"
-                "  sudo apt install acli\n\n"
-                "Após instalar, configure o token e autentique-se:\n"
-                "  export JIRA_API_TOKEN=<seu-token>\n"
-                "  echo $JIRA_API_TOKEN | acli jira auth login --site \"<seu-site>\" --email \"<seu-email>\" --token"
+                "Configuração do Jira não encontrada. Configure a conexão na aba de Configurações:\n"
+                "  1. URL do servidor Jira\n"
+                "  2. Email do usuário\n"
+                "  3. Token de API do Jira\n\n"
+                "O token pode ser obtido em: https://id.atlassian.com/manage-profile/security/api-tokens"
             )
         if not self._config:
             return "Erro ao carregar configuração"

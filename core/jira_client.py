@@ -32,6 +32,7 @@ class JiraClient:
         self._jira_cli_config_path = jira_cli_config_path
         self._server_url = None
         self._auth_email = None
+        self._api_token = None  # Token do .jira-config.yml (não mais de variável de ambiente)
         self._account_id = account_id  # accountId do usuário atual (do config.json)
         self._load_config_for_rest_api()
         
@@ -48,7 +49,7 @@ class JiraClient:
     def _load_config_for_rest_api(self) -> None:
         """
         Carrega configuração do .jira-config.yml para uso com REST API.
-        Obtém server URL e email para autenticação HTTPBasicAuth.
+        Obtém server URL, email e token para autenticação HTTPBasicAuth.
         """
         if not self._jira_cli_config_path or not self._jira_cli_config_path.exists():
             return
@@ -56,15 +57,22 @@ class JiraClient:
         try:
             import yaml
             with open(self._jira_cli_config_path, 'r', encoding='utf-8') as f:
-                config = yaml.safe_load(f)
-                self._server_url = config.get('server', '').rstrip('/')
-                self._auth_email = config.get('login', '')
+                config = yaml.safe_load(f) or {}
+                server = config.get('server') or ''
+                self._server_url = server.rstrip('/') if server else ''
+                self._auth_email = config.get('login') or ''
+                # Armazenar token do arquivo (não mais de variável de ambiente)
+                self._api_token = config.get('token') or ''
         except Exception as e:
-            print(
-                f"AVISO: Erro ao carregar .jira-config.yml: {e}",
-                file=sys.stderr
-            )
             # Não é crítico aqui - será validado no __init__
+            # Usar debug_log para não alarmar na primeira inicialização
+            try:
+                from src.utils.debug import debug_log
+                debug_log("JiraClient", "_load_config_for_rest_api", 
+                         "Erro ao carregar .jira-config.yml: %s (normal na primeira inicialização)", e)
+            except ImportError:
+                # Se debug não estiver disponível, não fazer nada (silencioso)
+                pass
 
     def _get_auth(self) -> HTTPBasicAuth:
         """
@@ -74,20 +82,19 @@ class JiraClient:
             HTTPBasicAuth com email e token
             
         Raises:
-            RuntimeError: Se JIRA_API_TOKEN ou email não estiverem configurados
+            RuntimeError: Se token ou email não estiverem configurados no .jira-config.yml
         """
-        api_token = os.environ.get("JIRA_API_TOKEN")
-        if not api_token:
+        if not self._api_token:
             raise RuntimeError(
-                "JIRA_API_TOKEN não encontrado na variável de ambiente. "
-                "Configure com: export JIRA_API_TOKEN=<seu-token>"
+                "Token de API não encontrado no arquivo de configuração (.jira-config.yml). "
+                "Configure o campo 'token' na tela de configuração da aplicação."
             )
         if not self._auth_email:
             raise RuntimeError(
                 "Email não encontrado na configuração (.jira-config.yml). "
-                "Configure o campo 'login' no arquivo de configuração."
+                "Configure o campo 'login' na tela de configuração da aplicação."
             )
-        return HTTPBasicAuth(self._auth_email, api_token)
+        return HTTPBasicAuth(self._auth_email, self._api_token)
 
     def _make_request(
         self,
@@ -123,20 +130,13 @@ class JiraClient:
             "Content-Type": "application/json"
         }
         
-        print(
-            f"[DEBUG] _make_request: {method} {url}",
-            file=sys.stderr
-        )
+        # Importar debug_log aqui para evitar dependência circular
+        from src.utils.debug import debug_log
+        debug_log("JiraClient", "_make_request", "%s %s", method, url)
         if json_data:
-            print(
-                f"[DEBUG] _make_request: JSON keys: {list(json_data.keys())}",
-                file=sys.stderr
-            )
+            debug_log("JiraClient", "_make_request", "JSON keys: %s", list(json_data.keys()))
         if params:
-            print(
-                f"[DEBUG] _make_request: Params: {params}",
-                file=sys.stderr
-            )
+            debug_log("JiraClient", "_make_request", "Params: %s", params)
         
         try:
             response = requests.request(
@@ -149,10 +149,8 @@ class JiraClient:
                 timeout=timeout
             )
             
-            print(
-                f"[DEBUG] _make_request: Response status={response.status_code}",
-                file=sys.stderr
-            )
+            from src.utils.debug import debug_log
+            debug_log("JiraClient", "_make_request", "Response status=%d", response.status_code)
             
             if response.status_code >= 400:
                 error_msg = response.text or f"HTTP {response.status_code}"
@@ -172,21 +170,16 @@ class JiraClient:
                         else:
                             error_msg = str(errors_dict)
                     # Log completo do erro e payload para debug
-                    print(
-                        f"[DEBUG] _make_request: Erro completo: {json.dumps(error_json, indent=2)}",
-                        file=sys.stderr
-                    )
+                    from src.utils.debug import debug_log
+                    debug_log("JiraClient", "_make_request", "Erro completo: %s", 
+                             json.dumps(error_json, indent=2))
                     if json_data:
-                        print(
-                            f"[DEBUG] _make_request: Payload que causou erro: {json.dumps(json_data, indent=2)}",
-                            file=sys.stderr
-                        )
+                        debug_log("JiraClient", "_make_request", "Payload que causou erro: %s", 
+                                 json.dumps(json_data, indent=2))
                 except (json.JSONDecodeError, KeyError):
                     # Se não conseguir parsear JSON, mostrar texto completo
-                    print(
-                        f"[DEBUG] _make_request: Response text completo: {response.text}",
-                        file=sys.stderr
-                    )
+                    from src.utils.debug import debug_log
+                    debug_log("JiraClient", "_make_request", "Response text completo: %s", response.text)
                 
                 raise RuntimeError(
                     f"Erro na requisição {method} {endpoint} (HTTP {response.status_code}): {error_msg}"
@@ -253,10 +246,9 @@ class JiraClient:
             
             # Garantir que users é uma lista
             if not isinstance(users, list):
-                print(
-                    f"[DEBUG] _get_user_account_id: Resposta inesperada do user/search (não é lista): {type(users)}",
-                    file=sys.stderr
-                )
+                from src.utils.debug import debug_log
+                debug_log("JiraClient", "_get_user_account_id", 
+                         "Resposta inesperada do user/search (não é lista): %s", type(users))
                 return None
             
             # Procurar usuário com email correspondente
@@ -264,26 +256,22 @@ class JiraClient:
                 if user.get("emailAddress", "").lower() == email.strip().lower():
                     account_id = user.get("accountId")
                     if account_id:
-                        print(
-                            f"[DEBUG] _get_user_account_id: Encontrado accountId={account_id} para email={email}",
-                            file=sys.stderr
-                        )
+                        from src.utils.debug import debug_log
+                        debug_log("JiraClient", "_get_user_account_id", 
+                                 "Encontrado accountId=%s para email=%s", account_id, email)
                         return account_id
             
             # Se não encontrou por email, tentar usar o primeiro resultado se houver
             if users and len(users) > 0:
                 account_id = users[0].get("accountId")
                 if account_id:
-                    print(
-                        f"[DEBUG] _get_user_account_id: Usando primeiro resultado accountId={account_id} para email={email}",
-                        file=sys.stderr
-                    )
+                    from src.utils.debug import debug_log
+                    debug_log("JiraClient", "_get_user_account_id", 
+                             "Usando primeiro resultado accountId=%s para email=%s", account_id, email)
                     return account_id
             
-            print(
-                f"[DEBUG] _get_user_account_id: Não encontrou accountId para email={email}",
-                file=sys.stderr
-            )
+            from src.utils.debug import debug_log
+            debug_log("JiraClient", "_get_user_account_id", "Não encontrou accountId para email=%s", email)
             return None
         except RuntimeError as e:
             print(
@@ -321,7 +309,8 @@ class JiraClient:
         Returns:
             Dicionário no formato ADF
         """
-        print(f"[DEBUG] _text_to_adf: Iniciando conversão (text_len={len(text) if text else 0})", file=sys.stderr)
+        from src.utils.debug import debug_log
+        debug_log("JiraClient", "_text_to_adf", "Iniciando conversão (text_len=%d)", len(text) if text else 0)
         if not text or not text.strip():
             return {
                 "version": 1,
@@ -330,7 +319,7 @@ class JiraClient:
             }
         
         lines = text.split('\n')
-        print(f"[DEBUG] _text_to_adf: Texto dividido em {len(lines)} linhas", file=sys.stderr)
+        debug_log("JiraClient", "_text_to_adf", "Texto dividido em %d linhas", len(lines))
         content = []
         i = 0
         in_code_block = False
@@ -339,7 +328,7 @@ class JiraClient:
         
         while i < len(lines):
             if i % 50 == 0:  # Log a cada 50 linhas para não poluir muito
-                print(f"[DEBUG] _text_to_adf: Processando linha {i}/{len(lines)}", file=sys.stderr)
+                debug_log("JiraClient", "_text_to_adf", "Processando linha %d/%d", i, len(lines))
             line = lines[i]
             stripped = line.strip()
             
@@ -388,7 +377,7 @@ class JiraClient:
             # Lista ordenada
             ordered_list_match = re.match(r'^(\d+)\.\s+(.+)$', stripped)
             if ordered_list_match:
-                print(f"[DEBUG] _text_to_adf: Encontrada lista ordenada na linha {i}", file=sys.stderr)
+                debug_log("JiraClient", "_text_to_adf", "Encontrada lista ordenada na linha %d", i)
                 list_items = []
                 list_start = i
                 while i < len(lines) and re.match(r'^\d+\.\s+', lines[i].strip()):
@@ -404,7 +393,7 @@ class JiraClient:
                         })
                     i += 1
                     if i - list_start > 1000:  # Proteção contra loop infinito
-                        print(f"[DEBUG] _text_to_adf: AVISO - Lista ordenada muito longa, parando em {i}", file=sys.stderr)
+                        debug_log("JiraClient", "_text_to_adf", "AVISO - Lista ordenada muito longa, parando em %d", i)
                         break
                 if list_items:
                     content.append({
@@ -416,7 +405,7 @@ class JiraClient:
             # Lista não ordenada
             unordered_list_match = re.match(r'^[-*+]\s+(.+)$', stripped)
             if unordered_list_match:
-                print(f"[DEBUG] _text_to_adf: Encontrada lista não ordenada na linha {i}", file=sys.stderr)
+                debug_log("JiraClient", "_text_to_adf", "Encontrada lista não ordenada na linha %d", i)
                 list_items = []
                 list_start = i
                 while i < len(lines) and re.match(r'^[-*+]\s+', lines[i].strip()):
@@ -432,7 +421,7 @@ class JiraClient:
                         })
                     i += 1
                     if i - list_start > 1000:  # Proteção contra loop infinito
-                        print(f"[DEBUG] _text_to_adf: AVISO - Lista não ordenada muito longa, parando em {i}", file=sys.stderr)
+                        debug_log("JiraClient", "_text_to_adf", "AVISO - Lista não ordenada muito longa, parando em %d", i)
                         break
                 if list_items:
                     content.append({
@@ -444,7 +433,7 @@ class JiraClient:
             # Parágrafo normal
             if stripped:
                 if len(stripped) > 1000:  # Log para parágrafos muito longos
-                    print(f"[DEBUG] _text_to_adf: Processando parágrafo longo ({len(stripped)} chars) na linha {i}", file=sys.stderr)
+                    debug_log("JiraClient", "_text_to_adf", "Processando parágrafo longo (%d chars) na linha %d", len(stripped), i)
                 content.append({
                     "type": "paragraph",
                     "content": JiraClient._parse_inline_formatting(stripped)
@@ -473,7 +462,7 @@ class JiraClient:
         if not content:
             content = [{"type": "paragraph", "content": []}]
         
-        print(f"[DEBUG] _text_to_adf: Conversão concluída - {len(content)} elementos no content", file=sys.stderr)
+        debug_log("JiraClient", "_text_to_adf", "Conversão concluída - %d elementos no content", len(content))
         return {
             "version": 1,
             "type": "doc",
@@ -496,7 +485,8 @@ class JiraClient:
         
         # Log apenas para textos muito longos para não poluir
         if len(text) > 500:
-            print(f"[DEBUG] _parse_inline_formatting: Processando texto longo ({len(text)} chars)", file=sys.stderr)
+            from src.utils.debug import debug_log
+            debug_log("JiraClient", "_parse_inline_formatting", "Processando texto longo (%d chars)", len(text))
         
         nodes = []
         i = 0
@@ -507,7 +497,9 @@ class JiraClient:
         while i < text_len:
             iterations += 1
             if iterations > max_iterations:
-                print(f"[DEBUG] _parse_inline_formatting: AVISO - Loop infinito detectado! i={i}, text_len={text_len}, text_resto={text[i:i+50]}", file=sys.stderr)
+                debug_log("JiraClient", "_parse_inline_formatting", 
+                         "AVISO - Loop infinito detectado! i=%d, text_len=%d, text_resto=%s", 
+                         i, text_len, text[i:i+50])
                 # Adicionar o resto do texto como texto simples e sair
                 if i < text_len:
                     nodes.append({"type": "text", "text": text[i:]})
@@ -633,8 +625,11 @@ class JiraClient:
         Raises:
             RuntimeError: Se a criação falhar
         """
-        print(f"[DEBUG] create_issue: Iniciando - project={project}, type={issue_type}, summary={summary[:50]}...", file=sys.stderr)
-        print(f"[DEBUG] create_issue: custom_fields={custom_fields}, parent={parent_issue_key}, assignee={assignee}", file=sys.stderr)
+        from src.utils.debug import debug_log
+        debug_log("JiraClient", "create_issue", "Iniciando - project=%s, type=%s, summary=%s...", 
+                 project, issue_type, summary[:50] if summary else "")
+        debug_log("JiraClient", "create_issue", "custom_fields=%s, parent=%s, assignee=%s", 
+                 custom_fields, parent_issue_key, assignee)
         
         # Construir estrutura fields para REST API
         fields: Dict[str, Any] = {
@@ -645,9 +640,9 @@ class JiraClient:
         
         # Converter description para ADF se fornecido
         if description:
-            print(f"[DEBUG] create_issue: Convertendo description para ADF (tamanho={len(description)})...", file=sys.stderr)
+            debug_log("JiraClient", "create_issue", "Convertendo description para ADF (tamanho=%d)...", len(description))
             fields["description"] = self._text_to_adf(description)
-            print(f"[DEBUG] create_issue: Conversão ADF concluída", file=sys.stderr)
+            debug_log("JiraClient", "create_issue", "Conversão ADF concluída")
         
         # Adicionar assignee se fornecido
         # REST API v3 requer accountId (não aceita emailAddress diretamente)
@@ -659,7 +654,7 @@ class JiraClient:
             if assignee_email.lower() == self._auth_email.lower():
                 if self._account_id:
                     account_id = self._account_id
-                    print(f"[DEBUG] create_issue: Usando accountId={account_id} do config.json (usuário atual)", file=sys.stderr)
+                    debug_log("JiraClient", "create_issue", "Usando accountId=%s do config.json (usuário atual)", account_id)
                 else:
                     # Fallback: buscar via /myself se não estiver no config
                     try:
@@ -667,9 +662,9 @@ class JiraClient:
                         myself_data = myself_response.json()
                         account_id = myself_data.get("accountId")
                         if account_id:
-                            print(f"[DEBUG] create_issue: Usando accountId={account_id} obtido via /myself (usuário atual)", file=sys.stderr)
+                            debug_log("JiraClient", "create_issue", "Usando accountId=%s obtido via /myself (usuário atual)", account_id)
                     except Exception as e:
-                        print(f"[DEBUG] create_issue: Erro ao obter accountId via myself: {e}", file=sys.stderr)
+                        debug_log("JiraClient", "create_issue", "Erro ao obter accountId via myself: %s", e)
             
             # Se não encontrou ainda, buscar via user/search
             if not account_id:
@@ -677,7 +672,7 @@ class JiraClient:
             
             if account_id:
                 fields["assignee"] = {"accountId": account_id}
-                print(f"[DEBUG] create_issue: Assignee definido com accountId={account_id} para email={assignee_email}", file=sys.stderr)
+                debug_log("JiraClient", "create_issue", "Assignee definido com accountId=%s para email=%s", account_id, assignee_email)
             else:
                 raise RuntimeError(
                     f"Não foi possível obter accountId para o assignee '{assignee_email}'. "
@@ -701,13 +696,13 @@ class JiraClient:
         # Construir payload completo
         payload = {"fields": fields}
         
-        print("[DEBUG] create_issue: Payload preparado com fields: " + str(list(fields.keys())), file=sys.stderr)
+        debug_log("JiraClient", "create_issue", "Payload preparado com fields: %s", list(fields.keys()))
         
         try:
             response = self._make_request("POST", "issue", json_data=payload, timeout=30)
             data = response.json()
             
-            print(f"[DEBUG] create_issue: Resposta recebida: {list(data.keys())}", file=sys.stderr)
+            debug_log("JiraClient", "create_issue", "Resposta recebida: %s", list(data.keys()))
             
             # Extrair issue_key da resposta
             issue_key = data.get("key", "")
@@ -722,14 +717,14 @@ class JiraClient:
                 # Fallback: construir URL baseado no projeto
                 issue_url = f"https://{project.lower()}.atlassian.net/browse/{issue_key}"
             
-            print(f"[DEBUG] create_issue: Issue criada com sucesso - key={issue_key}, url={issue_url}", file=sys.stderr)
+            debug_log("JiraClient", "create_issue", "Issue criada com sucesso - key=%s, url=%s", issue_key, issue_url)
             return {"issue_key": issue_key, "issue_url": issue_url}
             
         except RuntimeError as e:
-            print(f"[DEBUG] create_issue: ERRO - {e}", file=sys.stderr)
+            debug_log("JiraClient", "create_issue", "ERRO - %s", e)
             raise
         except Exception as e:
-            print(f"[DEBUG] create_issue: ERRO inesperado - {e}", file=sys.stderr)
+            debug_log("JiraClient", "create_issue", "ERRO inesperado - %s", e)
             raise RuntimeError(f"Erro inesperado ao criar issue: {str(e)}") from e
 
     def update_issue(
@@ -808,14 +803,11 @@ class JiraClient:
         payload = {"fields": fields}
         
         # Log detalhado do payload para debug
-        print(
-            f"[DEBUG] update_issue: Payload completo (primeiros 2000 chars):\n{json.dumps(payload, indent=2, ensure_ascii=False)[:2000]}",
-            file=sys.stderr
-        )
-        print(
-            f"[DEBUG] update_issue: Campos sendo atualizados: {list(fields.keys())}",
-            file=sys.stderr
-        )
+        from src.utils.debug import debug_log
+        debug_log("JiraClient", "update_issue", 
+                 "Payload completo (primeiros 2000 chars):\n%s", 
+                 json.dumps(payload, indent=2, ensure_ascii=False)[:2000])
+        debug_log("JiraClient", "update_issue", "Campos sendo atualizados: %s", list(fields.keys()))
 
         try:
             self._make_request("PUT", f"issue/{issue_key}", json_data=payload, timeout=15)
@@ -1018,10 +1010,9 @@ class JiraClient:
             }
 
         # Log do payload para debug
-        print(
-            f"[DEBUG] register_worklog: Payload completo: {json.dumps(payload, indent=2, ensure_ascii=False)}",
-            file=sys.stderr
-        )
+        from src.utils.debug import debug_log
+        debug_log("JiraClient", "register_worklog", "Payload completo: %s", 
+                 json.dumps(payload, indent=2, ensure_ascii=False))
 
         try:
             response = self._make_request("POST", f"issue/{issue_key}/worklog", json_data=payload, timeout=15)

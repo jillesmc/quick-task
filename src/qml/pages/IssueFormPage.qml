@@ -417,14 +417,14 @@ Kirigami.Page {
                     target: epicSearchForm
                     property: "selectedEpicKey"
                     value: page.sharedEpicKey
-                    when: page.sharedEpicKey !== "" && page.sharedEpicKey !== epicSearchForm.selectedEpicKey
+                    when: page.sharedEpicKey !== ""
                 }
                 
                 Binding {
                     target: epicSearchForm
                     property: "selectedEpicSummary"
                     value: page.sharedEpicSummary
-                    when: page.sharedEpicSummary !== "" && page.sharedEpicSummary !== epicSearchForm.selectedEpicSummary
+                    when: page.sharedEpicSummary !== ""
                 }
                 
                 // Binding reverso

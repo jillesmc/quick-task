@@ -50,7 +50,6 @@
         "cp config/config.json.example /app/share/jira-quick-task/config/config.json || true",
         "install -Dm644 assets/jira-quick-task.svg /app/share/icons/hicolor/scalable/apps/org.kde.jira-quick-task.svg || true",
         "install -Dm755 flatpak-wrapper.sh /app/bin/jira-quick-task || true",
-        "install -Dm755 flatpak-config-setup.sh /app/bin/jira-quick-task-config-setup || true",
         "mkdir -p /app/scripts/lib || true",
         "cp scripts/lib/common.sh /app/scripts/lib/common.sh || true"
       ],

@@ -58,10 +58,19 @@ class ConfigManager:
 
     def load_config(self) -> None:
         """Carrega a configuração do arquivo JSON"""
+        # Importar debug_log aqui para evitar dependência circular
+        try:
+            from src.utils.debug import debug_log
+        except ImportError:
+            # Se não conseguir importar (pode acontecer durante inicialização), usar print
+            def debug_log(module, func, msg, *args):
+                pass
+        
         if not self.config_path.exists():
             # Em vez de falhar, criar um dict vazio e logar aviso
             # Isso permite que a aplicação inicie mesmo sem config
             import sys
+            debug_log("ConfigManager", "load_config", "Arquivo de configuração não encontrado: %s", self.config_path)
             print(
                 f"Erro ao carregar configuração: Arquivo de configuração não encontrado: {self.config_path}",
                 file=sys.stderr
@@ -69,19 +78,23 @@ class ConfigManager:
             self._config = {}
             return
 
+        debug_log("ConfigManager", "load_config", "Carregando configuração de: %s", self.config_path)
         try:
             with open(self.config_path, "r", encoding="utf-8") as f:
                 self._config = json.load(f)
+            debug_log("ConfigManager", "load_config", "Configuração carregada com sucesso")
         except json.JSONDecodeError as e:
             import sys
+            debug_log("ConfigManager", "load_config", "Erro ao decodificar JSON: %s", e)
             print(
-                f"Erro ao decodificar JSON do arquivo de configuração: {e}",
+                f"Erro ao decodificar JSON: {e}",
                 file=sys.stderr
             )
             self._config = {}
             return
         except Exception as e:
             import sys
+            debug_log("ConfigManager", "load_config", "Erro ao carregar configuração: %s", e)
             print(
                 f"Erro ao carregar configuração: {e}",
                 file=sys.stderr
@@ -93,8 +106,10 @@ class ConfigManager:
         if self._config:
             try:
                 self._validate_config()
+                debug_log("ConfigManager", "load_config", "Configuração validada com sucesso")
             except (ValueError, KeyError) as e:
                 import sys
+                debug_log("ConfigManager", "load_config", "Aviso: Configuração incompleta: %s", e)
                 print(
                     f"Aviso: Configuração incompleta: {e}",
                     file=sys.stderr
@@ -167,7 +182,7 @@ class ConfigManager:
         Retorna o assignee padrão
         
         Se o assignee for "auto" ou None, retorna None para indicar
-        que deve ser inferido do usuário atual (via ACLI ou .jira-config.yml)
+        que deve ser inferido do usuário atual (via .jira-config.yml)
         """
         assignee = self._config.get("assignee")
         if assignee in (None, "", "auto"):
@@ -194,7 +209,7 @@ class ConfigManager:
             ID do campo customizado (ex: customfield_12088) configurado no config.json
         """
         # Retornar o ID diretamente do config.json
-        # ACLI usa IDs diretos de campos customizados (customfield_XXXXX)
+        # REST API usa IDs diretos de campos customizados (customfield_XXXXX)
         custom_fields = self._config.get("custom_fields", {})
         return custom_fields.get(field_name, "")
 
@@ -214,8 +229,8 @@ class ConfigManager:
         """
         Retorna o caminho do arquivo de configuração do Jira (.jira-config.yml)
         
-        Mantido para compatibilidade. Agora usado para obter server URL e email
-        para REST API (worklogs), já que ACLI usa OAuth.
+        Retorna o caminho do arquivo de configuração .jira-config.yml.
+        Usado para obter server URL, email e token para autenticação REST API.
         
         Se jira_cli_config estiver definido no config.json, retorna esse caminho.
         Caso contrário, tenta usar config/.jira-config.yml (arquivo real com credenciais).
@@ -287,9 +302,123 @@ class ConfigManager:
         
         self._config["epic_filters"].update(filters)
         
+        # Se o config_path atual está em /app (somente leitura no Flatpak), usar XDG_CONFIG_HOME
+        if str(self.config_path).startswith("/app/"):
+            xdg_config = os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")
+            self.config_path = Path(xdg_config) / "jira-quick-task" / "config.json"
+        
+        # Garantir que o diretório existe
+        self.config_path.parent.mkdir(parents=True, exist_ok=True)
+        
         # Salvar no arquivo
         try:
             with open(self.config_path, "w", encoding="utf-8") as f:
                 json.dump(self._config, f, indent=2, ensure_ascii=False)
         except Exception as e:
             raise RuntimeError(f"Erro ao salvar configuração: {e}") from e
+
+    def set_account_id(self, account_id: str) -> None:
+        """
+        Salva o accountId do usuário no arquivo de configuração.
+        
+        Args:
+            account_id: accountId do usuário a salvar
+        
+        Nota: No Flatpak, sempre salva em XDG_CONFIG_HOME para evitar erro de "read-only file system"
+        """
+        # Atualizar configuração em memória
+        self._config["account_id"] = account_id
+        
+        # Se o config_path atual está em /app (somente leitura no Flatpak), usar XDG_CONFIG_HOME
+        if str(self.config_path).startswith("/app/"):
+            xdg_config = os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")
+            self.config_path = Path(xdg_config) / "jira-quick-task" / "config.json"
+        
+        # Garantir que o arquivo existe
+        if not self.config_path.exists():
+            # Criar diretório se não existir
+            self.config_path.parent.mkdir(parents=True, exist_ok=True)
+            # Criar arquivo vazio
+            self._config = {}
+        
+        # Salvar no arquivo
+        try:
+            with open(self.config_path, "w", encoding="utf-8") as f:
+                json.dump(self._config, f, indent=2, ensure_ascii=False)
+        except Exception as e:
+            raise RuntimeError(f"Erro ao salvar accountId: {e}") from e
+
+    def save_jira_config(self, server: str, login: str, token: str) -> None:
+        """
+        Salva configurações de conexão Jira no arquivo .jira-config.yml
+        
+        Args:
+            server: URL do servidor Jira
+            login: Email do usuário
+            token: Token de API do Jira
+        
+        Nota: No Flatpak, sempre salva em XDG_CONFIG_HOME (~/.var/app/.../config/)
+              para evitar erro de "read-only file system" em /app
+        """
+        import yaml
+        import shutil
+
+        # SEMPRE usar XDG_CONFIG_HOME para salvar (especialmente importante no Flatpak)
+        # No Flatpak, XDG_CONFIG_HOME aponta para ~/.var/app/org.kde.jira-quick-task/config/
+        xdg_config = os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")
+        config_dir = Path(xdg_config) / "jira-quick-task"
+        config_dir.mkdir(parents=True, exist_ok=True)
+        jira_config_path = config_dir / ".jira-config.yml"
+        
+        # Se não existir, criar a partir do template
+        if not jira_config_path.exists():
+            # Encontrar template
+            template_paths = [
+                Path("/app/share/jira-quick-task/config/.jira-config.yml.example"),  # Flatpak
+                Path(__file__).parent / ".jira-config.yml.example",  # Local (relativo ao módulo)
+            ]
+            
+            template_found = None
+            for template_path in template_paths:
+                if template_path.exists():
+                    template_found = template_path
+                    break
+            
+            if template_found:
+                shutil.copy2(template_found, jira_config_path)
+            else:
+                # Criar arquivo básico se template não existir
+                with open(jira_config_path, "w", encoding="utf-8") as f:
+                    yaml.dump({
+                        "login": "",
+                        "server": "",
+                        "token": "",
+                    }, f, default_flow_style=False)
+
+        # Ler YAML atual
+        try:
+            with open(jira_config_path, "r", encoding="utf-8") as f:
+                config = yaml.safe_load(f) or {}
+        except Exception:
+            config = {}
+
+        # Atualizar campos
+        config["server"] = server.rstrip('/')
+        config["login"] = login
+        config["token"] = token
+
+        # Preservar outros campos (board, epic, issue, timezone, etc.)
+        # Os campos que não são server/login/token são preservados automaticamente
+
+        # Salvar YAML
+        try:
+            with open(jira_config_path, "w", encoding="utf-8") as f:
+                yaml.safe_dump(config, f, default_flow_style=False, sort_keys=False)
+            
+            # Definir permissões restritas (chmod 600)
+            try:
+                os.chmod(jira_config_path, 0o600)
+            except Exception:
+                pass  # Ignorar erro de permissões se não for possível
+        except Exception as e:
+            raise RuntimeError(f"Erro ao salvar .jira-config.yml: {e}") from e

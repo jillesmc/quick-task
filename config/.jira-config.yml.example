@@ -67,11 +67,9 @@ issue:
 #      - server: URL do seu servidor Jira (ex: https://seu-projeto.atlassian.net)
 #   3. Configure o token Jira como variável de ambiente (OBRIGATÓRIO):
 #      export JIRA_API_TOKEN=<seu-token>
-#   4. Autentique-se com o ACLI:
-#      echo $JIRA_API_TOKEN | acli jira auth login --site "seu-projeto.atlassian.net" --email "seu-email@exemplo.com" --token
-#      
-#      O ACLI usa autenticação via token. O token JIRA_API_TOKEN é necessário
-#      tanto para autenticação do ACLI quanto para operações de worklog via REST API.
+#   4. A aplicação usa Jira REST API v3 diretamente.
+#      O token JIRA_API_TOKEN é necessário para todas as operações via REST API.
+#      O token pode ser obtido em: https://id.atlassian.com/manage-profile/security/api-tokens
 #      NÃO configure o token no arquivo de configuração por questões de segurança.
 #
 login: # PREENCHA COM SEU EMAIL AQUI

@@ -22,7 +22,7 @@ dependencies = [
 jira-quick-task = "src.app:main"
 
 [tool.setuptools]
-packages = ["src", "config", "core", "src.models"]
+packages = ["src", "config", "core", "src.models", "src.utils"]
 
 [tool.setuptools.package-data]
 "src" = ["qml/*.qml"]

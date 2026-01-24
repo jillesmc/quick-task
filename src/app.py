@@ -12,11 +12,17 @@ from io import StringIO
 # Configurar variáveis de ambiente ANTES de importar Qt
 # Suprimir warnings do Kirigami, do estilo (Controls 2), Controls 1 (SplitView) e QSocketNotifier
 # usando QT_LOGGING_RULES (forma oficial)
+# TEMPORARIAMENTE: Não suprimir erros QML para debug
 os.environ.setdefault("QT_LOGGING_RULES", 
     "kf.kirigami.warning=false;"
     "qt.quick.controls.style.warning=false;"
     "qt.quick.controls.warning=false;"
     "qt.core.socketnotifier.warning=false"  # Suprimir QSocketNotifier warnings
+)
+# Habilitar mensagens QML para debug
+os.environ.setdefault("QT_LOGGING_RULES", 
+    os.environ.get("QT_LOGGING_RULES", "") + ";"
+    "qt.qml.debug=true"
 )
 
 # Tentar importar QApplication de QtWidgets (necessário para QSystemTrayIcon)
@@ -60,8 +66,21 @@ def qt_message_handler(msg_type, context, message):
     if "QSocketNotifier" in msg_str or "Can only be used with threads started with QThread" in msg_str:
         return
     
+    # Suprimir erro conhecido do org.kde.desktop TabButton (bug no estilo KDE)
+    # Este é um bug conhecido onde o estilo tenta acessar propriedade 'y' de um objeto null
+    if ("TabButton.qml" in msg_str or "org/kde/desktop/TabButton" in msg_str) and \
+       ("Cannot read property 'y' of null" in msg_str or "TypeError" in msg_str):
+        return  # Suprimir este warning específico
+    
+    # Mostrar outras mensagens QML importantes (erros críticos)
+    if "qml" in msg_str.lower() or "QML" in msg_str or context.category in ["qml", "qml.import"]:
+        # Mostrar apenas erros críticos, não warnings do estilo KDE
+        if msg_type in [4, 5]:  # QtCriticalMsg ou QtFatalMsg
+            print(f"QML Message [{msg_type}]: {msg_str}", file=sys.stderr)
+            if context.file:
+                print(f"  File: {context.file}:{context.line}", file=sys.stderr)
+    
     # Para outras mensagens, não fazer nada (suprimir tudo)
-    # Se quiser ver outras mensagens, pode usar print aqui
     pass
 
 # Adicionar diretório raiz ao path
@@ -70,10 +89,12 @@ sys.path.insert(0, str(ROOT_DIR))
 
 from src.models.issue_model import IssueModel
 from src.models.my_issues_model import MyIssuesModel
+from src.models.settings_model import SettingsModel
 from src.jira_service import JiraService
 from src.single_instance_manager import SingleInstanceManager
 from src.system_tray_manager import SystemTrayManager
 from src.global_shortcut_manager import GlobalShortcutManager
+from src.utils.debug import debug_log
 
 
 class FilteredStderr:
@@ -134,10 +155,13 @@ def main():
 
     # Configurar estilo KDE (necessário para usar tema KDE fora do Plasma)
     # Para Kirigami 6 (KF6), usar "org.kde.desktop" ou "org.kde.desktopstyle"
-    # O "org.kde.desktop" é mais compatível e resolve o warning do platform plugin
+    # O problema: org.kde.desktop tem um bug conhecido com TabButton (TypeError: Cannot read property 'y' of null)
+    # Solução: usar "Material" ou "Basic" como fallback, ou "org.kde.desktopstyle" se disponível
     # Não definir se já estiver definido (permite override via variável de ambiente)
     if not os.environ.get("QT_QUICK_CONTROLS_STYLE"):
-        os.environ["QT_QUICK_CONTROLS_STYLE"] = "org.kde.desktop"
+        # Tentar usar org.kde.desktopstyle primeiro (mais estável)
+        # Se não funcionar, o usuário pode definir QT_QUICK_CONTROLS_STYLE=Material ou Basic
+        os.environ["QT_QUICK_CONTROLS_STYLE"] = "org.kde.desktopstyle"
 
     # Criar engine QML
     engine = QQmlApplicationEngine()
@@ -161,9 +185,46 @@ def main():
     qmlRegisterType(JiraService, "JiraQuickTask", 1, 0, "JiraService")
 
     # Criar instâncias do modelo e serviço
-    issue_model = IssueModel()
-    my_issues_model = MyIssuesModel()
-    jira_service = JiraService()
+    debug_log("App", "main", "Criando modelos e serviços...")
+    try:
+        debug_log("App", "main", "Criando IssueModel...")
+        issue_model = IssueModel()
+        debug_log("App", "main", "IssueModel criado com sucesso")
+    except Exception as e:
+        print(f"✗ Erro ao criar IssueModel: {e}", file=sys.stderr)
+        import traceback
+        traceback.print_exc(file=sys.stderr)
+        raise
+    
+    try:
+        debug_log("App", "main", "Criando MyIssuesModel...")
+        my_issues_model = MyIssuesModel()
+        debug_log("App", "main", "MyIssuesModel criado com sucesso")
+    except Exception as e:
+        print(f"✗ Erro ao criar MyIssuesModel: {e}", file=sys.stderr)
+        import traceback
+        traceback.print_exc(file=sys.stderr)
+        raise
+    
+    try:
+        debug_log("App", "main", "Criando JiraService...")
+        jira_service = JiraService()
+        debug_log("App", "main", "JiraService criado com sucesso")
+    except Exception as e:
+        print(f"✗ Erro ao criar JiraService: {e}", file=sys.stderr)
+        import traceback
+        traceback.print_exc(file=sys.stderr)
+        raise
+    
+    try:
+        debug_log("App", "main", "Criando SettingsModel...")
+        settings_model = SettingsModel()
+        debug_log("App", "main", "SettingsModel criado com sucesso")
+    except Exception as e:
+        print(f"✗ Erro ao criar SettingsModel: {e}", file=sys.stderr)
+        import traceback
+        traceback.print_exc(file=sys.stderr)
+        raise
     
     # Criar SystemTrayManager
     try:
@@ -179,10 +240,41 @@ def main():
     shortcut_manager = GlobalShortcutManager(app)
     
     # Expor ao contexto QML
-    engine.rootContext().setContextProperty("issueModel", issue_model)
-    engine.rootContext().setContextProperty("myIssuesModel", my_issues_model)
-    engine.rootContext().setContextProperty("jiraService", jira_service)
-    engine.rootContext().setContextProperty("trayManager", tray_manager)
+    debug_log("App", "main", "Expondo modelos ao contexto QML...")
+    try:
+        engine.rootContext().setContextProperty("issueModel", issue_model)
+        debug_log("App", "main", "issueModel exposto ao contexto QML")
+    except Exception as e:
+        print(f"✗ Erro ao expor issueModel: {e}", file=sys.stderr)
+        raise
+    
+    try:
+        engine.rootContext().setContextProperty("myIssuesModel", my_issues_model)
+        debug_log("App", "main", "myIssuesModel exposto ao contexto QML")
+    except Exception as e:
+        print(f"✗ Erro ao expor myIssuesModel: {e}", file=sys.stderr)
+        raise
+    
+    try:
+        engine.rootContext().setContextProperty("jiraService", jira_service)
+        debug_log("App", "main", "jiraService exposto ao contexto QML")
+    except Exception as e:
+        print(f"✗ Erro ao expor jiraService: {e}", file=sys.stderr)
+        raise
+    
+    try:
+        engine.rootContext().setContextProperty("settingsModel", settings_model)
+        debug_log("App", "main", "settingsModel exposto ao contexto QML")
+    except Exception as e:
+        print(f"✗ Erro ao expor settingsModel: {e}", file=sys.stderr)
+        raise
+    
+    try:
+        engine.rootContext().setContextProperty("trayManager", tray_manager)
+        debug_log("App", "main", "trayManager exposto ao contexto QML")
+    except Exception as e:
+        print(f"✗ Erro ao expor trayManager: {e}", file=sys.stderr)
+        raise
 
     # Variável para armazenar referência à janela principal (será definida depois)
     main_window = None
@@ -221,20 +313,79 @@ def main():
 
     # Carregar QML principal
     # Usar caminho relativo ao arquivo app.py
+    debug_log("App", "main", "Carregando QML...")
     qml_path = Path(__file__).parent / "qml" / "Main.qml"
+    debug_log("App", "main", "Caminho QML: %s", qml_path)
+    debug_log("App", "main", "Arquivo existe: %s", qml_path.exists())
+    
     if not qml_path.exists():
         print(f"Erro: Arquivo QML não encontrado: {qml_path}", file=sys.stderr)
         sys.exit(-1)
+    
     url = QUrl.fromLocalFile(str(qml_path.absolute()))
+    debug_log("App", "main", "URL QML: %s", url.toString())
 
+    debug_log("App", "main", "Chamando engine.load()...")
     engine.load(url)
+    debug_log("App", "main", "engine.load() concluído")
 
     # Verificar se a janela foi carregada
+    debug_log("App", "main", "Verificando objetos raiz...")
     root_objects = engine.rootObjects()
+    debug_log("App", "main", "Número de objetos raiz: %d", len(root_objects))
+    
     if not root_objects:
         print("Erro: Não foi possível carregar a interface QML", file=sys.stderr)
         print("Verifique os erros QML acima para mais detalhes.", file=sys.stderr)
+        
+        # Tentar ler o arquivo QML para verificar se há problemas óbvios
+        debug_log("App", "main", "Tentando ler o arquivo QML para diagnóstico...")
+        try:
+            with open(qml_path, 'r', encoding='utf-8') as f:
+                lines = f.readlines()
+                debug_log("App", "main", "Arquivo QML tem %d linhas", len(lines))
+                # Verificar as primeiras linhas para problemas de import
+                debug_log("App", "main", "Primeiras 30 linhas do QML:")
+                for i, line in enumerate(lines[:30], 1):
+                    debug_log("App", "main", "  %3d: %s", i, line.rstrip())
+        except Exception as e:
+            debug_log("App", "main", "Erro ao ler arquivo QML: %s", e)
+        
+        # Verificar se o problema pode ser com imports
+        debug_log("App", "main", "Verificando imports QML...")
+        debug_log("App", "main", "Import paths configurados: %s", engine.importPathList())
+        
+        # Verificar se os módulos necessários estão disponíveis
+        debug_log("App", "main", "Verificando disponibilidade de módulos QML...")
+        import_paths = engine.importPathList()
+        for path in import_paths:
+            debug_log("App", "main", "Verificando path: %s", path)
+            if os.path.exists(path):
+                debug_log("App", "main", "  Path existe")
+                # Listar alguns arquivos se for diretório
+                if os.path.isdir(path):
+                    try:
+                        items = os.listdir(path)[:10]  # Primeiros 10 itens
+                        debug_log("App", "main", "  Conteúdo (primeiros 10): %s", items)
+                        # Verificar especificamente se Kirigami está presente
+                        if "org" in items:
+                            org_path = os.path.join(path, "org")
+                            if os.path.isdir(org_path):
+                                org_items = os.listdir(org_path)
+                                debug_log("App", "main", "  Conteúdo de org/: %s", org_items)
+                                if "kde" in org_items:
+                                    kde_path = os.path.join(org_path, "kde")
+                                    if os.path.isdir(kde_path):
+                                        kde_items = os.listdir(kde_path)
+                                        debug_log("App", "main", "  Conteúdo de org/kde/: %s", kde_items)
+                    except Exception as e:
+                        debug_log("App", "main", "  Erro ao listar: %s", e)
+            else:
+                debug_log("App", "main", "  Path não existe")
+        
         sys.exit(-1)
+    
+    debug_log("App", "main", "QML carregado com sucesso")
     
     # Obter referência à janela principal
     main_window = root_objects[0]

@@ -15,6 +15,10 @@ Controls.Dialog {
     
     standardButtons: Controls.Dialog.NoButton
     
+    // Definir largura explícita para evitar binding loops
+    // Não definir height para permitir que seja calculado automaticamente
+    width: 400
+    
     // Centralizar o diálogo
     function centerDialog() {
         if (parent && width > 0 && height > 0) {
@@ -29,7 +33,7 @@ Controls.Dialog {
     
     // Conteúdo do diálogo
     ColumnLayout {
-        width: parent ? parent.width : 400
+        anchors.fill: parent
         spacing: Kirigami.Units.largeSpacing
         
         Controls.Label {

@@ -170,19 +170,10 @@ test_app() {
     fi
     
     print_info "Iniciando aplicação...\n"
-    print_info "Você pode configurar o token antes:"
-    print_info "  export JIRA_API_TOKEN=seu-token"
-    print_info "  flatpak run $APP_ID\n"
+    print_info "A aplicação usa interface gráfica para configuração."
+    print_info "Configure a conexão Jira na aba de Configurações após iniciar.\n"
     
-    # Tentar obter token do ambiente
-    if [ -n "$JIRA_API_TOKEN" ]; then
-        print_info "Token de API detectado no ambiente"
-        JIRA_API_TOKEN="$JIRA_API_TOKEN" flatpak run "$APP_ID"
-    else
-        print_info "Nenhum token de API configurado"
-        print_info "A aplicação solicitará as credenciais\n"
-        flatpak run "$APP_ID"
-    fi
+    flatpak run "$APP_ID"
 }
 
 

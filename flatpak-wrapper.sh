@@ -26,5 +26,8 @@ fi
 # Ajustar caminhos SSL se necessário
 adjust_ssl_paths
 
+# A aplicação não lê mais variáveis de ambiente - tudo vem da tela de configuração
+# O token é lido diretamente do .jira-config.yml pelo código Python quando necessário
+
 # Executar a aplicação Python
 exec python3 -m src "$@"

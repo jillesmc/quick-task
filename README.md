@@ -149,46 +149,23 @@ flatpak run org.kde.jira-quick-task
 
 ### Configuração no Flatpak
 
-Após instalar o Flatpak, você precisa configurar os arquivos de configuração:
+Após instalar o Flatpak, configure as credenciais de conexão através da interface gráfica:
 
-**Opção 1: Usar o script helper (recomendado)**
+1. **Abra a aplicação**: `flatpak run org.kde.jira-quick-task`
 
-```bash
-# As variáveis de ambiente do host são passadas automaticamente
-flatpak run --command=jira-quick-task-config-setup org.kde.jira-quick-task
-```
+2. **Acesse a aba "Configuração"**: Clique no ícone de configuração (⚙️) no canto superior esquerdo ou na aba "Configuração"
 
-Este script:
-- Pede seu email do Jira interativamente
-- Cria os arquivos de configuração em `~/.config/jira-quick-task/` a partir dos templates
-- Configura o email automaticamente no `.jira-config.yml`
-- Se `JIRA_API_TOKEN` estiver configurado, busca o `accountId` automaticamente via API
+3. **Preencha os campos**:
+   - **URL do Servidor Jira**: Ex: `https://seu-projeto.atlassian.net`
+   - **Email do Jira**: Seu email cadastrado no Jira
+   - **Token de API**: Seu token de API (obtenha em https://id.atlassian.com/manage-profile/security/api-tokens)
 
-**Opção 2: Configuração manual**
+4. **Clique em "Salvar"**: A aplicação irá:
+   - Criar os arquivos de configuração automaticamente (se não existirem)
+   - Salvar suas credenciais
+   - Buscar automaticamente o `accountId` via API do Jira
 
-1. Criar diretório de configuração:
-   ```bash
-   mkdir -p ~/.config/jira-quick-task
-   ```
-
-2. Copiar templates:
-   ```bash
-   # Os templates estão em /app/share/jira-quick-task/config/ dentro do Flatpak
-   # Você pode copiar manualmente ou usar o script helper acima
-   ```
-
-3. Editar `~/.config/jira-quick-task/config.json` com as configurações do seu projeto
-
-4. Editar `~/.config/jira-quick-task/.jira-config.yml` com suas credenciais:
-   - `server`: URL do seu servidor Jira
-   - `login`: Seu email do Jira
-   - `token`: Seu token de API (obtenha em https://id.atlassian.com/manage-profile/security/api-tokens)
-
-5. Configurar variável de ambiente `JIRA_API_TOKEN`:
-   ```bash
-   export JIRA_API_TOKEN=<seu-token>
-   # Adicione ao ~/.bashrc ou ~/.zshrc para tornar permanente
-   ```
+**Nota**: Os arquivos de configuração são criados automaticamente em `~/.var/app/org.kde.jira-quick-task/config/jira-quick-task/` dentro do sandbox do Flatpak.
 
 ### Certificados SSL/CA no Flatpak
 

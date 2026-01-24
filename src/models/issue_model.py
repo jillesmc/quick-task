@@ -41,7 +41,10 @@ class IssueModel(QObject):
 
         # Carregar configuração
         try:
+            from src.utils.debug import debug_log
+            debug_log("IssueModel", "__init__", "Carregando configuração...")
             self._config = ConfigManager()
+            debug_log("IssueModel", "__init__", "Configuração carregada com sucesso")
             # Emitir sinais para propriedades read-only após carregar config
             self.tipoAtividadeValuesChanged.emit()
             self.statusSequenceChanged.emit()
