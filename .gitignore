@@ -99,3 +99,6 @@ pip-cache/
 
 # Flatpak
 .flatpak-builder/
+
+# Bundle
+*.flatpak

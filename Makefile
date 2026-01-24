@@ -43,6 +43,7 @@ help:
 	@echo "  $(YELLOW)make flatpak-install-deps$(RESET) - Instala SDKs e dependências do Flatpak"
 	@echo "  $(YELLOW)make flatpak-build$(RESET)     - Constrói e instala o Flatpak localmente"
 	@echo "  $(YELLOW)make flatpak-run$(RESET)       - Executa a aplicação Flatpak instalada"
+	@echo "  $(YELLOW)make flatpak-bundle$(RESET)   - Cria arquivo .flatpak para distribuição"
 	@echo "  $(YELLOW)make flatpak-clean$(RESET)     - Remove build e aplicação Flatpak instalada"
 	@echo ""
 	@echo "$(GREEN)Utilitários:$(RESET)"
@@ -141,6 +142,10 @@ flatpak-run: check-flatpak
 	@echo "$(CYAN)Executando aplicação Flatpak...$(RESET)"
 	@./build-flatpak.sh test
 
+.PHONY: flatpak-bundle
+flatpak-bundle: check-flatpak
+	@echo "$(CYAN)Criando bundle Flatpak para distribuição...$(RESET)"
+	@./build-flatpak.sh bundle
 
 .PHONY: flatpak-clean
 flatpak-clean: check-flatpak
