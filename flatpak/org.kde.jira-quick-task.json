@@ -41,7 +41,7 @@
       "buildsystem": "simple",
       "build-commands": [
         "pip3 install --no-build-isolation --prefix=/app .",
-        "sed 's|Exec=@SCRIPT_DIR@/jira-quick-task.sh|Exec=jira-quick-task|g' org.kde.jira-quick-task.desktop.in > org.kde.jira-quick-task.desktop",
+        "cp org.kde.jira-quick-task.desktop.in org.kde.jira-quick-task.desktop",
         "install -Dm644 org.kde.jira-quick-task.desktop /app/share/applications/org.kde.jira-quick-task.desktop",
         "mkdir -p /app/share/jira-quick-task/config",
         "cp config/.jira-config.yml.example /app/share/jira-quick-task/config/.jira-config.yml.example || true",
