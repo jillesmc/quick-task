@@ -104,6 +104,8 @@ Controls.ItemDelegate {
                         return "media-playback-stop"
                     } else if (timerModel && timerModel.issueKey === issueKey && timerModel.state === "paused") {
                         return "media-playback-start"
+                    } else if (timerModel && timerModel.isOnBreak) {
+                        return "media-playback-start"
                     }
                     return "chronometer"
                 }
@@ -112,6 +114,17 @@ Controls.ItemDelegate {
                 
                 onClicked: {
                     if (!timerService || !timerModel || !issueKey) {
+                        return
+                    }
+                    
+                    // Se está em pausa, cancelar pausa e iniciar timer
+                    if (timerModel && timerModel.isOnBreak) {
+                        timerService.cancelBreak()
+                        Qt.callLater(function() {
+                            if (timerService && issueKey) {
+                                timerService.start(issueKey)
+                            }
+                        })
                         return
                     }
                     

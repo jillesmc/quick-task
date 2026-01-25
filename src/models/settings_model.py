@@ -50,6 +50,8 @@ class SettingsModel(QObject):
             self._notifications_enabled = True
             self._sound_enabled = False
             self._desktop_notifications = True
+            self._short_sound_file = "short"  # Nome do arquivo sem extensão
+            self._long_sound_file = "long"   # Nome do arquivo sem extensão
             
             debug_log("SettingsModel", "__init__", "Carregando valores atuais...")
             self._load_current_values()
@@ -99,6 +101,8 @@ class SettingsModel(QObject):
         self._notifications_enabled = notifications.get("enabled", True)
         self._sound_enabled = notifications.get("sound_enabled", False)
         self._desktop_notifications = notifications.get("desktop_notifications", True)
+        self._short_sound_file = notifications.get("short_sound_file", "short")
+        self._long_sound_file = notifications.get("long_sound_file", "long")
         debug_log("SettingsModel", "_load_current_values", "Configurações de Pomodoro carregadas")
 
     def is_configured(self) -> bool:
@@ -332,6 +336,8 @@ class SettingsModel(QObject):
                     "enabled": self._notifications_enabled,
                     "sound_enabled": self._sound_enabled,
                     "desktop_notifications": self._desktop_notifications,
+                    "short_sound_file": self._short_sound_file,
+                    "long_sound_file": self._long_sound_file,
                 },
             }
             self._config_manager.save_pomodoro_config(pomodoro_config)
@@ -366,6 +372,8 @@ class SettingsModel(QObject):
     notificationsEnabledChanged = Signal()
     soundEnabledChanged = Signal()
     desktopNotificationsChanged = Signal()
+    shortSoundFileChanged = Signal()
+    longSoundFileChanged = Signal()
 
     # Propriedades QML
     @Property(str, notify=jiraBaseUrlChanged)
@@ -515,3 +523,25 @@ class SettingsModel(QObject):
         if self._desktop_notifications != value:
             self._desktop_notifications = value
             self.desktopNotificationsChanged.emit()
+
+    @Property(str, notify=shortSoundFileChanged)
+    def shortSoundFile(self) -> str:
+        """Nome do arquivo de som para pausa curta (sem extensão)"""
+        return self._short_sound_file
+
+    @shortSoundFile.setter
+    def shortSoundFile(self, value: str):
+        if self._short_sound_file != value:
+            self._short_sound_file = value
+            self.shortSoundFileChanged.emit()
+
+    @Property(str, notify=longSoundFileChanged)
+    def longSoundFile(self) -> str:
+        """Nome do arquivo de som para pausa longa (sem extensão)"""
+        return self._long_sound_file
+
+    @longSoundFile.setter
+    def longSoundFile(self, value: str):
+        if self._long_sound_file != value:
+            self._long_sound_file = value
+            self.longSoundFileChanged.emit()

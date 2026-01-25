@@ -49,6 +49,11 @@
         "cp config/.jira-config.yml.example /app/share/jira-quick-task/config/.jira-config.yml || true",
         "cp config/config.json.example /app/share/jira-quick-task/config/config.json || true",
         "install -Dm644 assets/jira-quick-task.svg /app/share/icons/hicolor/scalable/apps/org.kde.jira-quick-task.svg || true",
+        "mkdir -p /app/share/jira-quick-task/assets || true",
+        "install -Dm644 assets/short.ogg /app/share/jira-quick-task/assets/short.ogg || true",
+        "install -Dm644 assets/short.mp3 /app/share/jira-quick-task/assets/short.mp3 || true",
+        "install -Dm644 assets/long.ogg /app/share/jira-quick-task/assets/long.ogg || true",
+        "install -Dm644 assets/long.mp3 /app/share/jira-quick-task/assets/long.mp3 || true",
         "install -Dm755 flatpak-wrapper.sh /app/bin/jira-quick-task || true",
         "mkdir -p /app/scripts/lib || true",
         "cp scripts/lib/common.sh /app/scripts/lib/common.sh || true"

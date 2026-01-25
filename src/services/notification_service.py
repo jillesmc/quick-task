@@ -2,9 +2,10 @@
 Serviço para gerenciar notificações desktop
 """
 
+from pathlib import Path
 from typing import Optional
 
-from PySide6.QtCore import QObject, QTimer, Signal  # type: ignore[import]
+from PySide6.QtCore import QObject, QTimer, Signal, QUrl  # type: ignore[import]
 
 from src.utils.debug import debug_log
 
@@ -15,6 +16,15 @@ try:
 except ImportError:
     QSystemTrayIcon = None
     TRAY_AVAILABLE = False
+
+# Tentar importar QMediaPlayer para tocar arquivos de som
+try:
+    from PySide6.QtMultimedia import QMediaPlayer, QAudioOutput  # type: ignore[import]
+    MEDIA_PLAYER_AVAILABLE = True
+except ImportError:
+    QMediaPlayer = None
+    QAudioOutput = None
+    MEDIA_PLAYER_AVAILABLE = False
 
 
 class NotificationService(QObject):
@@ -32,6 +42,21 @@ class NotificationService(QObject):
         self._auto_continue_timer.timeout.connect(self._on_auto_continue)
         self._interaction_timeout_seconds = 30
         self._settings_model = None
+        
+        # Inicializar player de áudio para arquivos de som
+        self._sound_player = None
+        self._audio_output = None
+        if MEDIA_PLAYER_AVAILABLE:
+            try:
+                self._audio_output = QAudioOutput(self)
+                self._sound_player = QMediaPlayer(self)
+                self._sound_player.setAudioOutput(self._audio_output)
+                # Conectar sinal para limpar quando terminar
+                self._sound_player.playbackStateChanged.connect(self._on_sound_finished)
+            except Exception as e:
+                debug_log("NotificationService", "__init__", "Erro ao inicializar player de áudio: %s", e)
+                self._sound_player = None
+                self._audio_output = None
 
     def set_interaction_timeout(self, seconds: int) -> None:
         """Define timeout de auto-continuação em segundos"""
@@ -109,21 +134,97 @@ class NotificationService(QObject):
         """Define o SettingsModel para verificar se som está habilitado"""
         self._settings_model = settings_model
     
-    def play_pomodoro_sound(self) -> None:
-        """Toca som quando pomodoro completa ou pausa termina"""
+    def _on_sound_finished(self, state):
+        """Callback quando som termina de tocar"""
+        if not MEDIA_PLAYER_AVAILABLE:
+            return
+        # QMediaPlayer.PlaybackState.StoppedState = 0
+        if state == 0:  # StoppedState
+            # Limpar source para permitir tocar novamente
+            if self._sound_player:
+                self._sound_player.setSource(QUrl())
+    
+    def _find_sound_file(self, break_type: Optional[str] = None) -> Optional[Path]:
+        """
+        Procura arquivo de som nos assets.
+        
+        Args:
+            break_type: "short" ou "long" para escolher o arquivo correto.
+                       Se None, usa "pomodoro" como padrão.
+        
+        Ordem de prioridade de formatos: ogg, mp3, m4r, wav
+        """
+        # Determinar nome do arquivo baseado no tipo de pausa
+        if break_type and self._settings_model:
+            if break_type == "short":
+                filename = self._settings_model.shortSoundFile or "short"
+            elif break_type == "long":
+                filename = self._settings_model.longSoundFile or "long"
+            else:
+                filename = "pomodoro"  # Fallback
+        else:
+            filename = "pomodoro"  # Fallback padrão
+        
+        # Possíveis locais para assets
+        possible_paths = [
+            Path(__file__).parent.parent.parent.parent / "assets",  # src/services/../../assets (desenvolvimento)
+            Path("/app/share/jira-quick-task/assets"),  # Flatpak
+            Path("/usr/share/jira-quick-task/assets"),  # Sistema
+        ]
+        
+        # Formatos suportados em ordem de prioridade
+        formats = ["ogg", "mp3", "m4r", "wav"]
+        
+        for base_path in possible_paths:
+            if not base_path.exists():
+                continue
+            
+            for fmt in formats:
+                sound_file = base_path / f"{filename}.{fmt}"
+                if sound_file.exists():
+                    debug_log("NotificationService", "_find_sound_file", 
+                             "Arquivo de som encontrado: %s (break_type=%s)", sound_file, break_type)
+                    return sound_file
+        
+        debug_log("NotificationService", "_find_sound_file", 
+                 "Nenhum arquivo de som encontrado para '%s' nos assets", filename)
+        return None
+    
+    def play_pomodoro_sound(self, break_type: Optional[str] = None) -> None:
+        """
+        Toca som quando pomodoro completa ou pausa termina
+        
+        Args:
+            break_type: "short" para pausa curta, "long" para pausa longa, None para som padrão
+        """
         # Verificar se som está habilitado
         if self._settings_model and not self._settings_model.soundEnabled:
             debug_log("NotificationService", "play_pomodoro_sound", "Som desabilitado nas configurações")
             return
         
+        # Tentar tocar arquivo de som primeiro
+        sound_file = self._find_sound_file(break_type)
+        if sound_file and MEDIA_PLAYER_AVAILABLE and self._sound_player:
+            try:
+                sound_url = QUrl.fromLocalFile(str(sound_file.absolute()))
+                self._sound_player.setSource(sound_url)
+                self._sound_player.play()
+                debug_log("NotificationService", "play_pomodoro_sound", 
+                         "Tocando arquivo de som: %s", sound_file)
+                return
+            except Exception as e:
+                debug_log("NotificationService", "play_pomodoro_sound", 
+                         "Erro ao tocar arquivo de som: %s", e)
+                # Continuar para fallback
+        
+        # Fallback: usar beep do sistema
         try:
-            # Usar beep do sistema via QSystemTrayIcon se disponível
             if TRAY_AVAILABLE and self._tray_icon:
                 # Usar beep do tray icon (mostrar mensagem vazia por 1ms para tocar beep)
                 self._tray_icon.showMessage("", "", QSystemTrayIcon.NoIcon, 1)
             else:
                 # Fallback: usar beep do sistema via print (ASCII bell)
                 print("\a", end="", flush=True)
-            debug_log("NotificationService", "play_pomodoro_sound", "Som tocado")
+            debug_log("NotificationService", "play_pomodoro_sound", "Som tocado (beep do sistema)")
         except Exception as e:
             debug_log("NotificationService", "play_pomodoro_sound", "Erro ao tocar som: %s", e)

@@ -39,7 +39,9 @@
     "notifications": {
       "enabled": true,
       "sound_enabled": false,
-      "desktop_notifications": true
+      "desktop_notifications": true,
+      "short_sound_file": "short",
+      "long_sound_file": "long"
     }
   },
   "epic_filters": {

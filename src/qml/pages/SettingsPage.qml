@@ -49,6 +49,10 @@ Kirigami.Page {
             notificationsEnabledCheckbox.checked = settingsModel.notificationsEnabled
             soundEnabledCheckbox.checked = settingsModel.soundEnabled
             desktopNotificationsCheckbox.checked = settingsModel.desktopNotifications
+            shortSoundFileField.text = settingsModel.shortSoundFile || "short"
+            longSoundFileField.text = settingsModel.longSoundFile || "long"
+            shortSoundFileField.enabled = soundEnabledCheckbox.checked
+            longSoundFileField.enabled = soundEnabledCheckbox.checked
         }
         validateFields()
     }
@@ -376,6 +380,51 @@ Kirigami.Page {
                 onCheckedChanged: {
                     if (settingsModel) {
                         settingsModel.soundEnabled = checked
+                    }
+                    // Habilitar/desabilitar campos de arquivos de som
+                    shortSoundFileField.enabled = checked
+                    longSoundFileField.enabled = checked
+                }
+            }
+
+            // Arquivo de som para pausa curta
+            Controls.Label {
+                text: qsTr("Arquivo de som - Pausa Curta:")
+                font.bold: true
+                Layout.fillWidth: true
+                Layout.topMargin: Kirigami.Units.mediumSpacing
+                enabled: soundEnabledCheckbox.checked
+            }
+
+            Controls.TextField {
+                id: shortSoundFileField
+                Layout.fillWidth: true
+                placeholderText: qsTr("short")
+                enabled: soundEnabledCheckbox.checked
+                onTextChanged: {
+                    if (settingsModel && text.length > 0) {
+                        settingsModel.shortSoundFile = text
+                    }
+                }
+            }
+
+            // Arquivo de som para pausa longa
+            Controls.Label {
+                text: qsTr("Arquivo de som - Pausa Longa:")
+                font.bold: true
+                Layout.fillWidth: true
+                Layout.topMargin: Kirigami.Units.mediumSpacing
+                enabled: soundEnabledCheckbox.checked
+            }
+
+            Controls.TextField {
+                id: longSoundFileField
+                Layout.fillWidth: true
+                placeholderText: qsTr("long")
+                enabled: soundEnabledCheckbox.checked
+                onTextChanged: {
+                    if (settingsModel && text.length > 0) {
+                        settingsModel.longSoundFile = text
                     }
                 }
             }

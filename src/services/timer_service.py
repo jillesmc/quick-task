@@ -337,3 +337,25 @@ class TimerService(QObject):
         self._timer_model.issueKey = ""
         self._timer_model.elapsedSeconds = 0
         self._timer_model.currentPomodoro = 0
+    
+    @Slot()
+    def cancelBreak(self) -> None:
+        """Cancela a pausa atual e limpa todos os estados relacionados"""
+        debug_log("TimerService", "cancelBreak", "Cancelando pausa")
+        
+        # Parar timer de contagem regressiva da pausa
+        if self._break_countdown_timer.isActive():
+            self._break_countdown_timer.stop()
+            debug_log("TimerService", "cancelBreak", "Timer de contagem regressiva parado")
+        
+        # Limpar todos os estados de pausa
+        self._timer_model.isOnBreak = False
+        self._timer_model.breakType = ""
+        self._timer_model.breakRemainingSeconds = 0
+        self._timer_model.isWaitingBreakEndDecision = False
+        self._timer_model.isWaitingBreakDecision = False
+        
+        # Limpar issue key (já que a pausa foi cancelada)
+        self._timer_model.issueKey = ""
+        
+        debug_log("TimerService", "cancelBreak", "Pausa cancelada e estados limpos")

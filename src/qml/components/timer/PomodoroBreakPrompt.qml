@@ -47,11 +47,37 @@ Item {
     Rectangle {
         anchors.fill: parent
         color: Kirigami.Theme.backgroundColor || "#f0f0f0"
+        border.color: Kirigami.Theme.highlightColor || "#3daee9"
+        border.width: 2
+        radius: Kirigami.Units.smallSpacing
         
         ColumnLayout {
             anchors.fill: parent
-            anchors.margins: Kirigami.Units.largeSpacing
+            anchors.margins: Kirigami.Units.mediumSpacing
             spacing: Kirigami.Units.mediumSpacing
+            
+            // Cabeçalho com botão minimizar
+            RowLayout {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 30
+                
+                Controls.Label {
+                    Layout.fillWidth: true
+                    text: qsTr("Timer Ativo")
+                    font.bold: true
+                    font.pointSize: Kirigami.Theme.defaultFont.pointSize + 1
+                }
+                
+                Controls.ToolButton {
+                    icon.name: "window-minimize"
+                    onClicked: {
+                        // Minimizar ao tray (esconder janela)
+                        if (hideWindow && typeof hideWindow.hide === "function") {
+                            hideWindow.hide()
+                        }
+                    }
+                }
+            }
             
             // Título
             Controls.Label {

@@ -345,6 +345,8 @@ Kirigami.Page {
                                 return qsTr("Timer Ativo - Parar")
                             } else if (timerModel && timerModel.state === "paused" && timerModel.issueKey === selectedIssueKey) {
                                 return qsTr("Timer Pausado - Retomar")
+                            } else if (timerModel && timerModel.isOnBreak) {
+                                return qsTr("Cancelar Pausa e Iniciar")
                             } else if (timerModel && timerModel.state !== "idle" && timerModel.issueKey !== selectedIssueKey) {
                                 return qsTr("Parar Timer Atual e Iniciar")
                             }
@@ -355,6 +357,8 @@ Kirigami.Page {
                                 return "media-playback-stop"
                             } else if (timerModel && timerModel.state === "paused" && timerModel.issueKey === selectedIssueKey) {
                                 return "media-playback-start"
+                            } else if (timerModel && timerModel.isOnBreak) {
+                                return "media-playback-start"
                             }
                             return "chronometer"
                         }
@@ -364,6 +368,17 @@ Kirigami.Page {
                         
                         onClicked: {
                             if (!timerService || !timerModel || !selectedIssueKey) {
+                                return
+                            }
+                            
+                            // Se está em pausa, cancelar pausa e iniciar timer
+                            if (timerModel && timerModel.isOnBreak) {
+                                timerService.cancelBreak()
+                                Qt.callLater(function() {
+                                    if (timerService && selectedIssueKey) {
+                                        timerService.start(selectedIssueKey)
+                                    }
+                                })
                                 return
                             }
                             
