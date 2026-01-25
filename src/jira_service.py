@@ -518,6 +518,20 @@ class JiraService(QObject):
             return self._config.get_timezone()
         return "America/Sao_Paulo"
 
+    @Slot(result=int)
+    def getRetroactiveMaxHours(self) -> int:
+        """Retorna horas máximas permitidas para worklog retroativo"""
+        if self._config:
+            return self._config.get_retroactive_max_hours()
+        return 24
+
+    @Slot(result="QVariantList")
+    def getDefaultDurations(self) -> List[int]:
+        """Retorna lista de durações padrão em minutos para presets"""
+        if self._config:
+            return self._config.get_default_durations()
+        return [30, 60, 120, 240, 480]
+
     # ------------------------------------------------------------------
     # Slots auxiliares para buscas e worklog em issues existentes
     # ------------------------------------------------------------------

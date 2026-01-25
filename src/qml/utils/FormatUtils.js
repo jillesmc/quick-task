@@ -111,3 +111,20 @@ function getCurrentDateTime(dateOnly, timeOnly) {
         return { date: dateStr, time: timeStr }
     }
 }
+
+/**
+ * Calcula hora de início retroativa baseada na duração
+ * @param {number} durationMinutes - Duração em minutos
+ * @returns {object} Objeto com date e time calculados
+ * 
+ * @example
+ * calculateRetroactiveStartTime(90)  // { date: "2024-01-15", time: "13:00:00" } (se agora é 14:30)
+ */
+function calculateRetroactiveStartTime(durationMinutes) {
+    var now = new Date()
+    var startTime = new Date(now.getTime() - (durationMinutes * 60 * 1000))
+    return {
+        date: Qt.formatDateTime(startTime, "yyyy-MM-dd"),
+        time: Qt.formatDateTime(startTime, "HH:mm:ss")
+    }
+}

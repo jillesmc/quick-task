@@ -126,3 +126,51 @@ function validateIssueKey(issueKey) {
         error: null
     }
 }
+
+/**
+ * Valida worklog retroativo
+ * 
+ * @param {number} durationMinutes - Duração em minutos
+ * @param {number} maxHours - Horas máximas permitidas para worklog retroativo
+ * @param {string} issueCreatedDate - Data de criação da issue (formato YYYY-MM-DD) ou null
+ * @param {string} calculatedStartDateTime - Data/hora de início calculada (formato YYYY-MM-DD HH:MM:SS)
+ * @returns {object} Objeto com valid (boolean) e errors (array de strings)
+ * 
+ * @example
+ * var result = validateRetroactiveWorklog(90, 24, "2024-01-15", "2024-01-15 13:00:00")
+ * if (!result.valid) {
+ *     console.log("Erros:", result.errors)
+ * }
+ */
+function validateRetroactiveWorklog(durationMinutes, maxHours, issueCreatedDate, calculatedStartDateTime) {
+    var errors = []
+    
+    // Validar que duração não excede max_hours
+    var maxMinutes = maxHours * 60
+    if (durationMinutes > maxMinutes) {
+        errors.push("Duração excede o máximo permitido de " + maxHours + " horas")
+    }
+    
+    // Validar que hora de início não é no futuro
+    if (calculatedStartDateTime) {
+        var calculatedDate = new Date(calculatedStartDateTime.replace(" ", "T"))
+        var now = new Date()
+        if (calculatedDate > now) {
+            errors.push("Hora de início calculada não pode ser no futuro")
+        }
+    }
+    
+    // Validar que hora de início não é anterior à criação da issue
+    if (issueCreatedDate && calculatedStartDateTime) {
+        var issueDate = new Date(issueCreatedDate + "T00:00:00")
+        var calculatedDate = new Date(calculatedStartDateTime.replace(" ", "T"))
+        if (calculatedDate < issueDate) {
+            errors.push("Hora de início não pode ser anterior à data de criação da issue")
+        }
+    }
+    
+    return {
+        valid: errors.length === 0,
+        errors: errors
+    }
+}

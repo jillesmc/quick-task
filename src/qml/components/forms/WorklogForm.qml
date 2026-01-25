@@ -40,6 +40,10 @@ ColumnLayout {
     property alias duration: durationSlider.value
     property alias comment: commentField.text
     
+    // Propriedades para cálculo retroativo
+    property int retroactiveMaxHours: 24
+    property var defaultDurations: [30, 60, 120, 240, 480]
+    
     signal worklogChanged()
     
     spacing: Kirigami.Units.smallSpacing
@@ -189,6 +193,15 @@ ColumnLayout {
                         root.worklogChanged()
                     }
                 }
+                
+                // Botão de cálculo automático ao lado do campo de hora
+                Controls.Button {
+                    icon.name: "media-seek-backward"
+                    enabled: root.enabled
+                    onClicked: {
+                        root.calculateAndSetRetroactiveTime()
+                    }
+                }
             }
         }
         
@@ -219,6 +232,30 @@ ColumnLayout {
                 Controls.Label {
                     text: FormatUtils.formatDuration(Math.round(durationSlider.value))
                     font.bold: true
+                }
+                
+                // Presets rápidos
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: Kirigami.Units.smallSpacing
+                    visible: root.defaultDurations && typeof root.defaultDurations.length !== "undefined" && root.defaultDurations.length > 0
+                    
+                    Controls.Label {
+                        text: qsTr("Presets:")
+                        Layout.preferredWidth: implicitWidth
+                    }
+                    
+                    Repeater {
+                        model: root.defaultDurations ? root.defaultDurations : []
+                        Controls.Button {
+                            text: FormatUtils.formatDuration(modelData)
+                            Layout.preferredWidth: implicitWidth
+                            onClicked: {
+                                durationSlider.value = modelData
+                                root.worklogChanged()
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -317,7 +354,53 @@ ColumnLayout {
         timeField.updatingFromModel = false
     }
     
+    /**
+     * Calcula e preenche campos automaticamente baseado na duração
+     */
+    function calculateAndSetRetroactiveTime() {
+        var durationMinutes = Math.round(durationSlider.value)
+        var calculated = FormatUtils.calculateRetroactiveStartTime(durationMinutes)
+        
+        // Preencher campos de data/hora
+        dateField.updatingFromModel = true
+        timeField.updatingFromModel = true
+        dateField.text = calculated.date
+        timeField.text = calculated.time
+        dateField.updatingFromModel = false
+        timeField.updatingFromModel = false
+        
+        // Validação básica (sem usar Validators.js para evitar problemas de import)
+        if (durationMinutes > retroactiveMaxHours * 60) {
+            console.warn("Duração excede o máximo permitido de", retroactiveMaxHours, "horas")
+        }
+        
+        root.worklogChanged()
+    }
+    
     Component.onCompleted: {
         initializeDefaults()
+        
+        // Carregar configurações de worklog retroativo se jiraService estiver disponível
+        // Usar Qt.callLater para garantir que jiraService esteja disponível
+        Qt.callLater(function() {
+            if (typeof jiraService !== "undefined" && jiraService) {
+                try {
+                    if (typeof jiraService.getRetroactiveMaxHours === "function") {
+                        var maxHours = jiraService.getRetroactiveMaxHours()
+                        if (maxHours > 0) {
+                            retroactiveMaxHours = maxHours
+                        }
+                    }
+                    if (typeof jiraService.getDefaultDurations === "function") {
+                        var durations = jiraService.getDefaultDurations()
+                        if (durations && Array.isArray(durations) && durations.length > 0) {
+                            defaultDurations = durations
+                        }
+                    }
+                } catch (e) {
+                    console.warn("Erro ao carregar configurações de worklog retroativo:", e)
+                }
+            }
+        })
     }
 }

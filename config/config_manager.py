@@ -225,6 +225,16 @@ class ConfigManager:
         """Retorna o timezone para worklog (default: America/Sao_Paulo)"""
         return self._config.get("worklog_timezone", "America/Sao_Paulo")
 
+    def get_retroactive_max_hours(self) -> int:
+        """Retorna horas máximas permitidas para worklog retroativo (default: 24)"""
+        worklog_config = self._config.get("worklog", {})
+        return worklog_config.get("retroactive_max_hours", 24)
+
+    def get_default_durations(self) -> List[int]:
+        """Retorna lista de durações padrão em minutos (default: [30, 60, 120, 240, 480])"""
+        worklog_config = self._config.get("worklog", {})
+        return worklog_config.get("default_durations", [30, 60, 120, 240, 480])
+
     def get_jira_cli_config_path(self) -> Optional[Path]:
         """
         Retorna o caminho do arquivo de configuração do Jira (.jira-config.yml)

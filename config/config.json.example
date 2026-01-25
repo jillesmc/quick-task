@@ -25,6 +25,10 @@
     "DONE"
   ],
   "worklog_timezone": "America/Sao_Paulo",
+  "worklog": {
+    "retroactive_max_hours": 24,
+    "default_durations": [30, 60, 120, 240, 480]
+  },
   "epic_filters": {
     "created_by_me": false,
     "assigned_to_me": false,
