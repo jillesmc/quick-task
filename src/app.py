@@ -286,6 +286,9 @@ def main():
         if tray_manager and hasattr(tray_manager, 'tray_icon'):
             tray_icon = tray_manager.tray_icon
         notification_service = NotificationService(tray_icon=tray_icon)
+        # Conectar settingsModel ao notificationService
+        if notification_service and settings_model:
+            notification_service.set_settings_model(settings_model)
         debug_log("App", "main", "NotificationService criado com sucesso")
         
         debug_log("App", "main", "Criando WorklogSyncService...")
@@ -448,9 +451,12 @@ def main():
             # Caminho para o QML do conteúdo do timer
             qml_content_path = Path(__file__).parent / "qml" / "components" / "timer" / "TimerFloatingPanelContent.qml"
             
+            # Variável para lembrar estado de visibilidade antes do alerta
+            _was_minimized_before_alert = False
+            
             def create_timer_window():
                 """Cria a janela flutuante do timer"""
-                nonlocal timer_floating_window
+                nonlocal timer_floating_window, _was_minimized_before_alert
                 if timer_floating_window:
                     return  # Já existe
                 
@@ -471,18 +477,54 @@ def main():
                             if os.path.exists(path):
                                 qml_engine.addImportPath(path)
                     
-                    # Função para esconder a janela flutuante (minimizar ao tray)
-                    def hide_timer_window():
-                        """Esconde a janela flutuante do timer"""
-                        nonlocal timer_floating_window
-                        if timer_floating_window:
-                            timer_floating_window.hide()
+                    # Criar um QObject wrapper para expor a função hideWindow ao QML
+                    # QQuickView não reconhece funções Python simples como callable no QML
+                    # Precisamos usar um QObject com @Slot() para que funcione corretamente
+                    from PySide6.QtCore import QObject, Slot
+                    
+                    class TimerWindowHelper(QObject):
+                        """Helper QObject para expor funções da janela do timer ao QML"""
+                        def __init__(self, window_ref, parent=None):
+                            super().__init__(parent)
+                            # Manter referência forte à janela para evitar garbage collection
+                            self._window_ref = window_ref
+                        
+                        @Slot()
+                        def hide(self):
+                            """Esconde a janela flutuante do timer (chamado do QML)"""
+                            debug_log("App", "TimerWindowHelper.hide", "Escondendo janela do timer")
+                            if self._window_ref:
+                                debug_log("App", "TimerWindowHelper.hide", "Janela encontrada, chamando hide()")
+                                self._window_ref.hide()
+                                debug_log("App", "TimerWindowHelper.hide", "hide() chamado com sucesso")
+                            else:
+                                debug_log("App", "TimerWindowHelper.hide", "AVISO: _window_ref é None")
+                    
+                    # Criar instância do helper COM A JANELA COMO PARENT
+                    # Isso garante que o helper não seja garbage collected enquanto a janela existir
+                    timer_window_helper = TimerWindowHelper(timer_floating_window, parent=timer_floating_window)
                     
                     # Expor modelos e serviços ao contexto da janela ANTES de carregar QML
-                    timer_floating_window.rootContext().setContextProperty("timerModel", timer_model)
-                    timer_floating_window.rootContext().setContextProperty("timerService", timer_service)
-                    timer_floating_window.rootContext().setContextProperty("settingsModel", settings_model)
-                    timer_floating_window.rootContext().setContextProperty("hideWindow", hide_timer_window)
+                    root_context = timer_floating_window.rootContext()
+                    root_context.setContextProperty("timerModel", timer_model)
+                    root_context.setContextProperty("timerService", timer_service)
+                    root_context.setContextProperty("settingsModel", settings_model)
+                    root_context.setContextProperty("hideWindow", timer_window_helper)
+                    
+                    debug_log("App", "create_timer_window", "Propriedades expostas ao contexto QML da janela flutuante")
+                    debug_log("App", "create_timer_window", "hideWindow exposto como TimerWindowHelper QObject (parent: janela)")
+                    
+                    # Verificar se a propriedade foi exposta corretamente (diagnóstico)
+                    try:
+                        qml_engine = timer_floating_window.engine()
+                        if qml_engine:
+                            test_result = qml_engine.evaluate("typeof hideWindow")
+                            debug_log("App", "create_timer_window", "Verificação: typeof hideWindow = %s", test_result)
+                            # Verificar se o método hide está disponível
+                            test_result2 = qml_engine.evaluate("typeof hideWindow.hide")
+                            debug_log("App", "create_timer_window", "Verificação: typeof hideWindow.hide = %s", test_result2)
+                    except Exception as e:
+                        debug_log("App", "create_timer_window", "Erro ao verificar hideWindow: %s", e)
                     
                     # Carregar QML após expor propriedades
                     timer_floating_window.load_qml()
@@ -490,6 +532,55 @@ def main():
                     # Conectar sinal de restore do tray manager
                     if timer_tray_manager:
                         timer_tray_manager.restoreRequested.connect(lambda: timer_floating_window.show() if timer_floating_window else None)
+                    
+                    # Conectar sinais de breakDecisionRequested e breakEnded
+                    if timer_service:
+                        def on_break_decision_requested(pomodoro_num, break_type):
+                            nonlocal _was_minimized_before_alert
+                            # Salvar estado atual
+                            if timer_floating_window:
+                                _was_minimized_before_alert = not timer_floating_window.isVisible()
+                                # Trazer janela para primeiro plano
+                                timer_floating_window.show()
+                                timer_floating_window.raise_()
+                                timer_floating_window.requestActivate()
+                            
+                            # Tocar som
+                            if notification_service:
+                                notification_service.play_pomodoro_sound()
+                        
+                        def on_break_ended():
+                            # Trazer janela para primeiro plano novamente
+                            if timer_floating_window:
+                                timer_floating_window.show()
+                                timer_floating_window.raise_()
+                                timer_floating_window.requestActivate()
+                            
+                            # Tocar som
+                            if notification_service:
+                                notification_service.play_pomodoro_sound()
+                        
+                        # Conectar ao sinal do timerModel (QML também escuta este)
+                        if timer_model:
+                            timer_model.breakDecisionRequested.connect(on_break_decision_requested)
+                            timer_model.breakEnded.connect(on_break_ended)
+                            
+                            # Conectar mudanças de propriedades para restaurar visibilidade
+                            def restore_visibility_if_needed():
+                                """Restaura visibilidade se os flags de alerta/pausa foram desativados"""
+                                nonlocal _was_minimized_before_alert
+                                if timer_floating_window:
+                                    # Se não está mais em nenhum estado de alerta/pausa
+                                    if (not timer_model.isWaitingBreakDecision and 
+                                        not timer_model.isOnBreak and 
+                                        not timer_model.isWaitingBreakEndDecision):
+                                        # Restaurar visibilidade conforme estado anterior
+                                        if _was_minimized_before_alert:
+                                            timer_floating_window.hide()
+                                        # Se estava visível, manter visível (já está visível)
+                            
+                            # Conectar ao sinal timeUpdated que é emitido quando propriedades mudam
+                            timer_model.timeUpdated.connect(restore_visibility_if_needed)
                     
                     debug_log("App", "main", "Janela flutuante do timer criada com sucesso")
                 except Exception as e:
@@ -514,7 +605,27 @@ def main():
                     if not timer_floating_window:
                         create_timer_window()
                     if timer_floating_window:
-                        timer_floating_window.show()
+                        # Garantir que a janela seja mostrada após QML estar pronto
+                        from PySide6.QtQuick import QQuickView
+                        from PySide6.QtCore import QTimer
+                        
+                        def show_when_ready():
+                            if timer_floating_window and timer_floating_window.status() == QQuickView.Status.Ready:
+                                timer_floating_window.show()
+                                timer_floating_window.raise_()
+                                timer_floating_window.requestActivate()
+                            else:
+                                # Tentar novamente após um delay
+                                QTimer.singleShot(200, show_when_ready)
+                        
+                        # Se já estiver pronto, mostrar imediatamente
+                        if timer_floating_window.status() == QQuickView.Status.Ready:
+                            timer_floating_window.show()
+                            timer_floating_window.raise_()
+                            timer_floating_window.requestActivate()
+                        else:
+                            # Aguardar QML estar pronto
+                            show_when_ready()
                 else:
                     if timer_floating_window:
                         timer_floating_window.hide()

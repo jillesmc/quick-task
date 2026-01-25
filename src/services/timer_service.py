@@ -21,6 +21,7 @@ class TimerService(QObject):
     tick = Signal(int)  # segundos decorridos
     pomodoroCompleted = Signal(int)  # número do Pomodoro
     breakSuggested = Signal(str)  # "short" ou "long"
+    breakDecisionRequested = Signal(int, str)  # pomodoro_num, break_type
 
     def __init__(
         self,
@@ -44,6 +45,16 @@ class TimerService(QObject):
         self._paused_elapsed = 0
         self._is_running = False
         
+        # Timer para contagem regressiva da pausa
+        self._break_countdown_timer = QTimer(self)
+        self._break_countdown_timer.timeout.connect(self._on_break_tick)
+        self._break_countdown_timer.setInterval(1000)  # 1 segundo
+        
+        # Timer para auto-continuação do alerta
+        self._break_decision_timeout_timer = QTimer(self)
+        self._break_decision_timeout_timer.setSingleShot(True)
+        self._break_decision_timeout_timer.timeout.connect(self._on_break_decision_timeout)
+        
         # Configurações de Pomodoro
         self._load_pomodoro_config()
 
@@ -55,6 +66,7 @@ class TimerService(QObject):
         self._short_break_seconds = pomodoro_config.get("short_break_minutes", 5) * 60
         self._long_break_seconds = pomodoro_config.get("long_break_minutes", 15) * 60
         self._pomodoros_before_long_break = pomodoro_config.get("pomodoros_before_long_break", 4)
+        self._auto_continue_timeout_seconds = pomodoro_config.get("auto_continue_timeout_seconds", 30)
         debug_log("TimerService", "_load_pomodoro_config", "Configurações carregadas: enabled=%s, duration=%ds", 
                  self._pomodoro_enabled, self._pomodoro_duration_seconds)
 
@@ -178,7 +190,7 @@ class TimerService(QObject):
             if pomodoros_completed > current_pomodoro:
                 # Novo Pomodoro completado
                 new_pomodoro = pomodoros_completed
-                self._timer_model.currentPomodoro = new_pomodoro
+                # NÃO definir currentPomodoro aqui - add_pomodoro() calculará baseado no tamanho da lista
                 self._timer_model.pomodorosToday += 1
                 
                 # Criar PomodoroSession
@@ -208,13 +220,25 @@ class TimerService(QObject):
                 self._timer_model.add_pomodoro(pomodoro)
                 self.pomodoroCompleted.emit(new_pomodoro)
                 
-                # Sugerir pausa
+                # Determinar tipo de pausa automaticamente
                 if new_pomodoro % self._pomodoros_before_long_break == 0:
-                    self.breakSuggested.emit("long")
+                    break_type = "long"
                 else:
-                    self.breakSuggested.emit("short")
+                    break_type = "short"
                 
-                debug_log("TimerService", "_on_tick", "Pomodoro %d completado", new_pomodoro)
+                # Emitir sinal de decisão de pausa (novo fluxo)
+                self._timer_model.isWaitingBreakDecision = True
+                # Emitir do timerModel (QML escuta timerModel.breakDecisionRequested)
+                self._timer_model.breakDecisionRequested.emit(new_pomodoro, break_type)
+                
+                # Manter sinal breakSuggested para compatibilidade
+                self.breakSuggested.emit(break_type)
+                
+                # Iniciar timer de auto-continuação
+                timeout_seconds = self._auto_continue_timeout_seconds
+                self._break_decision_timeout_timer.start(timeout_seconds * 1000)
+                
+                debug_log("TimerService", "_on_tick", "Pomodoro %d completado, break_type=%s", new_pomodoro, break_type)
 
     def get_elapsed_seconds(self) -> int:
         """Retorna segundos decorridos"""
@@ -231,3 +255,85 @@ class TimerService(QObject):
     def reload_config(self) -> None:
         """Recarrega configurações de Pomodoro"""
         self._load_pomodoro_config()
+    
+    @Slot(str)
+    def acceptBreak(self, break_type: str) -> None:
+        """Aceita fazer pausa"""
+        debug_log("TimerService", "acceptBreak", "Aceitando pausa, tipo=%s", break_type)
+        
+        # Parar timer completamente
+        self.stop()
+        
+        # Cancelar timer de auto-continuação
+        self._break_decision_timeout_timer.stop()
+        
+        # Determinar duração da pausa
+        if break_type == "long":
+            break_duration_seconds = self._long_break_seconds
+        else:
+            break_duration_seconds = self._short_break_seconds
+        
+        # Iniciar contagem regressiva da pausa
+        self._timer_model.isOnBreak = True
+        self._timer_model.breakType = break_type
+        self._timer_model.breakRemainingSeconds = break_duration_seconds
+        self._timer_model.isWaitingBreakDecision = False
+        
+        # Iniciar timer de contagem regressiva
+        self._break_countdown_timer.start()
+        
+        debug_log("TimerService", "acceptBreak", "Pausa iniciada: tipo=%s, duração=%ds", break_type, break_duration_seconds)
+    
+    def _on_break_tick(self) -> None:
+        """Callback chamado a cada segundo durante a pausa"""
+        if self._timer_model.breakRemainingSeconds > 0:
+            self._timer_model.breakRemainingSeconds -= 1
+        else:
+            # Pausa terminou
+            self._break_countdown_timer.stop()
+            self._timer_model.isOnBreak = False
+            self._timer_model.isWaitingBreakEndDecision = True
+            self._timer_model.breakEnded.emit()
+            # Som será tocado via app.py quando breakEnded for emitido
+            debug_log("TimerService", "_on_break_tick", "Pausa terminada")
+    
+    @Slot()
+    def continueWithoutBreak(self) -> None:
+        """Continua sem fazer pausa"""
+        debug_log("TimerService", "continueWithoutBreak", "Continuando sem pausa")
+        
+        # Cancelar timer de auto-continuação
+        self._break_decision_timeout_timer.stop()
+        
+        # Esconder alerta (timer já está rodando normalmente)
+        self._timer_model.isWaitingBreakDecision = False
+    
+    def _on_break_decision_timeout(self) -> None:
+        """Timeout de auto-continuação do alerta"""
+        debug_log("TimerService", "_on_break_decision_timeout", "Timeout atingido, continuando automaticamente")
+        self.continueWithoutBreak()
+    
+    @Slot()
+    def continueAfterBreak(self) -> None:
+        """Continua após pausa terminar"""
+        debug_log("TimerService", "continueAfterBreak", "Continuando após pausa")
+        
+        # Reiniciar timer com a mesma issue key
+        issue_key = self._timer_model.issueKey
+        self._timer_model.isWaitingBreakEndDecision = False
+        
+        if issue_key:
+            self.start(issue_key)
+    
+    @Slot()
+    def stopAfterBreak(self) -> None:
+        """Para após pausa terminar"""
+        debug_log("TimerService", "stopAfterBreak", "Parando após pausa")
+        
+        # Manter timer parado (já está parado)
+        self._timer_model.isWaitingBreakEndDecision = False
+        
+        # Limpar issue key e resetar contadores
+        self._timer_model.issueKey = ""
+        self._timer_model.elapsedSeconds = 0
+        self._timer_model.currentPomodoro = 0

@@ -31,6 +31,7 @@ class NotificationService(QObject):
         self._auto_continue_timer = QTimer(self)
         self._auto_continue_timer.timeout.connect(self._on_auto_continue)
         self._interaction_timeout_seconds = 30
+        self._settings_model = None
 
     def set_interaction_timeout(self, seconds: int) -> None:
         """Define timeout de auto-continuação em segundos"""
@@ -103,3 +104,26 @@ class NotificationService(QObject):
     def set_tray_icon(self, tray_icon: Optional[QSystemTrayIcon]) -> None:
         """Define o ícone do system tray para usar nas notificações"""
         self._tray_icon = tray_icon
+    
+    def set_settings_model(self, settings_model) -> None:
+        """Define o SettingsModel para verificar se som está habilitado"""
+        self._settings_model = settings_model
+    
+    def play_pomodoro_sound(self) -> None:
+        """Toca som quando pomodoro completa ou pausa termina"""
+        # Verificar se som está habilitado
+        if self._settings_model and not self._settings_model.soundEnabled:
+            debug_log("NotificationService", "play_pomodoro_sound", "Som desabilitado nas configurações")
+            return
+        
+        try:
+            # Usar beep do sistema via QSystemTrayIcon se disponível
+            if TRAY_AVAILABLE and self._tray_icon:
+                # Usar beep do tray icon (mostrar mensagem vazia por 1ms para tocar beep)
+                self._tray_icon.showMessage("", "", QSystemTrayIcon.NoIcon, 1)
+            else:
+                # Fallback: usar beep do sistema via print (ASCII bell)
+                print("\a", end="", flush=True)
+            debug_log("NotificationService", "play_pomodoro_sound", "Som tocado")
+        except Exception as e:
+            debug_log("NotificationService", "play_pomodoro_sound", "Erro ao tocar som: %s", e)

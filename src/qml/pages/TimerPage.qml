@@ -82,15 +82,8 @@ Kirigami.Page {
         
         function onPomodoroCompleted(pomodoroNum) {
             console.log("TimerPage: Pomodoro completado:", pomodoroNum)
-            // Pomodoro completado - mostrar notificação
-            if (notificationService && settingsModel && settingsModel.notificationsEnabled) {
-                var issueKey = timerModel ? timerModel.issueKey : ""
-                var totalBeforeLong = settingsModel ? settingsModel.pomodorosBeforeLongBreak : 4
-                var breakType = (pomodoroNum % totalBeforeLong === 0) ? "long" : "short"
-                if (typeof notificationService.show_pomodoro_notification === "function") {
-                    notificationService.show_pomodoro_notification(issueKey, pomodoroNum, totalBeforeLong, breakType)
-                }
-            }
+            // Notificação no tray removida - a janela do timer será trazida para primeiro plano
+            // com o questionamento interativo
         }
         
         function onBreakSuggested(breakType) {

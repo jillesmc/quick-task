@@ -8,7 +8,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
-from PySide6.QtCore import QObject, Property, Signal  # type: ignore[import]
+from PySide6.QtCore import QObject, Property, Signal, Slot  # type: ignore[import]
 
 from src.utils.debug import debug_log
 
@@ -107,6 +107,8 @@ class TimerModel(QObject):
     pomodoroCompleted = Signal(int)  # número do Pomodoro
     sessionSaved = Signal(str)  # session_id
     issueKeyChanged = Signal()
+    breakDecisionRequested = Signal(int, str)  # pomodoro_num, break_type
+    breakEnded = Signal()  # emitido quando a pausa termina
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -117,6 +119,13 @@ class TimerModel(QObject):
         self._current_session: Optional[WorklogSession] = None
         self._pomodoros_today = 0
         self._total_seconds_today = 0
+        
+        # Estados de pausa e alerta
+        self._is_waiting_break_decision = False
+        self._is_on_break = False
+        self._break_remaining_seconds = 0
+        self._break_type = ""  # "short" ou "long"
+        self._is_waiting_break_end_decision = False
 
     @Property(str, notify=stateChanged)
     def state(self) -> str:
@@ -251,7 +260,165 @@ class TimerModel(QObject):
         """Adiciona um Pomodoro à sessão atual"""
         if self._current_session:
             self._current_session.pomodoros.append(pomodoro)
-            self._pomodoros_today += 1
-            self._current_pomodoro += 1
+            # Calcular currentPomodoro baseado no tamanho da lista (não incrementar manualmente)
+            self._current_pomodoro = len(self._current_session.pomodoros)
             self.pomodoroCompleted.emit(self._current_pomodoro)
             debug_log("TimerModel", "add_pomodoro", "Pomodoro adicionado: %d", self._current_pomodoro)
+    
+    @Property(bool, notify=timeUpdated)
+    def isWaitingBreakDecision(self) -> bool:
+        """Flag visual indicando se está aguardando decisão de pausa"""
+        return self._is_waiting_break_decision
+    
+    @isWaitingBreakDecision.setter
+    def isWaitingBreakDecision(self, value: bool):
+        if self._is_waiting_break_decision != value:
+            self._is_waiting_break_decision = value
+            self.timeUpdated.emit(self._elapsed_seconds)
+    
+    @Property(bool, notify=timeUpdated)
+    def isOnBreak(self) -> bool:
+        """Indica se o timer está em pausa (contagem regressiva)"""
+        return self._is_on_break
+    
+    @isOnBreak.setter
+    def isOnBreak(self, value: bool):
+        if self._is_on_break != value:
+            self._is_on_break = value
+            self.timeUpdated.emit(self._elapsed_seconds)
+    
+    @Property(int, notify=timeUpdated)
+    def breakRemainingSeconds(self) -> int:
+        """Segundos restantes da pausa atual"""
+        return self._break_remaining_seconds
+    
+    @breakRemainingSeconds.setter
+    def breakRemainingSeconds(self, value: int):
+        if self._break_remaining_seconds != value:
+            self._break_remaining_seconds = value
+            self.timeUpdated.emit(self._elapsed_seconds)
+    
+    @Property(str, notify=timeUpdated)
+    def breakType(self) -> str:
+        """Tipo de pausa atual: 'short' ou 'long'"""
+        return self._break_type
+    
+    @breakType.setter
+    def breakType(self, value: str):
+        if self._break_type != value:
+            self._break_type = value
+            self.timeUpdated.emit(self._elapsed_seconds)
+    
+    @Property(bool, notify=timeUpdated)
+    def isWaitingBreakEndDecision(self) -> bool:
+        """Indica se está aguardando decisão após pausa terminar"""
+        return self._is_waiting_break_end_decision
+    
+    @isWaitingBreakEndDecision.setter
+    def isWaitingBreakEndDecision(self, value: bool):
+        if self._is_waiting_break_end_decision != value:
+            self._is_waiting_break_end_decision = value
+            self.timeUpdated.emit(self._elapsed_seconds)
+    
+    @Slot()
+    def acceptBreak(self) -> None:
+        """Aceita fazer pausa (chamado pelo QML)"""
+        # A lógica real será implementada no TimerService
+        debug_log("TimerModel", "acceptBreak", "Aceitar pausa chamado")
+    
+    @Slot()
+    def continueWithoutBreak(self) -> None:
+        """Continua sem fazer pausa (chamado pelo QML)"""
+        # A lógica real será implementada no TimerService
+        debug_log("TimerModel", "continueWithoutBreak", "Continuar sem pausa chamado")
+    
+    @Slot()
+    def continueAfterBreak(self) -> None:
+        """Continua após pausa terminar (chamado pelo QML)"""
+        # A lógica real será implementada no TimerService
+        debug_log("TimerModel", "continueAfterBreak", "Continuar após pausa chamado")
+    
+    @Slot()
+    def stopAfterBreak(self) -> None:
+        """Para após pausa terminar (chamado pelo QML)"""
+        # A lógica real será implementada no TimerService
+        debug_log("TimerModel", "stopAfterBreak", "Parar após pausa chamado")
+    
+    @Property(bool, notify=timeUpdated)
+    def isWaitingBreakDecision(self) -> bool:
+        """Flag visual indicando se está aguardando decisão de pausa"""
+        return self._is_waiting_break_decision
+    
+    @isWaitingBreakDecision.setter
+    def isWaitingBreakDecision(self, value: bool):
+        if self._is_waiting_break_decision != value:
+            self._is_waiting_break_decision = value
+            self.timeUpdated.emit(self._elapsed_seconds)
+    
+    @Property(bool, notify=timeUpdated)
+    def isOnBreak(self) -> bool:
+        """Indica se o timer está em pausa (contagem regressiva)"""
+        return self._is_on_break
+    
+    @isOnBreak.setter
+    def isOnBreak(self, value: bool):
+        if self._is_on_break != value:
+            self._is_on_break = value
+            self.timeUpdated.emit(self._elapsed_seconds)
+    
+    @Property(int, notify=timeUpdated)
+    def breakRemainingSeconds(self) -> int:
+        """Segundos restantes da pausa atual"""
+        return self._break_remaining_seconds
+    
+    @breakRemainingSeconds.setter
+    def breakRemainingSeconds(self, value: int):
+        if self._break_remaining_seconds != value:
+            self._break_remaining_seconds = value
+            self.timeUpdated.emit(self._elapsed_seconds)
+    
+    @Property(str, notify=timeUpdated)
+    def breakType(self) -> str:
+        """Tipo de pausa atual: 'short' ou 'long'"""
+        return self._break_type
+    
+    @breakType.setter
+    def breakType(self, value: str):
+        if self._break_type != value:
+            self._break_type = value
+            self.timeUpdated.emit(self._elapsed_seconds)
+    
+    @Property(bool, notify=timeUpdated)
+    def isWaitingBreakEndDecision(self) -> bool:
+        """Indica se está aguardando decisão após pausa terminar"""
+        return self._is_waiting_break_end_decision
+    
+    @isWaitingBreakEndDecision.setter
+    def isWaitingBreakEndDecision(self, value: bool):
+        if self._is_waiting_break_end_decision != value:
+            self._is_waiting_break_end_decision = value
+            self.timeUpdated.emit(self._elapsed_seconds)
+    
+    @Slot()
+    def acceptBreak(self) -> None:
+        """Aceita fazer pausa (chamado pelo QML)"""
+        # A lógica real será implementada no TimerService
+        debug_log("TimerModel", "acceptBreak", "Aceitar pausa chamado")
+    
+    @Slot()
+    def continueWithoutBreak(self) -> None:
+        """Continua sem fazer pausa (chamado pelo QML)"""
+        # A lógica real será implementada no TimerService
+        debug_log("TimerModel", "continueWithoutBreak", "Continuar sem pausa chamado")
+    
+    @Slot()
+    def continueAfterBreak(self) -> None:
+        """Continua após pausa terminar (chamado pelo QML)"""
+        # A lógica real será implementada no TimerService
+        debug_log("TimerModel", "continueAfterBreak", "Continuar após pausa chamado")
+    
+    @Slot()
+    def stopAfterBreak(self) -> None:
+        """Para após pausa terminar (chamado pelo QML)"""
+        # A lógica real será implementada no TimerService
+        debug_log("TimerModel", "stopAfterBreak", "Parar após pausa chamado")

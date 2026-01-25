@@ -25,20 +25,24 @@ Item {
                String(secs).padStart(2, '0')
     }
     
-    // Conteúdo da janela
-    Rectangle {
-        id: panel
+    // StackLayout para alternar entre diferentes conteúdos
+    StackLayout {
+        id: contentStack
         anchors.fill: parent
-        color: Kirigami.Theme.backgroundColor || "#f0f0f0"
-        border.color: Kirigami.Theme.highlightColor || "#3daee9"
-        border.width: 2
-        radius: Kirigami.Units.smallSpacing
         
-        // Conteúdo da janela
-        ColumnLayout {
-            anchors.fill: parent
-            anchors.margins: Kirigami.Units.mediumSpacing
-            spacing: Kirigami.Units.smallSpacing
+        // Conteúdo normal do timer
+        Rectangle {
+            id: normalPanel
+            color: Kirigami.Theme.backgroundColor || "#f0f0f0"
+            border.color: Kirigami.Theme.highlightColor || "#3daee9"
+            border.width: 2
+            radius: Kirigami.Units.smallSpacing
+            
+            // Conteúdo da janela
+            ColumnLayout {
+                anchors.fill: parent
+                anchors.margins: Kirigami.Units.mediumSpacing
+                spacing: Kirigami.Units.smallSpacing
             
             // Cabeçalho com botões de controle
             RowLayout {
@@ -57,9 +61,26 @@ Item {
                     icon.name: "window-minimize"
                     onClicked: {
                         // Minimizar ao tray (esconder janela)
-                        // Será gerenciado pelo Python
-                        if (typeof hideWindow === "function") {
-                            hideWindow()
+                        // hideWindow é um QObject com método hide() exposto via @Slot()
+                        console.log("TimerFloatingPanel: Botão minimizar clicado")
+                        console.log("TimerFloatingPanel: typeof hideWindow =", typeof hideWindow)
+                        if (hideWindow) {
+                            console.log("TimerFloatingPanel: hideWindow encontrado, verificando método hide...")
+                            console.log("TimerFloatingPanel: typeof hideWindow.hide =", typeof hideWindow.hide)
+                            if (typeof hideWindow.hide === "function") {
+                                console.log("TimerFloatingPanel: hideWindow.hide encontrado, chamando...")
+                                try {
+                                    hideWindow.hide()
+                                    console.log("TimerFloatingPanel: hideWindow.hide() chamado com sucesso")
+                                } catch (e) {
+                                    console.log("TimerFloatingPanel: ERRO ao chamar hideWindow.hide():", e)
+                                    console.log("TimerFloatingPanel: Mensagem de erro:", e.toString())
+                                }
+                            } else {
+                                console.log("TimerFloatingPanel: ERRO - hideWindow.hide não é uma função")
+                            }
+                        } else {
+                            console.log("TimerFloatingPanel: ERRO - hideWindow não está disponível")
                         }
                     }
                 }
@@ -140,12 +161,64 @@ Item {
                             timerService.stop()
                         }
                         // Fechar janela após parar (será gerenciado pelo Python)
-                        if (typeof hideWindow === "function") {
-                            hideWindow()
+                        if (hideWindow && typeof hideWindow.hide === "function") {
+                            hideWindow.hide()
                         }
                     }
                 }
             }
+            }
+        }
+        
+        // Alerta de pomodoro completo
+        PomodoroBreakPrompt {
+            id: breakPrompt
+        }
+        
+        // Contagem regressiva da pausa
+        BreakCountdown {
+            id: breakCountdown
+        }
+        
+        // Questionamento após pausa terminar
+        BreakEndPrompt {
+            id: breakEndPrompt
         }
     }
+    
+    // Determinar qual conteúdo mostrar
+    states: [
+        State {
+            name: "normal"
+            when: !timerModel || (!timerModel.isWaitingBreakDecision && !timerModel.isOnBreak && !timerModel.isWaitingBreakEndDecision)
+            PropertyChanges {
+                target: contentStack
+                currentIndex: 0
+            }
+        },
+        State {
+            name: "breakDecision"
+            when: timerModel && timerModel.isWaitingBreakDecision
+            PropertyChanges {
+                target: contentStack
+                currentIndex: 1
+            }
+        },
+        State {
+            name: "onBreak"
+            when: timerModel && timerModel.isOnBreak
+            PropertyChanges {
+                target: contentStack
+                currentIndex: 2
+            }
+        },
+        State {
+            name: "breakEnd"
+            when: timerModel && timerModel.isWaitingBreakEndDecision
+            PropertyChanges {
+                target: contentStack
+                currentIndex: 3
+            }
+        }
+    ]
 }
