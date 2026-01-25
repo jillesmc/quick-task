@@ -18,8 +18,8 @@ Kirigami.Page {
     property var pendingWorklogs: []
     property var issueSummaries: ({})  // Cache de summaries por issue_key
     
-    // Carregar worklogs pendentes ao carregar a página
-    Component.onCompleted: {
+    // Função para recarregar worklogs (pode ser chamada externamente)
+    function reloadWorklogs() {
         if (worklogSyncService) {
             pendingWorklogs = worklogSyncService.get_pending_worklogs()
             console.log("PendingWorklogsPage: Worklogs pendentes carregados:", pendingWorklogs.length)
@@ -28,6 +28,11 @@ Kirigami.Page {
         } else {
             console.error("PendingWorklogsPage: worklogSyncService não está disponível!")
         }
+    }
+    
+    // Carregar worklogs pendentes ao carregar a página
+    Component.onCompleted: {
+        reloadWorklogs()
     }
     
     function loadIssueSummaries() {
@@ -231,45 +236,52 @@ Kirigami.Page {
                                 visible: issueSummaries[worklogData.issue_key] !== undefined
                             }
                             
+                            // Datas: início e fim lado a lado
                             RowLayout {
                                 Layout.fillWidth: true
-                                spacing: Kirigami.Units.mediumSpacing
+                                spacing: Kirigami.Units.largeSpacing
                                 
-                                Controls.Label {
-                                    text: {
-                                        var duration = worklogData.duration_seconds || 0
-                                        var hours = Math.floor(duration / 3600)
-                                        var minutes = Math.floor((duration % 3600) / 60)
-                                        return qsTr("⏱ %1h %2m").arg(hours).arg(minutes)
-                                    }
-                                    font.pointSize: Kirigami.Theme.defaultFont.pointSize
-                                    color: Kirigami.Theme.highlightColor || "#3daee9"
-                                }
-                                
+                                // Data de início
                                 Controls.Label {
                                     text: {
                                         if (worklogData.start_time) {
                                             var date = new Date(worklogData.start_time)
-                                            return qsTr("📅 %1").arg(Qt.formatDateTime(date, "dd/MM/yyyy HH:mm"))
+                                            return qsTr("Início: %1").arg(Qt.formatDateTime(date, "dd/MM/yyyy HH:mm"))
                                         }
                                         return ""
                                     }
                                     font.pointSize: Kirigami.Theme.smallFont.pointSize
                                     color: Kirigami.Theme.disabledTextColor || "#808080"
+                                    visible: worklogData.start_time
+                                }
+                                
+                                // Data de fim
+                                Controls.Label {
+                                    text: {
+                                        if (worklogData.end_time) {
+                                            var date = new Date(worklogData.end_time)
+                                            return qsTr("Fim: %1").arg(Qt.formatDateTime(date, "dd/MM/yyyy HH:mm"))
+                                        }
+                                        return ""
+                                    }
+                                    font.pointSize: Kirigami.Theme.smallFont.pointSize
+                                    color: Kirigami.Theme.disabledTextColor || "#808080"
+                                    visible: worklogData.end_time
                                 }
                             }
                             
+                            // Duração calculada (abaixo das datas)
                             Controls.Label {
                                 text: {
-                                    if (worklogData.end_time) {
-                                        var date = new Date(worklogData.end_time)
-                                        return qsTr("Fim: %1").arg(Qt.formatDateTime(date, "dd/MM/yyyy HH:mm"))
-                                    }
-                                    return ""
+                                    var duration = worklogData.duration_seconds || 0
+                                    var hours = Math.floor(duration / 3600)
+                                    var minutes = Math.floor((duration % 3600) / 60)
+                                    return qsTr("Duração: %1h %2m").arg(hours).arg(minutes)
                                 }
-                                font.pointSize: Kirigami.Theme.smallFont.pointSize
-                                color: Kirigami.Theme.disabledTextColor || "#808080"
-                                visible: worklogData.end_time
+                                font.pointSize: Kirigami.Theme.defaultFont.pointSize
+                                font.bold: true
+                                color: Kirigami.Theme.highlightColor || "#3daee9"
+                                Layout.fillWidth: true
                             }
                         }
                         
@@ -316,21 +328,6 @@ Kirigami.Page {
             color: Kirigami.Theme.disabledTextColor || "#808080"
             font.pointSize: Kirigami.Theme.defaultFont.pointSize + 1
             visible: !worklogSyncService || (pendingWorklogs.length === 0)
-        }
-        
-        // Botão de atualizar
-        Controls.Button {
-            text: qsTr("Atualizar Lista")
-            icon.name: "view-refresh"
-            Layout.fillWidth: true
-            enabled: worklogSyncService !== null && worklogSyncService !== undefined
-            onClicked: {
-                if (worklogSyncService) {
-                    pendingWorklogs = worklogSyncService.get_pending_worklogs()
-                    console.log("PendingWorklogsPage: Lista atualizada, total:", pendingWorklogs.length)
-                    loadIssueSummaries()
-                }
-            }
         }
     }
 }

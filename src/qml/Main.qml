@@ -202,8 +202,7 @@ Kirigami.ApplicationWindow {
 
             // Aba Worklogs Pendentes
             Controls.TabButton {
-                text: "Worklogs"
-                icon.name: "document-send"
+                icon.name: "chronometer"
             }
 
             // Aba de Configuração (última, à direita)
@@ -325,6 +324,13 @@ Kirigami.ApplicationWindow {
             console.log("Main.qml: TabBar mudou para índice:", tabBar.currentIndex)
             stack.currentIndex = tabBar.currentIndex
             console.log("Main.qml: StackLayout mudou para índice:", stack.currentIndex)
+            
+            // Recarregar worklogs automaticamente quando a aba de worklogs for selecionada
+            // Índice 2 corresponde à aba de Worklogs
+            if (tabBar.currentIndex === 2 && pendingWorklogsPage) {
+                console.log("Main.qml: Aba de worklogs selecionada, recarregando worklogs...")
+                pendingWorklogsPage.reloadWorklogs()
+            }
         }
     }
     
