@@ -1,140 +1,53 @@
 # Jira Quick Task
 
-Aplicação desktop moderna para criar issues no Jira com interface gráfica usando Kirigami (KDE). Permite criar issues, configurar campos customizados, transicionar status sequencialmente e registrar worklogs automaticamente.
+Aplicação desktop moderna para criar issues no Jira com interface gráfica usando Kirigami 6 (KDE). Permite criar issues, configurar campos customizados, transicionar status sequencialmente e registrar worklogs automaticamente.
 
 ## Características
 
 - Interface gráfica moderna com Kirigami 6 (KDE)
 - Criação de issues com campos customizados
+- Visualização de issues do usuário
 - Transição sequencial de status
 - Registro automático de worklog após transição para "IN DEVELOPMENT"
-- Configuração flexível via arquivo JSON
+- Configuração via interface gráfica (não requer edição manual de arquivos)
 - Integração direta com **Jira REST API v3** para todas as operações
+- Sistema de debug condicional (ativado com `--debug` ou `JIRA_QUICK_TASK_DEBUG=1`)
+- Recarregamento automático de configurações após salvar
+
+## Arquitetura
+
+A aplicação usa:
+- **PySide6/Qt6** para a interface gráfica
+- **Kirigami 6** para componentes UI modernos
+- **Jira REST API v3** diretamente (sem dependências externas como ACLI)
+- **Flatpak** para distribuição
+- **Docker** para desenvolvimento e testes
 
 ## Pré-requisitos
 
-### Python 3.11 ou superior
+### Para Desenvolvimento e Testes
 
-O projeto requer Python 3.11 ou superior. Verifique se está instalado:
+- **Docker** e **Docker Compose** instalados
+  ```bash
+  sudo apt install docker.io docker-compose
+  ```
+  Todas as dependências (Python, PySide6, etc.) são instaladas automaticamente no container Docker. **Não é necessário instalar pacotes do sistema.**
 
-```bash
-python3 --version
-```
+### Para Executar a Aplicação (Flatpak)
 
-### Dependências do Sistema (Ubuntu/Debian)
+- **Flatpak** instalado
+  ```bash
+  sudo apt install flatpak
+  ```
+- SDKs do Flatpak (instalados automaticamente via `make flatpak-install-deps`)
 
-Os pacotes PySide6 e Kirigami devem ser instalados do sistema:
-
-```bash
-sudo apt update
-sudo apt install \
-    python3-pyside6.qtcore python3-pyside6.qtgui python3-pyside6.qtqml \
-    python3-pyside6.qtwidgets \
-    qml-module-org-kde-kirigami \
-    python3-xlib
-```
-
-### Token de API do Jira
-
-A aplicação usa **Jira REST API v3** diretamente, sem necessidade de ferramentas externas. Você só precisa de um token de API do Jira.
-
-**Obter Token de API:**
-
-1. Acesse: https://id.atlassian.com/manage-profile/security/api-tokens
-2. Clique em "Create API token"
-3. Dê um nome ao token (ex: "Jira Quick Task")
-4. Copie o token gerado
-
-**Configurar Token:**
-
-```bash
-# Configure o token como variável de ambiente
-export JIRA_API_TOKEN=<seu-token>
-```
-
-Para tornar o token permanente, adicione ao seu `~/.bashrc` ou `~/.zshrc`:
-
-```bash
-echo 'export JIRA_API_TOKEN=<seu-token>' >> ~/.bashrc  # ou ~/.zshrc
-source ~/.bashrc  # ou source ~/.zshrc
-```
-
-**Mais informações:**
-- [Como criar token de API](https://support.atlassian.com/atlassian-account/docs/manage-api-tokens-for-your-atlassian-account/)
-- [Jira REST API v3](https://developer.atlassian.com/cloud/jira/platform/rest/v3/)
+**Nota**: A estratégia atual é usar Docker para desenvolvimento/testes e Flatpak para executar a aplicação. Não é necessário instalar PySide6 ou Kirigami no sistema host.
 
 ## Instalação
 
-### 1. Clonar o repositório
+### Via Flatpak (Recomendado para Usuários)
 
-```bash
-git clone <url-do-repositorio>
-cd jira-quick-task
-```
-
-### 2. Instalar dependências do sistema
-
-Instale as dependências do sistema necessárias:
-
-```bash
-sudo apt install python3-pyside6.qtcore python3-pyside6.qtgui python3-pyside6.qtqml python3-pyside6.qtwidgets qml-module-org-kde-kirigami python3-xlib
-```
-
-### 3. Instalar dependências Python
-
-Instale as dependências Python definidas em `requirements.txt`:
-
-```bash
-pip3 install -r requirements.txt
-```
-
-### 4. Configurar Autenticação
-
-**Token de API (Obrigatório):**
-
-Configure o token de API do Jira:
-
-```bash
-# Configure o token como variável de ambiente
-export JIRA_API_TOKEN=<seu-token>
-```
-
-Para tornar o token permanente, adicione ao seu `~/.bashrc` ou `~/.zshrc`:
-
-```bash
-echo 'export JIRA_API_TOKEN=<seu-token>' >> ~/.bashrc  # ou ~/.zshrc
-source ~/.bashrc  # ou source ~/.zshrc
-```
-
-**Configuração do arquivo .jira-config.yml:**
-
-O projeto inclui um template de configuração em `config/.jira-config.yml.example`. 
-
-Para criar o arquivo de configuração:
-
-```bash
-# Copiar o template
-cp config/.jira-config.yml.example config/.jira-config.yml
-
-# Editar e preencher os campos necessários
-nano config/.jira-config.yml
-```
-
-Preencha os seguintes campos:
-- `login`: Seu e-mail do Jira
-- `server`: URL do seu servidor Jira (ex: `https://seu-projeto.atlassian.net`)
-
-**Nota sobre o Token:**
-
-O token `JIRA_API_TOKEN` é necessário para todas as operações via REST API (criação de issues, atualizações, transições, worklogs, etc.).
-
-### 5. Configurar campos customizados
-
-O arquivo `config/.jira-config.yml` já contém os IDs dos campos customizados. Se você precisar descobrir os IDs dos campos em outra instância Jira, use a API do Jira ou verifique no próprio Jira.
-
-## Instalação via Flatpak
-
-A aplicação pode ser empacotada e distribuída como Flatpak. Para construir e instalar:
+A aplicação é distribuída como Flatpak. Para construir e instalar localmente:
 
 ```bash
 # Instalar dependências do Flatpak (primeira vez)
@@ -144,211 +57,152 @@ make flatpak-install-deps
 make flatpak-build
 
 # Executar
-flatpak run org.kde.jira-quick-task
-```
-
-### Configuração no Flatpak
-
-Após instalar o Flatpak, configure as credenciais de conexão através da interface gráfica:
-
-1. **Abra a aplicação**: `flatpak run org.kde.jira-quick-task`
-
-2. **Acesse a aba "Configuração"**: Clique no ícone de configuração (⚙️) no canto superior esquerdo ou na aba "Configuração"
-
-3. **Preencha os campos**:
-   - **URL do Servidor Jira**: Ex: `https://seu-projeto.atlassian.net`
-   - **Email do Jira**: Seu email cadastrado no Jira
-   - **Token de API**: Seu token de API (obtenha em https://id.atlassian.com/manage-profile/security/api-tokens)
-
-4. **Clique em "Salvar"**: A aplicação irá:
-   - Criar os arquivos de configuração automaticamente (se não existirem)
-   - Salvar suas credenciais
-   - Buscar automaticamente o `accountId` via API do Jira
-
-**Nota**: Os arquivos de configuração são criados automaticamente em `~/.var/app/org.kde.jira-quick-task/config/jira-quick-task/` dentro do sandbox do Flatpak.
-
-### Certificados SSL/CA no Flatpak
-
-A aplicação usa certificados CA do sistema host via bind mount (`--filesystem=host-etc:ro`). Esta abordagem:
-
-- **Vantagens:**
-  - Certificados sempre atualizados (não copiados para o sandbox)
-  - Funciona com certificados corporativos (ex: Netskope) automaticamente
-  - Compatível com diferentes distribuições Linux
-  - Não requer rebuild quando certificados são atualizados
-  - **Sem hardcoding**: Variáveis de ambiente são herdadas automaticamente do host
-
-- **Como funciona:**
-  - O Flatpak herda automaticamente variáveis de ambiente do host (incluindo `SSL_CERT_FILE`, `SSL_CERT_DIR`, etc.)
-  - Certificados do host ficam acessíveis em `/run/host/etc/ssl/certs/` dentro do sandbox
-  - O wrapper script (`flatpak-wrapper.sh`) apenas ajusta os caminhos herdados:
-    - Se o host tem `SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt`, o wrapper ajusta para `/run/host/etc/ssl/certs/ca-certificates.crt`
-    - Não cria variáveis se não existirem - deixa o Flatpak/herança fazer isso
-  - O `requests` Python detecta automaticamente essas variáveis
-
-- **Configuração no host (opcional):**
-  ```bash
-  # ~/.bashrc ou ~/.zshenv (opcional - funciona sem isso também)
-  export SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
-  export SSL_CERT_DIR=/etc/ssl/certs
-  ```
-
-- **Trade-off:**
-  - Expõe acesso de leitura a `/etc` do host (reduz isolamento do sandbox)
-  - Para maior isolamento, seria necessário copiar certificados durante o build, mas isso deixaria os certificados desatualizados
-
-### Atalho Global (Super+J) no Flatpak
-
-O atalho global **Super+J** está disponível no Flatpak! O `python-xlib` foi incluído como dependência e deve funcionar normalmente.
-
-**Nota:** O atalho global requer X11 (não funciona em Wayland puro). Se você estiver usando Wayland, o atalho não estará disponível, mas você pode:
-- Use o ícone na system tray para restaurar a janela
-- Use o atalho de teclado local (Ctrl+Return) quando a janela estiver em foco
-
-## Configuração
-
-### Arquivo config.json
-
-Edite `config/config.json` para configurar:
-
-- `project`: Nome do projeto Jira
-- `issue_type`: Tipo de issue (ex: "Task")
-- `assignee`: Email do assignee padrão ou `"auto"` para inferir do usuário atual
-- `jira_cli_config`: (Opcional) Caminho para o arquivo de configuração. Se não especificado, usa `config/.jira-config.yml`
-- `custom_fields`: IDs dos campos customizados (não mais aliases, agora usamos IDs diretos)
-- `tipo_atividade_values`: Valores possíveis para o campo "Tipo de atividade"
-- `status_sequence`: Sequência de status para transições
-- `worklog_timezone`: Timezone para registro de worklog (formato IANA, ex: "America/Sao_Paulo")
-
-### Arquivo config/.jira-config.yml
-
-Este arquivo contém a configuração do servidor Jira, projeto, e campos customizados. O arquivo `config/.jira-config.yml.example` no repositório é um template sem credenciais.
-
-**Importante:** O arquivo `config/.jira-config.yml` está no `.gitignore` e não será versionado (contém credenciais). Após clonar o repositório, você precisa:
-
-1. Copiar o template:
-   ```bash
-   cp config/.jira-config.yml.example config/.jira-config.yml
-   ```
-
-2. Configurar o login (email):
-   Edite o arquivo diretamente e preencha o campo `login` com seu e-mail.
-
-3. **Configurar token de API:**
-   ```bash
-   export JIRA_API_TOKEN=<seu-token>
-   ```
-   
-   O token é necessário para todas as operações via REST API.
-
-Exemplo de `config.json`:
-
-```json
-{
-  "project": "PLATFORM",
-  "issue_type": "Task",
-  "assignee": "seu.email@exemplo.com",
-  "custom_fields": {
-    "tipo_atividade": "customfield_12088",
-    "documentacao_anexa": "customfield_14840",
-    "utilizacao_ia": "customfield_14841"
-  },
-  "tipo_atividade_values": [
-    "Novas iniciativas/Novas funcionalidades/Melhorias funcionais",
-    "Melhorias Técnicas/Atualizações Técnicas/Plataforma/Segurança",
-    "Suporte Dúvidas/Suporte uso incorreto",
-    "Bugs/Incidentes/Retrabalho Técnico",
-    "Mudança de escopo"
-  ],
-  "status_sequence": [
-    "TO DO",
-    "WAITING DEVELOPMENT",
-    "IN DEVELOPMENT",
-    "CODE REVIEW",
-    "WAITING FOR HOMOLOG",
-    "IN HOMOLOGATION",
-    "READY FOR DEPLOY",
-    "DONE"
-  ],
-  "worklog_timezone": "America/Sao_Paulo"
-}
-```
-
-## Execução
-
-### Via Flatpak (Recomendado)
-
-Após construir e instalar o Flatpak:
-
-```bash
-# Executar aplicação
-flatpak run org.kde.jira-quick-task
-
-# Ou usar o target do Makefile
-make flatpak-test
+make flatpak-run
 ```
 
 A aplicação também estará disponível no menu de aplicações do seu desktop environment.
 
+### Para Desenvolvimento e Testes
+
+Para desenvolvimento e testes, use Docker. Todas as dependências são instaladas automaticamente no container:
+
+```bash
+# Construir imagem Docker (instala Python, PySide6, dependências)
+make docker-build
+
+# Executar testes unitários
+make docker-test
+
+# Abrir shell interativo no container
+make docker-shell
+
+# Formatar código com black
+make docker-format
+```
+
+**Importante**: O Docker é usado apenas para testes (sem interface gráfica). Para executar a aplicação com UI, use Flatpak (veja seção abaixo).
+
+## Configuração Inicial
+
+### Primeira Execução
+
+Na primeira execução, a aplicação abrirá automaticamente na aba de **Configuração**. Configure:
+
+1. **URL do Servidor Jira**: Ex: `https://seu-projeto.atlassian.net`
+2. **Email do Jira**: Seu email cadastrado no Jira
+3. **Token de API**: Seu token de API do Jira
+
+   **Como obter o token:**
+   - Acesse: https://id.atlassian.com/manage-profile/security/api-tokens
+   - Clique em "Create API token"
+   - Dê um nome ao token (ex: "Jira Quick Task")
+   - Copie o token gerado
+
+4. Clique em **"Salvar"**: A aplicação irá:
+   - Criar os arquivos de configuração automaticamente
+   - Salvar suas credenciais
+   - Buscar automaticamente o `accountId` via API do Jira
+   - Recarregar configurações para que a aplicação funcione imediatamente
+
+### Localização dos Arquivos de Configuração
+
+- **Flatpak**: `~/.var/app/org.kde.jira-quick-task/config/jira-quick-task/`
+- **Desenvolvimento local**: `~/.config/jira-quick-task/`
+
+Os arquivos criados automaticamente:
+- `config.json`: Configuração do projeto e campos customizados
+- `.jira-config.yml`: Credenciais de conexão (server, login, token)
+
+**Importante**: A aplicação **não lê mais variáveis de ambiente**. Toda configuração é feita via interface gráfica.
+
 ## Uso
 
+### Criar uma Issue
+
 1. **Summary**: Preencha o resumo da issue (obrigatório)
-2. **Description**: Descrição da issue (opcional)
+2. **Description**: Descrição da issue (opcional, suporta Markdown)
 3. **Tipo de atividade**: Selecione o tipo de atividade
 4. **Status inicial**: Selecione o status inicial (padrão: "TO DO")
 5. **Documentação anexa**: Selecione "Sim" ou "Não"
 6. **Utilização de IA**: Selecione "Sim" ou "Não"
-7. **Worklog** (opcional):
+7. **Épico** (opcional): Selecione um épico pai
+8. **Worklog** (opcional):
    - Marque "Registrar worklog" se desejar registrar tempo
    - Informe data/hora de início (formato: YYYY-MM-DD HH:MM:SS)
    - Ajuste a duração (30 minutos a 9 horas, em incrementos de 30 minutos)
    - O worklog será registrado automaticamente após a transição para "IN DEVELOPMENT"
 
-8. Clique em **"Criar"** para criar a issue
+9. Clique em **"Criar"** para criar a issue
 
 A aplicação mostrará uma barra de progresso durante a criação e transições de status.
+
+### Visualizar Minhas Issues
+
+A aba "Minhas Issues" mostra todas as issues atribuídas a você que não estão concluídas. Você pode:
+- Buscar por texto (summary ou key)
+- Ver detalhes da issue
+- Atualizar a lista
+
+## Debug
+
+Para ativar mensagens de debug detalhadas:
+
+```bash
+# Via parâmetro
+flatpak run org.kde.jira-quick-task --debug
+
+# Via variável de ambiente
+JIRA_QUICK_TASK_DEBUG=1 flatpak run org.kde.jira-quick-task
+```
+
+As mensagens de debug seguem o formato: `[DEBUG] ModuleName.function_name: mensagem`
 
 ## Estrutura do Projeto
 
 ```
 jira-quick-task/
 ├── config/
-│   ├── config.json          # Configuração do projeto
-│   ├── .jira-config.yml.example  # Template de configuração Jira
-│   └── config_manager.py    # Gerenciador de configuração
+│   ├── config.json.example          # Template de configuração do projeto
+│   ├── .jira-config.yml.example     # Template de configuração Jira
+│   └── config_manager.py            # Gerenciador de configuração
 ├── core/
-│   ├── jira_client.py       # Cliente para Jira REST API v3
-│   └── status_transition.py # Lógica de transição de status
+│   ├── jira_client.py                  # Cliente para Jira REST API v3
+│   └── status_transition.py          # Lógica de transição de status
 ├── src/
-│   ├── app.py               # Aplicação principal PySide6
-│   ├── jira_service.py      # Serviço Jira (QObject)
+│   ├── app.py                        # Aplicação principal PySide6
+│   ├── jira_service.py              # Serviço Jira (QObject)
 │   ├── models/
-│   │   └── issue_model.py   # Modelo de dados (QObject)
+│   │   ├── issue_model.py           # Modelo de dados do formulário
+│   │   ├── my_issues_model.py       # Modelo para lista de issues
+│   │   └── settings_model.py        # Modelo para configuração
+│   ├── utils/
+│   │   └── debug.py                  # Sistema de debug condicional
 │   └── qml/
-│       ├── Main.qml         # Janela principal
-│       ├── IssueFormPage.qml # Formulário de criação
-│       ├── ProgressDialog.qml
-│       ├── SuccessDialog.qml
-│       └── ErrorDialog.qml
-├── scripts/                 # Scripts utilitários
-├── org.kde.jira-quick-task.desktop
-└── requirements.txt
+│       ├── Main.qml                  # Janela principal
+│       ├── pages/
+│       │   ├── IssueFormPage.qml    # Formulário de criação
+│       │   ├── MyIssuesPage.qml      # Lista de issues
+│       │   └── SettingsPage.qml      # Configuração
+│       ├── components/               # Componentes reutilizáveis
+│       └── controllers/              # Controladores QML
+├── flatpak/                          # Manifestos Flatpak
+├── Dockerfile.dev                    # Docker para desenvolvimento
+├── docker-compose.yml                # Compose para desenvolvimento
+└── requirements.txt                  # Dependências Python
 ```
 
 ## Desenvolvimento
 
-### Adicionar novos campos
+### Adicionar Novos Campos
 
-1. Adicione o campo em `config/config.json`:
+1. Adicione o campo em `config/config.json.example`:
    ```json
    "custom_fields": {
      "novo_campo": "customfield_XXXXX"
    }
    ```
 
-2. Adicione o campo em `config/.jira-config.yml` na seção `issue.fields.custom`
-
-3. Adicione propriedade em `src/models/issue_model.py`:
+2. Adicione propriedade em `src/models/issue_model.py`:
    ```python
    novoCampoChanged = Signal(str)
    
@@ -357,62 +211,98 @@ jira-quick-task/
        return self._novoCampo
    ```
 
-4. Adicione UI em `src/qml/IssueFormPage.qml`
+3. Adicione UI em `src/qml/pages/IssueFormPage.qml`
 
-5. Atualize `src/jira_service.py` para passar o campo na criação
+4. Atualize `src/jira_service.py` para passar o campo na criação
+
+### Comandos Úteis
+
+```bash
+# Desenvolvimento com Docker
+make docker-build      # Construir imagem
+make docker-test       # Executar testes
+make docker-shell      # Shell interativo
+
+# Flatpak
+make flatpak-dev       # Build + Run (desenvolvimento)
+make flatpak-build     # Build completo
+make flatpak-clean     # Limpar build
+```
 
 ## Troubleshooting
 
-### "JIRA_API_TOKEN não encontrado"
+### "Configuração do Jira não encontrada"
 
-- Configure o token: `export JIRA_API_TOKEN=<seu-token>`
-- Verifique se está configurado: `echo $JIRA_API_TOKEN`
-- Para tornar permanente, adicione ao `~/.bashrc` ou `~/.zshrc`
+- A aplicação abrirá automaticamente na aba de Configuração
+- Preencha URL, Email e Token de API
+- Clique em "Salvar"
+- A aplicação recarregará automaticamente e estará pronta para usar
 
 ### "URL do servidor Jira não encontrada" ou "Email não encontrado na configuração"
 
-- Verifique se o arquivo `config/.jira-config.yml` existe
-- Verifique se contém os campos `server` e `login`
-- Copie o template se necessário: `cp config/.jira-config.yml.example config/.jira-config.yml`
+- Verifique se os arquivos de configuração foram criados:
+  - Flatpak: `~/.var/app/org.kde.jira-quick-task/config/jira-quick-task/`
+  - Local: `~/.config/jira-quick-task/`
+- Verifique se contém os campos `server`, `login` e `token` no `.jira-config.yml`
+- Se necessário, reconfigure via interface gráfica
 
 ### "ModuleNotFoundError: No module named 'PySide6'"
 
-- Instale os pacotes do sistema: `sudo apt install python3-pyside6.qtcore python3-pyside6.qtgui python3-pyside6.qtqml python3-pyside6.qtwidgets`
-- Certifique-se de que os pacotes estão instalados: `dpkg -l | grep pyside6`
+- Se estiver usando Docker: Execute `make docker-build` para construir a imagem com todas as dependências
+- Se estiver usando Flatpak: O PySide6 vem do runtime `io.qt.PySide.BaseApp` - verifique se o Flatpak foi construído corretamente
+- **Nota**: Não é necessário instalar PySide6 no sistema host se você usar Docker ou Flatpak
 
 ### "module 'org.kde.kirigami' is not installed"
 
-- Instale o módulo Kirigami: `sudo apt install qml-module-org-kde-kirigami`
-- Verifique se o caminho do Qt 5 está correto em `src/app.py`
-
-### "Qt: Session management error"
-
-Este warning é normal e foi suprimido na aplicação. Se ainda aparecer, é apenas informativo e não afeta o funcionamento.
+- No Flatpak: O Kirigami vem do runtime KDE Platform - verifique se o runtime está instalado: `flatpak list | grep org.kde.Platform`
+- Se estiver desenvolvendo localmente (não recomendado): Instale `qml-module-org-kde-kirigami`, mas a estratégia recomendada é usar Docker para testes e Flatpak para executar
 
 ### Campos customizados não são preenchidos
 
 - Verifique se os IDs dos campos em `config.json` correspondem aos IDs reais no Jira
-- Verifique se os campos estão configurados em `config/.jira-config.yml`
-- Verifique se o token de API tem permissões para editar os campos customizados
+- Use a API do Jira para descobrir os IDs: `GET /rest/api/3/field`
 
 ### Erro ao transicionar status
 
 - Verifique se o nome do status em `config.json` corresponde exatamente ao nome no Jira (case-sensitive)
 - Verifique se a sequência de status está correta
 - Alguns status podem requerer campos customizados preenchidos antes da transição
-- Verifique se há trace ID no erro e reporte se necessário
 
 ### Worklog não é registrado
 
 - Verifique se o checkbox "Registrar worklog" está marcado
 - Verifique se a data/hora está no formato correto (YYYY-MM-DD HH:MM:SS)
 - Verifique se a duração é maior que 0
-- Verifique se `JIRA_API_TOKEN` está configurado
 - O worklog só é registrado após a transição para "IN DEVELOPMENT"
 
-### Erros com trace ID
+### Aplicação não abre na aba de configuração na primeira execução
 
-Se você receber um erro com "trace id: XXXXXXXX", copie e salve o trace ID. Ele pode ser solicitado pelo suporte da Atlassian ao reportar problemas.
+- Verifique se os arquivos de configuração não existem:
+  - Flatpak: `~/.var/app/org.kde.jira-quick-task/config/jira-quick-task/`
+  - Local: `~/.config/jira-quick-task/`
+- Se existirem mas estiverem incompletos, delete-os e reinicie a aplicação
+
+## Certificados SSL/CA no Flatpak
+
+A aplicação usa certificados CA do sistema host via bind mount (`--filesystem=host-etc:ro`). Esta abordagem:
+
+- **Vantagens:**
+  - Certificados sempre atualizados (não copiados para o sandbox)
+  - Funciona com certificados corporativos (ex: Netskope) automaticamente
+  - Compatível com diferentes distribuições Linux
+  - Não requer rebuild quando certificados são atualizados
+
+- **Trade-off:**
+  - Expõe acesso de leitura a `/etc` do host (reduz isolamento do sandbox)
+  - Para maior isolamento, seria necessário copiar certificados durante o build, mas isso deixaria os certificados desatualizados
+
+## Atalho Global (Super+J)
+
+O atalho global **Super+J** está disponível no Flatpak! O `python-xlib` foi incluído como dependência e deve funcionar normalmente.
+
+**Nota:** O atalho global requer X11 (não funciona em Wayland puro). Se você estiver usando Wayland, o atalho não estará disponível, mas você pode:
+- Usar o ícone na system tray para restaurar a janela
+- Usar o atalho de teclado local (Ctrl+Return) quando a janela estiver em foco
 
 ## Licença
 
@@ -423,3 +313,4 @@ Este projeto é de uso pessoal.
 - [Jira REST API v3](https://developer.atlassian.com/cloud/jira/platform/rest/v3/) - Documentação oficial da API
 - [Kirigami](https://develop.kde.org/frameworks/kirigami/) - Framework UI do KDE
 - [PySide6](https://wiki.qt.io/Qt_for_Python) - Bindings Python para Qt 6
+- [Flatpak](https://flatpak.org/) - Sistema de empacotamento de aplicações
