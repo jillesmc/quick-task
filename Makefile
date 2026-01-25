@@ -143,6 +143,11 @@ flatpak-run: check-flatpak
 	@echo "$(CYAN)Executando aplicação Flatpak...$(RESET)"
 	@./build-flatpak.sh test
 
+.PHONY: flatpak-run-debug
+flatpak-run-debug: check-flatpak
+	@echo "$(CYAN)Executando aplicação Flatpak com debug...$(RESET)"
+	@flatpak run org.kde.jira-quick-task --debug
+
 .PHONY: flatpak-dev
 flatpak-dev: check-flatpak
 	@echo "$(CYAN)Build + Run (desenvolvimento)...$(RESET)"

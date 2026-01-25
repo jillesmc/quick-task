@@ -29,6 +29,19 @@
     "retroactive_max_hours": 24,
     "default_durations": [30, 60, 120, 240, 480]
   },
+  "pomodoro": {
+    "enabled": true,
+    "pomodoro_duration_minutes": 25,
+    "short_break_minutes": 5,
+    "long_break_minutes": 15,
+    "pomodoros_before_long_break": 4,
+    "auto_continue_timeout_seconds": 30,
+    "notifications": {
+      "enabled": true,
+      "sound_enabled": false,
+      "desktop_notifications": true
+    }
+  },
   "epic_filters": {
     "created_by_me": false,
     "assigned_to_me": false,

@@ -60,6 +60,22 @@ Controls.Dialog {
             }
         }
         
+        // Botão Iniciar Timer (apenas para criação, não para atualização)
+        Controls.Button {
+            text: qsTr("Iniciar Timer")
+            icon.name: "chronometer"
+            Layout.fillWidth: true
+            visible: !isUpdate && issueKey !== "" && timerService && timerModel
+            enabled: timerService && timerModel
+            
+            onClicked: {
+                if (timerService && issueKey) {
+                    timerService.start(issueKey)
+                    dialog.close()
+                }
+            }
+        }
+        
         RowLayout {
             Layout.fillWidth: true
             Layout.alignment: Qt.AlignRight

@@ -36,9 +36,9 @@ Kirigami.ApplicationWindow {
                 // Verificar se configuração está completa
                 // needsConfiguration verifica se arquivos existem E se valores estão preenchidos
                 if (settingsModel.needsConfiguration || !settingsModel.isConfigured) {
-                    // Não está configurado - abrir na aba de Configuração (índice 2)
-                    stack.currentIndex = 2
-                    tabBar.currentIndex = 2
+                    // Não está configurado - abrir na aba de Configuração (índice 3)
+                    stack.currentIndex = 3
+                    tabBar.currentIndex = 3
                 } else {
                     // Está configurado - abrir na primeira aba (Criar Issue, índice 0)
                     stack.currentIndex = 0
@@ -51,6 +51,11 @@ Kirigami.ApplicationWindow {
                     tabBar.currentIndex = 0
                 }
             }
+            
+            // Verificar estado inicial do timer e criar janela flutuante se necessário
+            if (timerModel && (timerModel.state === "running" || timerModel.state === "paused")) {
+                createTimerFloatingWindow()
+            }
         })
     }
 
@@ -61,8 +66,8 @@ Kirigami.ApplicationWindow {
         id: shortcutCreateOrUpdate
         sequences: [ "Ctrl+Return", "Ctrl+Enter" ]
         onActivated: {
-            // Não fazer nada se estiver na página de configuração (índice 2)
-            if (stack.currentIndex === 2) return
+            // Não fazer nada se estiver na página de configuração (índice 3) ou worklogs (índice 2)
+            if (stack.currentIndex === 3 || stack.currentIndex === 2) return
             
             if (stack.currentIndex === 0) {
                 // Aba Criar Issue - delega a validação e feedback ao controller
@@ -96,12 +101,12 @@ Kirigami.ApplicationWindow {
         id: shortcutSwitchTab
         sequence: "Ctrl+Tab"
         onActivated: {
-            // Alternar apenas entre as duas abas principais (índices 0 e 1)
-            // Ignorar a aba de Configuração (índice 2)
+            // Alternar apenas entre as abas principais (índices 0 e 1)
+            // Ignorar a aba de Worklogs Pendentes (índice 2) e Configuração (índice 3)
             var currentIdx = stack.currentIndex
             
-            // Se estiver na aba de Configuração (2), ir para Criar Issue (0)
-            if (currentIdx === 2) {
+            // Se estiver na aba de Configuração (3) ou Worklogs (2), ir para Criar Issue (0)
+            if (currentIdx === 3 || currentIdx === 2) {
                 stack.currentIndex = 0
                 tabBar.currentIndex = 0
             }
@@ -115,7 +120,12 @@ Kirigami.ApplicationWindow {
                     issuesPage.initialSearchDone = true
                 }
             }
-            // Se estiver em Minhas Issues (1), voltar para Criar Issue (0)
+            // Se estiver em Minhas Issues (1), voltar para Criar Issue (0) (pula Worklogs)
+            else if (currentIdx === 1) {
+                stack.currentIndex = 0
+                tabBar.currentIndex = 0
+            }
+            // Caso padrão: voltar para Criar Issue (0)
             else {
                 stack.currentIndex = 0
                 tabBar.currentIndex = 0
@@ -127,12 +137,12 @@ Kirigami.ApplicationWindow {
         id: shortcutSwitchTabBack
         sequence: "Ctrl+Shift+Tab"
         onActivated: {
-            // Alternar apenas entre as duas abas principais (índices 0 e 1)
-            // Ignorar a aba de Configuração (índice 2)
+            // Alternar apenas entre as três abas principais (índices 0, 1 e 2)
+            // Ignorar a aba de Configuração (índice 3)
             var currentIdx = stack.currentIndex
             
-            // Se estiver na aba de Configuração (2), ir para Minhas Issues (1)
-            if (currentIdx === 2) {
+            // Se estiver na aba de Configuração (3) ou Timer (2), ir para Minhas Issues (1)
+            if (currentIdx === 3 || currentIdx === 2) {
                 stack.currentIndex = 1
                 tabBar.currentIndex = 1
                 // Buscar issues automaticamente apenas na primeira vez
@@ -141,17 +151,17 @@ Kirigami.ApplicationWindow {
                     issuesPage.initialSearchDone = true
                 }
             }
-            // Se estiver em Criar Issue (0), ir para Minhas Issues (1)
+            // Se estiver em Minhas Issues (1), ir para Timer (2)
+            else if (currentIdx === 1) {
+                stack.currentIndex = 2
+                tabBar.currentIndex = 2
+            }
+            // Se estiver em Criar Issue (0), ir para Timer (2)
             else if (currentIdx === 0) {
-                stack.currentIndex = 1
-                tabBar.currentIndex = 1
-                // Buscar issues automaticamente apenas na primeira vez
-                if (issuesPage && !issuesPage.initialSearchDone) {
-                    issuesPage.refreshIssues("")
-                    issuesPage.initialSearchDone = true
-                }
+                stack.currentIndex = 2
+                tabBar.currentIndex = 2
             }
-            // Se estiver em Minhas Issues (1), voltar para Criar Issue (0)
+            // Caso padrão: voltar para Criar Issue (0)
             else {
                 stack.currentIndex = 0
                 tabBar.currentIndex = 0
@@ -190,6 +200,12 @@ Kirigami.ApplicationWindow {
                 }
             }
 
+            // Aba Worklogs Pendentes
+            Controls.TabButton {
+                text: "Worklogs"
+                icon.name: "document-send"
+            }
+
             // Aba de Configuração (última, à direita)
             Controls.TabButton {
                 icon.name: "configure"
@@ -211,9 +227,10 @@ Kirigami.ApplicationWindow {
                 if (stack.currentIndex === 1) return "document-save"
                 return ""
             }
-            visible: stack.currentIndex !== 2  // Ocultar na página de configuração
+            visible: stack.currentIndex !== 3 && stack.currentIndex !== 2  // Ocultar na página de configuração e worklogs
             enabled: {
-                if (stack.currentIndex === 2) return false  // Página de configuração
+                if (stack.currentIndex === 3) return false  // Página de configuração
+                if (stack.currentIndex === 2) return false  // Página de worklogs pendentes
                 if (stack.currentIndex === 0) {
                     // Aba Criar Issue
                     if (!createPage)
@@ -238,7 +255,7 @@ Kirigami.ApplicationWindow {
                 return false
             }
             onClicked: {
-                if (stack.currentIndex === 2) return  // Página de configuração
+                if (stack.currentIndex === 3 || stack.currentIndex === 2) return  // Página de configuração ou worklogs
                 if (stack.currentIndex === 0) {
                     // Aba Criar Issue
                     if (createPage && createPage.createIssueFromToolbar) {
@@ -290,7 +307,12 @@ Kirigami.ApplicationWindow {
             }
         }
 
-        // Índice 2: Configuração
+        // Índice 2: Worklogs Pendentes
+        PendingWorklogsPage {
+            id: pendingWorklogsPage
+        }
+
+        // Índice 3: Configuração
         SettingsPage {
             id: settingsPage
         }
@@ -300,7 +322,90 @@ Kirigami.ApplicationWindow {
     Connections {
         target: tabBar
         function onCurrentIndexChanged() {
+            console.log("Main.qml: TabBar mudou para índice:", tabBar.currentIndex)
             stack.currentIndex = tabBar.currentIndex
+            console.log("Main.qml: StackLayout mudou para índice:", stack.currentIndex)
+        }
+    }
+    
+    Connections {
+        target: stack
+        function onCurrentIndexChanged() {
+            console.log("Main.qml: StackLayout mudou para índice:", stack.currentIndex)
+        }
+    }
+    
+    // Painel flutuante do timer (janela separada sempre visível quando timer está ativo)
+    // Criar dinamicamente quando timer iniciar
+    property var timerFloatingWindow: null
+    
+    function createTimerFloatingWindow() {
+        if (timerFloatingWindow) {
+            return  // Já existe
+        }
+        // Criar componente dinamicamente - Window precisa ser criado com parent null
+        var component = Qt.createComponent("components/timer/TimerFloatingPanel.qml")
+        if (component.status === Component.Ready) {
+            timerFloatingWindow = component.createObject(null)  // null = janela separada
+            if (timerFloatingWindow) {
+                console.log("Main.qml: TimerFloatingPanel criado com sucesso")
+            } else {
+                console.error("Main.qml: Falha ao criar objeto TimerFloatingPanel")
+            }
+        } else if (component.status === Component.Error) {
+            console.error("Main.qml: Erro ao carregar TimerFloatingPanel:", component.errorString())
+        } else {
+            // Component ainda está carregando - aguardar
+            component.statusChanged.connect(function() {
+                if (component.status === Component.Ready) {
+                    timerFloatingWindow = component.createObject(null)
+                    if (timerFloatingWindow) {
+                        console.log("Main.qml: TimerFloatingPanel criado (após carregamento assíncrono)")
+                    }
+                } else if (component.status === Component.Error) {
+                    console.error("Main.qml: Erro ao carregar TimerFloatingPanel:", component.errorString())
+                }
+            })
+        }
+    }
+    
+    function destroyTimerFloatingWindow() {
+        if (timerFloatingWindow) {
+            timerFloatingWindow.close()
+            timerFloatingWindow.destroy()
+            timerFloatingWindow = null
+            console.log("Main.qml: TimerFloatingPanel destruído")
+        }
+    }
+    
+    Connections {
+        target: timerModel || null
+        function onStateChanged() {
+            if (timerModel) {
+                if ((timerModel.state === "running" || timerModel.state === "paused") && !timerFloatingWindow) {
+                    createTimerFloatingWindow()
+                } else if (timerModel.state === "running" || timerModel.state === "paused") {
+                    // Timer está ativo - garantir que janela existe e está visível
+                    if (timerFloatingWindow) {
+                        timerFloatingWindow.visible = true
+                    }
+                } else if (timerModel.state === "idle" && timerFloatingWindow) {
+                    destroyTimerFloatingWindow()
+                }
+            }
+        }
+    }
+    
+    // Conectar sinal do timerTrayManager para restaurar janela
+    Connections {
+        target: timerTrayManager || null
+        function onRestoreRequested() {
+            if (timerFloatingWindow && timerModel && 
+                (timerModel.state === "running" || timerModel.state === "paused")) {
+                timerFloatingWindow.visible = true
+                timerFloatingWindow.raise()
+                timerFloatingWindow.requestActivate()
+            }
         }
     }
 

@@ -1,3 +1,5 @@
 IssueFormPage IssueFormPage.qml
 MyIssuesPage MyIssuesPage.qml
+PendingWorklogsPage PendingWorklogsPage.qml
 SettingsPage SettingsPage.qml
+TimerPage TimerPage.qml

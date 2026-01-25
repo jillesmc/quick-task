@@ -1,0 +1,257 @@
+"""
+Modelo de dados para timer e sessões de worklog
+"""
+
+import uuid
+from dataclasses import dataclass, field
+from datetime import datetime
+from enum import Enum
+from typing import Any, Dict, List, Optional
+
+from PySide6.QtCore import QObject, Property, Signal  # type: ignore[import]
+
+from src.utils.debug import debug_log
+
+
+class TimerState(Enum):
+    """Estados possíveis do timer"""
+    IDLE = "idle"
+    RUNNING = "running"
+    PAUSED = "paused"
+    STOPPED = "stopped"
+
+
+@dataclass
+class PomodoroSession:
+    """Representa uma sessão de Pomodoro individual"""
+    id: str
+    start_time: datetime
+    end_time: Optional[datetime] = None
+    duration_seconds: int = 0
+    is_break: bool = False
+    break_type: Optional[str] = None  # "short" or "long"
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Converte para dicionário para serialização"""
+        return {
+            "id": self.id,
+            "start_time": self.start_time.isoformat(),
+            "end_time": self.end_time.isoformat() if self.end_time else None,
+            "duration_seconds": self.duration_seconds,
+            "is_break": self.is_break,
+            "break_type": self.break_type,
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "PomodoroSession":
+        """Cria instância a partir de dicionário"""
+        return cls(
+            id=data["id"],
+            start_time=datetime.fromisoformat(data["start_time"]),
+            end_time=datetime.fromisoformat(data["end_time"]) if data.get("end_time") else None,
+            duration_seconds=data.get("duration_seconds", 0),
+            is_break=data.get("is_break", False),
+            break_type=data.get("break_type"),
+        )
+
+
+@dataclass
+class WorklogSession:
+    """Representa uma sessão de trabalho com múltiplos Pomodoros"""
+    id: str
+    issue_key: str
+    start_time: datetime
+    end_time: Optional[datetime] = None
+    duration_seconds: int = 0
+    pomodoros: List[PomodoroSession] = field(default_factory=list)
+    is_synced: bool = False
+    jira_worklog_id: Optional[str] = None
+    description: str = ""
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Converte para dicionário para serialização"""
+        return {
+            "id": self.id,
+            "issue_key": self.issue_key,
+            "start_time": self.start_time.isoformat(),
+            "end_time": self.end_time.isoformat() if self.end_time else None,
+            "duration_seconds": self.duration_seconds,
+            "pomodoros": [p.to_dict() for p in self.pomodoros],
+            "is_synced": self.is_synced,
+            "jira_worklog_id": self.jira_worklog_id,
+            "description": self.description,
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "WorklogSession":
+        """Cria instância a partir de dicionário"""
+        return cls(
+            id=data["id"],
+            issue_key=data["issue_key"],
+            start_time=datetime.fromisoformat(data["start_time"]),
+            end_time=datetime.fromisoformat(data["end_time"]) if data.get("end_time") else None,
+            duration_seconds=data.get("duration_seconds", 0),
+            pomodoros=[PomodoroSession.from_dict(p) for p in data.get("pomodoros", [])],
+            is_synced=data.get("is_synced", False),
+            jira_worklog_id=data.get("jira_worklog_id"),
+            description=data.get("description", ""),
+        )
+
+
+class TimerModel(QObject):
+    """Modelo de dados para timer exposto ao QML"""
+
+    # Sinais
+    stateChanged = Signal(str)  # TimerState como string
+    timeUpdated = Signal(int)  # segundos decorridos
+    pomodoroCompleted = Signal(int)  # número do Pomodoro
+    sessionSaved = Signal(str)  # session_id
+    issueKeyChanged = Signal()
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._state = TimerState.IDLE
+        self._issue_key = ""
+        self._elapsed_seconds = 0
+        self._current_pomodoro = 0
+        self._current_session: Optional[WorklogSession] = None
+        self._pomodoros_today = 0
+        self._total_seconds_today = 0
+
+    @Property(str, notify=stateChanged)
+    def state(self) -> str:
+        """Estado atual do timer (idle, running, paused, stopped)"""
+        return self._state.value
+
+    @state.setter
+    def state(self, value: str):
+        try:
+            new_state = TimerState(value)
+            if self._state != new_state:
+                self._state = new_state
+                self.stateChanged.emit(value)
+                debug_log("TimerModel", "state.setter", "Estado alterado para: %s", value)
+        except ValueError:
+            debug_log("TimerModel", "state.setter", "Estado inválido: %s", value)
+
+    @Property(str, notify=issueKeyChanged)
+    def issueKey(self) -> str:
+        """Chave da issue Jira associada ao timer"""
+        return self._issue_key
+
+    @issueKey.setter
+    def issueKey(self, value: str):
+        if self._issue_key != value:
+            self._issue_key = value
+            self.issueKeyChanged.emit()
+            debug_log("TimerModel", "issueKey.setter", "Issue alterada para: %s", value)
+
+    @Property(int, notify=timeUpdated)
+    def elapsedSeconds(self) -> int:
+        """Segundos decorridos no timer atual"""
+        return self._elapsed_seconds
+
+    @elapsedSeconds.setter
+    def elapsedSeconds(self, value: int):
+        if self._elapsed_seconds != value:
+            self._elapsed_seconds = value
+            self.timeUpdated.emit(value)
+
+    @Property(int, notify=pomodoroCompleted)
+    def currentPomodoro(self) -> int:
+        """Número do Pomodoro atual"""
+        return self._current_pomodoro
+
+    @currentPomodoro.setter
+    def currentPomodoro(self, value: int):
+        if self._current_pomodoro != value:
+            self._current_pomodoro = value
+            self.pomodoroCompleted.emit(value)
+
+    @Property(int, notify=timeUpdated)
+    def pomodorosToday(self) -> int:
+        """Número de Pomodoros completados hoje"""
+        return self._pomodoros_today
+
+    @pomodorosToday.setter
+    def pomodorosToday(self, value: int):
+        if self._pomodoros_today != value:
+            self._pomodoros_today = value
+            self.timeUpdated.emit(self._elapsed_seconds)
+
+    @Property(int, notify=timeUpdated)
+    def totalSecondsToday(self) -> int:
+        """Total de segundos trabalhados hoje"""
+        return self._total_seconds_today
+
+    @totalSecondsToday.setter
+    def totalSecondsToday(self, value: int):
+        if self._total_seconds_today != value:
+            self._total_seconds_today = value
+            self.timeUpdated.emit(self._elapsed_seconds)
+
+    def start_session(self, issue_key: str) -> None:
+        """Inicia uma nova sessão de timer"""
+        if self._state == TimerState.RUNNING:
+            debug_log("TimerModel", "start_session", "Timer já está rodando")
+            return
+
+        self.issueKey = issue_key
+        self._elapsed_seconds = 0
+        self._current_pomodoro = 0
+        
+        # Criar nova sessão
+        self._current_session = WorklogSession(
+            id=str(uuid.uuid4()),
+            issue_key=issue_key,
+            start_time=datetime.now(),
+        )
+        
+        self.state = TimerState.RUNNING.value
+        debug_log("TimerModel", "start_session", "Sessão iniciada para issue: %s", issue_key)
+
+    def pause_session(self) -> None:
+        """Pausa o timer atual"""
+        if self._state != TimerState.RUNNING:
+            debug_log("TimerModel", "pause_session", "Timer não está rodando")
+            return
+
+        self.state = TimerState.PAUSED.value
+        debug_log("TimerModel", "pause_session", "Timer pausado")
+
+    def resume_session(self) -> None:
+        """Retoma o timer pausado"""
+        if self._state != TimerState.PAUSED:
+            debug_log("TimerModel", "resume_session", "Timer não está pausado")
+            return
+
+        self.state = TimerState.RUNNING.value
+        debug_log("TimerModel", "resume_session", "Timer retomado")
+
+    def stop_session(self) -> Optional[WorklogSession]:
+        """Para o timer e retorna a sessão finalizada"""
+        if self._state == TimerState.IDLE:
+            debug_log("TimerModel", "stop_session", "Timer já está parado")
+            return None
+
+        if self._current_session:
+            self._current_session.end_time = datetime.now()
+            self._current_session.duration_seconds = self._elapsed_seconds
+        
+        session = self._current_session
+        self._current_session = None
+        self._elapsed_seconds = 0
+        self._current_pomodoro = 0
+        self.state = TimerState.IDLE.value
+        
+        debug_log("TimerModel", "stop_session", "Timer parado, sessão finalizada")
+        return session
+
+    def add_pomodoro(self, pomodoro: PomodoroSession) -> None:
+        """Adiciona um Pomodoro à sessão atual"""
+        if self._current_session:
+            self._current_session.pomodoros.append(pomodoro)
+            self._pomodoros_today += 1
+            self._current_pomodoro += 1
+            self.pomodoroCompleted.emit(self._current_pomodoro)
+            debug_log("TimerModel", "add_pomodoro", "Pomodoro adicionado: %d", self._current_pomodoro)

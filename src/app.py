@@ -53,6 +53,9 @@ except ImportError:
 
 def qt_message_handler(msg_type, context, message):
     """Filtro de mensagens do Qt para suprimir avisos específicos"""
+    # Importar aqui para evitar import circular
+    from src.utils.debug import is_debug_enabled
+    
     # Converter mensagem para string de forma segura
     try:
         if hasattr(message, '__str__'):
@@ -72,7 +75,18 @@ def qt_message_handler(msg_type, context, message):
        ("Cannot read property 'y' of null" in msg_str or "TypeError" in msg_str):
         return  # Suprimir este warning específico
     
-    # Mostrar outras mensagens QML importantes (erros críticos)
+    # Se debug estiver ativado, mostrar todas as mensagens QML (incluindo console.log)
+    if is_debug_enabled():
+        if "qml" in msg_str.lower() or "QML" in msg_str or context.category in ["qml", "qml.import"]:
+            # Mostrar todas as mensagens QML quando debug está ativado
+            type_names = {0: "Debug", 1: "Warning", 2: "Critical", 3: "Fatal", 4: "Info"}
+            type_name = type_names.get(msg_type, f"Type{msg_type}")
+            print(f"QML [{type_name}]: {msg_str}", file=sys.stderr)
+            if context.file:
+                print(f"  File: {context.file}:{context.line}", file=sys.stderr)
+        return
+    
+    # Se debug não estiver ativado, mostrar apenas erros críticos
     if "qml" in msg_str.lower() or "QML" in msg_str or context.category in ["qml", "qml.import"]:
         # Mostrar apenas erros críticos, não warnings do estilo KDE
         if msg_type in [4, 5]:  # QtCriticalMsg ou QtFatalMsg
@@ -239,6 +253,93 @@ def main():
     # Criar GlobalShortcutManager
     shortcut_manager = GlobalShortcutManager(app)
     
+    # Criar modelos e serviços de timer (após tray_manager para poder usar o tray_icon)
+    timer_model = None
+    timer_service = None
+    notification_service = None
+    worklog_sync_service = None
+    worklog_db = None
+    
+    try:
+        from src.models.timer_model import TimerModel
+        from src.services.timer_service import TimerService
+        from src.services.notification_service import NotificationService
+        from src.services.worklog_sync_service import WorklogSyncService
+        from src.database.worklog_db import WorklogDatabase
+        from config.config_manager import ConfigManager
+        
+        debug_log("App", "main", "Criando WorklogDatabase...")
+        worklog_db = WorklogDatabase()
+        debug_log("App", "main", "WorklogDatabase criado com sucesso")
+        
+        debug_log("App", "main", "Criando TimerModel...")
+        timer_model = TimerModel()
+        debug_log("App", "main", "TimerModel criado com sucesso")
+        
+        debug_log("App", "main", "Criando TimerService...")
+        config_manager = ConfigManager()
+        timer_service = TimerService(timer_model, config_manager, worklog_db)
+        debug_log("App", "main", "TimerService criado com sucesso")
+        
+        debug_log("App", "main", "Criando NotificationService...")
+        tray_icon = None
+        if tray_manager and hasattr(tray_manager, 'tray_icon'):
+            tray_icon = tray_manager.tray_icon
+        notification_service = NotificationService(tray_icon=tray_icon)
+        debug_log("App", "main", "NotificationService criado com sucesso")
+        
+        debug_log("App", "main", "Criando WorklogSyncService...")
+        worklog_sync_service = WorklogSyncService(worklog_db, config_manager)
+        debug_log("App", "main", "WorklogSyncService criado com sucesso")
+        
+        # Criar TimerTrayManager para ícone separado do timer
+        timer_tray_manager = None
+        try:
+            debug_log("App", "main", "Criando TimerTrayManager...")
+            from src.timer_tray_manager import TimerTrayManager
+            timer_tray_manager = TimerTrayManager(icon_path, app)
+            debug_log("App", "main", "TimerTrayManager criado com sucesso")
+            
+            # Conectar sinais do timerModel para atualizar o timerTrayManager
+            if timer_model and timer_tray_manager:
+                def update_tray_timer():
+                    if timer_model and timer_tray_manager:
+                        timer_tray_manager.update_timer_state(
+                            timer_model.issueKey or "",
+                            timer_model.elapsedSeconds or 0,
+                            timer_model.state or "idle",
+                            timer_model.currentPomodoro or 0
+                        )
+                        # Mostrar/esconder tray icon baseado no estado
+                        if timer_model.state in ["running", "paused"]:
+                            timer_tray_manager.show()
+                        else:
+                            timer_tray_manager.hide()
+                
+                # Conectar sinais de mudança de estado
+                timer_model.stateChanged.connect(update_tray_timer)
+                timer_model.timeUpdated.connect(update_tray_timer)
+                timer_model.issueKeyChanged.connect(update_tray_timer)
+                
+                # Conectar sinais do timerTrayManager para controlar o timer
+                # restoreRequested será gerenciado pelo Main.qml via Connections
+                timer_tray_manager.pauseRequested.connect(lambda: timer_service.pause() if timer_service else None)
+                timer_tray_manager.resumeRequested.connect(lambda: timer_service.resume() if timer_service else None)
+                timer_tray_manager.stopRequested.connect(lambda: timer_service.stop() if timer_service else None)
+                
+                # Atualizar estado inicial
+                update_tray_timer()
+        except Exception as e:
+            print(f"⚠ Aviso: Erro ao criar TimerTrayManager: {e}", file=sys.stderr)
+            import traceback
+            traceback.print_exc(file=sys.stderr)
+            # Não falhar completamente - timer tray é feature opcional
+    except Exception as e:
+        print(f"✗ Erro ao criar serviços de timer: {e}", file=sys.stderr)
+        import traceback
+        traceback.print_exc(file=sys.stderr)
+        # Não falhar completamente - timer é feature opcional
+    
     # Expor ao contexto QML
     debug_log("App", "main", "Expondo modelos ao contexto QML...")
     try:
@@ -275,6 +376,70 @@ def main():
     except Exception as e:
         print(f"✗ Erro ao expor trayManager: {e}", file=sys.stderr)
         raise
+    
+    # Expor serviços de timer ao contexto QML
+    # IMPORTANTE: Sempre expor, mesmo se None, para evitar erros no QML
+    try:
+        engine.rootContext().setContextProperty("timerModel", timer_model)
+        if timer_model:
+            debug_log("App", "main", "timerModel exposto ao contexto QML")
+        else:
+            debug_log("App", "main", "timerModel é None - não foi criado")
+            print("⚠ Aviso: timerModel não está disponível (timer é feature opcional)", file=sys.stderr)
+    except Exception as e:
+        print(f"✗ Erro ao expor timerModel: {e}", file=sys.stderr)
+        import traceback
+        traceback.print_exc(file=sys.stderr)
+    
+    try:
+        engine.rootContext().setContextProperty("timerService", timer_service)
+        if timer_service:
+            debug_log("App", "main", "timerService exposto ao contexto QML")
+        else:
+            debug_log("App", "main", "timerService é None - não foi criado")
+            print("⚠ Aviso: timerService não está disponível (timer é feature opcional)", file=sys.stderr)
+    except Exception as e:
+        print(f"✗ Erro ao expor timerService: {e}", file=sys.stderr)
+        import traceback
+        traceback.print_exc(file=sys.stderr)
+    
+    try:
+        engine.rootContext().setContextProperty("notificationService", notification_service)
+        if notification_service:
+            debug_log("App", "main", "notificationService exposto ao contexto QML")
+        else:
+            debug_log("App", "main", "notificationService é None - não foi criado")
+    except Exception as e:
+        print(f"✗ Erro ao expor notificationService: {e}", file=sys.stderr)
+        import traceback
+        traceback.print_exc(file=sys.stderr)
+    
+    try:
+        engine.rootContext().setContextProperty("worklogSyncService", worklog_sync_service)
+        if worklog_sync_service:
+            debug_log("App", "main", "worklogSyncService exposto ao contexto QML")
+        else:
+            debug_log("App", "main", "worklogSyncService é None - não foi criado")
+    except Exception as e:
+        print(f"✗ Erro ao expor worklogSyncService: {e}", file=sys.stderr)
+        import traceback
+        traceback.print_exc(file=sys.stderr)
+    
+    # Expor timerTrayManager ao contexto QML
+    try:
+        timer_tray_manager_var = timer_tray_manager if 'timer_tray_manager' in locals() else None
+        engine.rootContext().setContextProperty("timerTrayManager", timer_tray_manager_var)
+        if timer_tray_manager_var:
+            debug_log("App", "main", "timerTrayManager exposto ao contexto QML")
+        else:
+            debug_log("App", "main", "timerTrayManager é None - não foi criado")
+    except Exception as e:
+        print(f"⚠ Aviso: Erro ao expor timerTrayManager: {e}", file=sys.stderr)
+        import traceback
+        traceback.print_exc(file=sys.stderr)
+    
+    # WorklogDatabase não é QObject, então não pode ser exposto diretamente
+    # Será acessado via WorklogSyncService quando necessário
 
     # Variável para armazenar referência à janela principal (será definida depois)
     main_window = None

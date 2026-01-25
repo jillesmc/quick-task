@@ -172,8 +172,18 @@ test_app() {
     print_info "Iniciando aplicação...\n"
     print_info "A aplicação usa interface gráfica para configuração."
     print_info "Configure a conexão Jira na aba de Configurações após iniciar.\n"
+    print_info "Para executar com debug, use:"
+    print_info "  flatpak run $APP_ID --debug"
+    print_info "  ou"
+    print_info "  JIRA_QUICK_TASK_DEBUG=1 flatpak run $APP_ID\n"
     
-    flatpak run "$APP_ID"
+    # Verificar se --debug foi passado como argumento
+    if [ "$1" = "--debug" ] || [ "$2" = "--debug" ]; then
+        print_info "Executando com debug habilitado...\n"
+        flatpak run "$APP_ID" --debug
+    else
+        flatpak run "$APP_ID"
+    fi
 }
 
 

@@ -39,6 +39,18 @@ class SettingsModel(QObject):
             self._jira_api_token = ""
             self._account_id = ""
             self._account_id_worker = None
+            
+            # Propriedades de Pomodoro
+            self._pomodoro_enabled = True
+            self._pomodoro_duration_minutes = 25
+            self._short_break_minutes = 5
+            self._long_break_minutes = 15
+            self._pomodoros_before_long_break = 4
+            self._auto_continue_timeout_seconds = 30
+            self._notifications_enabled = True
+            self._sound_enabled = False
+            self._desktop_notifications = True
+            
             debug_log("SettingsModel", "__init__", "Carregando valores atuais...")
             self._load_current_values()
             debug_log("SettingsModel", "__init__", "Concluído")
@@ -74,6 +86,20 @@ class SettingsModel(QObject):
         account_id = self._config_manager.get_account_id()
         self._account_id = account_id if account_id else ""
         debug_log("SettingsModel", "_load_current_values", "AccountId carregado: %s", bool(self._account_id))
+        
+        # Carregar configurações de Pomodoro do config.json
+        pomodoro_config = self._config_manager.get_pomodoro_config()
+        self._pomodoro_enabled = pomodoro_config.get("enabled", True)
+        self._pomodoro_duration_minutes = pomodoro_config.get("pomodoro_duration_minutes", 25)
+        self._short_break_minutes = pomodoro_config.get("short_break_minutes", 5)
+        self._long_break_minutes = pomodoro_config.get("long_break_minutes", 15)
+        self._pomodoros_before_long_break = pomodoro_config.get("pomodoros_before_long_break", 4)
+        self._auto_continue_timeout_seconds = pomodoro_config.get("auto_continue_timeout_seconds", 30)
+        notifications = pomodoro_config.get("notifications", {})
+        self._notifications_enabled = notifications.get("enabled", True)
+        self._sound_enabled = notifications.get("sound_enabled", False)
+        self._desktop_notifications = notifications.get("desktop_notifications", True)
+        debug_log("SettingsModel", "_load_current_values", "Configurações de Pomodoro carregadas")
 
     def is_configured(self) -> bool:
         """Verifica se a configuração está completa"""
@@ -293,11 +319,28 @@ class SettingsModel(QObject):
                 self._jira_api_token
             )
 
-            # 4. Recarregar valores após salvar
+            # 4. Salvar configurações de Pomodoro
+            debug_log("SettingsModel", "save", "Salvando configurações de Pomodoro")
+            pomodoro_config = {
+                "enabled": self._pomodoro_enabled,
+                "pomodoro_duration_minutes": self._pomodoro_duration_minutes,
+                "short_break_minutes": self._short_break_minutes,
+                "long_break_minutes": self._long_break_minutes,
+                "pomodoros_before_long_break": self._pomodoros_before_long_break,
+                "auto_continue_timeout_seconds": self._auto_continue_timeout_seconds,
+                "notifications": {
+                    "enabled": self._notifications_enabled,
+                    "sound_enabled": self._sound_enabled,
+                    "desktop_notifications": self._desktop_notifications,
+                },
+            }
+            self._config_manager.save_pomodoro_config(pomodoro_config)
+            
+            # 5. Recarregar valores após salvar
             debug_log("SettingsModel", "save", "Recarregando valores após salvar")
             self._load_current_values()
             
-            # 5. Emitir sinal de sucesso (a busca de accountId continua em background)
+            # 6. Emitir sinal de sucesso (a busca de accountId continua em background)
             debug_log("SettingsModel", "save", "Emitindo sinal saved")
             self.saved.emit()
 
@@ -312,6 +355,17 @@ class SettingsModel(QObject):
     jiraEmailChanged = Signal()
     jiraApiTokenChanged = Signal()
     accountIdChanged = Signal()
+    
+    # Sinais para configurações de Pomodoro
+    pomodoroEnabledChanged = Signal()
+    pomodoroDurationMinutesChanged = Signal()
+    shortBreakMinutesChanged = Signal()
+    longBreakMinutesChanged = Signal()
+    pomodorosBeforeLongBreakChanged = Signal()
+    autoContinueTimeoutSecondsChanged = Signal()
+    notificationsEnabledChanged = Signal()
+    soundEnabledChanged = Signal()
+    desktopNotificationsChanged = Signal()
 
     # Propriedades QML
     @Property(str, notify=jiraBaseUrlChanged)
@@ -361,3 +415,103 @@ class SettingsModel(QObject):
     def needsConfiguration(self) -> bool:
         """Indica se a configuração precisa ser feita (QML property)"""
         return self.needs_configuration()
+
+    # Propriedades QML para Pomodoro
+    @Property(bool, notify=pomodoroEnabledChanged)
+    def pomodoroEnabled(self) -> bool:
+        """Habilitar Pomodoro"""
+        return self._pomodoro_enabled
+
+    @pomodoroEnabled.setter
+    def pomodoroEnabled(self, value: bool):
+        if self._pomodoro_enabled != value:
+            self._pomodoro_enabled = value
+            self.pomodoroEnabledChanged.emit()
+
+    @Property(int, notify=pomodoroDurationMinutesChanged)
+    def pomodoroDurationMinutes(self) -> int:
+        """Duração do Pomodoro em minutos"""
+        return self._pomodoro_duration_minutes
+
+    @pomodoroDurationMinutes.setter
+    def pomodoroDurationMinutes(self, value: int):
+        if self._pomodoro_duration_minutes != value:
+            self._pomodoro_duration_minutes = value
+            self.pomodoroDurationMinutesChanged.emit()
+
+    @Property(int, notify=shortBreakMinutesChanged)
+    def shortBreakMinutes(self) -> int:
+        """Duração da pausa curta em minutos"""
+        return self._short_break_minutes
+
+    @shortBreakMinutes.setter
+    def shortBreakMinutes(self, value: int):
+        if self._short_break_minutes != value:
+            self._short_break_minutes = value
+            self.shortBreakMinutesChanged.emit()
+
+    @Property(int, notify=longBreakMinutesChanged)
+    def longBreakMinutes(self) -> int:
+        """Duração da pausa longa em minutos"""
+        return self._long_break_minutes
+
+    @longBreakMinutes.setter
+    def longBreakMinutes(self, value: int):
+        if self._long_break_minutes != value:
+            self._long_break_minutes = value
+            self.longBreakMinutesChanged.emit()
+
+    @Property(int, notify=pomodorosBeforeLongBreakChanged)
+    def pomodorosBeforeLongBreak(self) -> int:
+        """Número de Pomodoros antes da pausa longa"""
+        return self._pomodoros_before_long_break
+
+    @pomodorosBeforeLongBreak.setter
+    def pomodorosBeforeLongBreak(self, value: int):
+        if self._pomodoros_before_long_break != value:
+            self._pomodoros_before_long_break = value
+            self.pomodorosBeforeLongBreakChanged.emit()
+
+    @Property(int, notify=autoContinueTimeoutSecondsChanged)
+    def autoContinueTimeoutSeconds(self) -> int:
+        """Timeout de auto-continuação em segundos"""
+        return self._auto_continue_timeout_seconds
+
+    @autoContinueTimeoutSeconds.setter
+    def autoContinueTimeoutSeconds(self, value: int):
+        if self._auto_continue_timeout_seconds != value:
+            self._auto_continue_timeout_seconds = value
+            self.autoContinueTimeoutSecondsChanged.emit()
+
+    @Property(bool, notify=notificationsEnabledChanged)
+    def notificationsEnabled(self) -> bool:
+        """Habilitar notificações"""
+        return self._notifications_enabled
+
+    @notificationsEnabled.setter
+    def notificationsEnabled(self, value: bool):
+        if self._notifications_enabled != value:
+            self._notifications_enabled = value
+            self.notificationsEnabledChanged.emit()
+
+    @Property(bool, notify=soundEnabledChanged)
+    def soundEnabled(self) -> bool:
+        """Habilitar som de alerta"""
+        return self._sound_enabled
+
+    @soundEnabled.setter
+    def soundEnabled(self, value: bool):
+        if self._sound_enabled != value:
+            self._sound_enabled = value
+            self.soundEnabledChanged.emit()
+
+    @Property(bool, notify=desktopNotificationsChanged)
+    def desktopNotifications(self) -> bool:
+        """Habilitar notificações desktop"""
+        return self._desktop_notifications
+
+    @desktopNotifications.setter
+    def desktopNotifications(self, value: bool):
+        if self._desktop_notifications != value:
+            self._desktop_notifications = value
+            self.desktopNotificationsChanged.emit()

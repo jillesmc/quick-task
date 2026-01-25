@@ -38,6 +38,17 @@ Kirigami.Page {
             tokenField.text = settingsModel.jiraApiToken || ""
             var accountId = settingsModel.accountId
             accountIdLabel.text = accountId && accountId.length > 0 ? accountId : qsTr("Não configurado")
+            
+            // Carregar configurações de Pomodoro
+            pomodoroEnabledCheckbox.checked = settingsModel.pomodoroEnabled
+            pomodoroDurationSpinBox.value = settingsModel.pomodoroDurationMinutes
+            shortBreakSpinBox.value = settingsModel.shortBreakMinutes
+            longBreakSpinBox.value = settingsModel.longBreakMinutes
+            pomodorosBeforeLongBreakSpinBox.value = settingsModel.pomodorosBeforeLongBreak
+            autoContinueTimeoutSpinBox.value = settingsModel.autoContinueTimeoutSeconds
+            notificationsEnabledCheckbox.checked = settingsModel.notificationsEnabled
+            soundEnabledCheckbox.checked = settingsModel.soundEnabled
+            desktopNotificationsCheckbox.checked = settingsModel.desktopNotifications
         }
         validateFields()
     }
@@ -201,6 +212,184 @@ Kirigami.Page {
                     Layout.preferredHeight: 20
                     running: false
                     visible: false
+                }
+            }
+
+            // Separador
+            Kirigami.Separator {
+                Layout.fillWidth: true
+                Layout.topMargin: Kirigami.Units.largeSpacing
+            }
+
+            // Seção: Configurações de Pomodoro
+            Controls.Label {
+                text: qsTr("Configurações de Pomodoro")
+                font.bold: true
+                font.pointSize: Kirigami.Theme.defaultFont.pointSize + 1
+                Layout.fillWidth: true
+                Layout.topMargin: Kirigami.Units.mediumSpacing
+            }
+
+            // Habilitar Pomodoro
+            Controls.CheckBox {
+                id: pomodoroEnabledCheckbox
+                text: qsTr("Habilitar Pomodoro")
+                Layout.fillWidth: true
+                checked: true
+                onCheckedChanged: {
+                    if (settingsModel) {
+                        settingsModel.pomodoroEnabled = checked
+                    }
+                    // Desabilitar campos se Pomodoro estiver desabilitado
+                    pomodoroDurationSpinBox.enabled = checked
+                    shortBreakSpinBox.enabled = checked
+                    longBreakSpinBox.enabled = checked
+                    pomodorosBeforeLongBreakSpinBox.enabled = checked
+                    autoContinueTimeoutSpinBox.enabled = checked
+                    notificationsEnabledCheckbox.enabled = checked
+                    soundEnabledCheckbox.enabled = checked
+                    desktopNotificationsCheckbox.enabled = checked
+                }
+            }
+
+            // Duração do Pomodoro
+            Controls.Label {
+                text: qsTr("Duração do Pomodoro (minutos):")
+                font.bold: true
+                Layout.fillWidth: true
+                Layout.topMargin: Kirigami.Units.mediumSpacing
+            }
+
+            Controls.SpinBox {
+                id: pomodoroDurationSpinBox
+                from: 1
+                to: 120
+                value: 25
+                onValueChanged: {
+                    if (settingsModel) {
+                        settingsModel.pomodoroDurationMinutes = value
+                    }
+                }
+            }
+
+            // Pausa Curta
+            Controls.Label {
+                text: qsTr("Pausa Curta (minutos):")
+                font.bold: true
+                Layout.fillWidth: true
+                Layout.topMargin: Kirigami.Units.mediumSpacing
+            }
+
+            Controls.SpinBox {
+                id: shortBreakSpinBox
+                from: 1
+                to: 60
+                value: 5
+                onValueChanged: {
+                    if (settingsModel) {
+                        settingsModel.shortBreakMinutes = value
+                    }
+                }
+            }
+
+            // Pausa Longa
+            Controls.Label {
+                text: qsTr("Pausa Longa (minutos):")
+                font.bold: true
+                Layout.fillWidth: true
+                Layout.topMargin: Kirigami.Units.mediumSpacing
+            }
+
+            Controls.SpinBox {
+                id: longBreakSpinBox
+                from: 1
+                to: 120
+                value: 15
+                onValueChanged: {
+                    if (settingsModel) {
+                        settingsModel.longBreakMinutes = value
+                    }
+                }
+            }
+
+            // Pomodoros antes da Pausa Longa
+            Controls.Label {
+                text: qsTr("Pomodoros antes da Pausa Longa:")
+                font.bold: true
+                Layout.fillWidth: true
+                Layout.topMargin: Kirigami.Units.mediumSpacing
+            }
+
+            Controls.SpinBox {
+                id: pomodorosBeforeLongBreakSpinBox
+                from: 1
+                to: 10
+                value: 4
+                onValueChanged: {
+                    if (settingsModel) {
+                        settingsModel.pomodorosBeforeLongBreak = value
+                    }
+                }
+            }
+
+            // Timeout de Auto-continuação
+            Controls.Label {
+                text: qsTr("Timeout de Auto-continuação (segundos):")
+                font.bold: true
+                Layout.fillWidth: true
+                Layout.topMargin: Kirigami.Units.mediumSpacing
+            }
+
+            Controls.SpinBox {
+                id: autoContinueTimeoutSpinBox
+                from: 5
+                to: 300
+                value: 30
+                stepSize: 5
+                onValueChanged: {
+                    if (settingsModel) {
+                        settingsModel.autoContinueTimeoutSeconds = value
+                    }
+                }
+            }
+
+            // Notificações Desktop
+            Controls.CheckBox {
+                id: notificationsEnabledCheckbox
+                text: qsTr("Notificações Desktop")
+                Layout.fillWidth: true
+                Layout.topMargin: Kirigami.Units.mediumSpacing
+                checked: true
+                onCheckedChanged: {
+                    if (settingsModel) {
+                        settingsModel.notificationsEnabled = checked
+                    }
+                }
+            }
+
+            // Som de Alerta
+            Controls.CheckBox {
+                id: soundEnabledCheckbox
+                text: qsTr("Som de Alerta")
+                Layout.fillWidth: true
+                checked: false
+                onCheckedChanged: {
+                    if (settingsModel) {
+                        settingsModel.soundEnabled = checked
+                    }
+                }
+            }
+
+            // Notificações Desktop (checkbox adicional para desktop_notifications)
+            Controls.CheckBox {
+                id: desktopNotificationsCheckbox
+                text: qsTr("Usar Notificações do Sistema")
+                Layout.fillWidth: true
+                checked: true
+                onCheckedChanged: {
+                    if (settingsModel) {
+                        settingsModel.desktopNotifications = checked
+                    }
                 }
             }
 

@@ -338,6 +338,61 @@ Kirigami.Page {
                         }
                     }
                     
+                    // Botão Iniciar Timer (visível apenas quando issue está selecionada)
+                    Controls.Button {
+                        text: {
+                            if (timerModel && timerModel.state === "running" && timerModel.issueKey === selectedIssueKey) {
+                                return qsTr("Timer Ativo - Parar")
+                            } else if (timerModel && timerModel.state === "paused" && timerModel.issueKey === selectedIssueKey) {
+                                return qsTr("Timer Pausado - Retomar")
+                            } else if (timerModel && timerModel.state !== "idle" && timerModel.issueKey !== selectedIssueKey) {
+                                return qsTr("Parar Timer Atual e Iniciar")
+                            }
+                            return qsTr("Iniciar Timer")
+                        }
+                        icon.name: {
+                            if (timerModel && timerModel.state === "running" && timerModel.issueKey === selectedIssueKey) {
+                                return "media-playback-stop"
+                            } else if (timerModel && timerModel.state === "paused" && timerModel.issueKey === selectedIssueKey) {
+                                return "media-playback-start"
+                            }
+                            return "chronometer"
+                        }
+                        Layout.fillWidth: true
+                        enabled: selectedIssueKey !== "" && !isProcessing && timerService && timerModel
+                        visible: selectedIssueKey !== ""
+                        
+                        onClicked: {
+                            if (!timerService || !timerModel || !selectedIssueKey) {
+                                return
+                            }
+                            
+                            // Se já há timer ativo para esta issue
+                            if (timerModel.issueKey === selectedIssueKey && timerModel.state !== "idle") {
+                                if (timerModel.state === "running") {
+                                    timerService.stop()
+                                } else if (timerModel.state === "paused") {
+                                    timerService.resume()
+                                }
+                            }
+                            // Se há timer ativo para outra issue, perguntar
+                            else if (timerModel.state !== "idle" && timerModel.issueKey !== selectedIssueKey) {
+                                // Parar timer atual e iniciar novo
+                                timerService.stop()
+                                // Usar callLater para garantir que o stop termine antes de iniciar
+                                Qt.callLater(function() {
+                                    if (timerService && selectedIssueKey) {
+                                        timerService.start(selectedIssueKey)
+                                    }
+                                })
+                            }
+                            // Iniciar novo timer
+                            else {
+                                timerService.start(selectedIssueKey)
+                            }
+                        }
+                    }
+                    
                     // Summary (igual à aba 1)
                     Controls.Label {
                         text: qsTr("Summary:")

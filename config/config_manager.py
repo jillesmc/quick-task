@@ -235,6 +235,62 @@ class ConfigManager:
         worklog_config = self._config.get("worklog", {})
         return worklog_config.get("default_durations", [30, 60, 120, 240, 480])
 
+    def get_pomodoro_config(self) -> Dict[str, Any]:
+        """
+        Retorna configuração completa de Pomodoro
+        
+        Returns:
+            Dict com todas as configurações de Pomodoro e valores padrão
+        """
+        default_config = {
+            "enabled": True,
+            "pomodoro_duration_minutes": 25,
+            "short_break_minutes": 5,
+            "long_break_minutes": 15,
+            "pomodoros_before_long_break": 4,
+            "auto_continue_timeout_seconds": 30,
+            "notifications": {
+                "enabled": True,
+                "sound_enabled": False,
+                "desktop_notifications": True,
+            },
+        }
+        pomodoro_config = self._config.get("pomodoro", {})
+        # Mesclar com defaults para garantir que todos os campos existam
+        result = default_config.copy()
+        result.update(pomodoro_config)
+        # Mesclar também as notificações
+        if "notifications" in pomodoro_config:
+            result["notifications"] = {**default_config["notifications"], **pomodoro_config["notifications"]}
+        return result
+
+    def save_pomodoro_config(self, pomodoro_config: Dict[str, Any]) -> None:
+        """
+        Salva configurações de Pomodoro no arquivo de configuração.
+        
+        Args:
+            pomodoro_config: Dict com as configurações de Pomodoro a salvar
+        
+        Nota: No Flatpak, sempre salva em XDG_CONFIG_HOME para evitar erro de "read-only file system"
+        """
+        # Atualizar configuração em memória
+        self._config["pomodoro"] = pomodoro_config
+        
+        # Se o config_path atual está em /app (somente leitura no Flatpak), usar XDG_CONFIG_HOME
+        if str(self.config_path).startswith("/app/"):
+            xdg_config = os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")
+            self.config_path = Path(xdg_config) / "jira-quick-task" / "config.json"
+        
+        # Garantir que o diretório existe
+        self.config_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        # Salvar no arquivo
+        try:
+            with open(self.config_path, "w", encoding="utf-8") as f:
+                json.dump(self._config, f, indent=2, ensure_ascii=False)
+        except Exception as e:
+            raise RuntimeError(f"Erro ao salvar configuração de Pomodoro: {e}") from e
+
     def get_jira_cli_config_path(self) -> Optional[Path]:
         """
         Retorna o caminho do arquivo de configuração do Jira (.jira-config.yml)
