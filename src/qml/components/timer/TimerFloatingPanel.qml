@@ -88,7 +88,7 @@ Window {
                 Layout.fillWidth: true
                 
                 // Área de arrastar (cabeçalho)
-                // Usar tracking incremental de mouse para evitar jitter
+                // Solução correta: usar onPositionChanged com coordenadas de tela (screenX/screenY)
                 MouseArea {
                     id: dragArea
                     Layout.fillWidth: true
@@ -96,52 +96,51 @@ Window {
                     acceptedButtons: Qt.LeftButton
                     cursorShape: pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor
                     
-                    property real lastMouseX: 0
-                    property real lastMouseY: 0
+                    // Variáveis de controle para drag suave
+                    property int lastMouseX: 0
+                    property int lastMouseY: 0
+                    property int windowStartX: 0
+                    property int windowStartY: 0
                     
                     onPressed: function(mouse) {
-                        lastMouseX = mouseX
-                        lastMouseY = mouseY
+                        // Captura posição inicial da janela e do mouse (coordenadas de tela)
+                        windowStartX = floatingWindow.x
+                        windowStartY = floatingWindow.y
+                        lastMouseX = mouse.screenX
+                        lastMouseY = mouse.screenY
                         floatingWindow.isDragging = true
                     }
                     
-                    onMouseXChanged: {
+                    onPositionChanged: function(mouse) {
                         if (pressed) {
-                            var deltaX = mouseX - lastMouseX
-                            var newX = floatingWindow.x + deltaX
+                            // Calcula diferença desde início do arrasto (coordenadas de tela)
+                            var deltaX = mouse.screenX - lastMouseX
+                            var deltaY = mouse.screenY - lastMouseY
+                            
+                            // Atualiza posição relativamente
+                            var newX = windowStartX + deltaX
+                            var newY = windowStartY + deltaY
                             
                             // Limitar aos limites da tela
                             var maxX = 0
-                            try {
-                                if (typeof Screen !== "undefined") {
-                                    maxX = Screen.desktopAvailableWidth - floatingWindow.width
-                                }
-                            } catch (e) {
-                                maxX = 2000
-                            }
-                            
-                            floatingWindow.x = Math.max(0, Math.min(newX, maxX))
-                            lastMouseX = mouseX
-                        }
-                    }
-                    
-                    onMouseYChanged: {
-                        if (pressed) {
-                            var deltaY = mouseY - lastMouseY
-                            var newY = floatingWindow.y + deltaY
-                            
-                            // Limitar aos limites da tela
                             var maxY = 0
                             try {
                                 if (typeof Screen !== "undefined") {
+                                    maxX = Screen.desktopAvailableWidth - floatingWindow.width
                                     maxY = Screen.desktopAvailableHeight - floatingWindow.height
                                 }
                             } catch (e) {
+                                maxX = 2000
                                 maxY = 1000
                             }
                             
+                            // Atualizar posição da janela diretamente
+                            floatingWindow.x = Math.max(0, Math.min(newX, maxX))
                             floatingWindow.y = Math.max(0, Math.min(newY, maxY))
-                            lastMouseY = mouseY
+                            
+                            // Atualizar último ponto conhecido
+                            lastMouseX = mouse.screenX
+                            lastMouseY = mouse.screenY
                         }
                     }
                     

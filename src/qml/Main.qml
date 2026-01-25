@@ -52,10 +52,8 @@ Kirigami.ApplicationWindow {
                 }
             }
             
-            // Verificar estado inicial do timer e criar janela flutuante se necessário
-            if (timerModel && (timerModel.state === "running" || timerModel.state === "paused")) {
-                createTimerFloatingWindow()
-            }
+            // Janela flutuante do timer agora é gerenciada pelo Python (app.py)
+            // Não precisa criar aqui
         })
     }
 
@@ -341,78 +339,8 @@ Kirigami.ApplicationWindow {
         }
     }
     
-    // Painel flutuante do timer (janela separada sempre visível quando timer está ativo)
-    // Criar dinamicamente quando timer iniciar
-    property var timerFloatingWindow: null
-    
-    function createTimerFloatingWindow() {
-        if (timerFloatingWindow) {
-            return  // Já existe
-        }
-        // Criar componente dinamicamente - Window precisa ser criado com parent null
-        var component = Qt.createComponent("components/timer/TimerFloatingPanel.qml")
-        if (component.status === Component.Ready) {
-            timerFloatingWindow = component.createObject(null)  // null = janela separada
-            if (timerFloatingWindow) {
-                console.log("Main.qml: TimerFloatingPanel criado com sucesso")
-            } else {
-                console.error("Main.qml: Falha ao criar objeto TimerFloatingPanel")
-            }
-        } else if (component.status === Component.Error) {
-            console.error("Main.qml: Erro ao carregar TimerFloatingPanel:", component.errorString())
-        } else {
-            // Component ainda está carregando - aguardar
-            component.statusChanged.connect(function() {
-                if (component.status === Component.Ready) {
-                    timerFloatingWindow = component.createObject(null)
-                    if (timerFloatingWindow) {
-                        console.log("Main.qml: TimerFloatingPanel criado (após carregamento assíncrono)")
-                    }
-                } else if (component.status === Component.Error) {
-                    console.error("Main.qml: Erro ao carregar TimerFloatingPanel:", component.errorString())
-                }
-            })
-        }
-    }
-    
-    function destroyTimerFloatingWindow() {
-        if (timerFloatingWindow) {
-            timerFloatingWindow.close()
-            timerFloatingWindow.destroy()
-            timerFloatingWindow = null
-            console.log("Main.qml: TimerFloatingPanel destruído")
-        }
-    }
-    
-    Connections {
-        target: timerModel || null
-        function onStateChanged() {
-            if (timerModel) {
-                if ((timerModel.state === "running" || timerModel.state === "paused") && !timerFloatingWindow) {
-                    createTimerFloatingWindow()
-                } else if (timerModel.state === "running" || timerModel.state === "paused") {
-                    // Timer está ativo - garantir que janela existe e está visível
-                    if (timerFloatingWindow) {
-                        timerFloatingWindow.visible = true
-                    }
-                } else if (timerModel.state === "idle" && timerFloatingWindow) {
-                    destroyTimerFloatingWindow()
-                }
-            }
-        }
-    }
-    
-    // Conectar sinal do timerTrayManager para restaurar janela
-    Connections {
-        target: timerTrayManager || null
-        function onRestoreRequested() {
-            if (timerFloatingWindow && timerModel && 
-                (timerModel.state === "running" || timerModel.state === "paused")) {
-                timerFloatingWindow.visible = true
-                timerFloatingWindow.raise()
-                timerFloatingWindow.requestActivate()
-            }
-        }
-    }
+    // Painel flutuante do timer agora é gerenciado pelo Python (app.py)
+    // A janela é criada/destruída automaticamente baseado no estado do timer
+    // Não precisa mais criar aqui - removido para evitar conflitos
 
 }

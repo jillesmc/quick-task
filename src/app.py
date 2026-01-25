@@ -438,6 +438,100 @@ def main():
         import traceback
         traceback.print_exc(file=sys.stderr)
     
+    # Criar janela flutuante do timer (gerenciada em Python para drag suave)
+    timer_floating_window = None
+    try:
+        if timer_model and timer_service:
+            debug_log("App", "main", "Criando gerenciador de janela flutuante do timer...")
+            from src.timer_floating_window import TimerFloatingWindow
+            
+            # Caminho para o QML do conteúdo do timer
+            qml_content_path = Path(__file__).parent / "qml" / "components" / "timer" / "TimerFloatingPanelContent.qml"
+            
+            def create_timer_window():
+                """Cria a janela flutuante do timer"""
+                nonlocal timer_floating_window
+                if timer_floating_window:
+                    return  # Já existe
+                
+                try:
+                    # Criar janela com QML content
+                    timer_floating_window = TimerFloatingWindow(str(qml_content_path))
+                    
+                    # Adicionar import paths ao engine da janela (necessário para Kirigami)
+                    qml_dir = Path(__file__).parent / "qml"
+                    from PySide6.QtQml import QQmlEngine
+                    qml_engine = timer_floating_window.engine()
+                    if qml_engine:
+                        qml_engine.addImportPath(str(qml_dir.absolute()))
+                        
+                        # Adicionar paths do sistema
+                        qml_paths = ["/app/qml", "/usr/qml"]
+                        for path in qml_paths:
+                            if os.path.exists(path):
+                                qml_engine.addImportPath(path)
+                    
+                    # Função para esconder a janela flutuante (minimizar ao tray)
+                    def hide_timer_window():
+                        """Esconde a janela flutuante do timer"""
+                        nonlocal timer_floating_window
+                        if timer_floating_window:
+                            timer_floating_window.hide()
+                    
+                    # Expor modelos e serviços ao contexto da janela ANTES de carregar QML
+                    timer_floating_window.rootContext().setContextProperty("timerModel", timer_model)
+                    timer_floating_window.rootContext().setContextProperty("timerService", timer_service)
+                    timer_floating_window.rootContext().setContextProperty("settingsModel", settings_model)
+                    timer_floating_window.rootContext().setContextProperty("hideWindow", hide_timer_window)
+                    
+                    # Carregar QML após expor propriedades
+                    timer_floating_window.load_qml()
+                    
+                    # Conectar sinal de restore do tray manager
+                    if timer_tray_manager:
+                        timer_tray_manager.restoreRequested.connect(lambda: timer_floating_window.show() if timer_floating_window else None)
+                    
+                    debug_log("App", "main", "Janela flutuante do timer criada com sucesso")
+                except Exception as e:
+                    print(f"⚠ Aviso: Erro ao criar janela flutuante do timer: {e}", file=sys.stderr)
+                    import traceback
+                    traceback.print_exc(file=sys.stderr)
+            
+            def destroy_timer_window():
+                """Destrói a janela flutuante do timer"""
+                nonlocal timer_floating_window
+                if timer_floating_window:
+                    timer_floating_window.close()
+                    timer_floating_window = None
+                    debug_log("App", "main", "Janela flutuante do timer destruída")
+            
+            def update_timer_window_visibility():
+                """Atualiza visibilidade da janela baseado no estado do timer"""
+                if not timer_model:
+                    return
+                
+                if timer_model.state in ["running", "paused"]:
+                    if not timer_floating_window:
+                        create_timer_window()
+                    if timer_floating_window:
+                        timer_floating_window.show()
+                else:
+                    if timer_floating_window:
+                        timer_floating_window.hide()
+            
+            # Conectar sinais do timerModel para gerenciar a janela
+            timer_model.stateChanged.connect(update_timer_window_visibility)
+            
+            # Verificar estado inicial
+            update_timer_window_visibility()
+            
+            debug_log("App", "main", "Gerenciador de janela flutuante do timer configurado")
+    except Exception as e:
+        print(f"⚠ Aviso: Erro ao configurar janela flutuante do timer: {e}", file=sys.stderr)
+        import traceback
+        traceback.print_exc(file=sys.stderr)
+        # Não falhar completamente - janela flutuante é feature opcional
+    
     # WorklogDatabase não é QObject, então não pode ser exposto diretamente
     # Será acessado via WorklogSyncService quando necessário
 
