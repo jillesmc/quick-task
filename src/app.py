@@ -321,10 +321,18 @@ def main():
                             timer_model.issueKey or "",
                             timer_model.elapsedSeconds or 0,
                             timer_model.state or "idle",
-                            timer_model.currentPomodoro or 0
+                            timer_model.currentPomodoro or 0,
+                            timer_model.isOnBreak or False
                         )
                         # Mostrar/esconder tray icon baseado no estado
-                        if timer_model.state in ["running", "paused"]:
+                        # Mostrar se timer está rodando, pausado, ou em qualquer estado de pausa/break
+                        timer_is_active = (
+                            timer_model.state in ["running", "paused"] or
+                            timer_model.isWaitingBreakDecision or
+                            timer_model.isOnBreak or
+                            timer_model.isWaitingBreakEndDecision
+                        )
+                        if timer_is_active:
                             timer_tray_manager.show()
                         else:
                             timer_tray_manager.hide()
@@ -334,9 +342,18 @@ def main():
                 timer_model.timeUpdated.connect(update_tray_timer)
                 timer_model.issueKeyChanged.connect(update_tray_timer)
                 
+                # Também conectar a mudanças nos estados de pausa/break
+                def on_break_state_changed():
+                    """Atualiza tray quando estados de pausa mudam"""
+                    update_tray_timer()
+                
+                # Conectar a timeUpdated que é emitido quando propriedades de break mudam
+                timer_model.timeUpdated.connect(on_break_state_changed)
+                
                 # Conectar sinais do timerTrayManager para controlar o timer
                 # restoreRequested será gerenciado pelo Main.qml via Connections
                 timer_tray_manager.pauseRequested.connect(lambda: timer_service.pause() if timer_service else None)
+                # resumeRequested não faz mais sentido - pausas usam cronômetro, mas manter para compatibilidade
                 timer_tray_manager.resumeRequested.connect(lambda: timer_service.resume() if timer_service else None)
                 timer_tray_manager.stopRequested.connect(lambda: timer_service.stop() if timer_service else None)
                 
@@ -461,16 +478,33 @@ def main():
             # Caminho para o QML do conteúdo do timer
             qml_content_path = Path(__file__).parent / "qml" / "components" / "timer" / "TimerFloatingPanelContent.qml"
             
-            # Variável para lembrar estado de visibilidade antes do alerta
-            _was_minimized_before_alert = False
-            # Flag para indicar que o usuário restaurou manualmente a janela
-            _user_restored_manually = False
-            # Flag para indicar que o usuário minimizou durante a pausa
-            _user_minimized_during_break = False
+            # Estado centralizado de visibilidade da janela
+            # "auto" = visibilidade controlada automaticamente pelo estado do timer
+            # "hidden" = usuário minimizou manualmente, deve permanecer escondida
+            # "visible" = usuário restaurou manualmente, deve permanecer visível
+            _window_visibility_state = "auto"  # "auto" | "hidden" | "visible"
+            
+            # Função auxiliar para ativar janela (reutilizável)
+            def _activate_timer_window():
+                """Ativa janela do timer com sequência padrão do Qt (sem workarounds)"""
+                if not timer_floating_window:
+                    return
+                # Sequência padrão do Qt para ativar janela
+                timer_floating_window.raise_()
+                timer_floating_window.requestActivate()
+                # Tentar activate() se disponível (QWindow pode ter este método)
+                try:
+                    if hasattr(timer_floating_window, 'activate'):
+                        timer_floating_window.activate()
+                except Exception as e:
+                    debug_log("App", "_activate_timer_window", 
+                             "activate() não disponível ou falhou: %s", e)
+                # Nota: No Wayland, requestActivate() pode não funcionar (limitação do protocolo)
+                # Isso é esperado e não é um bug do nosso código
             
             def create_timer_window():
                 """Cria a janela flutuante do timer"""
-                nonlocal timer_floating_window, _was_minimized_before_alert
+                nonlocal timer_floating_window
                 if timer_floating_window:
                     return  # Já existe
                 
@@ -507,18 +541,13 @@ def main():
                         @Slot()
                         def hide(self):
                             """Esconde a janela flutuante do timer (chamado do QML)"""
-                            nonlocal _user_minimized_during_break
-                            debug_log("App", "TimerWindowHelper.hide", "Escondendo janela do timer")
-                            if self._window_ref:
-                                debug_log("App", "TimerWindowHelper.hide", "Janela encontrada, chamando hide()")
-                                # Se está em pausa, marcar que foi minimizado durante a pausa
-                                if self._timer_model_ref and self._timer_model_ref.isOnBreak:
-                                    _user_minimized_during_break = True
-                                    debug_log("App", "TimerWindowHelper.hide", "Minimizado durante pausa, flag definida")
-                                self._window_ref.hide()
-                                debug_log("App", "TimerWindowHelper.hide", "hide() chamado com sucesso")
-                            else:
-                                debug_log("App", "TimerWindowHelper.hide", "AVISO: _window_ref é None")
+                            nonlocal _window_visibility_state
+                            debug_log("App", "TimerWindowHelper.hide", "Usuário minimizou janela manualmente")
+                            # Marcar que o usuário quer a janela escondida
+                            _window_visibility_state = "hidden"
+                            # Atualizar visibilidade baseado no novo estado
+                            if timer_floating_window:
+                                _update_window_visibility()
                     
                     # Criar instância do helper COM A JANELA COMO PARENT
                     # Isso garante que o helper não seja garbage collected enquanto a janela existir
@@ -552,14 +581,15 @@ def main():
                     # Função para restaurar janela do timer do tray
                     def restore_timer_window():
                         """Restaura a janela do timer do tray para primeiro plano"""
-                        nonlocal _user_restored_manually
+                        nonlocal _window_visibility_state
+                        debug_log("App", "restore_timer_window", "Usuário restaurou janela do tray")
+                        # Mudar estado para "visible" (usuário restaurou manualmente)
+                        _window_visibility_state = "visible"
                         if timer_floating_window:
-                            debug_log("App", "restore_timer_window", "Restaurando janela do timer do tray")
-                            _user_restored_manually = True
-                            timer_floating_window.show()
-                            timer_floating_window.raise_()
-                            timer_floating_window.requestActivate()
-                            debug_log("App", "restore_timer_window", "Janela restaurada e ativada")
+                            _update_window_visibility()
+                            # Garantir ativação explícita após restaurar (usar função auxiliar)
+                            if timer_floating_window.isVisible():
+                                _activate_timer_window()
                     
                     # Conectar sinal de restore do tray manager
                     if timer_tray_manager:
@@ -568,26 +598,29 @@ def main():
                     # Conectar sinais de breakDecisionRequested e breakEnded
                     if timer_service:
                         def on_break_decision_requested(pomodoro_num, break_type):
-                            nonlocal _was_minimized_before_alert, _user_restored_manually
-                            # Salvar estado atual (apenas se não foi restaurado manualmente)
-                            if timer_floating_window:
-                                if not _user_restored_manually:
-                                    _was_minimized_before_alert = not timer_floating_window.isVisible()
-                                # Trazer janela para primeiro plano
-                                timer_floating_window.show()
-                                timer_floating_window.raise_()
-                                timer_floating_window.requestActivate()
+                            # Alerta de pausa - sempre mostrar janela (mesmo se estava minimizada)
+                            nonlocal _window_visibility_state
+                            if _window_visibility_state != "visible":
+                                _window_visibility_state = "visible"
+                                debug_log("App", "on_break_decision_requested", 
+                                         "Alerta de pausa, mudando estado para visible (era: %s)", _window_visibility_state)
+                            else:
+                                debug_log("App", "on_break_decision_requested", 
+                                         "Alerta de pausa, estado já é visible")
+                            # Atualizar visibilidade (função centralizada)
+                            _update_window_visibility()
+                            
+                            # Garantir ativação explícita quando alerta aparece (mesmo se janela já estiver visível)
+                            if timer_floating_window and timer_floating_window.isVisible():
+                                _activate_timer_window()
                             
                             # Tocar som com tipo de pausa
                             if notification_service:
                                 notification_service.play_pomodoro_sound(break_type)
                         
                         def on_break_ended():
-                            # Trazer janela para primeiro plano novamente
-                            if timer_floating_window:
-                                timer_floating_window.show()
-                                timer_floating_window.raise_()
-                                timer_floating_window.requestActivate()
+                            # Atualizar visibilidade (função centralizada decide baseado no estado)
+                            _update_window_visibility()
                             
                             # Tocar som (sem tipo específico, usa padrão)
                             if notification_service:
@@ -603,79 +636,24 @@ def main():
                             _prev_is_on_break = False
                             _prev_is_waiting_break_end_decision = False
                             
-                            # Conectar mudanças de propriedades para restaurar visibilidade
-                            def restore_visibility_if_needed():
-                                """Restaura visibilidade se os flags de alerta/pausa foram desativados"""
-                                nonlocal _was_minimized_before_alert, _user_restored_manually
-                                nonlocal _prev_is_waiting_break_decision, _prev_is_on_break, _prev_is_waiting_break_end_decision
-                                
-                                if not timer_floating_window or not timer_model:
-                                    return
-                                
-                                # Verificar se houve mudança real nos estados
-                                current_waiting = timer_model.isWaitingBreakDecision
-                                current_on_break = timer_model.isOnBreak
-                                current_waiting_end = timer_model.isWaitingBreakEndDecision
-                                
-                                # Se não mudou nada, não fazer nada (evitar execução desnecessária)
-                                if (current_waiting == _prev_is_waiting_break_decision and
-                                    current_on_break == _prev_is_on_break and
-                                    current_waiting_end == _prev_is_waiting_break_end_decision):
-                                    return
-                                
-                                # Atualizar estados anteriores
-                                _prev_is_waiting_break_decision = current_waiting
-                                _prev_is_on_break = current_on_break
-                                _prev_is_waiting_break_end_decision = current_waiting_end
-                                
-                                # Se não está mais em nenhum estado de alerta/pausa
-                                if (not current_waiting and 
-                                    not current_on_break and 
-                                    not current_waiting_end):
-                                    # Resetar flag de minimização durante pausa quando pausa termina
-                                    nonlocal _user_minimized_during_break
-                                    if _user_minimized_during_break:
-                                        _user_minimized_during_break = False
-                                        debug_log("App", "restore_visibility_if_needed", 
-                                                 "Pausa terminou, resetando flag de minimização durante pausa")
-                                    
-                                    # Se o usuário restaurou manualmente, não esconder
-                                    if _user_restored_manually:
-                                        debug_log("App", "restore_visibility_if_needed", 
-                                                 "Usuário restaurou manualmente, mantendo janela visível")
-                                        return
-                                    
-                                    # Restaurar visibilidade conforme estado anterior
-                                    if _was_minimized_before_alert:
-                                        debug_log("App", "restore_visibility_if_needed", 
-                                                 "Restaurando estado anterior: esconder janela")
-                                        timer_floating_window.hide()
-                                        _was_minimized_before_alert = False
-                                    # Se estava visível, manter visível (já está visível)
-                            
-                            # Conectar ao sinal timeUpdated que é emitido quando propriedades mudam
-                            timer_model.timeUpdated.connect(restore_visibility_if_needed)
-                            
                             # Callback para quando aceita pausa (isOnBreak muda para True)
                             def on_is_on_break_changed():
-                                """Callback quando isOnBreak muda - garantir que janela vá para primeiro plano"""
-                                nonlocal _user_restored_manually, _user_minimized_during_break
+                                """Callback quando isOnBreak muda - atualizar visibilidade"""
+                                # Pausa aceita - sempre mostrar janela (mesmo se estava minimizada)
+                                nonlocal _window_visibility_state
                                 if timer_model and timer_model.isOnBreak:
-                                    if timer_floating_window:
-                                        # Se foi minimizado durante pausa anterior, não mostrar
-                                        if _user_minimized_during_break:
-                                            debug_log("App", "on_is_on_break_changed", 
-                                                     "Pausa aceita, mas usuário minimizou anteriormente, mantendo escondida")
-                                            return
+                                    if _window_visibility_state != "visible":
+                                        _window_visibility_state = "visible"
                                         debug_log("App", "on_is_on_break_changed", 
-                                                 "Pausa aceita, trazendo janela para primeiro plano")
-                                        timer_floating_window.show()
-                                        timer_floating_window.raise_()
-                                        timer_floating_window.requestActivate()
-                                        # Se foi restaurado manualmente antes, manter a flag
+                                                 "Pausa aceita, mudando estado para visible (era: %s)", _window_visibility_state)
+                                    else:
+                                        debug_log("App", "on_is_on_break_changed", 
+                                                 "Pausa aceita, estado já é visible")
+                                    # Atualizar visibilidade (função centralizada)
+                                    _update_window_visibility()
                             
                             # Conectar ao timeUpdated e verificar mudança de isOnBreak
-                            # Usar a mesma variável _prev_is_on_break que já está sendo rastreada
+                            _prev_is_on_break = False
                             def check_is_on_break_change():
                                 nonlocal _prev_is_on_break
                                 if timer_model:
@@ -703,71 +681,125 @@ def main():
                     timer_floating_window = None
                     debug_log("App", "main", "Janela flutuante do timer destruída")
             
-            def update_timer_window_visibility():
-                """Atualiza visibilidade da janela baseado no estado do timer"""
-                nonlocal _user_restored_manually, _user_minimized_during_break
-                if not timer_model:
+            def _update_window_visibility():
+                """
+                Função centralizada que decide se a janela deve estar visível ou escondida.
+                Este é o ÚNICO lugar que chama show()/hide() na janela do timer.
+                """
+                nonlocal _window_visibility_state
+                
+                if not timer_model or not timer_floating_window:
                     return
                 
-                # Verificar se está em estado que requer janela visível
-                should_be_visible = (
+                # Verificar se o timer requer janela visível (baseado no estado do timer)
+                timer_requires_visible = (
                     timer_model.state in ["running", "paused"] or
                     timer_model.isWaitingBreakDecision or
                     timer_model.isOnBreak or
                     timer_model.isWaitingBreakEndDecision
                 )
                 
-                if should_be_visible:
-                    if not timer_floating_window:
-                        create_timer_window()
-                    if timer_floating_window:
-                        # Se o usuário minimizou durante a pausa, não mostrar
-                        if timer_model.isOnBreak and _user_minimized_during_break:
-                            debug_log("App", "update_timer_window_visibility", 
-                                     "Usuário minimizou durante pausa, mantendo janela escondida")
-                            return
-                        
-                        # Se o usuário restaurou manualmente, não forçar mostrar (já está visível)
-                        if _user_restored_manually and timer_floating_window.isVisible():
-                            debug_log("App", "update_timer_window_visibility", 
-                                     "Usuário restaurou manualmente, mantendo janela visível")
-                            return
-                        
-                        # Garantir que a janela seja mostrada após QML estar pronto
-                        from PySide6.QtQuick import QQuickView
-                        from PySide6.QtCore import QTimer
-                        
-                        def show_when_ready():
-                            if timer_floating_window and timer_floating_window.status() == QQuickView.Status.Ready:
-                                timer_floating_window.show()
-                                timer_floating_window.raise_()
-                                timer_floating_window.requestActivate()
-                            else:
-                                # Tentar novamente após um delay
-                                QTimer.singleShot(200, show_when_ready)
-                        
-                        # Se já estiver pronto, mostrar imediatamente
-                        if timer_floating_window.status() == QQuickView.Status.Ready:
-                            timer_floating_window.show()
-                            timer_floating_window.raise_()
-                            timer_floating_window.requestActivate()
-                        else:
-                            # Aguardar QML estar pronto
-                            show_when_ready()
-                else:
-                    # Timer parado e não está em pausa/alerta
-                    # Resetar flags quando timer realmente parar
-                    if timer_model.state == "idle":
-                        _user_restored_manually = False
-                        _user_minimized_during_break = False
-                        debug_log("App", "update_timer_window_visibility", 
-                                 "Timer parado, resetando flags de restauração e minimização")
-                    
-                    if timer_floating_window:
+                # Decidir visibilidade final baseado no estado centralizado
+                if _window_visibility_state == "hidden":
+                    # Usuário minimizou manualmente - sempre esconder
+                    if timer_floating_window.isVisible():
+                        debug_log("App", "_update_window_visibility", 
+                                 "Estado: hidden (usuário minimizou), escondendo janela")
                         timer_floating_window.hide()
+                elif _window_visibility_state == "visible":
+                    # Usuário restaurou manualmente - sempre mostrar (se timer requer)
+                    if timer_requires_visible:
+                        if not timer_floating_window.isVisible():
+                            debug_log("App", "_update_window_visibility", 
+                                     "Estado: visible (usuário restaurou), mostrando janela")
+                            timer_floating_window.show()
+                            # Aplicar sequência padrão de ativação apenas quando mostrando
+                            _activate_timer_window()
+                    else:
+                        # Timer não requer visível - resetar para auto e esconder
+                        _window_visibility_state = "auto"
+                        debug_log("App", "_update_window_visibility", 
+                                 "Estado era visible mas timer não requer visível, resetando para auto")
+                        if timer_floating_window.isVisible():
+                            timer_floating_window.hide()
+                else:  # _window_visibility_state == "auto"
+                    # Controle automático baseado no estado do timer (COMPORTAMENTO PADRÃO)
+                    if timer_requires_visible:
+                        if not timer_floating_window.isVisible():
+                            debug_log("App", "_update_window_visibility", 
+                                     "Estado: auto, timer requer visível, mostrando janela")
+                            timer_floating_window.show()
+                            # Aplicar sequência padrão de ativação
+                            _activate_timer_window()
+                    else:
+                        # Timer parado - resetar para auto e esconder
+                        if timer_model.state == "idle":
+                            _window_visibility_state = "auto"
+                            debug_log("App", "_update_window_visibility", 
+                                     "Timer parado, resetando estado para auto")
+                        # Sempre esconder quando timer não requer visível
+                        if timer_floating_window.isVisible():
+                            debug_log("App", "_update_window_visibility", 
+                                     "Estado: auto, timer não requer visível, escondendo janela")
+                            timer_floating_window.hide()
+            
+            def update_timer_window_visibility():
+                """Wrapper que garante que a janela existe antes de atualizar visibilidade"""
+                if not timer_floating_window:
+                    # Verificar se precisa criar a janela
+                    if timer_model and (
+                        timer_model.state in ["running", "paused"] or
+                        timer_model.isWaitingBreakDecision or
+                        timer_model.isOnBreak or
+                        timer_model.isWaitingBreakEndDecision
+                    ):
+                        create_timer_window()
+                # Atualizar visibilidade (função centralizada)
+                _update_window_visibility()
+                
+                # Garantir que quando timer para completamente, estado é resetado
+                if timer_model and timer_model.state == "idle":
+                    nonlocal _window_visibility_state
+                    if not (timer_model.isWaitingBreakDecision or 
+                            timer_model.isOnBreak or 
+                            timer_model.isWaitingBreakEndDecision):
+                        # Timer realmente parado (não está em pausa) - resetar estado
+                        if _window_visibility_state != "auto":
+                            _window_visibility_state = "auto"
+                            debug_log("App", "update_timer_window_visibility", 
+                                     "Timer completamente parado, resetando estado para auto")
+                            # Garantir que janela está escondida
+                            if timer_floating_window and timer_floating_window.isVisible():
+                                timer_floating_window.hide()
+            
+            # Rastrear estado anterior para detectar transições
+            _prev_timer_state = timer_model.state if timer_model else "idle"
+            
+            def on_timer_state_changed(new_state):
+                """Callback quando estado do timer muda - detecta início de timer"""
+                nonlocal _window_visibility_state, _prev_timer_state
+                
+                # Detectar transição "idle" -> "running" (novo timer iniciou)
+                if _prev_timer_state == "idle" and new_state == "running":
+                    debug_log("App", "on_timer_state_changed", 
+                             "Novo timer iniciou (idle -> running), resetando estado para auto")
+                    # Resetar para "auto" para garantir comportamento padrão
+                    # Isso permite que _update_window_visibility() mostre a janela automaticamente
+                    _window_visibility_state = "auto"
+                    # Atualizar visibilidade (aplicará comportamento padrão)
+                    _update_window_visibility()
+                    # Garantir ativação explícita após mostrar
+                    if timer_floating_window and timer_floating_window.isVisible():
+                        _activate_timer_window()
+                
+                _prev_timer_state = new_state
+                # Também atualizar visibilidade normalmente
+                update_timer_window_visibility()
             
             # Conectar sinais do timerModel para gerenciar a janela
-            timer_model.stateChanged.connect(update_timer_window_visibility)
+            timer_model.stateChanged.connect(on_timer_state_changed)
+            # Também conectar a timeUpdated para capturar mudanças em isOnBreak
+            timer_model.timeUpdated.connect(update_timer_window_visibility)
             
             # Verificar estado inicial
             update_timer_window_visibility()

@@ -132,8 +132,6 @@ Controls.ItemDelegate {
                     if (timerModel.issueKey === issueKey && timerModel.state !== "idle") {
                         if (timerModel.state === "running") {
                             timerService.stop()
-                        } else if (timerModel.state === "paused") {
-                            timerService.resume()
                         }
                     }
                     // Se há timer ativo para outra issue, parar e iniciar novo

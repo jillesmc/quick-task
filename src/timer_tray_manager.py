@@ -41,6 +41,7 @@ class TimerTrayManager(QObject):
         self._current_elapsed_seconds = 0
         self._current_state = "idle"
         self._current_pomodoro = 0
+        self._is_on_break = False
         self._setup_tray_icon()
     
     def _setup_tray_icon(self):
@@ -116,27 +117,27 @@ class TimerTrayManager(QObject):
     
     def _on_pause_resume(self):
         """Lida com ação de pausar/retomar"""
-        if self._current_state == "paused":
-            self.resumeRequested.emit()
-        elif self._current_state == "running":
+        # Com sistema unificado, só podemos pausar se estiver rodando
+        # Não podemos mais retomar diretamente (pausa só termina quando cronômetro acaba)
+        if self._current_state == "running" and not self._is_on_break:
             self.pauseRequested.emit()
+        # Se estiver em pausa (isOnBreak), não fazer nada - usuário deve esperar cronômetro terminar
     
-    def update_timer_state(self, issue_key: str, elapsed_seconds: int, state: str, pomodoro: int = 0):
+    def update_timer_state(self, issue_key: str, elapsed_seconds: int, state: str, pomodoro: int = 0, is_on_break: bool = False):
         """Atualiza o estado do timer para exibir no tooltip"""
         self._current_issue_key = issue_key
         self._current_elapsed_seconds = elapsed_seconds
         self._current_state = state
         self._current_pomodoro = pomodoro
+        self._is_on_break = is_on_break
         
         # Atualizar menu
         if self._pause_resume_action:
-            if state == "paused":
-                self._pause_resume_action.setText("Retomar")
-                self._pause_resume_action.setEnabled(True)
-            elif state == "running":
+            if state == "running" and not is_on_break:
                 self._pause_resume_action.setText("Pausar")
                 self._pause_resume_action.setEnabled(True)
             else:
+                # Durante pausa ou timer parado, desabilitar botão pausar/retomar
                 self._pause_resume_action.setText("Pausar")
                 self._pause_resume_action.setEnabled(False)
         
@@ -159,7 +160,7 @@ class TimerTrayManager(QObject):
         
         time_str = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
         
-        # Estado
+        # Estado - considerar que pode estar em pausa mesmo com state="idle"
         state_str = "Pausado" if self._current_state == "paused" else "Rodando"
         
         # Tooltip

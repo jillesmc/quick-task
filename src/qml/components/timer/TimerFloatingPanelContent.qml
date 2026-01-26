@@ -129,22 +129,16 @@ Item {
                 spacing: Kirigami.Units.smallSpacing
                 
                 Controls.Button {
-                    text: timerModel && timerModel.state === "paused" ? qsTr("Retomar") : qsTr("Pausar")
-                    icon.name: timerModel && timerModel.state === "paused" ? "media-playback-start" : "media-playback-pause"
+                    text: qsTr("Pausar")
+                    icon.name: "media-playback-pause"
                     Layout.fillWidth: true
-                    enabled: timerModel && (timerModel.state === "running" || timerModel.state === "paused")
+                    enabled: timerModel && timerModel.state === "running" && !timerModel.isOnBreak && !timerModel.isWaitingBreakDecision
+                    visible: timerModel && timerModel.state === "running" && !timerModel.isOnBreak && !timerModel.isWaitingBreakDecision && !timerModel.isWaitingBreakEndDecision
                     onClicked: {
-                        console.log("TimerFloatingPanel: Botão Pausar/Retomar clicado, estado atual:", timerModel ? timerModel.state : "null")
-                        if (timerModel && timerModel.state === "paused") {
-                            if (timerService) {
-                                console.log("TimerFloatingPanel: Chamando resume()")
-                                timerService.resume()
-                            }
-                        } else if (timerModel && timerModel.state === "running") {
-                            if (timerService) {
-                                console.log("TimerFloatingPanel: Chamando pause()")
-                                timerService.pause()
-                            }
+                        console.log("TimerFloatingPanel: Botão Pausar clicado")
+                        if (timerService && timerModel && timerModel.state === "running") {
+                            console.log("TimerFloatingPanel: Chamando pause()")
+                            timerService.pause()
                         }
                     }
                 }
@@ -153,7 +147,8 @@ Item {
                     text: qsTr("Parar")
                     icon.name: "media-playback-stop"
                     Layout.fillWidth: true
-                    enabled: timerModel && timerModel.state !== "idle"
+                    enabled: timerModel && timerModel.state !== "idle" && !timerModel.isOnBreak && !timerModel.isWaitingBreakEndDecision
+                    visible: timerModel && timerModel.state !== "idle" && !timerModel.isOnBreak && !timerModel.isWaitingBreakEndDecision
                     onClicked: {
                         console.log("TimerFloatingPanel: Botão Parar clicado")
                         if (timerService) {

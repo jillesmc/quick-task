@@ -213,14 +213,13 @@ Kirigami.Page {
                         spacing: Kirigami.Units.smallSpacing
 
                         Controls.Button {
-                            text: timerModel && timerModel.state === "paused" ? qsTr("Retomar") : qsTr("Pausar")
-                            icon.name: timerModel && timerModel.state === "paused" ? "media-playback-start" : "media-playback-pause"
+                            text: qsTr("Pausar")
+                            icon.name: "media-playback-pause"
                             Layout.fillWidth: true
-                            enabled: timerModel && (timerModel.state === "running" || timerModel.state === "paused")
+                            enabled: timerModel && timerModel.state === "running" && !timerModel.isOnBreak && !timerModel.isWaitingBreakDecision
+                            visible: timerModel && timerModel.state === "running" && !timerModel.isOnBreak && !timerModel.isWaitingBreakDecision && !timerModel.isWaitingBreakEndDecision
                             onClicked: {
-                                if (timerModel.state === "paused") {
-                                    timerService.resume()
-                                } else {
+                                if (timerService && timerModel && timerModel.state === "running") {
                                     timerService.pause()
                                 }
                             }
@@ -230,7 +229,8 @@ Kirigami.Page {
                             text: qsTr("Parar")
                             icon.name: "media-playback-stop"
                             Layout.fillWidth: true
-                            enabled: timerModel && timerModel.state !== "idle"
+                            enabled: timerModel && timerModel.state !== "idle" && !timerModel.isOnBreak && !timerModel.isWaitingBreakEndDecision
+                            visible: timerModel && timerModel.state !== "idle" && !timerModel.isOnBreak && !timerModel.isWaitingBreakEndDecision
                             onClicked: {
                                 timerService.stop()
                             }

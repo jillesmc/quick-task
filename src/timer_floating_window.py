@@ -117,6 +117,25 @@ class TimerFloatingWindow(QQuickView):
         
         super().mouseReleaseEvent(event)
     
+    def enterEvent(self, event):
+        """Resetar cursor quando mouse entra na janela"""
+        # Resetar cursor para garantir que não fique preso em modo de seleção de texto
+        # Se estiver na área de drag, usar OpenHandCursor, senão ArrowCursor
+        from PySide6.QtGui import QCursor
+        mouse_pos = self.mapFromGlobal(QCursor.pos())
+        if mouse_pos.y() < self._drag_area_height:
+            self.setCursor(Qt.OpenHandCursor)
+        else:
+            self.setCursor(Qt.ArrowCursor)
+        super().enterEvent(event)
+    
+    def leaveEvent(self, event):
+        """Resetar cursor quando mouse sai da janela"""
+        # Garantir que cursor seja resetado quando sair
+        if not self.is_dragging:
+            self.setCursor(Qt.ArrowCursor)
+        super().leaveEvent(event)
+    
     def position_window(self):
         """Posiciona a janela no canto superior direito"""
         screen = QGuiApplication.primaryScreen()

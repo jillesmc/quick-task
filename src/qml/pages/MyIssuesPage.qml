@@ -343,8 +343,6 @@ Kirigami.Page {
                         text: {
                             if (timerModel && timerModel.state === "running" && timerModel.issueKey === selectedIssueKey) {
                                 return qsTr("Timer Ativo - Parar")
-                            } else if (timerModel && timerModel.state === "paused" && timerModel.issueKey === selectedIssueKey) {
-                                return qsTr("Timer Pausado - Retomar")
                             } else if (timerModel && timerModel.isOnBreak) {
                                 return qsTr("Cancelar Pausa e Iniciar")
                             } else if (timerModel && timerModel.state !== "idle" && timerModel.issueKey !== selectedIssueKey) {
@@ -355,8 +353,6 @@ Kirigami.Page {
                         icon.name: {
                             if (timerModel && timerModel.state === "running" && timerModel.issueKey === selectedIssueKey) {
                                 return "media-playback-stop"
-                            } else if (timerModel && timerModel.state === "paused" && timerModel.issueKey === selectedIssueKey) {
-                                return "media-playback-start"
                             } else if (timerModel && timerModel.isOnBreak) {
                                 return "media-playback-start"
                             }
@@ -386,8 +382,6 @@ Kirigami.Page {
                             if (timerModel.issueKey === selectedIssueKey && timerModel.state !== "idle") {
                                 if (timerModel.state === "running") {
                                     timerService.stop()
-                                } else if (timerModel.state === "paused") {
-                                    timerService.resume()
                                 }
                             }
                             // Se há timer ativo para outra issue, perguntar
