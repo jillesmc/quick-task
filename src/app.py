@@ -512,6 +512,28 @@ def main():
                 except Exception as e:
                     debug_log("App", "_activate_timer_window", 
                              "activate() não disponível ou falhou: %s", e)
+                
+                # Hipótese 1: Garantir foco no root object QML para capturar eventos
+                # IMPORTANTE: Só chamar forceActiveFocus() se a janela estiver visível
+                # Isso evita roubar foco quando a janela não está sendo mostrada
+                if timer_floating_window.isVisible():
+                    try:
+                        root_object = timer_floating_window.rootObject()
+                        if root_object:
+                            # Chamar forceActiveFocus() no root object QML apenas se janela estiver visível
+                            if hasattr(root_object, 'forceActiveFocus'):
+                                root_object.forceActiveFocus()
+                                debug_log("App", "_activate_timer_window", 
+                                         "forceActiveFocus() chamado no root object (janela visível)")
+                            else:
+                                debug_log("App", "_activate_timer_window", 
+                                         "root object não tem forceActiveFocus()")
+                    except Exception as e:
+                        debug_log("App", "_activate_timer_window", 
+                                 "Erro ao chamar forceActiveFocus() no root object: %s", e)
+                else:
+                    debug_log("App", "_activate_timer_window", 
+                             "Janela não está visível, não chamando forceActiveFocus() para evitar roubo de foco")
             
             def create_timer_window():
                 """Cria a janela flutuante do timer"""

@@ -12,6 +12,10 @@ import org.kde.kirigami as Kirigami
 Item {
     id: root
     
+    // Habilitar foco para capturar eventos de mouse/teclado
+    // Necessário para que a janela seja clicável (Hipótese 1 do diagnóstico)
+    focus: true
+    
     // QQuickView com SizeRootObjectToView redimensiona automaticamente
     // Não precisamos definir tamanho explícito
     

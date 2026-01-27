@@ -60,6 +60,8 @@ class TimerFloatingWindow(QQuickView):
             def on_status_changed():
                 if self.status() == QQuickView.Status.Ready:
                     self.position_window()  # Chamar diretamente, sem delay
+                    # NÃO chamar forceActiveFocus() aqui - a janela pode não estar visível ainda
+                    # O foco será garantido quando a janela for realmente mostrada e ativada
                 elif self.status() == QQuickView.Status.Error:
                     errors = self.errors()
                     print(f"⚠ Aviso: Erro ao carregar QML: {errors}", file=sys.stderr)
@@ -71,6 +73,8 @@ class TimerFloatingWindow(QQuickView):
             # Se já estiver pronto, posicionar imediatamente
             if self.status() == QQuickView.Status.Ready:
                 self.position_window()
+                # NÃO chamar forceActiveFocus() aqui - a janela pode não estar visível ainda
+                # O foco será garantido quando a janela for realmente mostrada e ativada
         except Exception as e:
             print(f"⚠ Aviso: Exceção ao carregar QML: {e}", file=sys.stderr)
             import traceback
