@@ -15,7 +15,11 @@ from core.jira_client import JiraClient, _UNKNOWN_ERROR_MSG
 def mock_config_file(tmp_path):
     """Cria um arquivo de configuração temporário"""
     config_file = tmp_path / ".jira-config.yml"
-    config_file.write_text("server: https://test.atlassian.net\nlogin: test@example.com")
+    config_file.write_text(
+        "server: https://test.atlassian.net\n"
+        "login: test@example.com\n"
+        "token: test-token\n"
+    )
     return config_file
 
 
