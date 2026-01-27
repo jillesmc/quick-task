@@ -28,6 +28,7 @@ Kirigami.Page {
     property string sharedEpicSummary: ""
     
     signal epicSelected(string key, string summary)
+    signal issueCreated(string issueKey)  // Emitido quando uma issue é criada com sucesso
     
     // Diálogos
     property var progressDialog: null
@@ -103,6 +104,8 @@ Kirigami.Page {
                 hideProgressDialog()
                 showSuccessDialog(issueKey, issueUrl)
                 resetForm()
+                // Emitir signal para notificar que uma issue foi criada
+                page.issueCreated(issueKey)
             })
             
             controller.createFailed.connect(function(errorMessage) {

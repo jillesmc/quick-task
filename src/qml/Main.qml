@@ -291,6 +291,17 @@ Kirigami.ApplicationWindow {
                 root.sharedEpicKey = key
                 root.sharedEpicSummary = summary
             }
+            onIssueCreated: function(issueKey) {
+                // Quando uma issue é criada, atualizar a lista de MyIssues
+                if (issuesPage) {
+                    // Obter a query atual da página de MyIssues (se houver)
+                    var query = ""
+                    if (issuesPage.issueSearchForm) {
+                        query = issuesPage.issueSearchForm.getQuery()
+                    }
+                    issuesPage.refreshIssues(query)
+                }
+            }
         }
 
         // Índice 1: Minhas Issues
