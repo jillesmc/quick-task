@@ -264,3 +264,18 @@ class WorklogSyncService(QObject):
         except Exception as e:
             debug_log("WorklogSyncService", "delete_worklog", "Erro ao deletar worklog %s: %s", session_id, e)
             return False
+    
+    @Slot(result=int)
+    def delete_all_worklogs(self) -> int:
+        """
+        Deleta todos os worklogs pendentes
+        
+        Returns:
+            Número de worklogs deletados
+        """
+        deleted_count = self._worklog_db.delete_all_worklogs()
+        debug_log("WorklogSyncService", "delete_all_worklogs", "%d worklogs deletados", deleted_count)
+        # Emitir sinal para atualizar UI (usar sessionSynced com ID especial)
+        if deleted_count > 0:
+            self.sessionSynced.emit("all", "deleted")
+        return deleted_count

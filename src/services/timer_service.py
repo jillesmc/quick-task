@@ -2,9 +2,11 @@
 Serviço para gerenciar timer e Pomodoro
 """
 
+import os
 import time
 from datetime import datetime
-from typing import Optional
+from pathlib import Path
+from typing import Dict, Optional
 
 from PySide6.QtCore import QObject, QTimer, Signal, Slot  # type: ignore[import]
 
@@ -12,6 +14,18 @@ from config.config_manager import ConfigManager
 from src.database.worklog_db import WorklogDatabase
 from src.models.timer_model import PomodoroSession, TimerModel, TimerState
 from src.utils.debug import debug_log
+
+# Helper para escrever logs de debug de forma segura
+def _write_debug_log(data: dict) -> None:
+    """Escreve log de debug, criando diretório se necessário"""
+    try:
+        import json
+        log_path = Path('/home/jilles/data/projects/personal/jira-quick-task/.cursor/debug.log')
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(log_path, 'a') as f:
+            f.write(f'{json.dumps(data)}\n')
+    except Exception:
+        pass  # Ignorar erros de logging para não quebrar a aplicação
 
 
 class TimerService(QObject):
@@ -58,6 +72,13 @@ class TimerService(QObject):
         self._break_decision_timeout_timer.setSingleShot(True)
         self._break_decision_timeout_timer.timeout.connect(self._on_break_decision_timeout)
         
+        # Contador acumulado de pomodoros por issue_key
+        # Mantém contagem através de pausas até timer parar completamente
+        self._pomodoro_counters: Dict[str, int] = {}
+        
+        # Último pomodoro detectado na sessão atual (para evitar detecções duplicadas)
+        self._last_pomodoro_detected_in_session: int = 0
+        
         # Configurações de Pomodoro
         self._load_pomodoro_config()
 
@@ -90,8 +111,39 @@ class TimerService(QObject):
         
         # Sempre iniciar nova sessão (não continuar sessão existente)
         self._timer_model.start_session(issue_key)
+        
+        # Carregar contador acumulado de pomodoros para esta issue_key (se existir)
+        accumulated_pomodoros = self._pomodoro_counters.get(issue_key, 0)
+        
         # Resetar tempo acumulado para nova sessão
         self._paused_elapsed = 0
+        
+        # Resetar último pomodoro detectado na sessão
+        self._last_pomodoro_detected_in_session = 0
+        
+        # Inicializar currentPomodoro: mostrar quantos pomodoros já foram completados
+        # (Opção C: mostrar pomodoro completado, não o próximo)
+        # #region agent log
+        _write_debug_log({"sessionId":"debug-session","runId":"run1","hypothesisId":"E","location":"timer_service.py:102","message":"start() - antes de inicializar currentPomodoro","data":{"accumulated_pomodoros":accumulated_pomodoros,"current_before":self._timer_model._current_pomodoro},"timestamp":int(time.time()*1000)})
+        # #endregion
+        if accumulated_pomodoros > 0:
+            debug_log("TimerService", "start", 
+                     "Carregando contador acumulado de pomodoros para %s: %d", 
+                     issue_key, accumulated_pomodoros)
+            # Mostrar quantos pomodoros já foram completados
+            # #region agent log
+            _write_debug_log({"sessionId":"debug-session","runId":"run1","hypothesisId":"E","location":"timer_service.py:117","message":"start() - atribuindo currentPomodoro (accumulated > 0)","data":{"old":self._timer_model._current_pomodoro,"new":accumulated_pomodoros},"timestamp":int(time.time()*1000)})
+            # #endregion
+            self._timer_model.currentPomodoro = accumulated_pomodoros
+        else:
+            # Primeira vez trabalhando nesta issue, ainda não completou nenhum pomodoro
+            # #region agent log
+            _write_debug_log({"sessionId":"debug-session","runId":"run1","hypothesisId":"E","location":"timer_service.py:124","message":"start() - atribuindo currentPomodoro (primeira vez)","data":{"old":self._timer_model._current_pomodoro,"new":0},"timestamp":int(time.time()*1000)})
+            # #endregion
+            self._timer_model.currentPomodoro = 0
+        # #region agent log
+        _write_debug_log({"sessionId":"debug-session","runId":"run1","hypothesisId":"E","location":"timer_service.py:116","message":"start() - depois de inicializar currentPomodoro","data":{"accumulated_pomodoros":accumulated_pomodoros,"current_after":self._timer_model._current_pomodoro},"timestamp":int(time.time()*1000)})
+        # #endregion
         
         # Verificar se realmente iniciou
         if self._timer_model.state != TimerState.RUNNING.value:
@@ -245,6 +297,7 @@ class TimerService(QObject):
         # Resetar estado
         self._start_time = None
         self._paused_elapsed = 0
+        self._last_pomodoro_detected_in_session = 0
         
         # Salvar sessão no banco de dados se disponível
         if session and self._worklog_db:
@@ -266,6 +319,14 @@ class TimerService(QObject):
             except Exception as e:
                 debug_log("TimerService", "stop", "Erro ao salvar sessão: %s", e)
         
+        # Resetar contador acumulado de pomodoros para esta issue_key
+        issue_key = self._timer_model.issueKey
+        if issue_key and issue_key in self._pomodoro_counters:
+            debug_log("TimerService", "stop", 
+                     "Resetando contador acumulado de pomodoros para %s (era: %d)", 
+                     issue_key, self._pomodoro_counters[issue_key])
+            del self._pomodoro_counters[issue_key]
+        
         # Limpar issue key após salvar
         self._timer_model.issueKey = ""
         debug_log("TimerService", "stop", "Issue key limpa após parar timer")
@@ -283,15 +344,35 @@ class TimerService(QObject):
         self.tick.emit(total_elapsed)
         
         # Verificar se completou um Pomodoro
+        # #region agent log
+        _write_debug_log({"sessionId":"debug-session","runId":"run1","hypothesisId":"A","location":"timer_service.py:321","message":"_on_tick() - entrada do bloco pomodoro","data":{"pomodoro_enabled":self._pomodoro_enabled,"total_elapsed":total_elapsed,"current_pomodoro_before":self._timer_model._current_pomodoro},"timestamp":int(time.time()*1000)})
+        # #endregion
         if self._pomodoro_enabled and total_elapsed > 0:
-            pomodoros_completed = total_elapsed // self._pomodoro_duration_seconds
-            current_pomodoro = self._timer_model.currentPomodoro
+            # Obter contador acumulado para esta issue_key
+            issue_key = self._timer_model.issueKey
+            accumulated_pomodoros = self._pomodoro_counters.get(issue_key, 0)
             
-            if pomodoros_completed > current_pomodoro:
+            # Calcular pomodoros completados na sessão atual (baseado apenas no tempo desta sessão)
+            pomodoros_in_current_session = total_elapsed // self._pomodoro_duration_seconds
+            
+            # Mostrar quantos pomodoros já foram completados (Opção C: pomodoro completado)
+            # Durante o trabalho, mostramos os pomodoros já completados (não o próximo)
+            current_pomodoro_number = accumulated_pomodoros
+            # #region agent log
+            _write_debug_log({"sessionId":"debug-session","runId":"run1","hypothesisId":"D","location":"timer_service.py:332","message":"_on_tick() - calculado current_pomodoro_number","data":{"accumulated_pomodoros":accumulated_pomodoros,"pomodoros_in_current_session":pomodoros_in_current_session,"current_pomodoro_number":current_pomodoro_number,"current_pomodoro_model":self._timer_model._current_pomodoro},"timestamp":int(time.time()*1000)})
+            # #endregion
+            
+            # Verificar se completou um novo pomodoro (comparar com o último detectado nesta sessão)
+            if pomodoros_in_current_session > self._last_pomodoro_detected_in_session:
                 # Novo Pomodoro completado
-                new_pomodoro = pomodoros_completed
-                # NÃO definir currentPomodoro aqui - add_pomodoro() calculará baseado no tamanho da lista
+                # CORREÇÃO: Incrementar apenas 1 (não somar pomodoros_in_current_session que conta TODOS da sessão)
+                # O accumulated_pomodoros já tem os pomodoros anteriores, só precisamos +1 para o novo
+                new_pomodoro = accumulated_pomodoros + 1
+                self._last_pomodoro_detected_in_session = pomodoros_in_current_session
                 self._timer_model.pomodorosToday += 1
+                
+                # Atualizar contador acumulado ANTES de criar o pomodoro
+                self._pomodoro_counters[issue_key] = new_pomodoro
                 
                 # Criar PomodoroSession
                 pomodoro_start = datetime.now()
@@ -302,9 +383,11 @@ class TimerService(QObject):
                 pomodoro_start = pomodoro_start.replace(
                     second=total_elapsed % self._pomodoro_duration_seconds
                 )
-                # Ajustar para o início do Pomodoro
+                # Ajustar para o início do Pomodoro na sessão atual
+                # O novo pomodoro começa no tempo: (pomodoros_in_current_session - 1) * duração
+                pomodoro_start_offset = (pomodoros_in_current_session - 1) * self._pomodoro_duration_seconds
                 pomodoro_start = pomodoro_start.replace(
-                    second=(total_elapsed - (new_pomodoro - 1) * self._pomodoro_duration_seconds) % self._pomodoro_duration_seconds
+                    second=(total_elapsed - pomodoro_start_offset) % self._pomodoro_duration_seconds
                 )
                 
                 # Simplificar: usar tempo atual como fim
@@ -319,6 +402,17 @@ class TimerService(QObject):
                 
                 self._timer_model.add_pomodoro(pomodoro)
                 self.pomodoroCompleted.emit(new_pomodoro)
+                
+                debug_log("TimerService", "_on_tick", 
+                         "Pomodoro %d completado (acumulado anterior: %d, sessão atual: %d)", 
+                         new_pomodoro, accumulated_pomodoros, pomodoros_in_current_session)
+                
+                # IMPORTANTE: Atualizar currentPomodoro para mostrar o pomodoro que acabou de ser completado
+                # (não o próximo, pois ainda estamos no momento da conclusão)
+                # #region agent log
+                _write_debug_log({"sessionId":"debug-session","runId":"run1","hypothesisId":"A","location":"timer_service.py:393","message":"_on_tick() - atribuindo currentPomodoro após completar","data":{"old":self._timer_model._current_pomodoro,"new":new_pomodoro},"timestamp":int(time.time()*1000)})
+                # #endregion
+                self._timer_model.currentPomodoro = new_pomodoro
                 
                 # Determinar tipo de pausa baseado no histórico de pausas realmente feitas
                 break_type = self._determine_break_type()
@@ -336,6 +430,20 @@ class TimerService(QObject):
                 self._break_decision_timeout_timer.start(timeout_seconds * 1000)
                 
                 debug_log("TimerService", "_on_tick", "Pomodoro %d completado, break_type=%s", new_pomodoro, break_type)
+            else:
+                # Não completou pomodoro novo, atualizar currentPomodoro normalmente
+                # Atualizar currentPomodoro para refletir pomodoro atual (sempre, a cada tick)
+                # #region agent log
+                _write_debug_log({"sessionId":"debug-session","runId":"run1","hypothesisId":"A","location":"timer_service.py:396","message":"_on_tick() - antes de atualizar currentPomodoro (não completou novo)","data":{"current_pomodoro_number":current_pomodoro_number,"current_pomodoro_model":self._timer_model._current_pomodoro,"will_update":current_pomodoro_number != self._timer_model.currentPomodoro},"timestamp":int(time.time()*1000)})
+                # #endregion
+                if current_pomodoro_number != self._timer_model.currentPomodoro:
+                    # #region agent log
+                    _write_debug_log({"sessionId":"debug-session","runId":"run1","hypothesisId":"A","location":"timer_service.py:419","message":"_on_tick() - atribuindo currentPomodoro (não completou novo)","data":{"old":self._timer_model._current_pomodoro,"new":current_pomodoro_number},"timestamp":int(time.time()*1000)})
+                    # #endregion
+                    self._timer_model.currentPomodoro = current_pomodoro_number
+                    # #region agent log
+                    _write_debug_log({"sessionId":"debug-session","runId":"run1","hypothesisId":"A","location":"timer_service.py:422","message":"_on_tick() - depois de atualizar currentPomodoro","data":{"current_pomodoro_after":self._timer_model._current_pomodoro},"timestamp":int(time.time()*1000)})
+                    # #endregion
 
     def get_elapsed_seconds(self) -> int:
         """Retorna segundos decorridos"""
@@ -552,6 +660,18 @@ class TimerService(QObject):
         
         # Esconder alerta (timer já está rodando normalmente)
         self._timer_model.isWaitingBreakDecision = False
+        
+        # Atualizar currentPomodoro para mostrar quantos pomodoros foram completados
+        # (Opção C: pomodoro completado, não o próximo)
+        # O contador acumulado já foi atualizado quando o pomodoro foi completado
+        issue_key = self._timer_model.issueKey
+        accumulated_pomodoros = self._pomodoro_counters.get(issue_key, 0)
+        # Mostrar os pomodoros completados (não o próximo)
+        if accumulated_pomodoros != self._timer_model.currentPomodoro:
+            self._timer_model.currentPomodoro = accumulated_pomodoros
+            debug_log("TimerService", "continueWithoutBreak", 
+                     "Atualizado currentPomodoro para %d (pomodoros completados)", 
+                     accumulated_pomodoros)
     
     def _on_break_decision_timeout(self) -> None:
         """Timeout de auto-continuação do alerta"""

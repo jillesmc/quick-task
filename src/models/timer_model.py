@@ -2,15 +2,30 @@
 Modelo de dados para timer e sessões de worklog
 """
 
+import os
+import time
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from PySide6.QtCore import QObject, Property, Signal, Slot  # type: ignore[import]
 
 from src.utils.debug import debug_log
+
+# Helper para escrever logs de debug de forma segura
+def _write_debug_log(data: dict) -> None:
+    """Escreve log de debug, criando diretório se necessário"""
+    try:
+        log_path = Path('/home/jilles/data/projects/personal/jira-quick-task/.cursor/debug.log')
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        import json
+        with open(log_path, 'a') as f:
+            f.write(f'{json.dumps(data)}\n')
+    except Exception:
+        pass  # Ignorar erros de logging para não quebrar a aplicação
 
 
 class TimerState(Enum):
@@ -174,8 +189,14 @@ class TimerModel(QObject):
     @currentPomodoro.setter
     def currentPomodoro(self, value: int):
         if self._current_pomodoro != value:
+            # #region agent log
+            _write_debug_log({"sessionId":"debug-session","runId":"run1","hypothesisId":"B","location":"timer_model.py:175","message":"currentPomodoro setter - antes de atualizar","data":{"old_value":self._current_pomodoro,"new_value":value},"timestamp":int(time.time()*1000)})
+            # #endregion
             self._current_pomodoro = value
             self.pomodoroCompleted.emit(value)
+            # #region agent log
+            _write_debug_log({"sessionId":"debug-session","runId":"run1","hypothesisId":"B","location":"timer_model.py:178","message":"currentPomodoro setter - depois de atualizar e emitir signal","data":{"current_value":self._current_pomodoro},"timestamp":int(time.time()*1000)})
+            # #endregion
 
     @Property(int, notify=timeUpdated)
     def pomodorosToday(self) -> int:
@@ -207,7 +228,13 @@ class TimerModel(QObject):
 
         self.issueKey = issue_key
         self._elapsed_seconds = 0
+        # #region agent log
+        _write_debug_log({"sessionId":"debug-session","runId":"run1","hypothesisId":"C","location":"timer_model.py:210","message":"start_session() - resetando currentPomodoro para 0","data":{"issue_key":issue_key,"current_before_reset":self._current_pomodoro},"timestamp":int(time.time()*1000)})
+        # #endregion
         self._current_pomodoro = 0
+        # #region agent log
+        _write_debug_log({"sessionId":"debug-session","runId":"run1","hypothesisId":"C","location":"timer_model.py:210","message":"start_session() - depois de resetar currentPomodoro","data":{"current_after_reset":self._current_pomodoro},"timestamp":int(time.time()*1000)})
+        # #endregion
         
         # Criar nova sessão
         self._current_session = WorklogSession(
@@ -250,7 +277,11 @@ class TimerModel(QObject):
         session = self._current_session
         self._current_session = None
         self._elapsed_seconds = 0
-        self._current_pomodoro = 0
+        # #region agent log
+        _write_debug_log({"sessionId":"debug-session","runId":"run1","hypothesisId":"C","location":"timer_model.py:271","message":"stop_session() - resetando currentPomodoro para 0","data":{"current_before":self._current_pomodoro},"timestamp":int(time.time()*1000)})
+        # #endregion
+        # Usar setter para notificar QML do reset
+        self.currentPomodoro = 0
         self.state = TimerState.IDLE.value
         
         debug_log("TimerModel", "stop_session", "Timer parado, sessão finalizada")
@@ -260,10 +291,9 @@ class TimerModel(QObject):
         """Adiciona um Pomodoro à sessão atual"""
         if self._current_session:
             self._current_session.pomodoros.append(pomodoro)
-            # Calcular currentPomodoro baseado no tamanho da lista (não incrementar manualmente)
-            self._current_pomodoro = len(self._current_session.pomodoros)
-            self.pomodoroCompleted.emit(self._current_pomodoro)
-            debug_log("TimerModel", "add_pomodoro", "Pomodoro adicionado: %d", self._current_pomodoro)
+            # NÃO calcular currentPomodoro aqui - será atualizado pelo TimerService
+            # que mantém o contador acumulado considerando sessões anteriores
+            debug_log("TimerModel", "add_pomodoro", "Pomodoro adicionado à sessão (total na sessão: %d)", len(self._current_session.pomodoros))
     
     @Property(bool, notify=timeUpdated)
     def isWaitingBreakDecision(self) -> bool:

@@ -313,6 +313,30 @@ class WorklogDatabase:
         conn.close()
         
         debug_log("WorklogDatabase", "delete_session", "Sessão deletada com sucesso")
+    
+    def delete_all_worklogs(self) -> int:
+        """
+        Deleta todos os worklogs pendentes do banco de dados
+        
+        Returns:
+            Número de worklogs deletados
+        """
+        debug_log("WorklogDatabase", "delete_all_worklogs", "Deletando todos os worklogs pendentes")
+        
+        conn = sqlite3.connect(str(self.db_path))
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            DELETE FROM worklog_sessions 
+            WHERE is_synced = 0
+        """)
+        
+        deleted_count = cursor.rowcount
+        conn.commit()
+        conn.close()
+        
+        debug_log("WorklogDatabase", "delete_all_worklogs", "%d worklogs deletados", deleted_count)
+        return deleted_count
 
     def get_sessions_by_issue(self, issue_key: str) -> List[Dict[str, Any]]:
         """

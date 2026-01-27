@@ -201,11 +201,20 @@ Window {
             
             // Pomodoro (se habilitado)
             Controls.Label {
+                id: pomodoroLabelPanel
                 text: qsTr("Pomodoro %1").arg(timerModel ? timerModel.currentPomodoro : 0)
                 Layout.fillWidth: true
                 horizontalAlignment: Text.AlignHCenter
                 visible: settingsModel && settingsModel.pomodoroEnabled
                 font.pointSize: Kirigami.Theme.smallFont.pointSize
+                
+                // Garantir atualização quando signal for emitido
+                Connections {
+                    target: timerModel || null
+                    function onPomodoroCompleted(pomodoroNum) {
+                        pomodoroLabelPanel.text = qsTr("Pomodoro %1").arg(pomodoroNum)
+                    }
+                }
             }
             
             // Controles

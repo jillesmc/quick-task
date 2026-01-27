@@ -202,10 +202,19 @@ Kirigami.Page {
                     }
 
                     Controls.Label {
+                        id: pomodoroLabelPage
                         text: qsTr("Pomodoro %1").arg(timerModel ? timerModel.currentPomodoro : 0)
                         Layout.fillWidth: true
                         horizontalAlignment: Text.AlignHCenter
                         visible: settingsModel && settingsModel.pomodoroEnabled
+                        
+                        // Garantir atualização quando signal for emitido
+                        Connections {
+                            target: timerModel || null
+                            function onPomodoroCompleted(pomodoroNum) {
+                                pomodoroLabelPage.text = qsTr("Pomodoro %1").arg(pomodoroNum)
+                            }
+                        }
                     }
 
                     RowLayout {

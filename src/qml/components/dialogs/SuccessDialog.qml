@@ -11,6 +11,12 @@ Controls.Dialog {
     title: isUpdate ? "Task Atualizada" : "Issue Criada"
     modal: true
     
+    // Definir tamanho mínimo para acomodar todos os elementos
+    implicitWidth: 400
+    implicitHeight: 250
+    width: implicitWidth
+    height: implicitHeight
+    
     property string issueKey: ""
     property string issueUrl: ""
     
