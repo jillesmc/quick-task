@@ -36,6 +36,7 @@ class TimerService(QObject):
     pomodoroCompleted = Signal(int)  # número do Pomodoro
     breakSuggested = Signal(str)  # "short" ou "long"
     breakDecisionRequested = Signal(int, str)  # pomodoro_num, break_type
+    breakStarted = Signal(str)  # break_type - emitido quando pausa manual inicia
 
     def __init__(
         self,
@@ -250,6 +251,9 @@ class TimerService(QObject):
         
         # Iniciar timer de contagem regressiva
         self._break_countdown_timer.start()
+        
+        # Emitir sinal para notificar que pausa iniciou (para tocar som)
+        self.breakStarted.emit(break_type)
         
         debug_log("TimerService", "pause", "Pausa iniciada: tipo=%s, duração=%ds", break_type, break_duration_seconds)
 
@@ -514,23 +518,31 @@ class TimerService(QObject):
     
     def _determine_break_type(self) -> str:
         """
-        Determina o tipo de pausa (curta/longa) baseado no histórico de pausas
-        realmente feitas na sessão atual, não em pomodoros completados.
+        Determina o tipo de pausa (curta/longa) baseado em pomodoros completados.
+        A técnica Pomodoro tradicional: após N pomodoros completados, fazer pausa longa.
         """
-        short_breaks_count = self._count_short_breaks_in_session()
+        # Obter issue_key atual
+        issue_key = self._timer_model.issueKey
+        if not issue_key:
+            debug_log("TimerService", "_determine_break_type", 
+                     "Sem issue_key, retornando pausa curta como fallback")
+            return "short"  # Fallback
         
-        # Se o número de pausas curtas é múltiplo de pomodoros_before_long_break,
+        # Contar pomodoros completados (não pausas feitas)
+        pomodoros_completed = self._pomodoro_counters.get(issue_key, 0)
+        
+        # Se o número de pomodoros é múltiplo de pomodoros_before_long_break,
         # então a próxima deve ser longa
-        if short_breaks_count > 0 and short_breaks_count % self._pomodoros_before_long_break == 0:
+        if pomodoros_completed > 0 and pomodoros_completed % self._pomodoros_before_long_break == 0:
             break_type = "long"
             debug_log("TimerService", "_determine_break_type", 
-                     "Pausa longa determinada (pausas curtas: %d, antes de longa: %d)", 
-                     short_breaks_count, self._pomodoros_before_long_break)
+                     "Pausa longa determinada (pomodoros completados: %d, antes de longa: %d)", 
+                     pomodoros_completed, self._pomodoros_before_long_break)
         else:
             break_type = "short"
             debug_log("TimerService", "_determine_break_type", 
-                     "Pausa curta determinada (pausas curtas: %d, antes de longa: %d)", 
-                     short_breaks_count, self._pomodoros_before_long_break)
+                     "Pausa curta determinada (pomodoros completados: %d, antes de longa: %d)", 
+                     pomodoros_completed, self._pomodoros_before_long_break)
         
         return break_type
     

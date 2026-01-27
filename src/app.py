@@ -613,8 +613,14 @@ def main():
                     if timer_tray_manager:
                         timer_tray_manager.restoreRequested.connect(restore_timer_window)
                     
-                    # Conectar sinais de breakDecisionRequested e breakEnded
+                    # Conectar sinais de breakDecisionRequested, breakStarted e breakEnded
                     if timer_service:
+                        # Conectar sinal breakStarted para tocar som quando pausa manual inicia
+                        timer_service.breakStarted.connect(
+                            lambda break_type: notification_service.play_pomodoro_sound(break_type) 
+                            if notification_service else None
+                        )
+                        
                         def on_break_decision_requested(pomodoro_num, break_type):
                             # Alerta de pausa - sempre mostrar janela (mesmo se estava minimizada)
                             nonlocal _window_visibility_state
@@ -640,9 +646,9 @@ def main():
                             # Atualizar visibilidade (função centralizada decide baseado no estado)
                             _update_window_visibility()
                             
-                            # Tocar som (sem tipo específico, usa padrão)
-                            if notification_service:
-                                notification_service.play_pomodoro_sound()
+                            # Tocar som com tipo de pausa correto
+                            if notification_service and timer_model:
+                                notification_service.play_pomodoro_sound(timer_model.breakType)
                         
                         # Conectar aos sinais do timerModel
                         if timer_model:

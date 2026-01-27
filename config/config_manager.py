@@ -290,6 +290,15 @@ class ConfigManager:
         try:
             with open(self.config_path, "w", encoding="utf-8") as f:
                 json.dump(self._config, f, indent=2, ensure_ascii=False)
+                # Forçar sincronização do sistema de arquivos
+                import os
+                if hasattr(f, 'fileno'):
+                    try:
+                        os.fsync(f.fileno())
+                    except OSError:
+                        pass  # Ignorar se não suportado
+            # Recarregar do arquivo para garantir sincronização
+            self.load_config()
         except Exception as e:
             raise RuntimeError(f"Erro ao salvar configuração de Pomodoro: {e}") from e
 

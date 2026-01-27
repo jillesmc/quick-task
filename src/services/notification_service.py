@@ -146,24 +146,49 @@ class NotificationService(QObject):
     
     def _find_sound_file(self, break_type: Optional[str] = None) -> Optional[Path]:
         """
-        Procura arquivo de som nos assets.
+        Procura arquivo de som nos assets ou usa caminho completo se fornecido.
         
         Args:
             break_type: "short" ou "long" para escolher o arquivo correto.
                        Se None, usa "pomodoro" como padrão.
         
-        Ordem de prioridade de formatos: ogg, mp3, m4r, wav
+        Ordem de prioridade:
+        1. Se shortSoundFile/longSoundFile for caminho absoluto e existir, usar diretamente
+        2. Caso contrário, buscar em assets/ com nome do arquivo
+        3. Formatos suportados: ogg, mp3, m4r, wav
         """
-        # Determinar nome do arquivo baseado no tipo de pausa
+        # Determinar nome do arquivo ou caminho baseado no tipo de pausa
         if break_type and self._settings_model:
             if break_type == "short":
-                filename = self._settings_model.shortSoundFile or "short"
+                filename_or_path = self._settings_model.shortSoundFile or "short"
+                debug_log("NotificationService", "_find_sound_file", 
+                         "Pausa curta: usando arquivo/caminho: %s", filename_or_path)
             elif break_type == "long":
-                filename = self._settings_model.longSoundFile or "long"
+                filename_or_path = self._settings_model.longSoundFile or "long"
+                debug_log("NotificationService", "_find_sound_file", 
+                         "Pausa longa: usando arquivo/caminho: %s", filename_or_path)
             else:
-                filename = "pomodoro"  # Fallback
+                filename_or_path = "pomodoro"  # Fallback
         else:
-            filename = "pomodoro"  # Fallback padrão
+            filename_or_path = "pomodoro"  # Fallback padrão
+        
+        # Verificar se é caminho absoluto
+        sound_path = Path(filename_or_path)
+        if sound_path.is_absolute() and sound_path.exists():
+            debug_log("NotificationService", "_find_sound_file", 
+                     "Usando caminho completo fornecido: %s (break_type=%s)", sound_path, break_type)
+            return sound_path
+        
+        # Se não, tratar como nome de arquivo e buscar em assets/
+        # Extrair nome do arquivo (sem extensão se houver)
+        # Se for um caminho relativo, usar apenas o nome do arquivo (sem diretório)
+        if sound_path.suffix:
+            # Se tem extensão, usar o nome sem extensão
+            filename = sound_path.stem  # Nome sem extensão
+        else:
+            # Se não tem extensão, usar o nome do arquivo (última parte do caminho)
+            # Se for caminho relativo com barras, pegar apenas o nome final
+            filename = sound_path.name if sound_path.name else sound_path.stem if sound_path.stem else str(sound_path)
         
         # Possíveis locais para assets
         possible_paths = [
@@ -207,10 +232,14 @@ class NotificationService(QObject):
         if sound_file and MEDIA_PLAYER_AVAILABLE and self._sound_player:
             try:
                 sound_url = QUrl.fromLocalFile(str(sound_file.absolute()))
+                # Limpar source anterior para garantir que novo arquivo seja carregado
+                self._sound_player.stop()
+                self._sound_player.setSource(QUrl())  # Limpar primeiro
+                # Definir novo source
                 self._sound_player.setSource(sound_url)
                 self._sound_player.play()
                 debug_log("NotificationService", "play_pomodoro_sound", 
-                         "Tocando arquivo de som: %s", sound_file)
+                         "Tocando arquivo de som: %s (break_type=%s)", sound_file, break_type)
                 return
             except Exception as e:
                 debug_log("NotificationService", "play_pomodoro_sound", 

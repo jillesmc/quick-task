@@ -7,6 +7,7 @@
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls as Controls
+import QtQuick.Dialogs
 import org.kde.kirigami as Kirigami
 
 Kirigami.Page {
@@ -396,14 +397,46 @@ Kirigami.Page {
                 enabled: soundEnabledCheckbox.checked
             }
 
-            Controls.TextField {
-                id: shortSoundFileField
+            RowLayout {
                 Layout.fillWidth: true
-                placeholderText: qsTr("short")
-                enabled: soundEnabledCheckbox.checked
-                onTextChanged: {
-                    if (settingsModel && text.length > 0) {
-                        settingsModel.shortSoundFile = text
+                spacing: Kirigami.Units.smallSpacing
+                
+                Controls.TextField {
+                    id: shortSoundFileField
+                    Layout.fillWidth: true
+                    placeholderText: qsTr("short")
+                    enabled: soundEnabledCheckbox.checked
+                    onTextChanged: {
+                        if (settingsModel && text.length > 0) {
+                            settingsModel.shortSoundFile = text
+                        }
+                    }
+                }
+                
+                Controls.Button {
+                    icon.name: "folder"
+                    enabled: soundEnabledCheckbox.checked
+                    onClicked: {
+                        shortSoundFileDialog.open()
+                    }
+                }
+            }
+            
+            FileDialog {
+                id: shortSoundFileDialog
+                title: qsTr("Escolher arquivo de som - Pausa Curta")
+                nameFilters: ["Arquivos de áudio (*.ogg *.mp3 *.m4r *.wav)", "Todos os arquivos (*)"]
+                fileMode: FileDialog.ExistingFile
+                onAccepted: {
+                    // Converter URL para caminho local
+                    var urlString = selectedFile.toString()
+                    // Remover prefixo "file://" ou "file:///"
+                    var filePath = urlString.replace(/^file:\/{2,3}/, "")
+                    // Decodificar caracteres especiais (ex: %20 para espaço)
+                    filePath = decodeURIComponent(filePath)
+                    shortSoundFileField.text = filePath
+                    if (settingsModel) {
+                        settingsModel.shortSoundFile = filePath
                     }
                 }
             }
@@ -417,14 +450,46 @@ Kirigami.Page {
                 enabled: soundEnabledCheckbox.checked
             }
 
-            Controls.TextField {
-                id: longSoundFileField
+            RowLayout {
                 Layout.fillWidth: true
-                placeholderText: qsTr("long")
-                enabled: soundEnabledCheckbox.checked
-                onTextChanged: {
-                    if (settingsModel && text.length > 0) {
-                        settingsModel.longSoundFile = text
+                spacing: Kirigami.Units.smallSpacing
+                
+                Controls.TextField {
+                    id: longSoundFileField
+                    Layout.fillWidth: true
+                    placeholderText: qsTr("long")
+                    enabled: soundEnabledCheckbox.checked
+                    onTextChanged: {
+                        if (settingsModel && text.length > 0) {
+                            settingsModel.longSoundFile = text
+                        }
+                    }
+                }
+                
+                Controls.Button {
+                    icon.name: "folder"
+                    enabled: soundEnabledCheckbox.checked
+                    onClicked: {
+                        longSoundFileDialog.open()
+                    }
+                }
+            }
+            
+            FileDialog {
+                id: longSoundFileDialog
+                title: qsTr("Escolher arquivo de som - Pausa Longa")
+                nameFilters: ["Arquivos de áudio (*.ogg *.mp3 *.m4r *.wav)", "Todos os arquivos (*)"]
+                fileMode: FileDialog.ExistingFile
+                onAccepted: {
+                    // Converter URL para caminho local
+                    var urlString = selectedFile.toString()
+                    // Remover prefixo "file://" ou "file:///"
+                    var filePath = urlString.replace(/^file:\/{2,3}/, "")
+                    // Decodificar caracteres especiais (ex: %20 para espaço)
+                    filePath = decodeURIComponent(filePath)
+                    longSoundFileField.text = filePath
+                    if (settingsModel) {
+                        settingsModel.longSoundFile = filePath
                     }
                 }
             }

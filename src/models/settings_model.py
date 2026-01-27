@@ -101,9 +101,12 @@ class SettingsModel(QObject):
         self._notifications_enabled = notifications.get("enabled", True)
         self._sound_enabled = notifications.get("sound_enabled", False)
         self._desktop_notifications = notifications.get("desktop_notifications", True)
-        self._short_sound_file = notifications.get("short_sound_file", "short")
-        self._long_sound_file = notifications.get("long_sound_file", "long")
-        debug_log("SettingsModel", "_load_current_values", "Configurações de Pomodoro carregadas")
+        # Usar setters para garantir que sinais sejam emitidos e valores sejam atualizados corretamente
+        self.shortSoundFile = notifications.get("short_sound_file", "short")
+        self.longSoundFile = notifications.get("long_sound_file", "long")
+        debug_log("SettingsModel", "_load_current_values", 
+                 "Configurações de Pomodoro carregadas: short_sound_file=%s, long_sound_file=%s", 
+                 self._short_sound_file, self._long_sound_file)
 
     def is_configured(self) -> bool:
         """Verifica se a configuração está completa"""
@@ -325,6 +328,9 @@ class SettingsModel(QObject):
 
             # 4. Salvar configurações de Pomodoro
             debug_log("SettingsModel", "save", "Salvando configurações de Pomodoro")
+            debug_log("SettingsModel", "save", 
+                     "Valores atuais antes de salvar: short_sound_file=%s, long_sound_file=%s", 
+                     self._short_sound_file, self._long_sound_file)
             pomodoro_config = {
                 "enabled": self._pomodoro_enabled,
                 "pomodoro_duration_minutes": self._pomodoro_duration_minutes,
@@ -341,6 +347,7 @@ class SettingsModel(QObject):
                 },
             }
             self._config_manager.save_pomodoro_config(pomodoro_config)
+            debug_log("SettingsModel", "save", "Configurações de Pomodoro salvas no arquivo")
             
             # 5. Recarregar valores após salvar
             debug_log("SettingsModel", "save", "Recarregando valores após salvar")
