@@ -124,6 +124,9 @@ class TimerModel(QObject):
     issueKeyChanged = Signal()
     breakDecisionRequested = Signal(int, str)  # pomodoro_num, break_type
     breakEnded = Signal()  # emitido quando a pausa termina
+    isOnBreakChanged = Signal(bool)  # emitido quando isOnBreak muda
+    isWaitingBreakDecisionChanged = Signal(bool)  # emitido quando isWaitingBreakDecision muda
+    isWaitingBreakEndDecisionChanged = Signal(bool)  # emitido quando isWaitingBreakEndDecision muda
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -304,7 +307,8 @@ class TimerModel(QObject):
     def isWaitingBreakDecision(self, value: bool):
         if self._is_waiting_break_decision != value:
             self._is_waiting_break_decision = value
-            self.timeUpdated.emit(self._elapsed_seconds)
+            self.isWaitingBreakDecisionChanged.emit(value)  # Signal específico
+            self.timeUpdated.emit(self._elapsed_seconds)  # Manter para compatibilidade
     
     @Property(bool, notify=timeUpdated)
     def isOnBreak(self) -> bool:
@@ -315,7 +319,8 @@ class TimerModel(QObject):
     def isOnBreak(self, value: bool):
         if self._is_on_break != value:
             self._is_on_break = value
-            self.timeUpdated.emit(self._elapsed_seconds)
+            self.isOnBreakChanged.emit(value)  # Signal específico
+            self.timeUpdated.emit(self._elapsed_seconds)  # Manter para compatibilidade
     
     @Property(int, notify=timeUpdated)
     def breakRemainingSeconds(self) -> int:
@@ -348,4 +353,5 @@ class TimerModel(QObject):
     def isWaitingBreakEndDecision(self, value: bool):
         if self._is_waiting_break_end_decision != value:
             self._is_waiting_break_end_decision = value
-            self.timeUpdated.emit(self._elapsed_seconds)
+            self.isWaitingBreakEndDecisionChanged.emit(value)  # Signal específico
+            self.timeUpdated.emit(self._elapsed_seconds)  # Manter para compatibilidade

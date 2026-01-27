@@ -59,7 +59,7 @@ class TimerFloatingWindow(QQuickView):
             # Conectar sinal de status para posicionar quando pronto
             def on_status_changed():
                 if self.status() == QQuickView.Status.Ready:
-                    QTimer.singleShot(100, self.position_window)
+                    self.position_window()  # Chamar diretamente, sem delay
                 elif self.status() == QQuickView.Status.Error:
                     errors = self.errors()
                     print(f"⚠ Aviso: Erro ao carregar QML: {errors}", file=sys.stderr)
@@ -70,7 +70,7 @@ class TimerFloatingWindow(QQuickView):
             
             # Se já estiver pronto, posicionar imediatamente
             if self.status() == QQuickView.Status.Ready:
-                QTimer.singleShot(100, self.position_window)
+                self.position_window()
         except Exception as e:
             print(f"⚠ Aviso: Exceção ao carregar QML: {e}", file=sys.stderr)
             import traceback

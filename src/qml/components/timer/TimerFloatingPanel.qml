@@ -34,22 +34,20 @@ Window {
     
     Component.onCompleted: {
         // Posicionar no canto superior direito
-        Qt.callLater(function() {
-            try {
-                if (typeof Screen !== "undefined" && Screen.desktopAvailableWidth) {
-                    floatingWindow.x = Screen.desktopAvailableWidth - floatingWindow.width - 20
-                    floatingWindow.y = 20
-                } else {
-                    // Fallback: posicionar em coordenadas fixas
-                    floatingWindow.x = 100
-                    floatingWindow.y = 100
-                }
-            } catch (e) {
-                console.error("TimerFloatingPanel: Erro ao posicionar janela:", e)
+        try {
+            if (typeof Screen !== "undefined" && Screen.desktopAvailableWidth) {
+                floatingWindow.x = Screen.desktopAvailableWidth - floatingWindow.width - 20
+                floatingWindow.y = 20
+            } else {
+                // Fallback: posicionar em coordenadas fixas
                 floatingWindow.x = 100
                 floatingWindow.y = 100
             }
-        })
+        } catch (e) {
+            console.error("TimerFloatingPanel: Erro ao posicionar janela:", e)
+            floatingWindow.x = 100
+            floatingWindow.y = 100
+        }
     }
     
     // Formatação de tempo
@@ -88,7 +86,8 @@ Window {
                 Layout.fillWidth: true
                 
                 // Área de arrastar (cabeçalho)
-                // Solução correta: usar onPositionChanged com coordenadas de tela (screenX/screenY)
+                // NOTA: Este código não é mais usado - o drag é gerenciado em Python (timer_floating_window.py)
+                // Mantido apenas para referência. A janela atual usa TimerFloatingPanelContent.qml
                 MouseArea {
                     id: dragArea
                     Layout.fillWidth: true

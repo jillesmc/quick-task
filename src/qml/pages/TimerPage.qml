@@ -71,6 +71,20 @@ Kirigami.Page {
         }
     }
 
+    // Conectar sinais do worklog sync service
+    Connections {
+        id: worklogSyncConnections
+        target: worklogSyncService || null
+        
+        function onSyncCompleted(count) {
+            // Atualizar lista quando sincronização for concluída
+            if (worklogSyncService) {
+                pendingWorklogs = worklogSyncService.get_pending_worklogs()
+                console.log("TimerPage: Lista atualizada após sincronização, worklogs pendentes:", pendingWorklogs.length)
+            }
+        }
+    }
+    
     // Conectar sinais do timer
     Connections {
         id: timerServiceConnections
@@ -334,14 +348,6 @@ Kirigami.Page {
                         try {
                             timerService.start(issueKey)
                             console.log("TimerPage: timerService.start() chamado com sucesso")
-                            
-                            // Verificar estado após um pequeno delay
-                            Qt.callLater(function() {
-                                console.log("TimerPage: Estado APÓS iniciar:", timerModel ? timerModel.state : "null")
-                                console.log("TimerPage: hasActiveTimer:", hasActiveTimer)
-                                console.log("TimerPage: elapsedSeconds:", timerModel ? timerModel.elapsedSeconds : "N/A")
-                                console.log("TimerPage: issueKey no modelo:", timerModel ? timerModel.issueKey : "N/A")
-                            })
                         } catch (e) {
                             console.error("TimerPage: ERRO ao chamar timerService.start():", e)
                         }
@@ -477,13 +483,6 @@ Kirigami.Page {
                                     var sessionIds = [worklogData.id]
                                     console.log("TimerPage: Sincronizando worklog:", worklogData.id)
                                     worklogSyncService.sync_pending_worklogs(sessionIds)
-                                    // Atualizar lista após um pequeno delay
-                                    Qt.callLater(function() {
-                                        if (worklogSyncService) {
-                                            pendingWorklogs = worklogSyncService.get_pending_worklogs()
-                                            console.log("TimerPage: Lista atualizada, worklogs pendentes:", pendingWorklogs.length)
-                                        }
-                                    })
                                 }
                             }
                         }

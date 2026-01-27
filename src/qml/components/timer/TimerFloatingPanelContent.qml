@@ -60,27 +60,12 @@ Item {
                 Controls.ToolButton {
                     icon.name: "window-minimize"
                     onClicked: {
-                        // Minimizar ao tray (esconder janela)
-                        // hideWindow é um QObject com método hide() exposto via @Slot()
-                        console.log("TimerFloatingPanel: Botão minimizar clicado")
-                        console.log("TimerFloatingPanel: typeof hideWindow =", typeof hideWindow)
-                        if (hideWindow) {
-                            console.log("TimerFloatingPanel: hideWindow encontrado, verificando método hide...")
-                            console.log("TimerFloatingPanel: typeof hideWindow.hide =", typeof hideWindow.hide)
-                            if (typeof hideWindow.hide === "function") {
-                                console.log("TimerFloatingPanel: hideWindow.hide encontrado, chamando...")
-                                try {
-                                    hideWindow.hide()
-                                    console.log("TimerFloatingPanel: hideWindow.hide() chamado com sucesso")
-                                } catch (e) {
-                                    console.log("TimerFloatingPanel: ERRO ao chamar hideWindow.hide():", e)
-                                    console.log("TimerFloatingPanel: Mensagem de erro:", e.toString())
-                                }
-                            } else {
-                                console.log("TimerFloatingPanel: ERRO - hideWindow.hide não é uma função")
+                        try {
+                            if (hideWindow) {
+                                hideWindow.hide()
                             }
-                        } else {
-                            console.log("TimerFloatingPanel: ERRO - hideWindow não está disponível")
+                        } catch (e) {
+                            console.error("TimerFloatingPanel: Erro ao minimizar janela:", e)
                         }
                     }
                 }
