@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 from PySide6.QtCore import Qt, QPoint, QUrl, QTimer
 from PySide6.QtQuick import QQuickView
-from PySide6.QtGui import QGuiApplication
+from PySide6.QtGui import QGuiApplication, QSurfaceFormat
 
 
 class TimerFloatingWindow(QQuickView):
@@ -19,20 +19,52 @@ class TimerFloatingWindow(QQuickView):
         # QML será carregado depois que as propriedades forem expostas (no app.py)
     
     def _setup_window(self):
-        """Configuração da janela"""
+        """
+        Configuração da janela
+        
+        IMPORTANTE - Independência de Foco:
+        A janela do timer deve ser completamente independente da janela principal.
+        Isso evita que a janela fique intangível quando a janela principal perde foco.
+        
+        Problema identificado:
+        - Qt.Tool flag cria dependência implícita de foco com a janela principal
+        - Quando a janela principal perde foco, a janela do timer também perde eventos
+        - Solução: Remover Qt.Tool e garantir setParent(None) explícito
+        """
         self.setWidth(320)
         self.setHeight(200)
         self.setTitle("Timer Ativo")
         
+        # Garantir que não há parent (independência completa da janela principal)
+        # Isso é crítico para evitar dependência de foco
+        self.setParent(None)
+        
+        # Configurar QSurfaceFormat para suporte a transparência
+        # Isso é necessário para que eventos sejam recebidos corretamente em janelas transparentes
+        # Hipótese 2: Transparência sem formato de superfície pode bloquear eventos
+        surface_format = QSurfaceFormat()
+        surface_format.setAlphaBufferSize(8)  # 8 bits para canal alpha
+        # Preservar outras configurações do formato padrão
+        default_format = QSurfaceFormat.defaultFormat()
+        surface_format.setVersion(default_format.majorVersion(), default_format.minorVersion())
+        surface_format.setProfile(default_format.profile())
+        surface_format.setRenderableType(default_format.renderableType())
+        # Aplicar formato ANTES de setColor
+        self.setFormat(surface_format)
+        
         # Flags críticas para frameless
+        # IMPORTANTE: Qt.Tool foi removido para evitar dependência de foco
+        # Qt.Tool cria dependência implícita com a janela principal, causando
+        # perda de eventos quando a janela principal perde foco
         self.setFlags(
             Qt.Window | 
             Qt.WindowStaysOnTopHint | 
-            Qt.FramelessWindowHint | 
-            Qt.Tool
+            Qt.FramelessWindowHint
+            # Qt.Tool removido - causa dependência de foco com janela principal
         )
         
         # Cor transparente para permitir bordas arredondadas no QML
+        # IMPORTANTE: setColor deve ser chamado DEPOIS de setFormat
         self.setColor(Qt.transparent)
         
         # Configurar para redimensionar automaticamente o rootObject
