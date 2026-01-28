@@ -332,17 +332,19 @@ Kirigami.Page {
                 Controls.SplitView {
                     id: mainTripleSplitView
                     width: mainDetailsScrollView.availableWidth
-                    // Altura implícita grande o suficiente para ativar o scroll externo se necessário
-                    implicitHeight: 1500
+                    // Altura dinâmica baseada na soma das alturas implícitas dos panes (evita loop e ativa scroll)
+                    implicitHeight: topPane.implicitHeight + epicPane.implicitHeight + bottomFieldsPane.implicitHeight
                     orientation: Qt.Vertical
 
                     // Pane 1: Topo (Heading, Worklog, Summary, Description)
                     Item {
                         id: topPane
-                        Controls.SplitView.preferredHeight: 450
+                        implicitHeight: topColumnLayout.implicitHeight
                         Controls.SplitView.minimumHeight: 250
+                        // Sem preferredHeight fixo para permitir redimensionamento manual
 
                         ColumnLayout {
+                            id: topColumnLayout
                             anchors.fill: parent
                             spacing: 0
 
@@ -445,10 +447,12 @@ Kirigami.Page {
                     // Pane 2: Epic Parent (Barra de split acima e abaixo)
                     Item {
                         id: epicPane
-                        Controls.SplitView.preferredHeight: 350
+                        implicitHeight: epicColumnLayout.implicitHeight
                         Controls.SplitView.minimumHeight: 200
+                        // Sem preferredHeight fixo para permitir redimensionamento manual
 
                         ColumnLayout {
+                            id: epicColumnLayout
                             anchors.fill: parent
                             spacing: Kirigami.Units.smallSpacing
 
@@ -547,10 +551,12 @@ Kirigami.Page {
                     // Pane 3: Demais Campos (Status, IA, Atividade, Valor, Plataformas)
                     Item {
                         id: bottomFieldsPane
-                        Controls.SplitView.preferredHeight: 700
+                        implicitHeight: bottomColumnLayout.implicitHeight
                         Controls.SplitView.minimumHeight: 400
+                        // Sem preferredHeight fixo para permitir redimensionamento manual
 
                         ColumnLayout {
+                            id: bottomColumnLayout
                             anchors.fill: parent
                             spacing: 0
 
