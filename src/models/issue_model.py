@@ -6,7 +6,7 @@ Expõe propriedades observáveis para QML
 from pathlib import Path
 import sys
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 
 from PySide6.QtCore import QObject, Property, Signal, QDateTime, Slot  # type: ignore[import]
 
@@ -27,11 +27,15 @@ class IssueModel(QObject):
     statusInicialChanged = Signal(str)
     documentacaoAnexaChanged = Signal(str)
     utilizacaoIAChanged = Signal(str)
+    valorEntregueChanged = Signal(str)
+    plataformasAfetadasChanged = Signal(list)
     registrarWorklogChanged = Signal(bool)
     worklogInicioChanged = Signal(str)  # String para QML
     worklogDuracaoChanged = Signal(int)
     tipoAtividadeValuesChanged = Signal()
     statusSequenceChanged = Signal()
+    valorEntregueValuesChanged = Signal()
+    plataformasAfetadasValuesChanged = Signal()
     epicParentKeyChanged = Signal(str)
     epicParentSummaryChanged = Signal(str)
 
@@ -70,6 +74,11 @@ class IssueModel(QObject):
 
         self._documentacaoAnexa = "Não"
         self._utilizacaoIA = "Não"
+        
+        # Valor Entregue e Plataformas afetadas
+        valor_entregue_values = self.valorEntregueValues
+        self._valorEntregue = valor_entregue_values[0] if valor_entregue_values else ""
+        self._plataformasAfetadas: List[str] = []
 
         # Worklog padrão
         self._registrarWorklog = False
@@ -252,6 +261,11 @@ class IssueModel(QObject):
 
         self.documentacaoAnexa = "Não"
         self.utilizacaoIA = "Não"
+        
+        # Resetar Valor Entregue e Plataformas afetadas
+        valor_entregue_values = self.valorEntregueValues
+        self.valorEntregue = valor_entregue_values[0] if valor_entregue_values else ""
+        self.plataformasAfetadas = []
 
         # Resetar worklog
         self.registrarWorklog = False
@@ -287,3 +301,43 @@ class IssueModel(QObject):
         if self._epicParentSummary != value:
             self._epicParentSummary = value
             self.epicParentSummaryChanged.emit(value)
+
+    # Propriedade: valorEntregue
+    @Property(str, notify=valorEntregueChanged)
+    def valorEntregue(self) -> str:
+        return self._valorEntregue
+
+    @valorEntregue.setter
+    def valorEntregue(self, value: str) -> None:
+        if self._valorEntregue != value:
+            self._valorEntregue = value or ""
+            self.valorEntregueChanged.emit(self._valorEntregue)
+
+    # Propriedade: plataformasAfetadas
+    @Property(list, notify=plataformasAfetadasChanged)
+    def plataformasAfetadas(self) -> List[str]:
+        return self._plataformasAfetadas.copy() if self._plataformasAfetadas else []
+
+    @plataformasAfetadas.setter
+    def plataformasAfetadas(self, value: List[str]) -> None:
+        if value is None:
+            value = []
+        if self._plataformasAfetadas != value:
+            self._plataformasAfetadas = value.copy() if value else []
+            self.plataformasAfetadasChanged.emit(self._plataformasAfetadas)
+
+    # Propriedade: valorEntregueValues (read-only)
+    @Property(list, notify=valorEntregueValuesChanged)
+    def valorEntregueValues(self) -> List[str]:
+        """Retorna lista de valores para Valor Entregue"""
+        if self._config:
+            return self._config.get_valor_entregue_values()
+        return []
+
+    # Propriedade: plataformasAfetadasValues (read-only)
+    @Property(list, notify=plataformasAfetadasValuesChanged)
+    def plataformasAfetadasValues(self) -> List[str]:
+        """Retorna lista de valores para Plataformas afetadas"""
+        if self._config:
+            return self._config.get_plataformas_afetadas_values()
+        return []

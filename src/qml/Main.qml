@@ -9,9 +9,9 @@ import "./pages"
 Kirigami.ApplicationWindow {
     id: root
 
-    width: 900
-    height: 1050
-    minimumWidth: 1100  // Mínimo para evitar sobreposição de colunas
+    width: 1800
+    height: 1000
+    minimumWidth: 1200  // Mínimo para garantir espaço suficiente para layouts horizontais
     title: "Jira Quick Task"
     visible: true
 
@@ -64,8 +64,16 @@ Kirigami.ApplicationWindow {
         id: shortcutCreateOrUpdate
         sequences: [ "Ctrl+Return", "Ctrl+Enter" ]
         onActivated: {
-            // Não fazer nada se estiver na página de configuração (índice 3) ou worklogs (índice 2)
-            if (stack.currentIndex === 3 || stack.currentIndex === 2) return
+            // Não fazer nada se estiver na página de worklogs (índice 2)
+            if (stack.currentIndex === 2) return
+            
+            // Página de Settings (índice 3): Salvar configurações
+            if (stack.currentIndex === 3) {
+                if (settingsPage && settingsPage.saveSettingsFromToolbar) {
+                    settingsPage.saveSettingsFromToolbar()
+                }
+                return
+            }
             
             if (stack.currentIndex === 0) {
                 // Aba Criar Issue - delega a validação e feedback ao controller
@@ -213,20 +221,27 @@ Kirigami.ApplicationWindow {
         Controls.ToolButton {
             id: globalActionButton
             text: {
-                if (stack.currentIndex === 2) return ""  // Página de configuração não tem ação global
+                if (stack.currentIndex === 2) return ""  // Página de worklogs não tem ação global
                 if (stack.currentIndex === 0) return qsTr("Criar")
                 if (stack.currentIndex === 1) return qsTr("Atualizar task")
+                if (stack.currentIndex === 3) {
+                    // Aba Settings: mostrar "Salvando..." quando estiver salvando
+                    if (settingsPage && settingsPage.isSaving !== undefined && settingsPage.isSaving) {
+                        return qsTr("Salvando...")
+                    }
+                    return qsTr("Salvar")
+                }
                 return ""
             }
             icon.name: {
-                if (stack.currentIndex === 2) return ""  // Página de configuração não tem ação global
+                if (stack.currentIndex === 2) return ""  // Página de worklogs não tem ação global
                 if (stack.currentIndex === 0) return "document-new"
                 if (stack.currentIndex === 1) return "document-save"
+                if (stack.currentIndex === 3) return "document-save"
                 return ""
             }
-            visible: stack.currentIndex !== 3 && stack.currentIndex !== 2  // Ocultar na página de configuração e worklogs
+            visible: stack.currentIndex !== 2  // Ocultar apenas na página de worklogs
             enabled: {
-                if (stack.currentIndex === 3) return false  // Página de configuração
                 if (stack.currentIndex === 2) return false  // Página de worklogs pendentes
                 if (stack.currentIndex === 0) {
                     // Aba Criar Issue
@@ -248,11 +263,17 @@ Kirigami.ApplicationWindow {
                     if (!jiraService) return false
                     if (typeof jiraService.isAvailable !== "function") return false
                     return jiraService.isAvailable()
+                } else if (stack.currentIndex === 3) {
+                    // Aba Settings: Salvar configurações
+                    if (!settingsPage) return false
+                    if (settingsPage.isSaving !== undefined && settingsPage.isSaving) return false
+                    if (settingsPage.isValid !== undefined && !settingsPage.isValid) return false
+                    return true
                 }
                 return false
             }
             onClicked: {
-                if (stack.currentIndex === 3 || stack.currentIndex === 2) return  // Página de configuração ou worklogs
+                if (stack.currentIndex === 2) return  // Página de worklogs
                 if (stack.currentIndex === 0) {
                     // Aba Criar Issue
                     if (createPage && createPage.createIssueFromToolbar) {
@@ -263,6 +284,50 @@ Kirigami.ApplicationWindow {
                     if (issuesPage && issuesPage.updateIssue) {
                         issuesPage.updateIssue()
                     }
+                } else if (stack.currentIndex === 3) {
+                    // Aba Settings: Salvar configurações
+                    if (settingsPage && settingsPage.saveSettingsFromToolbar) {
+                        settingsPage.saveSettingsFromToolbar()
+                    }
+                }
+            }
+        }
+        
+        // Botão Iniciar Timer (visível apenas na aba Minhas Issues)
+        Controls.ToolButton {
+            id: startTimerButton
+            text: {
+                if (stack.currentIndex !== 1) return ""
+                if (timerModel && timerModel.state === "running" && timerModel.issueKey === issuesPage.selectedIssueKey) {
+                    return qsTr("Parar Timer")
+                } else if (timerModel && timerModel.isOnBreak) {
+                    return qsTr("Cancelar Pausa e Iniciar")
+                } else if (timerModel && timerModel.state !== "idle" && timerModel.issueKey !== issuesPage.selectedIssueKey) {
+                    return qsTr("Parar e Iniciar")
+                }
+                return qsTr("Iniciar Timer")
+            }
+            icon.name: {
+                if (stack.currentIndex !== 1) return ""
+                if (timerModel && timerModel.state === "running" && timerModel.issueKey === issuesPage.selectedIssueKey) {
+                    return "media-playback-stop"
+                } else if (timerModel && timerModel.isOnBreak) {
+                    return "media-playback-start"
+                }
+                return "chronometer"
+            }
+            visible: stack.currentIndex === 1  // Apenas na aba Minhas Issues
+            enabled: {
+                if (stack.currentIndex !== 1) return false
+                if (!issuesPage) return false
+                if (issuesPage.selectedIssueKey === undefined || issuesPage.selectedIssueKey === "") return false
+                if (issuesPage.isProcessing !== undefined && issuesPage.isProcessing) return false
+                if (!timerService || !timerModel) return false
+                return true
+            }
+            onClicked: {
+                if (stack.currentIndex === 1 && issuesPage && issuesPage.startTimerFromToolbar) {
+                    issuesPage.startTimerFromToolbar()
                 }
             }
         }

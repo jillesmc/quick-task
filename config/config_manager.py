@@ -221,6 +221,14 @@ class ConfigManager:
         """Retorna a sequência de status"""
         return self._config.get("status_sequence", [])
 
+    def get_valor_entregue_values(self) -> List[str]:
+        """Retorna a lista de valores para Valor Entregue"""
+        return self._config.get("valor_entregue_values", [])
+
+    def get_plataformas_afetadas_values(self) -> List[str]:
+        """Retorna a lista de valores para Plataformas afetadas"""
+        return self._config.get("plataformas_afetadas_values", [])
+
     def get_timezone(self) -> str:
         """Retorna o timezone para worklog (default: America/Sao_Paulo)"""
         return self._config.get("worklog_timezone", "America/Sao_Paulo")

@@ -37,8 +37,12 @@ ColumnLayout {
     property string status: ""
     property string documentacaoAnexa: "Não"
     property string utilizacaoIA: "Não"
+    property string valorEntregue: ""
+    property var plataformasAfetadas: []
     property var tipoAtividadeValues: []
     property var statusSequence: []
+    property var valorEntregueValues: []
+    property var plataformasAfetadasValues: []
     
     signal fieldChanged(string fieldName, var value)
     

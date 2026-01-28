@@ -38,6 +38,8 @@ class JiraWorker(QThread):
         target_status: str,
         doc_anexa: str,
         uso_ia: str,
+        valor_entregue: str = "",
+        plataformas_afetadas: Optional[List[str]] = None,
         registrar_worklog: bool = False,
         worklog_inicio: Optional[datetime] = None,
         worklog_duracao: int = 0,
@@ -55,6 +57,8 @@ class JiraWorker(QThread):
         self.target_status = target_status
         self.doc_anexa = doc_anexa
         self.uso_ia = uso_ia
+        self.valor_entregue = valor_entregue or ""
+        self.plataformas_afetadas = plataformas_afetadas or []
         self.registrar_worklog = registrar_worklog
         self.worklog_inicio = worklog_inicio
         self.worklog_duracao = worklog_duracao
@@ -85,6 +89,19 @@ class JiraWorker(QThread):
                 )
             if uso_ia_alias:
                 custom_fields[uso_ia_alias] = self.uso_ia if self.uso_ia else "Não"
+            
+            # Adicionar Valor Entregue (seleção única)
+            valor_entregue_alias = self.config.get_custom_field("valor_entregue")
+            if valor_entregue_alias and self.valor_entregue:
+                custom_fields[valor_entregue_alias] = self.valor_entregue
+            
+            # Adicionar Plataformas afetadas (seleção múltipla)
+            # Para campos multi-select no Jira, o formato é uma lista de objetos {"value": "text"}
+            plataformas_alias = self.config.get_custom_field("plataformas_afetadas")
+            if plataformas_alias and self.plataformas_afetadas:
+                custom_fields[plataformas_alias] = [
+                    {"value": plataforma} for plataforma in self.plataformas_afetadas
+                ]
 
             # Obter assignee: usar do config ou inferir do usuário atual do jira-cli
             assignee = self.config.get_assignee()
@@ -176,6 +193,8 @@ class UpdateWorker(QThread):
         status: Optional[str] = None,
         doc_anexa: Optional[str] = None,
         uso_ia: Optional[str] = None,
+        valor_entregue: Optional[str] = None,
+        plataformas_afetadas: Optional[List[str]] = None,
         parent_epic_key: Optional[str] = None,
         registrar_worklog: bool = False,
         worklog_inicio: Optional[datetime] = None,
@@ -194,6 +213,8 @@ class UpdateWorker(QThread):
         self.status = status
         self.doc_anexa = doc_anexa
         self.uso_ia = uso_ia
+        self.valor_entregue = valor_entregue
+        self.plataformas_afetadas = plataformas_afetadas
         self.parent_epic_key = parent_epic_key.strip() if parent_epic_key else None
         self.registrar_worklog = registrar_worklog
         self.worklog_inicio = worklog_inicio
@@ -222,6 +243,18 @@ class UpdateWorker(QThread):
                 uso_ia_alias = self.config.get_custom_field("utilizacao_ia")
                 if uso_ia_alias:
                     custom_fields[uso_ia_alias] = self.uso_ia
+            
+            if self.valor_entregue:
+                valor_entregue_alias = self.config.get_custom_field("valor_entregue")
+                if valor_entregue_alias:
+                    custom_fields[valor_entregue_alias] = self.valor_entregue
+            
+            if self.plataformas_afetadas:
+                plataformas_alias = self.config.get_custom_field("plataformas_afetadas")
+                if plataformas_alias:
+                    custom_fields[plataformas_alias] = [
+                        {"value": plataforma} for plataforma in self.plataformas_afetadas
+                    ]
 
             # Atualizar campos da issue (sem status)
             success = self.jira_client.update_issue(
@@ -391,7 +424,7 @@ class JiraService(QObject):
             debug_log("JiraService", "reloadConfiguration", "Erro ao recarregar: %s", e)
             # Manter estado anterior em caso de erro
 
-    @Slot(str, str, str, str, str, str, bool, str, int, str, str, str, result=bool)
+    @Slot(str, str, str, str, str, str, str, list, bool, str, int, str, str, str, result=bool)
     def createIssue(  # NOSONAR - camelCase necessário para compatibilidade com QML
         self,
         summary: str,
@@ -400,6 +433,8 @@ class JiraService(QObject):
         statusInicial: str,  # NOSONAR
         documentacaoAnexa: str,  # NOSONAR
         utilizacaoIA: str,  # NOSONAR
+        valorEntregue: str,  # NOSONAR
+        plataformasAfetadas: List[str],  # NOSONAR
         registrarWorklog: bool,  # NOSONAR
         worklogInicio: str,  # NOSONAR
         worklogDuracao: int,  # NOSONAR
@@ -471,6 +506,8 @@ class JiraService(QObject):
             target_status=statusInicial,
             doc_anexa=documentacaoAnexa,
             uso_ia=utilizacaoIA,
+            valor_entregue=valorEntregue if valorEntregue else "",
+            plataformas_afetadas=plataformasAfetadas if plataformasAfetadas else [],
             registrar_worklog=registrarWorklog,
             worklog_inicio=worklog_inicio_dt,
             worklog_duracao=worklogDuracao,
@@ -936,7 +973,7 @@ class JiraService(QObject):
 
         return self._build_issue_details_dict(issue_data)
 
-    @Slot(str, str, str, str, str, str, str, str, bool, str, int, str, str, result=bool)
+    @Slot(str, str, str, str, str, str, str, str, list, str, bool, str, int, str, str, result=bool)
     def updateIssue(  # NOSONAR - camelCase necessário para compatibilidade com QML
         self,
         issueKey: str,  # NOSONAR
@@ -946,6 +983,8 @@ class JiraService(QObject):
         status: str,
         documentacaoAnexa: str,  # NOSONAR
         utilizacaoIA: str,  # NOSONAR
+        valorEntregue: str,  # NOSONAR
+        plataformasAfetadas: List[str],  # NOSONAR
         parentEpicKey: str,  # NOSONAR
         registrarWorklog: bool,  # NOSONAR
         worklogInicio: str,  # NOSONAR
@@ -1018,6 +1057,8 @@ class JiraService(QObject):
             status=status if status else None,
             doc_anexa=documentacaoAnexa if documentacaoAnexa else None,
             uso_ia=utilizacaoIA if utilizacaoIA else None,
+            valor_entregue=valorEntregue if valorEntregue else None,
+            plataformas_afetadas=plataformasAfetadas if plataformasAfetadas else None,
             parent_epic_key=parentEpicKey.strip() if parentEpicKey else None,
             registrar_worklog=registrarWorklog,
             worklog_inicio=worklog_inicio_dt,
@@ -1076,11 +1117,17 @@ class JiraService(QObject):
         tipo_atividade = ""
         documentacao_anexa = ""
         utilizacao_ia = ""
+        valor_entregue = ""
+        plataformas_afetadas: List[str] = []
 
+        # Obter IDs dos campos customizados do config (com fallback para valores hardcoded)
+        config = self._config
         CUSTOM_FIELD_IDS = {
-            "tipo_atividade": "customfield_12088",
-            "documentacao_anexa": "customfield_14840",
-            "utilizacao_ia": "customfield_14841",
+            "tipo_atividade": config.get_custom_field("tipo_atividade") if config else "customfield_12088",
+            "documentacao_anexa": config.get_custom_field("documentacao_anexa") if config else "customfield_14840",
+            "utilizacao_ia": config.get_custom_field("utilizacao_ia") if config else "customfield_14841",
+            "valor_entregue": config.get_custom_field("valor_entregue") if config else "",
+            "plataformas_afetadas": config.get_custom_field("plataformas_afetadas") if config else "",
         }
 
         def extract_custom_field_by_id(field_id: str) -> str:
@@ -1100,11 +1147,45 @@ class JiraService(QObject):
             result = str(value) if value else ""
             return result
 
+        def extract_multi_select_field(field_id: str) -> List[str]:
+            """Extrai valores de campo multi-select (lista de objetos)"""
+            if not field_id or field_id not in fields:
+                return []
+
+            value = fields[field_id]
+            if value is None:
+                return []
+
+            result = []
+            if isinstance(value, list):
+                for item in value:
+                    if isinstance(item, dict):
+                        item_value = item.get("value") or item.get("name")
+                        if item_value:
+                            result.append(str(item_value))
+                    elif isinstance(item, str):
+                        result.append(item)
+            elif isinstance(value, dict):
+                # Caso único valor
+                item_value = value.get("value") or value.get("name")
+                if item_value:
+                    result.append(str(item_value))
+            elif isinstance(value, str):
+                result.append(value)
+
+            return result
+
         tipo_atividade = extract_custom_field_by_id(CUSTOM_FIELD_IDS["tipo_atividade"])
         documentacao_anexa = extract_custom_field_by_id(
             CUSTOM_FIELD_IDS["documentacao_anexa"]
         )
         utilizacao_ia = extract_custom_field_by_id(CUSTOM_FIELD_IDS["utilizacao_ia"])
+        
+        if CUSTOM_FIELD_IDS["valor_entregue"]:
+            valor_entregue = extract_custom_field_by_id(CUSTOM_FIELD_IDS["valor_entregue"])
+        
+        if CUSTOM_FIELD_IDS["plataformas_afetadas"]:
+            plataformas_afetadas = extract_multi_select_field(CUSTOM_FIELD_IDS["plataformas_afetadas"])
 
         # Converter description para string se for objeto (ADF format)
         description = fields.get("description", "")
@@ -1151,6 +1232,8 @@ class JiraService(QObject):
             "tipoAtividade": tipo_atividade,
             "documentacaoAnexa": documentacao_anexa,
             "utilizacaoIA": utilizacao_ia,
+            "valorEntregue": valor_entregue,
+            "plataformasAfetadas": plataformas_afetadas,
             "parentKey": parent_key,
             "parentSummary": parent_summary,
         }

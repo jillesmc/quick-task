@@ -1,6 +1,6 @@
 /**
  * PendingWorklogsPage.qml
- * 
+ *
  * Página para gerenciar worklogs pendentes de sincronização
  */
 import QtQuick
@@ -12,105 +12,140 @@ Kirigami.Page {
     id: page
 
     title: qsTr("Worklogs Pendentes")
-    
+
     focus: true
-    
+
     property var pendingWorklogs: []
     property var issueSummaries: ({})  // Cache de summaries por issue_key
-    property var groupedWorklogs: ({})  // Worklogs agrupados por issue_key
-    
-    // Função para agrupar worklogs por issue_key
-    function groupWorklogsByIssue() {
-        var grouped = {}
+    property var filteredWorklogs: []  // Worklogs filtrados
+    property string filterIssueKey: ""  // Filtro por issue key
+    property string filterDateFrom: ""  // Filtro data inicial
+    property string filterDateTo: ""  // Filtro data final
+
+    // Função para filtrar worklogs
+    function applyFilters() {
+        var filtered = [];
         for (var i = 0; i < pendingWorklogs.length; i++) {
-            var worklog = pendingWorklogs[i]
-            var issueKey = worklog.issue_key || "Sem Issue"
-            if (!grouped[issueKey]) {
-                grouped[issueKey] = []
+            var worklog = pendingWorklogs[i];
+            var matches = true;
+
+            // Filtro por issue key
+            if (filterIssueKey && filterIssueKey.trim() !== "") {
+                var issueKey = worklog.issue_key || "";
+                if (issueKey.toLowerCase().indexOf(filterIssueKey.toLowerCase()) < 0) {
+                    matches = false;
+                }
             }
-            grouped[issueKey].push(worklog)
+
+            // Filtro por data
+            if (matches && (filterDateFrom || filterDateTo)) {
+                if (worklog.start_time) {
+                    var worklogDate = new Date(worklog.start_time);
+                    var dateFrom = filterDateFrom ? new Date(filterDateFrom) : null;
+                    var dateTo = filterDateTo ? new Date(filterDateTo) : null;
+
+                    if (dateFrom && worklogDate < dateFrom) {
+                        matches = false;
+                    }
+                    if (dateTo && worklogDate > dateTo) {
+                        matches = false;
+                    }
+                } else {
+                    matches = false;
+                }
+            }
+
+            if (matches) {
+                filtered.push(worklog);
+            }
         }
-        groupedWorklogs = grouped
+        filteredWorklogs = filtered;
     }
-    
+
     // Função para recarregar worklogs (pode ser chamada externamente)
     function reloadWorklogs() {
         if (worklogSyncService) {
-            pendingWorklogs = worklogSyncService.get_pending_worklogs()
-            console.log("PendingWorklogsPage: Worklogs pendentes carregados:", pendingWorklogs.length)
-            // Agrupar worklogs por issue_key
-            groupWorklogsByIssue()
+            pendingWorklogs = worklogSyncService.get_pending_worklogs();
+            console.log("PendingWorklogsPage: Worklogs pendentes carregados:", pendingWorklogs.length);
+            // Aplicar filtros
+            applyFilters();
             // Carregar summaries das issues
-            loadIssueSummaries()
+            loadIssueSummaries();
         } else {
-            console.error("PendingWorklogsPage: worklogSyncService não está disponível!")
+            console.error("PendingWorklogsPage: worklogSyncService não está disponível!");
         }
     }
-    
+
+    // Aplicar filtros quando mudarem
+    onFilterIssueKeyChanged: applyFilters()
+    onFilterDateFromChanged: applyFilters()
+    onFilterDateToChanged: applyFilters()
+    onPendingWorklogsChanged: applyFilters()
+
     // Carregar worklogs pendentes ao carregar a página
     Component.onCompleted: {
-        reloadWorklogs()
+        reloadWorklogs();
     }
-    
+
     function loadIssueSummaries() {
         if (!jiraService) {
-            return
+            return;
         }
-        
+
         // Coletar issue_keys únicas
-        var uniqueKeys = []
-        var keysSet = {}
+        var uniqueKeys = [];
+        var keysSet = {};
         for (var i = 0; i < pendingWorklogs.length; i++) {
-            var key = pendingWorklogs[i].issue_key
+            var key = pendingWorklogs[i].issue_key;
             if (key && !keysSet[key]) {
-                uniqueKeys.push(key)
-                keysSet[key] = true
+                uniqueKeys.push(key);
+                keysSet[key] = true;
             }
         }
-        
+
         // Buscar summary para cada issue_key
-        var summaries = {}
+        var summaries = {};
         for (var j = 0; j < uniqueKeys.length; j++) {
-            var issueKey = uniqueKeys[j]
+            var issueKey = uniqueKeys[j];
             try {
-                var details = jiraService.getIssueDetails(issueKey)
+                var details = jiraService.getIssueDetails(issueKey);
                 if (details && details.summary) {
-                    summaries[issueKey] = details.summary
+                    summaries[issueKey] = details.summary;
                 }
             } catch (e) {
-                console.error("PendingWorklogsPage: Erro ao buscar summary para", issueKey, ":", e)
+                console.error("PendingWorklogsPage: Erro ao buscar summary para", issueKey, ":", e);
             }
         }
-        
-        issueSummaries = summaries
+
+        issueSummaries = summaries;
     }
-    
+
     // Conectar sinais do worklogSyncService para atualizar lista
     Connections {
         target: worklogSyncService || null
-        
+
         function onSyncCompleted(count) {
-            console.log("PendingWorklogsPage: Sincronização concluída, %d worklogs sincronizados", count)
+            console.log("PendingWorklogsPage: Sincronização concluída, %d worklogs sincronizados", count);
             if (worklogSyncService) {
-                pendingWorklogs = worklogSyncService.get_pending_worklogs()
-                groupWorklogsByIssue()
-                loadIssueSummaries()
+                pendingWorklogs = worklogSyncService.get_pending_worklogs();
+                applyFilters();
+                loadIssueSummaries();
             }
         }
-        
+
         function onSessionSynced(sessionId, jiraWorklogId) {
-            console.log("PendingWorklogsPage: Worklog sincronizado ou deletado:", sessionId, "->", jiraWorklogId)
+            console.log("PendingWorklogsPage: Worklog sincronizado ou deletado:", sessionId, "->", jiraWorklogId);
             if (worklogSyncService) {
-                pendingWorklogs = worklogSyncService.get_pending_worklogs()
-                groupWorklogsByIssue()
-                loadIssueSummaries()
+                pendingWorklogs = worklogSyncService.get_pending_worklogs();
+                applyFilters();
+                loadIssueSummaries();
             }
         }
     }
 
     ColumnLayout {
         anchors.fill: parent
-        anchors.margins: Kirigami.Units.largeSpacing
+        anchors.margins: 20
         spacing: Kirigami.Units.largeSpacing
 
         // Cabeçalho com estatísticas
@@ -143,7 +178,7 @@ Kirigami.Page {
                         }
 
                         Controls.Label {
-                            text: pendingWorklogs.length
+                            text: filteredWorklogs.length
                             font.pointSize: Kirigami.Theme.defaultFont.pointSize + 4
                             font.bold: true
                             color: Kirigami.Theme.highlightColor || "#3daee9"
@@ -164,13 +199,13 @@ Kirigami.Page {
 
                         Controls.Label {
                             text: {
-                                var totalSeconds = 0
-                                for (var i = 0; i < pendingWorklogs.length; i++) {
-                                    totalSeconds += pendingWorklogs[i].duration_seconds || 0
+                                var totalSeconds = 0;
+                                for (var i = 0; i < filteredWorklogs.length; i++) {
+                                    totalSeconds += filteredWorklogs[i].duration_seconds || 0;
                                 }
-                                var hours = Math.floor(totalSeconds / 3600)
-                                var minutes = Math.floor((totalSeconds % 3600) / 60)
-                                return qsTr("%1h %2m").arg(hours).arg(minutes)
+                                var hours = Math.floor(totalSeconds / 3600);
+                                var minutes = Math.floor((totalSeconds % 3600) / 60);
+                                return qsTr("%1h %2m").arg(hours).arg(minutes);
                             }
                             font.pointSize: Kirigami.Theme.defaultFont.pointSize + 4
                             font.bold: true
@@ -180,14 +215,81 @@ Kirigami.Page {
                     }
 
                     Controls.ToolButton {
-                        icon.name: "edit-delete"
-                        enabled: worklogSyncService && pendingWorklogs.length > 0
+                        icon.name: "document-send"
+                        enabled: worklogSyncService && filteredWorklogs.length > 0
                         Layout.preferredWidth: 40
+                        Controls.ToolTip.visible: hovered
+                        Controls.ToolTip.text: {
+                            var hasFilters = filterIssueKey !== "" || filterDateFrom !== "" || filterDateTo !== "";
+                            if (hasFilters) {
+                                return qsTr("Sincronizar todos os worklogs filtrados (%1)").arg(filteredWorklogs.length);
+                            }
+                            return qsTr("Sincronizar todos os worklogs pendentes (%1)").arg(filteredWorklogs.length);
+                        }
                         onClicked: {
-                            if (worklogSyncService && pendingWorklogs.length > 0) {
-                                var deleted = worklogSyncService.delete_all_worklogs()
-                                console.log("PendingWorklogsPage: %d worklogs deletados", deleted)
-                                reloadWorklogs()
+                            if (worklogSyncService && filteredWorklogs.length > 0) {
+                                // Se houver filtros ativos, sincronizar apenas os filtrados
+                                // Caso contrário, sincronizar todos (passando lista vazia ou null)
+                                var hasFilters = filterIssueKey !== "" || filterDateFrom !== "" || filterDateTo !== "";
+                                if (hasFilters) {
+                                    // Coletar IDs dos worklogs filtrados
+                                    var sessionIds = [];
+                                    for (var i = 0; i < filteredWorklogs.length; i++) {
+                                        if (filteredWorklogs[i].id) {
+                                            sessionIds.push(filteredWorklogs[i].id);
+                                        }
+                                    }
+                                    console.log("PendingWorklogsPage: Sincronizando %d worklogs filtrados", sessionIds.length);
+                                    worklogSyncService.sync_pending_worklogs(sessionIds);
+                                } else {
+                                    // Sincronizar todos os worklogs pendentes
+                                    console.log("PendingWorklogsPage: Sincronizando todos os worklogs pendentes");
+                                    worklogSyncService.sync_pending_worklogs([]);
+                                }
+                            }
+                        }
+                    }
+
+                    Controls.ToolButton {
+                        icon.name: "edit-delete"
+                        enabled: worklogSyncService && filteredWorklogs.length > 0
+                        Layout.preferredWidth: 40
+                        Controls.ToolTip.visible: hovered
+                        Controls.ToolTip.text: {
+                            var hasFilters = filterIssueKey !== "" || filterDateFrom !== "" || filterDateTo !== "";
+                            if (hasFilters) {
+                                return qsTr("Excluir todos os worklogs filtrados (%1)").arg(filteredWorklogs.length);
+                            }
+                            return qsTr("Excluir todos os worklogs pendentes (%1)").arg(filteredWorklogs.length);
+                        }
+                        onClicked: {
+                            if (worklogSyncService && filteredWorklogs.length > 0) {
+                                // Se houver filtros ativos, deletar apenas os filtrados
+                                // Caso contrário, deletar todos usando delete_all_worklogs()
+                                var hasFilters = filterIssueKey !== "" || filterDateFrom !== "" || filterDateTo !== "";
+                                if (hasFilters) {
+                                    // Coletar IDs dos worklogs filtrados
+                                    var sessionIds = [];
+                                    for (var i = 0; i < filteredWorklogs.length; i++) {
+                                        if (filteredWorklogs[i].id) {
+                                            sessionIds.push(filteredWorklogs[i].id);
+                                        }
+                                    }
+                                    // Deletar cada worklog filtrado
+                                    var deleted = 0;
+                                    for (var j = 0; j < sessionIds.length; j++) {
+                                        if (worklogSyncService.delete_worklog(sessionIds[j])) {
+                                            deleted++;
+                                        }
+                                    }
+                                    console.log("PendingWorklogsPage: %d worklogs filtrados deletados", deleted);
+                                    reloadWorklogs();
+                                } else {
+                                    // Deletar todos os worklogs pendentes
+                                    var deleted = worklogSyncService.delete_all_worklogs();
+                                    console.log("PendingWorklogsPage: %d worklogs deletados", deleted);
+                                    reloadWorklogs();
+                                }
                             }
                         }
                     }
@@ -195,209 +297,282 @@ Kirigami.Page {
             }
         }
 
-        // Lista de worklogs pendentes agrupados por issue_key
-        Controls.Label {
-            text: qsTr("Worklogs Pendentes")
-            font.bold: true
-            font.pointSize: Kirigami.Theme.defaultFont.pointSize + 1
+        // Barra de filtros
+        RowLayout {
             Layout.fillWidth: true
-            visible: pendingWorklogs.length > 0
+            spacing: Kirigami.Units.mediumSpacing
+
+            // Filtro por Issue Key
+            Controls.Label {
+                text: qsTr("Filtrar por Issue Key:")
+            }
+
+            Controls.TextField {
+                id: filterIssueKeyField
+                Layout.preferredWidth: 150
+                placeholderText: qsTr("Ex: PLATFORM-123")
+                text: filterIssueKey
+                onTextChanged: {
+                    filterIssueKey = text;
+                }
+            }
+
+            // Filtro por Data Inicial
+            Controls.Label {
+                text: qsTr("Data Inicial:")
+            }
+
+            Controls.TextField {
+                id: filterDateFromField
+                Layout.preferredWidth: 120
+                placeholderText: qsTr("YYYY-MM-DD")
+                text: filterDateFrom
+                onTextChanged: {
+                    filterDateFrom = text;
+                }
+            }
+
+            // Filtro por Data Final
+            Controls.Label {
+                text: qsTr("Data Final:")
+            }
+
+            Controls.TextField {
+                id: filterDateToField
+                Layout.preferredWidth: 120
+                placeholderText: qsTr("YYYY-MM-DD")
+                text: filterDateTo
+                onTextChanged: {
+                    filterDateTo = text;
+                }
+            }
+
+            // Botões rápidos de data
+            Controls.Button {
+                text: qsTr("Hoje")
+                onClicked: {
+                    var today = new Date();
+                    var todayStr = Qt.formatDate(today, "yyyy-MM-dd");
+                    filterDateFrom = todayStr;
+                    filterDateTo = todayStr;
+                }
+            }
+
+            Controls.Button {
+                text: qsTr("Últimos 7 dias")
+                onClicked: {
+                    var today = new Date();
+                    var weekAgo = new Date(today);
+                    weekAgo.setDate(today.getDate() - 7);
+                    filterDateFrom = Qt.formatDate(weekAgo, "yyyy-MM-dd");
+                    filterDateTo = Qt.formatDate(today, "yyyy-MM-dd");
+                }
+            }
+
+            Controls.Button {
+                text: qsTr("Últimos 30 dias")
+                onClicked: {
+                    var today = new Date();
+                    var monthAgo = new Date(today);
+                    monthAgo.setDate(today.getDate() - 30);
+                    filterDateFrom = Qt.formatDate(monthAgo, "yyyy-MM-dd");
+                    filterDateTo = Qt.formatDate(today, "yyyy-MM-dd");
+                }
+            }
+
+            Item {
+                Layout.fillWidth: true
+            }
+
+            // Botão Limpar Filtros
+            Controls.Button {
+                text: qsTr("Limpar Filtros")
+                onClicked: {
+                    filterIssueKey = "";
+                    filterDateFrom = "";
+                    filterDateTo = "";
+                }
+            }
         }
 
-        // Lista usando ScrollView e ListView para melhor performance
+        // Indicador de filtros ativos
+        Controls.Label {
+            Layout.fillWidth: true
+            visible: filterIssueKey !== "" || filterDateFrom !== "" || filterDateTo !== ""
+            text: {
+                var parts = [];
+                if (filterIssueKey !== "") {
+                    parts.push(qsTr("Issue Key: %1").arg(filterIssueKey));
+                }
+                if (filterDateFrom !== "") {
+                    parts.push(qsTr("De: %1").arg(filterDateFrom));
+                }
+                if (filterDateTo !== "") {
+                    parts.push(qsTr("Até: %1").arg(filterDateTo));
+                }
+                return qsTr("Filtros ativos: %1").arg(parts.join(", "));
+            }
+            font.pointSize: Kirigami.Theme.smallFont.pointSize
+            color: Kirigami.Theme.highlightColor || "#3daee9"
+        }
+
+        // Tabela compacta de worklogs
         Controls.ScrollView {
             Layout.fillWidth: true
             Layout.fillHeight: true
             clip: true
 
             ListView {
-                id: groupsListView
-                // Converter groupedWorklogs em lista de chaves para o modelo
-                model: Object.keys(groupedWorklogs)
-                spacing: Kirigami.Units.mediumSpacing
-                
-                delegate: Rectangle {
-                    width: groupsListView.width
-                    // Calcular altura: cabeçalho (80) + margens (2 * largeSpacing) + worklogs (100 cada + spacing)
-                    height: 80 + (Kirigami.Units.largeSpacing * 2) + (worklogs.length * (100 + Kirigami.Units.mediumSpacing)) + Kirigami.Units.mediumSpacing
-                    color: Kirigami.Theme.backgroundColor || "#f0f0f0"
-                    border.color: Kirigami.Theme.separatorColor || "#d0d0d0"
-                    border.width: 1
-                    radius: Kirigami.Units.smallSpacing
-                    
-                    property string issueKey: modelData
-                    property var worklogs: groupedWorklogs[issueKey] || []
-                    
-                    ColumnLayout {
+                id: worklogsListView
+                model: filteredWorklogs
+                spacing: 2
+
+                // Cabeçalho da tabela (simulado com RowLayout fixo)
+                header: Rectangle {
+                    width: worklogsListView.width
+                    height: 40
+                    color: Kirigami.Theme.alternateBackgroundColor || "#e0e0e0"
+
+                    RowLayout {
                         anchors.fill: parent
-                        anchors.margins: Kirigami.Units.largeSpacing
-                        spacing: Kirigami.Units.mediumSpacing
-                        
-                        // Cabeçalho do grupo
-                        Rectangle {
+                        anchors.margins: Kirigami.Units.smallSpacing
+                        spacing: Kirigami.Units.smallSpacing
+
+                        Controls.Label {
+                            Layout.preferredWidth: 120
+                            text: qsTr("Issue Key")
+                            font.bold: true
+                        }
+
+                        Controls.Label {
                             Layout.fillWidth: true
-                            Layout.preferredHeight: 80
-                            color: Kirigami.Theme.alternateBackgroundColor || "#e0e0e0"
-                            radius: Kirigami.Units.smallSpacing
-                            
-                            RowLayout {
-                                anchors.fill: parent
-                                anchors.margins: Kirigami.Units.mediumSpacing
-                                spacing: Kirigami.Units.mediumSpacing
-                                
-                                ColumnLayout {
-                                    Layout.fillWidth: true
-                                    spacing: Kirigami.Units.smallSpacing
-                                    
-                                    Controls.Label {
-                                        text: issueKey
-                                        font.bold: true
-                                        font.pointSize: Kirigami.Theme.defaultFont.pointSize + 2
-                                        Layout.fillWidth: true
-                                    }
-                                    
-                                    Controls.Label {
-                                        text: issueSummaries[issueKey] || ""
-                                        font.pointSize: Kirigami.Theme.defaultFont.pointSize
-                                        color: Kirigami.Theme.textColor || "#000000"
-                                        Layout.fillWidth: true
-                                        elide: Text.ElideRight
-                                        visible: issueSummaries[issueKey] !== undefined
-                                    }
-                                    
-                                    Controls.Label {
-                                        text: {
-                                            var totalSeconds = 0
-                                            for (var i = 0; i < worklogs.length; i++) {
-                                                totalSeconds += worklogs[i].duration_seconds || 0
-                                            }
-                                            var hours = Math.floor(totalSeconds / 3600)
-                                            var minutes = Math.floor((totalSeconds % 3600) / 60)
-                                            return qsTr("%1 worklogs • %2h %3m").arg(worklogs.length).arg(hours).arg(minutes)
-                                        }
-                                        font.pointSize: Kirigami.Theme.smallFont.pointSize
-                                        color: Kirigami.Theme.disabledTextColor || "#808080"
-                                        Layout.fillWidth: true
-                                    }
+                            text: qsTr("Summary")
+                            font.bold: true
+                        }
+
+                        Controls.Label {
+                            Layout.preferredWidth: 140
+                            text: qsTr("Data Início")
+                            font.bold: true
+                        }
+
+                        Controls.Label {
+                            Layout.preferredWidth: 140
+                            text: qsTr("Data Fim")
+                            font.bold: true
+                        }
+
+                        Controls.Label {
+                            Layout.preferredWidth: 100
+                            text: qsTr("Duração")
+                            font.bold: true
+                        }
+
+                        Controls.Label {
+                            Layout.preferredWidth: 80
+                            text: qsTr("Ações")
+                            font.bold: true
+                        }
+                    }
+                }
+
+                delegate: Rectangle {
+                    width: worklogsListView.width
+                    height: 45
+                    color: index % 2 === 0 ? Kirigami.Theme.backgroundColor : (Kirigami.Theme.alternateBackgroundColor || "#f5f5f5")
+
+                    property var worklogData: filteredWorklogs[index] || {}
+
+                    RowLayout {
+                        anchors.fill: parent
+                        anchors.margins: Kirigami.Units.smallSpacing
+                        spacing: Kirigami.Units.smallSpacing
+
+                        // Issue Key
+                        Controls.Label {
+                            Layout.preferredWidth: 120
+                            text: worklogData.issue_key || ""
+                            font.pointSize: Kirigami.Theme.smallFont.pointSize
+                            elide: Text.ElideRight
+                        }
+
+                        // Summary
+                        Controls.Label {
+                            Layout.fillWidth: true
+                            text: issueSummaries[worklogData.issue_key] || ""
+                            font.pointSize: Kirigami.Theme.smallFont.pointSize
+                            elide: Text.ElideRight
+                        }
+
+                        // Data Início
+                        Controls.Label {
+                            Layout.preferredWidth: 140
+                            text: {
+                                if (worklogData.start_time) {
+                                    var date = new Date(worklogData.start_time);
+                                    return Qt.formatDateTime(date, "dd/MM/yyyy HH:mm");
                                 }
-                                
-                                Controls.ToolButton {
-                                    icon.name: "document-send"
-                                    enabled: worklogSyncService && worklogs.length > 0
-                                    Layout.preferredWidth: 40
-                                    onClicked: {
-                                        if (worklogSyncService && worklogs.length > 0) {
-                                            var sessionIds = []
-                                            for (var i = 0; i < worklogs.length; i++) {
-                                                if (worklogs[i].id) {
-                                                    sessionIds.push(worklogs[i].id)
-                                                }
-                                            }
-                                            console.log("PendingWorklogsPage: Sincronizando %d worklogs da issue %s", sessionIds.length, issueKey)
-                                            worklogSyncService.sync_pending_worklogs(sessionIds)
-                                        }
+                                return "";
+                            }
+                            font.pointSize: Kirigami.Theme.smallFont.pointSize
+                        }
+
+                        // Data Fim
+                        Controls.Label {
+                            Layout.preferredWidth: 140
+                            text: {
+                                if (worklogData.end_time) {
+                                    var date = new Date(worklogData.end_time);
+                                    return Qt.formatDateTime(date, "dd/MM/yyyy HH:mm");
+                                }
+                                return "";
+                            }
+                            font.pointSize: Kirigami.Theme.smallFont.pointSize
+                        }
+
+                        // Duração
+                        Controls.Label {
+                            Layout.preferredWidth: 100
+                            text: {
+                                var duration = worklogData.duration_seconds || 0;
+                                var hours = Math.floor(duration / 3600);
+                                var minutes = Math.floor((duration % 3600) / 60);
+                                return qsTr("%1h %2m").arg(hours).arg(minutes);
+                            }
+                            font.pointSize: Kirigami.Theme.smallFont.pointSize
+                            font.bold: true
+                            color: Kirigami.Theme.highlightColor || "#3daee9"
+                        }
+
+                        // Ações
+                        RowLayout {
+                            Layout.preferredWidth: 80
+                            spacing: Kirigami.Units.smallSpacing
+
+                            Controls.ToolButton {
+                                icon.name: "document-send"
+                                enabled: worklogSyncService && worklogData.id
+                                Layout.preferredWidth: 30
+                                Layout.preferredHeight: 30
+                                onClicked: {
+                                    if (worklogSyncService && worklogData.id) {
+                                        var sessionIds = [worklogData.id];
+                                        console.log("PendingWorklogsPage: Sincronizando worklog:", worklogData.id);
+                                        worklogSyncService.sync_pending_worklogs(sessionIds);
                                     }
                                 }
                             }
-                        }
-                        
-                        // Lista de worklogs do grupo
-                        Repeater {
-                            id: worklogsRepeater
-                            model: worklogs
-                            
-                            Rectangle {
-                                Layout.fillWidth: true
-                                Layout.preferredHeight: 100
-                                color: Kirigami.Theme.backgroundColor || "#f0f0f0"
-                                border.color: Kirigami.Theme.separatorColor || "#d0d0d0"
-                                border.width: 1
-                                radius: Kirigami.Units.smallSpacing
-                                
-                                property var worklogData: worklogs[index] || {}
-                                
-                                RowLayout {
-                                    anchors.fill: parent
-                                    anchors.margins: Kirigami.Units.mediumSpacing
-                                    spacing: Kirigami.Units.mediumSpacing
-                                    
-                                    ColumnLayout {
-                                        Layout.fillWidth: true
-                                        spacing: Kirigami.Units.smallSpacing
-                                        
-                                        // Datas: início e fim lado a lado
-                                        RowLayout {
-                                            Layout.fillWidth: true
-                                            spacing: Kirigami.Units.largeSpacing
-                                            
-                                            // Data de início
-                                            Controls.Label {
-                                                text: {
-                                                    if (worklogData.start_time) {
-                                                        var date = new Date(worklogData.start_time)
-                                                        return qsTr("Início: %1").arg(Qt.formatDateTime(date, "dd/MM/yyyy HH:mm"))
-                                                    }
-                                                    return ""
-                                                }
-                                                font.pointSize: Kirigami.Theme.smallFont.pointSize
-                                                color: Kirigami.Theme.disabledTextColor || "#808080"
-                                                visible: worklogData.start_time
-                                            }
-                                            
-                                            // Data de fim
-                                            Controls.Label {
-                                                text: {
-                                                    if (worklogData.end_time) {
-                                                        var date = new Date(worklogData.end_time)
-                                                        return qsTr("Fim: %1").arg(Qt.formatDateTime(date, "dd/MM/yyyy HH:mm"))
-                                                    }
-                                                    return ""
-                                                }
-                                                font.pointSize: Kirigami.Theme.smallFont.pointSize
-                                                color: Kirigami.Theme.disabledTextColor || "#808080"
-                                                visible: worklogData.end_time
-                                            }
-                                        }
-                                        
-                                        // Duração calculada (abaixo das datas)
-                                        Controls.Label {
-                                            text: {
-                                                var duration = worklogData.duration_seconds || 0
-                                                var hours = Math.floor(duration / 3600)
-                                                var minutes = Math.floor((duration % 3600) / 60)
-                                                return qsTr("Duração: %1h %2m").arg(hours).arg(minutes)
-                                            }
-                                            font.pointSize: Kirigami.Theme.defaultFont.pointSize
-                                            font.bold: true
-                                            color: Kirigami.Theme.highlightColor || "#3daee9"
-                                            Layout.fillWidth: true
-                                        }
-                                    }
-                                    
-                                    Controls.ToolButton {
-                                        icon.name: "document-send"
-                                        enabled: worklogSyncService !== null && worklogSyncService !== undefined && worklogData.id
-                                        Layout.preferredWidth: 40
-                                        onClicked: {
-                                            if (worklogSyncService && worklogData.id) {
-                                                var sessionIds = [worklogData.id]
-                                                console.log("PendingWorklogsPage: Sincronizando worklog:", worklogData.id)
-                                                worklogSyncService.sync_pending_worklogs(sessionIds)
-                                            }
-                                        }
-                                    }
-                                    
-                                    Controls.ToolButton {
-                                        icon.name: "edit-delete"
-                                        enabled: worklogSyncService !== null && worklogSyncService !== undefined && worklogData.id
-                                        Layout.preferredWidth: 40
-                                        onClicked: {
-                                            if (worklogSyncService && worklogData.id) {
-                                                console.log("PendingWorklogsPage: Deletando worklog:", worklogData.id)
-                                                if (worklogSyncService.delete_worklog(worklogData.id)) {
-                                                    reloadWorklogs()
-                                                }
-                                            }
+
+                            Controls.ToolButton {
+                                icon.name: "edit-delete"
+                                enabled: worklogSyncService && worklogData.id
+                                Layout.preferredWidth: 30
+                                Layout.preferredHeight: 30
+                                onClicked: {
+                                    if (worklogSyncService && worklogData.id) {
+                                        console.log("PendingWorklogsPage: Deletando worklog:", worklogData.id);
+                                        if (worklogSyncService.delete_worklog(worklogData.id)) {
+                                            reloadWorklogs();
                                         }
                                     }
                                 }
@@ -407,7 +582,7 @@ Kirigami.Page {
                 }
             }
         }
-        
+
         // Mensagem quando não há worklogs
         Controls.Label {
             text: qsTr("Nenhum worklog pendente")
@@ -417,7 +592,7 @@ Kirigami.Page {
             verticalAlignment: Text.AlignVCenter
             color: Kirigami.Theme.disabledTextColor || "#808080"
             font.pointSize: Kirigami.Theme.defaultFont.pointSize + 1
-            visible: !worklogSyncService || (pendingWorklogs.length === 0)
+            visible: !worklogSyncService || (filteredWorklogs.length === 0)
         }
     }
 }

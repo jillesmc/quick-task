@@ -688,10 +688,14 @@ class JiraClient:
         # e garantir compatibilidade com campos select list
         if custom_fields:
             for field_id, field_value in custom_fields.items():
-                if field_value is not None and str(field_value).strip():
-                    # Formatar como objeto com "value" para campos select list
-                    # Isso garante compatibilidade tanto para CREATE quanto UPDATE
-                    fields[field_id] = {"value": str(field_value).strip()}
+                if field_value is not None:
+                    # Se for uma lista (multi-select), usar diretamente
+                    if isinstance(field_value, list):
+                        fields[field_id] = field_value
+                    elif str(field_value).strip():
+                        # Formatar como objeto com "value" para campos select list
+                        # Isso garante compatibilidade tanto para CREATE quanto UPDATE
+                        fields[field_id] = {"value": str(field_value).strip()}
         
         # Construir payload completo
         payload = {"fields": fields}
@@ -775,14 +779,18 @@ class JiraClient:
         
         # Adicionar campos customizados em fields (apenas se não forem vazios)
         # Campos customizados do tipo select list precisam do formato {"value": "text"} ou {"name": "text"}
+        # Campos multi-select precisam ser uma lista de objetos [{"value": "text"}, ...]
         # Conforme documentação REST API v3: "Specify a valid 'id' or 'name' for [field]"
         if custom_fields:
             for field_id, field_value in custom_fields.items():
-                # Ignorar valores None ou strings vazias
-                if field_value is not None and str(field_value).strip():
-                    # Formatar como objeto com "value" para campos select list
-                    # A API aceita {"value": "text"} ou {"name": "text"}
-                    fields[field_id] = {"value": str(field_value).strip()}
+                if field_value is not None:
+                    # Se for uma lista (multi-select), usar diretamente
+                    if isinstance(field_value, list):
+                        fields[field_id] = field_value
+                    elif str(field_value).strip():
+                        # Formatar como objeto com "value" para campos select list
+                        # A API aceita {"value": "text"} ou {"name": "text"}
+                        fields[field_id] = {"value": str(field_value).strip()}
         
         # Tratar parent conforme documentação REST API v3
         # Para definir: {"parent": {"key": "PARENT-KEY"}}

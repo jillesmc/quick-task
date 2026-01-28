@@ -80,6 +80,8 @@ Item {
             status: String(details.status || ""),
             documentacaoAnexa: String(details.documentacaoAnexa || "Não"),
             utilizacaoIA: String(details.utilizacaoIA || "Não"),
+            valorEntregue: String(details.valorEntregue || ""),
+            plataformasAfetadas: details.plataformasAfetadas || [],
             parentKey: String(details.parentKey || ""),
             parentSummary: String(details.parentSummary || "")
         }
@@ -134,6 +136,8 @@ Item {
             statusToUpdate,
             fieldData ? fieldData.documentacaoAnexa || "Não" : "Não",
             fieldData ? fieldData.utilizacaoIA || "Não" : "Não",
+            fieldData ? fieldData.valorEntregue || "" : "",
+            fieldData ? (fieldData.plataformasAfetadas || []) : [],
             epicKey || "",
             worklogData ? worklogData.shouldRegister || false : false,
             worklogInicioStr,

@@ -5,7 +5,9 @@
   "custom_fields": {
     "tipo_atividade": "customfield_12088",
     "documentacao_anexa": "customfield_14840",
-    "utilizacao_ia": "customfield_14841"
+    "utilizacao_ia": "customfield_14841",
+    "valor_entregue": "customfield_XXXXX",
+    "plataformas_afetadas": "customfield_YYYYY"
   },
   "tipo_atividade_values": [
     "Novas iniciativas/Novas funcionalidades/Melhorias funcionais",
@@ -24,6 +26,8 @@
     "READY FOR DEPLOY",
     "DONE"
   ],
+  "valor_entregue_values": ["Alto", "Médio", "Baixo"],
+  "plataformas_afetadas_values": ["Web", "Mobile", "API", "Backend"],
   "worklog_timezone": "America/Sao_Paulo",
   "worklog": {
     "retroactive_max_hours": 24,

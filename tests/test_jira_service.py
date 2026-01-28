@@ -101,6 +101,8 @@ def test_jira_service_create_issue_success(jira_service, qtbot, mock_jira_client
             worklogTimezone="UTC",
             parentEpicKey="",
             worklogComment="",
+            valorEntregue="",
+            plataformasAfetadas=[],
         )
 
         assert result is True
@@ -123,6 +125,8 @@ def test_jira_service_create_issue_empty_summary(jira_service, qtbot):
             worklogTimezone="UTC",
             parentEpicKey="",
             worklogComment="",
+            valorEntregue="",
+            plataformasAfetadas=[],
         )
 
         assert result is False
@@ -144,6 +148,8 @@ def test_jira_service_create_issue_invalid_datetime(jira_service, qtbot):
             worklogTimezone="UTC",
             parentEpicKey="",
             worklogComment="comentário",
+            valorEntregue="",
+            plataformasAfetadas=[],
         )
 
         assert result is False
@@ -178,6 +184,8 @@ def test_jira_service_create_issue_cancel_previous_worker(
             worklogTimezone="UTC",
             parentEpicKey="",
             worklogComment="",
+            valorEntregue="",
+            plataformasAfetadas=[],
         )
 
         # Verificar que worker anterior foi cancelado
