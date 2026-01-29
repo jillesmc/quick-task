@@ -322,6 +322,9 @@ Kirigami.Page {
             Controls.SplitView.minimumWidth: 400
             property real topSectionHeight: 300
             property real epicSectionHeight: 250
+            // Para feedback visual dos divisores (hover) via overlay
+            property bool divider1Hovered: false
+            property bool divider2Hovered: false
 
             Controls.ScrollView {
                 id: mainDetailsScrollView
@@ -469,27 +472,15 @@ Kirigami.Page {
                             cursorShape: containsMouse ? Qt.SizeVerCursor : Qt.ArrowCursor
                             property real startY: 0
                             property real startHeight: 0
-                            property real pendingHeight: 0
-                            Timer {
-                                id: dragTimer1
-                                interval: 16
-                                running: false
-                                repeat: false
-                                onTriggered: detailPane.topSectionHeight = divider1MA.pendingHeight
-                            }
                             onPressed: function (mouse) {
                                 startY = mouse.y
                                 startHeight = detailPane.topSectionHeight
                             }
                             onPositionChanged: function (mouse) {
                                 if (pressed) {
-                                    pendingHeight = Math.max(150, startHeight + (mouse.y - startY))
-                                    if (!dragTimer1.running) dragTimer1.start()
+                                    var newHeight = Math.max(150, startHeight + (mouse.y - startY))
+                                    detailPane.topSectionHeight = newHeight
                                 }
-                            }
-                            onReleased: {
-                                if (dragTimer1.running) dragTimer1.stop()
-                                detailPane.topSectionHeight = pendingHeight
                             }
                         }
                     }
@@ -623,27 +614,15 @@ Kirigami.Page {
                             cursorShape: containsMouse ? Qt.SizeVerCursor : Qt.ArrowCursor
                             property real startY: 0
                             property real startHeight: 0
-                            property real pendingHeight: 0
-                            Timer {
-                                id: dragTimer2
-                                interval: 16
-                                running: false
-                                repeat: false
-                                onTriggered: detailPane.epicSectionHeight = divider2MA.pendingHeight
-                            }
                             onPressed: function (mouse) {
                                 startY = mouse.y
                                 startHeight = detailPane.epicSectionHeight
                             }
                             onPositionChanged: function (mouse) {
                                 if (pressed) {
-                                    pendingHeight = Math.max(150, startHeight + (mouse.y - startY))
-                                    if (!dragTimer2.running) dragTimer2.start()
+                                    var newHeight = Math.max(150, startHeight + (mouse.y - startY))
+                                    detailPane.epicSectionHeight = newHeight
                                 }
-                            }
-                            onReleased: {
-                                if (dragTimer2.running) dragTimer2.stop()
-                                detailPane.epicSectionHeight = pendingHeight
                             }
                         }
                     }
@@ -982,6 +961,55 @@ Kirigami.Page {
                         }
                     }
                 }
+
+            // Overlay transparente para capturar drag dos divisores sem perder o grab (usa coordenadas globais)
+            Item {
+                id: resizeOverlay
+                z: 10
+                anchors.fill: parent
+                property int activeDivider: 0
+                property real startGlobalY: 0
+                property real startHeight: 0
+
+                MouseArea {
+                    anchors.fill: parent
+                    hoverEnabled: false
+                    cursorShape: parent.activeDivider ? Qt.SizeVerCursor : Qt.ArrowCursor
+                    onPressed: function (mouse) {
+                        var margin = 8
+                        var p1 = divider1.mapToItem(resizeOverlay, 0, 0)
+                        if (mouse.y >= p1.y - margin && mouse.y < p1.y + divider1.height + margin) {
+                            resizeOverlay.activeDivider = 1
+                            resizeOverlay.startGlobalY = resizeOverlay.mapToGlobal(mouse.x, mouse.y).y
+                            resizeOverlay.startHeight = detailPane.topSectionHeight
+                            mouse.accepted = true
+                            return
+                        }
+                        var p2 = divider2.mapToItem(resizeOverlay, 0, 0)
+                        if (mouse.y >= p2.y - margin && mouse.y < p2.y + divider2.height + margin) {
+                            resizeOverlay.activeDivider = 2
+                            resizeOverlay.startGlobalY = resizeOverlay.mapToGlobal(mouse.x, mouse.y).y
+                            resizeOverlay.startHeight = detailPane.epicSectionHeight
+                            mouse.accepted = true
+                            return
+                        }
+                        mouse.accepted = false
+                    }
+                    onPositionChanged: function (mouse) {
+                        if (resizeOverlay.activeDivider === 0) return
+                        var cur = resizeOverlay.mapToGlobal(mouse.x, mouse.y).y
+                        var delta = cur - resizeOverlay.startGlobalY
+                        if (resizeOverlay.activeDivider === 1) {
+                            detailPane.topSectionHeight = Math.max(150, resizeOverlay.startHeight + delta)
+                        } else if (resizeOverlay.activeDivider === 2) {
+                            detailPane.epicSectionHeight = Math.max(150, resizeOverlay.startHeight + delta)
+                        }
+                    }
+                    onReleased: {
+                        resizeOverlay.activeDivider = 0
+                    }
+                }
+            }
 
             // Overlay de loading sobre toda a coluna direita
             Rectangle {
