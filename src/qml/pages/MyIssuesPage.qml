@@ -320,6 +320,8 @@ Kirigami.Page {
             id: detailPane
             Controls.SplitView.fillWidth: true
             Controls.SplitView.minimumWidth: 400
+            property real topSectionHeight: 300
+            property real epicSectionHeight: 250
 
             Controls.ScrollView {
                 id: mainDetailsScrollView
@@ -328,237 +330,329 @@ Kirigami.Page {
                 // Garantir que o conteúdo role apenas verticalmente
                 contentWidth: availableWidth
 
-                // SplitView Triplo (3 panes = 2 barras de separação)
-                Controls.SplitView {
-                    id: mainTripleSplitView
+                // Coluna única com scroll; Description e Epic redimensionáveis por divisores 3 pontos
+                ColumnLayout {
                     width: mainDetailsScrollView.availableWidth
-                    // Altura dinâmica baseada na soma das alturas implícitas dos panes (evita loop e ativa scroll)
-                    implicitHeight: topPane.implicitHeight + epicPane.implicitHeight + bottomFieldsPane.implicitHeight
-                    orientation: Qt.Vertical
+                    spacing: 0
 
-                    // Pane 1: Topo (Heading, Worklog, Summary, Description)
-                    Item {
-                        id: topPane
-                        implicitHeight: topColumnLayout.implicitHeight
-                        Controls.SplitView.minimumHeight: 250
-                        // Sem preferredHeight fixo para permitir redimensionamento manual
+                    // Bloco Top (Description) – altura redimensionável pelo divisor abaixo
+                    ColumnLayout {
+                        id: topSection
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: detailPane.topSectionHeight
+                        Layout.minimumHeight: 150
+                        spacing: 0
 
-                        ColumnLayout {
-                            id: topColumnLayout
-                            anchors.fill: parent
-                            spacing: 0
+                        // Heading e Link
+                        RowLayout {
+                            Layout.fillWidth: true
+                            Layout.margins: 20
+                            Layout.bottomMargin: 5
 
-                            // Heading e Link
-                            RowLayout {
+                            Kirigami.Heading {
+                                text: qsTr("Atualizar Task")
+                                level: 3
                                 Layout.fillWidth: true
-                                Layout.margins: 20
-                                Layout.bottomMargin: 5
+                            }
 
-                                Kirigami.Heading {
-                                    text: qsTr("Atualizar Task")
-                                    level: 3
-                                    Layout.fillWidth: true
-                                }
-
-                                Controls.Label {
-                                    id: taskLinkLabel
-                                    text: page.selectedIssueKey || ""
-                                    color: Kirigami.Theme.linkColor
-                                    visible: page.selectedIssueKey !== ""
-                                    MouseArea {
-                                        anchors.fill: parent
-                                        cursorShape: Qt.PointingHandCursor
-                                        onClicked: {
-                                            if (page.jiraService && page.selectedIssueKey && typeof page.jiraService.getIssueUrl === 'function') {
-                                                var url = page.jiraService.getIssueUrl(page.selectedIssueKey);
-                                                if (url) {
-                                                    Qt.openUrlExternally(url);
-                                                }
+                            Controls.Label {
+                                id: taskLinkLabel
+                                text: page.selectedIssueKey || ""
+                                color: Kirigami.Theme.linkColor
+                                visible: page.selectedIssueKey !== ""
+                                MouseArea {
+                                    anchors.fill: parent
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: {
+                                        if (page.jiraService && page.selectedIssueKey && typeof page.jiraService.getIssueUrl === 'function') {
+                                            var url = page.jiraService.getIssueUrl(page.selectedIssueKey);
+                                            if (url) {
+                                                Qt.openUrlExternally(url);
                                             }
                                         }
                                     }
                                 }
                             }
-
-                            // Summary
-                            ColumnLayout {
-                                Layout.fillWidth: true
-                                Layout.margins: 20
-                                Layout.topMargin: 0
-                                Layout.bottomMargin: 10
-                                spacing: Kirigami.Units.smallSpacing
-
-                                Controls.Label {
-                                    text: qsTr("Summary:")
-                                    font.bold: true
-                                    Layout.fillWidth: true
-                                }
-
-                                Controls.TextField {
-                                    id: summaryFieldTab2
-                                    Layout.fillWidth: true
-                                    enabled: page.selectedIssueKey !== "" && !page.isProcessing
-                                    text: issueModel ? issueModel.summary : ""
-                                    onTextChanged: if (issueModel)
-                                        issueModel.summary = text
-                                }
-                            }
-
-                            // Description (Expande para preencher o resto deste pane)
-                            ColumnLayout {
-                                Layout.fillWidth: true
-                                Layout.fillHeight: true
-                                Layout.margins: 20
-                                Layout.topMargin: 0
-                                spacing: Kirigami.Units.smallSpacing
-
-                                Controls.Label {
-                                    text: qsTr("Description:")
-                                    font.bold: true
-                                    Layout.fillWidth: true
-                                }
-
-                                Controls.ScrollView {
-                                    id: descriptionScrollView
-                                    Layout.fillWidth: true
-                                    Layout.fillHeight: true
-                                    clip: true
-
-                                    Controls.TextArea {
-                                        id: descriptionFieldTab2
-                                        width: descriptionScrollView.availableWidth
-                                        wrapMode: Controls.TextArea.Wrap
-                                        enabled: page.selectedIssueKey !== "" && !page.isProcessing
-                                        text: issueModel ? issueModel.description : ""
-                                        onTextChanged: if (issueModel)
-                                            issueModel.description = text
-                                    }
-                                }
-                            }
-
-                            // Spacer para empurrar tudo para cima se houver espaço sobrando
-                            Item {
-                                Layout.fillHeight: true
-                                Layout.fillWidth: true
-                            }
                         }
-                    }
 
-                    // Pane 2: Epic Parent (Barra de split acima e abaixo)
-                    Item {
-                        id: epicPane
-                        implicitHeight: epicColumnLayout.implicitHeight
-                        Controls.SplitView.minimumHeight: 200
-                        // Sem preferredHeight fixo para permitir redimensionamento manual
-
+                        // Summary
                         ColumnLayout {
-                            id: epicColumnLayout
-                            anchors.fill: parent
+                            Layout.fillWidth: true
+                            Layout.margins: 20
+                            Layout.topMargin: 0
+                            Layout.bottomMargin: 10
                             spacing: Kirigami.Units.smallSpacing
 
                             Controls.Label {
-                                text: qsTr("Epic Parent:")
+                                text: qsTr("Summary:")
                                 font.bold: true
                                 Layout.fillWidth: true
-                                Layout.leftMargin: 20
-                                Layout.topMargin: 10
                             }
 
-                            EpicSearchForm {
-                                id: epicSearchForm
+                            Controls.TextField {
+                                id: summaryFieldTab2
                                 Layout.fillWidth: true
-                                Layout.fillHeight: true
-                                Layout.margins: 20
-                                Layout.topMargin: 0
                                 enabled: page.selectedIssueKey !== "" && !page.isProcessing
+                                text: issueModel ? issueModel.summary : ""
+                                onTextChanged: if (issueModel)
+                                    issueModel.summary = text
+                            }
+                        }
 
-                                // Bindings bi-direcionais e sinais sincronizados
-                                Binding {
-                                    target: epicSearchForm
-                                    property: "jiraService"
-                                    value: typeof jiraService !== "undefined" ? jiraService : null
-                                    when: typeof jiraService !== "undefined"
-                                }
+                        // Description (expande no espaço do topSection)
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+                            Layout.margins: 20
+                            Layout.topMargin: 0
+                            spacing: Kirigami.Units.smallSpacing
 
-                                onEpicSelected: function (key, summary) {
-                                    page.epicSelected(key, summary);
-                                    if (issueModel) {
-                                        issueModel.epicParentKey = key;
-                                        issueModel.epicParentSummary = summary;
-                                    }
-                                }
-
-                                onEpicCleared: {
-                                    page.sharedEpicKey = "";
-                                    page.sharedEpicSummary = "";
-                                    if (issueModel) {
-                                        issueModel.epicParentKey = "";
-                                        issueModel.epicParentSummary = "";
-                                    }
-                                }
-
-                                Binding {
-                                    target: epicSearchForm
-                                    property: "selectedEpicKey"
-                                    value: page.sharedEpicKey
-                                    when: page.sharedEpicKey !== "" && page.sharedEpicKey !== epicSearchForm.selectedEpicKey
-                                }
-
-                                Binding {
-                                    target: epicSearchForm
-                                    property: "selectedEpicSummary"
-                                    value: page.sharedEpicSummary
-                                    when: page.sharedEpicSummary !== "" && page.sharedEpicSummary !== epicSearchForm.selectedEpicSummary
-                                }
-
-                                Binding {
-                                    target: epicSearchForm
-                                    property: "selectedEpicKey"
-                                    value: issueModel ? issueModel.epicParentKey : ""
-                                    when: issueModel
-                                }
-
-                                Binding {
-                                    target: epicSearchForm
-                                    property: "selectedEpicSummary"
-                                    value: issueModel ? issueModel.epicParentSummary : ""
-                                    when: issueModel
-                                }
-
-                                Binding {
-                                    target: issueModel
-                                    property: "epicParentKey"
-                                    value: epicSearchForm.selectedEpicKey
-                                    when: issueModel
-                                }
-
-                                Binding {
-                                    target: issueModel
-                                    property: "epicParentSummary"
-                                    value: epicSearchForm.selectedEpicSummary
-                                    when: issueModel
-                                }
+                            Controls.Label {
+                                text: qsTr("Description:")
+                                font.bold: true
+                                Layout.fillWidth: true
                             }
 
-                            // Spacer para empurrar EpicSearchForm para cima
-                            Item {
-                                Layout.fillHeight: true
+                            Controls.ScrollView {
+                                id: descriptionScrollView
                                 Layout.fillWidth: true
+                                Layout.fillHeight: true
+                                clip: true
+
+                                Controls.TextArea {
+                                    id: descriptionFieldTab2
+                                    width: descriptionScrollView.availableWidth
+                                    wrapMode: Controls.TextArea.Wrap
+                                    enabled: page.selectedIssueKey !== "" && !page.isProcessing
+                                    text: issueModel ? issueModel.description : ""
+                                    onTextChanged: if (issueModel)
+                                        issueModel.description = text
+                                }
+                            }
+                        }
+
+                        Item {
+                            Layout.fillHeight: true
+                            Layout.fillWidth: true
+                        }
+                    }
+
+                    // Divisor 3 pontos (logo abaixo de Description) – arrastar para redimensionar
+                    Rectangle {
+                        id: divider1
+                        Layout.fillWidth: true
+                        implicitHeight: 14
+                        color: "transparent"
+
+                        Row {
+                            anchors.centerIn: parent
+                            spacing: 4
+                            Repeater {
+                                model: 3
+                                Rectangle {
+                                    width: 3
+                                    height: 3
+                                    radius: 1.5
+                                    color: divider1MA.containsMouse ? Kirigami.Theme.highlightColor : Kirigami.Theme.textColor
+                                    opacity: divider1MA.containsMouse ? 1 : 0.6
+                                    Behavior on color { ColorAnimation { duration: 150 } }
+                                    Behavior on opacity { NumberAnimation { duration: 150 } }
+                                }
+                            }
+                        }
+
+                        MouseArea {
+                            id: divider1MA
+                            anchors.fill: parent
+                            anchors.margins: -5
+                            hoverEnabled: true
+                            cursorShape: containsMouse ? Qt.SizeVerCursor : Qt.ArrowCursor
+                            property real startY: 0
+                            property real startHeight: 0
+                            property real pendingHeight: 0
+                            Timer {
+                                id: dragTimer1
+                                interval: 16
+                                running: false
+                                repeat: false
+                                onTriggered: detailPane.topSectionHeight = divider1MA.pendingHeight
+                            }
+                            onPressed: function (mouse) {
+                                startY = mouse.y
+                                startHeight = detailPane.topSectionHeight
+                            }
+                            onPositionChanged: function (mouse) {
+                                if (pressed) {
+                                    pendingHeight = Math.max(150, startHeight + (mouse.y - startY))
+                                    if (!dragTimer1.running) dragTimer1.start()
+                                }
+                            }
+                            onReleased: {
+                                if (dragTimer1.running) dragTimer1.stop()
+                                detailPane.topSectionHeight = pendingHeight
                             }
                         }
                     }
 
-                    // Pane 3: Demais Campos (Status, IA, Atividade, Valor, Plataformas)
-                    Item {
-                        id: bottomFieldsPane
-                        implicitHeight: bottomColumnLayout.implicitHeight
-                        Controls.SplitView.minimumHeight: 400
-                        // Sem preferredHeight fixo para permitir redimensionamento manual
+                    // Bloco Epic Parent – altura redimensionável pelo divisor abaixo
+                    ColumnLayout {
+                        id: epicSection
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: detailPane.epicSectionHeight
+                        Layout.minimumHeight: 150
+                        spacing: Kirigami.Units.smallSpacing
 
-                        ColumnLayout {
-                            id: bottomColumnLayout
+                        Controls.Label {
+                            text: qsTr("Epic Parent:")
+                            font.bold: true
+                            Layout.fillWidth: true
+                            Layout.leftMargin: 20
+                            Layout.topMargin: 10
+                        }
+
+                        EpicSearchForm {
+                            id: epicSearchForm
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+                            Layout.margins: 20
+                            Layout.topMargin: 0
+                            enabled: page.selectedIssueKey !== "" && !page.isProcessing
+
+                            Binding {
+                                target: epicSearchForm
+                                property: "jiraService"
+                                value: typeof jiraService !== "undefined" ? jiraService : null
+                                when: typeof jiraService !== "undefined"
+                            }
+
+                            onEpicSelected: function (key, summary) {
+                                page.epicSelected(key, summary);
+                                if (issueModel) {
+                                    issueModel.epicParentKey = key;
+                                    issueModel.epicParentSummary = summary;
+                                }
+                            }
+
+                            onEpicCleared: {
+                                page.sharedEpicKey = "";
+                                page.sharedEpicSummary = "";
+                                if (issueModel) {
+                                    issueModel.epicParentKey = "";
+                                    issueModel.epicParentSummary = "";
+                                }
+                            }
+
+                            Binding {
+                                target: epicSearchForm
+                                property: "selectedEpicKey"
+                                value: page.sharedEpicKey
+                                when: page.sharedEpicKey !== "" && page.sharedEpicKey !== epicSearchForm.selectedEpicKey
+                            }
+
+                            Binding {
+                                target: epicSearchForm
+                                property: "selectedEpicSummary"
+                                value: page.sharedEpicSummary
+                                when: page.sharedEpicSummary !== "" && page.sharedEpicSummary !== epicSearchForm.selectedEpicSummary
+                            }
+
+                            Binding {
+                                target: epicSearchForm
+                                property: "selectedEpicKey"
+                                value: issueModel ? issueModel.epicParentKey : ""
+                                when: issueModel
+                            }
+
+                            Binding {
+                                target: epicSearchForm
+                                property: "selectedEpicSummary"
+                                value: issueModel ? issueModel.epicParentSummary : ""
+                                when: issueModel
+                            }
+
+                            Binding {
+                                target: issueModel
+                                property: "epicParentKey"
+                                value: epicSearchForm.selectedEpicKey
+                                when: issueModel
+                            }
+
+                            Binding {
+                                target: issueModel
+                                property: "epicParentSummary"
+                                value: epicSearchForm.selectedEpicSummary
+                                when: issueModel
+                            }
+                        }
+
+                        Item {
+                            Layout.fillHeight: true
+                            Layout.fillWidth: true
+                        }
+                    }
+
+                    // Divisor 3 pontos (logo abaixo de Epic Parent) – arrastar para redimensionar
+                    Rectangle {
+                        id: divider2
+                        Layout.fillWidth: true
+                        implicitHeight: 14
+                        color: "transparent"
+
+                        Row {
+                            anchors.centerIn: parent
+                            spacing: 4
+                            Repeater {
+                                model: 3
+                                Rectangle {
+                                    width: 3
+                                    height: 3
+                                    radius: 1.5
+                                    color: divider2MA.containsMouse ? Kirigami.Theme.highlightColor : Kirigami.Theme.textColor
+                                    opacity: divider2MA.containsMouse ? 1 : 0.6
+                                    Behavior on color { ColorAnimation { duration: 150 } }
+                                    Behavior on opacity { NumberAnimation { duration: 150 } }
+                                }
+                            }
+                        }
+
+                        MouseArea {
+                            id: divider2MA
                             anchors.fill: parent
-                            spacing: 0
+                            anchors.margins: -5
+                            hoverEnabled: true
+                            cursorShape: containsMouse ? Qt.SizeVerCursor : Qt.ArrowCursor
+                            property real startY: 0
+                            property real startHeight: 0
+                            property real pendingHeight: 0
+                            Timer {
+                                id: dragTimer2
+                                interval: 16
+                                running: false
+                                repeat: false
+                                onTriggered: detailPane.epicSectionHeight = divider2MA.pendingHeight
+                            }
+                            onPressed: function (mouse) {
+                                startY = mouse.y
+                                startHeight = detailPane.epicSectionHeight
+                            }
+                            onPositionChanged: function (mouse) {
+                                if (pressed) {
+                                    pendingHeight = Math.max(150, startHeight + (mouse.y - startY))
+                                    if (!dragTimer2.running) dragTimer2.start()
+                                }
+                            }
+                            onReleased: {
+                                if (dragTimer2.running) dragTimer2.stop()
+                                detailPane.epicSectionHeight = pendingHeight
+                            }
+                        }
+                    }
+
+                    // Bloco Bottom (Worklog, Status, Documentação, IA, etc.) – altura implícita
+                    ColumnLayout {
+                        id: bottomColumnLayout
+                        Layout.fillWidth: true
+                        spacing: 0
 
                             // Worklog (Movido para cá para ficar acima do Status)
                             ColumnLayout {
@@ -888,7 +982,6 @@ Kirigami.Page {
                         }
                     }
                 }
-            }
 
             // Overlay de loading sobre toda a coluna direita
             Rectangle {
