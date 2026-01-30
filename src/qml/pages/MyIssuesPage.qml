@@ -247,60 +247,70 @@ Kirigami.Page {
         }
     }
 
+    // Mesma hierarquia que IssueFormPage: ScrollView > Item > ColumnLayout (margens no ColumnLayout)
     Controls.SplitView {
         id: splitView
         anchors.fill: parent
         orientation: Qt.Horizontal
 
         // Coluna Esquerda (40% - Master): Busca, Lista e Botão Timer
-        Item {
-            id: leftPane
+        Controls.ScrollView {
+            id: leftScrollView
             Controls.SplitView.preferredWidth: parent.width * 0.4
             Controls.SplitView.minimumWidth: 300
             Controls.SplitView.fillHeight: true
+            clip: true
+            contentWidth: availableWidth
 
-            ColumnLayout {
-                id: leftColumnLayout
-                anchors.fill: parent
-                anchors.margins: 20
-                spacing: Kirigami.Units.largeSpacing
+            Item {
+                width: leftScrollView.width
+                // Garante altura mínima da viewport para o ColumnLayout dar espaço ao IssueList (fillHeight)
+                implicitHeight: Math.max(leftScrollView.height, leftColumnLayout.implicitHeight)
 
-                // Busca de issues usando componente reutilizável
-                IssueSearchForm {
-                    id: issueSearchForm
-                    Layout.fillWidth: true
-                    enabled: !page.isProcessing
-                    isLoading: myIssuesModel ? myIssuesModel.isLoading : false
-                    placeholderText: qsTr("Buscar issues por resumo ou chave...")
+                ColumnLayout {
+                    id: leftColumnLayout
+                    anchors.fill: parent
+                    anchors.leftMargin: 20
+                    anchors.rightMargin: 20
+                    spacing: Kirigami.Units.largeSpacing
 
-                    onSearchRequested: function (query) {
-                        page.refreshIssues(query);
-                    }
-                }
-
-                Controls.Label {
-                    text: qsTr("Issues atribuídas a você")
-                    font.bold: true
-                    Layout.fillWidth: true
-                }
-
-                // Lista de issues usando componente reutilizável
-                Item {
-                    id: issueListContainer
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-
-                    IssueList {
-                        id: issueList
-                        anchors.fill: parent
+                    // Busca de issues usando componente reutilizável
+                    IssueSearchForm {
+                        id: issueSearchForm
+                        Layout.fillWidth: true
                         enabled: !page.isProcessing
-                        model: myIssuesModel ? myIssuesModel.issues : []
                         isLoading: myIssuesModel ? myIssuesModel.isLoading : false
-                        selectedIssueKey: page.selectedIssueKey
+                        placeholderText: qsTr("Buscar issues por resumo ou chave...")
 
-                        onIssueSelected: function (issueKey, issueData) {
-                            page.selectedIssueKey = issueKey;
-                            loadIssueDetails(issueKey);
+                        onSearchRequested: function (query) {
+                            page.refreshIssues(query);
+                        }
+                    }
+
+                    Controls.Label {
+                        text: qsTr("Issues atribuídas a você")
+                        font.bold: true
+                        Layout.fillWidth: true
+                    }
+
+                    // Lista de issues usando componente reutilizável
+                    Item {
+                        id: issueListContainer
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+
+                        IssueList {
+                            id: issueList
+                            anchors.fill: parent
+                            enabled: !page.isProcessing
+                            model: myIssuesModel ? myIssuesModel.issues : []
+                            isLoading: myIssuesModel ? myIssuesModel.isLoading : false
+                            selectedIssueKey: page.selectedIssueKey
+
+                            onIssueSelected: function (issueKey, issueData) {
+                                page.selectedIssueKey = issueKey;
+                                loadIssueDetails(issueKey);
+                            }
                         }
                     }
                 }

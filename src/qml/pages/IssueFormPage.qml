@@ -131,259 +131,351 @@ Kirigami.Page {
         }
     }
 
-    Controls.SplitView {
-        id: splitView
+    // Wrapper para ter splitView e overlay de resize como irmãos
+    Item {
         anchors.fill: parent
-        orientation: Qt.Horizontal
 
-        // Coluna Esquerda: Summary, Description e Epic Parent (com split vertical)
         Controls.SplitView {
-            id: leftSplitView
-            Controls.SplitView.preferredWidth: parent.width * 0.6
-            Controls.SplitView.minimumWidth: 400
-            orientation: Qt.Vertical
+            id: splitView
+            anchors.fill: parent
+            orientation: Qt.Horizontal
 
-            // Parte Superior: Summary e Description
-            Item {
-                id: topLeftPane
-                Controls.SplitView.preferredHeight: parent.height * 0.5
-                Controls.SplitView.minimumHeight: 200
+            // Coluna Esquerda: Summary, Description e Epic Parent (ScrollView único com dividers)
+            Controls.ScrollView {
+                id: leftScrollView
+                Controls.SplitView.preferredWidth: parent.width * 0.6
+                Controls.SplitView.minimumWidth: 400
                 clip: true
+                contentWidth: availableWidth
 
-                ColumnLayout {
-                    id: topLeftColumn
-                    anchors.fill: parent
-                    anchors.margins: 20
-                    spacing: Kirigami.Units.largeSpacing
+                // Propriedades para alturas das seções (redimensionáveis via dividers)
+                property real topSectionHeight: 300
+                property real epicSectionHeight: 300
 
-                    // Summary
-                    Controls.Label {
-                        text: "Summary:"
-                        font.bold: true
-                        Layout.fillWidth: true
+                Item {
+                    width: leftScrollView.width
+                    implicitHeight: leftColumn.implicitHeight
+
+                    ColumnLayout {
+                        id: leftColumn
+                        anchors.fill: parent
+                        anchors.leftMargin: 20
+                        anchors.rightMargin: 20
+                        spacing: 0
+
+                        // Seção superior: Summary e Description
+                        ColumnLayout {
+                            id: topSection
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: leftScrollView.topSectionHeight
+                        Layout.minimumHeight: 450
+                        spacing: 0
+
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            // Layout.margins: 20
+                            // Layout.bottomMargin: 10
+                            spacing: Kirigami.Units.smallSpacing
+
+                            Controls.Label {
+                                text: qsTr("Summary:")
+                                font.bold: true
+                                Layout.fillWidth: true
+                            }
+
+                            Controls.TextField {
+                                id: summaryField
+                                Layout.fillWidth: true
+                                enabled: !isProcessing
+                                text: issueModel ? issueModel.summary : ""
+                                onTextChanged: if (issueModel) issueModel.summary = text
+                            }
+                        }
+
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+                            // Layout.margins: 20
+                            // Layout.topMargin: 0
+                            spacing: Kirigami.Units.smallSpacing
+
+                            Controls.Label {
+                                text: qsTr("Description:")
+                                font.bold: true
+                                Layout.fillWidth: true
+                            }
+
+                            Controls.ScrollView {
+                                id: descriptionScrollView
+                                Layout.fillWidth: true
+                                Layout.fillHeight: true
+                                clip: true
+
+                                Controls.TextArea {
+                                    id: descriptionField
+                                    width: descriptionScrollView.availableWidth
+                                    wrapMode: Controls.TextArea.Wrap
+                                    enabled: !isProcessing
+                                    text: issueModel ? issueModel.description : ""
+                                    onTextChanged: if (issueModel) issueModel.description = text
+                                }
+                            }
+                        }
+
+                        Item {
+                            Layout.fillHeight: true
+                            Layout.fillWidth: true
+                        }
                     }
 
-                    Controls.TextField {
-                        id: summaryField
-                        Layout.fillWidth: true
+                        DividerBar {
+                            id: divider1
+                            Layout.fillWidth: true
+                        }
 
-                        enabled: !isProcessing
-                        text: issueModel ? issueModel.summary : ""
-                        onTextChanged: if (issueModel)
-                            issueModel.summary = text
-                    }
+                        // Seção Epic Parent
+                        ColumnLayout {
+                            id: epicSection
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: leftScrollView.epicSectionHeight
+                            Layout.minimumHeight: 450
+                            spacing: Kirigami.Units.smallSpacing
 
-                    // Description (ocupa espaço disponível)
-                    Controls.Label {
-                        text: "Description:"
-                        font.bold: true
-                        Layout.fillWidth: true
-                    }
+                            Controls.Label {
+                                text: qsTr("Epic Parent:")
+                                font.bold: true
+                                Layout.fillWidth: true
+                            }
 
-                    Controls.ScrollView {
-                        id: descriptionScrollView
-                        Layout.fillWidth: true
-                        Layout.fillHeight: true
-                        clip: true
+                            EpicSearchForm {
+                                id: epicSearchForm
+                                Layout.fillWidth: true
+                                Layout.fillHeight: true
+                                enabled: !isProcessing
 
-                        Controls.TextArea {
-                            id: descriptionField
-                            width: descriptionScrollView.availableWidth
-                            wrapMode: Controls.TextArea.Wrap
-                            enabled: !isProcessing
-                            text: issueModel ? issueModel.description : ""
-                            onTextChanged: if (issueModel)
-                                issueModel.description = text
+                                Binding {
+                                    target: epicSearchForm
+                                    property: "jiraService"
+                                    value: typeof jiraService !== "undefined" ? jiraService : null
+                                    when: typeof jiraService !== "undefined"
+                                }
+
+                                Binding {
+                                    target: issueModel
+                                    property: "epicParentKey"
+                                    value: epicSearchForm.selectedEpicKey
+                                    when: issueModel
+                                }
+
+                                Binding {
+                                    target: issueModel
+                                    property: "epicParentSummary"
+                                    value: epicSearchForm.selectedEpicSummary
+                                    when: issueModel
+                                }
+
+                                onEpicSelected: function (key, summary) {
+                                    if (issueModel) {
+                                        issueModel.epicParentKey = key;
+                                        issueModel.epicParentSummary = summary;
+                                    }
+                                    page.epicSelected(key, summary);
+                                }
+
+                                onEpicCleared: {
+                                    page.sharedEpicKey = "";
+                                    page.sharedEpicSummary = "";
+                                    if (issueModel) {
+                                        issueModel.epicParentKey = "";
+                                        issueModel.epicParentSummary = "";
+                                    }
+                                }
+
+                                Binding {
+                                    target: epicSearchForm
+                                    property: "selectedEpicKey"
+                                    value: page.sharedEpicKey
+                                    when: page.sharedEpicKey !== ""
+                                }
+
+                                Binding {
+                                    target: epicSearchForm
+                                    property: "selectedEpicSummary"
+                                    value: page.sharedEpicSummary
+                                    when: page.sharedEpicSummary !== ""
+                                }
+
+                                Binding {
+                                    target: epicSearchForm
+                                    property: "selectedEpicKey"
+                                    value: issueModel ? issueModel.epicParentKey : ""
+                                    when: issueModel
+                                }
+
+                                Binding {
+                                    target: epicSearchForm
+                                    property: "selectedEpicSummary"
+                                    value: issueModel ? issueModel.epicParentSummary : ""
+                                    when: issueModel
+                                }
+                            }
+                        }
+
+                        DividerBar {
+                            id: divider2
+                            Layout.fillWidth: true
+                        }
+
+                        // Espaço final (fillHeight para permitir redimensionamento do epicSection)
+                        Item {
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
                         }
                     }
                 }
             }
 
-            // Parte Inferior: Epic Parent (ocupa espaço disponível)
-            Item {
-                id: bottomLeftPane
-                Controls.SplitView.fillHeight: true
-                Controls.SplitView.minimumHeight: 200
+            // Coluna Direita: Tipo de atividade, Valor entregue, Plataformas afetadas, Documentação anexa, Utilização de IA, Worklog
+            Controls.ScrollView {
+                id: rightScrollView
+                Controls.SplitView.fillWidth: true
+                Controls.SplitView.minimumWidth: 300
                 clip: true
 
-                ColumnLayout {
-                    id: bottomLeftColumn
-                    anchors.fill: parent
-                    anchors.margins: 20
-                    spacing: Kirigami.Units.largeSpacing
+                Item {
+                    width: rightScrollView.availableWidth
+                    implicitHeight: rightColumn.implicitHeight + 40
 
-                    // Epic Parent usando componente reutilizável
-                    EpicSearchForm {
-                        id: epicSearchForm
-                        Layout.fillWidth: true
-                        Layout.fillHeight: true
-                        enabled: !isProcessing
-                        // Binding para garantir que jiraService seja sempre atualizado
-                        Binding {
-                            target: epicSearchForm
-                            property: "jiraService"
-                            value: typeof jiraService !== "undefined" ? jiraService : null
-                            when: typeof jiraService !== "undefined"
-                        }
+                    ColumnLayout {
+                        id: rightColumn
+                        anchors.fill: parent
+                        anchors.leftMargin: 20
+                        spacing: Kirigami.Units.largeSpacing
 
-                        // Bindings bidirecionais com issueModel
-                        Binding {
-                            target: issueModel
-                            property: "epicParentKey"
-                            value: epicSearchForm.selectedEpicKey
-                            when: issueModel
-                        }
-
-                        Binding {
-                            target: issueModel
-                            property: "epicParentSummary"
-                            value: epicSearchForm.selectedEpicSummary
-                            when: issueModel
-                        }
-
-                        // Sincronizar epic selecionado com sharedEpicKey e issueModel
-                        onEpicSelected: function (key, summary) {
-                            if (issueModel) {
-                                issueModel.epicParentKey = key;
-                                issueModel.epicParentSummary = summary;
-                            }
-                            page.epicSelected(key, summary);
-                        }
-
-                        // Limpar sharedEpicKey quando epic é limpo
-                        onEpicCleared: {
-                            page.sharedEpicKey = "";
-                            page.sharedEpicSummary = "";
-                            if (issueModel) {
-                                issueModel.epicParentKey = "";
-                                issueModel.epicParentSummary = "";
+                        // Worklog (Primeiro campo, conforme solicitado)
+                        Controls.CheckBox {
+                            id: worklogCheckbox
+                            text: qsTr("Registrar worklog")
+                            Layout.fillWidth: true
+                            enabled: !isProcessing
+                            checked: issueModel ? issueModel.registrarWorklog : false
+                            onCheckedChanged: {
+                                if (issueModel) {
+                                    issueModel.registrarWorklog = checked;
+                                }
                             }
                         }
 
-                        // Sincronizar epic compartilhado da aba 2
-                        Binding {
-                            target: epicSearchForm
-                            property: "selectedEpicKey"
-                            value: page.sharedEpicKey
-                            when: page.sharedEpicKey !== ""
+                        // WorklogForm (oculto quando checkbox não está marcado)
+                        WorklogForm {
+                            id: worklogForm
+                            Layout.fillWidth: true
+                            enabled: !isProcessing && worklogCheckbox.checked
+                            visible: worklogCheckbox.checked
+                            showCheckbox: false  // Não mostrar checkbox aqui, já temos acima
+
+                            // Bindings bidirecionais com issueModel
+                            Binding {
+                                target: issueModel
+                                property: "worklogInicio"
+                                value: worklogForm.date && worklogForm.time ? worklogForm.date + " " + worklogForm.time : ""
+                                when: issueModel && worklogForm.date && worklogForm.time
+                            }
+
+                            Binding {
+                                target: issueModel
+                                property: "worklogDuracao"
+                                value: Math.round(worklogForm.duration)
+                                when: issueModel
+                            }
+
+                            Binding {
+                                target: issueModel
+                                property: "worklogComment"
+                                value: worklogForm.comment
+                                when: issueModel
+                            }
+
+                            // Binding reverso para inicializar campos
+                            Component.onCompleted: {
+                                if (issueModel && issueModel.worklogInicio) {
+                                    var parts = issueModel.worklogInicio.split(" ");
+                                    if (parts.length >= 2) {
+                                        worklogForm.date = parts[0];
+                                        worklogForm.time = parts[1];
+                                    }
+                                }
+                                if (issueModel) {
+                                    worklogForm.duration = issueModel.worklogDuracao || 30;
+                                    worklogForm.comment = issueModel.worklogComment || "";
+                                }
+                            }
                         }
 
-                        Binding {
-                            target: epicSearchForm
-                            property: "selectedEpicSummary"
-                            value: page.sharedEpicSummary
-                            when: page.sharedEpicSummary !== ""
+                        IssueMetadataFields {
+                            Layout.fillWidth: true
+                            issueModel: page._ctxIssueModel
+                            enabled: !isProcessing
                         }
 
-                        // Binding reverso
-                        Binding {
-                            target: epicSearchForm
-                            property: "selectedEpicKey"
-                            value: issueModel ? issueModel.epicParentKey : ""
-                            when: issueModel
-                        }
-
-                        Binding {
-                            target: epicSearchForm
-                            property: "selectedEpicSummary"
-                            value: issueModel ? issueModel.epicParentSummary : ""
-                            when: issueModel
+                        // Espaço extra no final para não "comer" o último campo
+                        Item {
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: Kirigami.Units.largeSpacing * 2
                         }
                     }
                 }
             }
         }
 
-        // Coluna Direita: Tipo de atividade, Valor entregue, Plataformas afetadas, Documentação anexa, Utilização de IA, Worklog
-        Controls.ScrollView {
-            id: rightScrollView
-            Controls.SplitView.fillWidth: true
-            Controls.SplitView.minimumWidth: 300
-            clip: true
-            // Removed padding: 20
+        // Overlay para redimensionar dividers (irmão do splitView, cobre só a coluna esquerda)
+        Item {
+            id: resizeOverlay
+            z: 10
+            anchors.left: parent.left
+            anchors.top: parent.top
+            anchors.bottom: parent.bottom
+            width: leftScrollView.width
+            property int activeDivider: 0
+            property real startGlobalY: 0
+            property real startHeight: 0
 
-            Item {
-                width: rightScrollView.availableWidth
-                implicitHeight: rightColumn.implicitHeight + 40
-
-                ColumnLayout {
-                    id: rightColumn
-                    anchors.fill: parent
-                    anchors.margins: 20
-                    spacing: Kirigami.Units.largeSpacing
-
-                    // Worklog (Primeiro campo, conforme solicitado)
-                    Controls.CheckBox {
-                        id: worklogCheckbox
-                        text: qsTr("Registrar worklog")
-                        Layout.fillWidth: true
-                        enabled: !isProcessing
-                        checked: issueModel ? issueModel.registrarWorklog : false
-                        onCheckedChanged: {
-                            if (issueModel) {
-                                issueModel.registrarWorklog = checked;
-                            }
-                        }
+            MouseArea {
+                anchors.fill: parent
+                hoverEnabled: false
+                cursorShape: parent.activeDivider ? Qt.SizeVerCursor : Qt.ArrowCursor
+                onPressed: function (mouse) {
+                    var margin = 8;
+                    var p1 = divider1.mapToItem(resizeOverlay, 0, 0);
+                    if (mouse.y >= p1.y - margin && mouse.y < p1.y + divider1.height + margin) {
+                        resizeOverlay.activeDivider = 1;
+                        resizeOverlay.startGlobalY = resizeOverlay.mapToGlobal(mouse.x, mouse.y).y;
+                        resizeOverlay.startHeight = leftScrollView.topSectionHeight;
+                        mouse.accepted = true;
+                        return;
                     }
-
-                    // WorklogForm (oculto quando checkbox não está marcado)
-                    WorklogForm {
-                        id: worklogForm
-                        Layout.fillWidth: true
-
-                        enabled: !isProcessing && worklogCheckbox.checked
-                        visible: worklogCheckbox.checked
-                        showCheckbox: false  // Não mostrar checkbox aqui, já temos acima
-
-                        // Bindings bidirecionais com issueModel
-                        Binding {
-                            target: issueModel
-                            property: "worklogInicio"
-                            value: worklogForm.date && worklogForm.time ? worklogForm.date + " " + worklogForm.time : ""
-                            when: issueModel && worklogForm.date && worklogForm.time
-                        }
-
-                        Binding {
-                            target: issueModel
-                            property: "worklogDuracao"
-                            value: Math.round(worklogForm.duration)
-                            when: issueModel
-                        }
-
-                        Binding {
-                            target: issueModel
-                            property: "worklogComment"
-                            value: worklogForm.comment
-                            when: issueModel
-                        }
-
-                        // Binding reverso para inicializar campos
-                        Component.onCompleted: {
-                            if (issueModel && issueModel.worklogInicio) {
-                                var parts = issueModel.worklogInicio.split(" ");
-                                if (parts.length >= 2) {
-                                    worklogForm.date = parts[0];
-                                    worklogForm.time = parts[1];
-                                }
-                            }
-                            if (issueModel) {
-                                worklogForm.duration = issueModel.worklogDuracao || 30;
-                                worklogForm.comment = issueModel.worklogComment || "";
-                            }
-                        }
+                    var p2 = divider2.mapToItem(resizeOverlay, 0, 0);
+                    if (mouse.y >= p2.y - margin && mouse.y < p2.y + divider2.height + margin) {
+                        resizeOverlay.activeDivider = 2;
+                        resizeOverlay.startGlobalY = resizeOverlay.mapToGlobal(mouse.x, mouse.y).y;
+                        resizeOverlay.startHeight = leftScrollView.epicSectionHeight;
+                        mouse.accepted = true;
+                        return;
                     }
-
-                    IssueMetadataFields {
-                        Layout.fillWidth: true
-                        issueModel: page._ctxIssueModel
-                        enabled: !isProcessing
+                    mouse.accepted = false;
+                }
+                onPositionChanged: function (mouse) {
+                    if (resizeOverlay.activeDivider === 0) return;
+                    var cur = resizeOverlay.mapToGlobal(mouse.x, mouse.y).y;
+                    var delta = cur - resizeOverlay.startGlobalY;
+                    if (resizeOverlay.activeDivider === 1) {
+                        leftScrollView.topSectionHeight = Math.max(150, resizeOverlay.startHeight + delta);
+                    } else if (resizeOverlay.activeDivider === 2) {
+                        leftScrollView.epicSectionHeight = Math.max(150, resizeOverlay.startHeight + delta);
                     }
-
-                    // Espaço extra no final para não "comer" o último campo
-                    Item {
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: Kirigami.Units.largeSpacing * 2
-                    }
+                }
+                onReleased: {
+                    resizeOverlay.activeDivider = 0;
                 }
             }
         }

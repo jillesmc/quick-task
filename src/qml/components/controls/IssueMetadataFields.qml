@@ -21,7 +21,7 @@ ColumnLayout {
     GridLayout {
         id: metadataGrid
         Layout.fillWidth: true
-        Layout.margins: 20
+        // Layout.margins: 20
         columnSpacing: Kirigami.Units.largeSpacing
         rowSpacing: Kirigami.Units.largeSpacing
         columns: width > 650 ? 2 : 1
@@ -208,8 +208,8 @@ ColumnLayout {
     // Plataformas Afetadas
     ColumnLayout {
         Layout.fillWidth: true
-        Layout.margins: 20
-        Layout.topMargin: 0
+        // Layout.margins: 20
+        // Layout.topMargin: 0
         spacing: Kirigami.Units.smallSpacing
 
         Controls.Label {

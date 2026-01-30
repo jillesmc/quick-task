@@ -55,17 +55,12 @@ ColumnLayout {
 
     spacing: Kirigami.Units.smallSpacing
 
-    Kirigami.Heading {
-        text: qsTr("Epic Parent (opcional)")
-        level: 3
+    // Checkboxes de filtro (2 colunas)
+    GridLayout {
         Layout.fillWidth: true
-        Layout.alignment: Qt.AlignLeft | Qt.AlignTop
-    }
-
-    // Checkboxes de filtro
-    ColumnLayout {
-        Layout.fillWidth: true
-        spacing: Kirigami.Units.smallSpacing
+        columns: 2
+        columnSpacing: Kirigami.Units.largeSpacing
+        rowSpacing: Kirigami.Units.smallSpacing
 
         Controls.CheckBox {
             id: filterCreatedByMeCheckbox
@@ -75,7 +70,6 @@ ColumnLayout {
             onToggled: {
                 root.filterCreatedByMe = checked;
                 root.saveFilters();
-                // Se houver busca anterior, limpar e refazer busca com novos filtros
                 if (epicList.model && epicList.model.length > 0) {
                     epicList.model = [];
                     var q = searchField.text ? searchField.text.trim() : "";
@@ -93,7 +87,6 @@ ColumnLayout {
             onToggled: {
                 root.filterAssignedToMe = checked;
                 root.saveFilters();
-                // Se houver busca anterior, limpar e refazer busca com novos filtros
                 if (epicList.model && epicList.model.length > 0) {
                     epicList.model = [];
                     var q = searchField.text ? searchField.text.trim() : "";
@@ -111,7 +104,6 @@ ColumnLayout {
             onToggled: {
                 root.filterProjectPlatform = checked;
                 root.saveFilters();
-                // Se houver busca anterior, limpar e refazer busca com novos filtros
                 if (epicList.model && epicList.model.length > 0) {
                     epicList.model = [];
                     var q = searchField.text ? searchField.text.trim() : "";
@@ -129,7 +121,6 @@ ColumnLayout {
             onToggled: {
                 root.filterExcludeDone = checked;
                 root.saveFilters();
-                // Se houver busca anterior, limpar e refazer busca com novos filtros
                 if (epicList.model && epicList.model.length > 0) {
                     epicList.model = [];
                     var q = searchField.text ? searchField.text.trim() : "";

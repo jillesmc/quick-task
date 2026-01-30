@@ -135,296 +135,307 @@ Item {
         }
     }
 
+    // Mesma hierarquia que IssueFormPage: ScrollView > Item > ColumnLayout (margens no ColumnLayout)
     Controls.ScrollView {
         id: mainDetailsScrollView
         anchors.fill: parent
         clip: true
         contentWidth: availableWidth
 
-        ColumnLayout {
+        Item {
             width: mainDetailsScrollView.availableWidth
-            spacing: 0
+            implicitHeight: contentColumn.implicitHeight
 
             ColumnLayout {
-                id: topSection
-                Layout.fillWidth: true
-                Layout.preferredHeight: pane.topSectionHeight
-                Layout.minimumHeight: 150
+                id: contentColumn
+                anchors.fill: parent
+                anchors.leftMargin: 20
+                anchors.rightMargin: 20
                 spacing: 0
 
-                RowLayout {
+                ColumnLayout {
+                    id: topSection
                     Layout.fillWidth: true
-                    Layout.margins: 20
-                    Layout.bottomMargin: 5
+                    Layout.preferredHeight: pane.topSectionHeight
+                    Layout.minimumHeight: 150
+                    spacing: 0
 
-                    Kirigami.Heading {
-                        text: qsTr("Atualizar Task")
-                        level: 3
+                    RowLayout {
                         Layout.fillWidth: true
-                    }
+                        // Layout.margins: 20
+                        // Layout.bottomMargin: 5
 
-                    Controls.Label {
-                        id: taskLinkLabel
-                        text: pane.selectedIssueKey || ""
-                        color: Kirigami.Theme.linkColor
-                        visible: pane.selectedIssueKey !== ""
-                        MouseArea {
-                            anchors.fill: parent
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: {
-                                if (pane.jiraService && pane.selectedIssueKey && typeof pane.jiraService.getIssueUrl === 'function') {
-                                    var url = pane.jiraService.getIssueUrl(pane.selectedIssueKey);
-                                    if (url) {
-                                        Qt.openUrlExternally(url);
+                        Kirigami.Heading {
+                            text: qsTr("Atualizar Task")
+                            level: 3
+                            Layout.fillWidth: true
+                        }
+
+                        Controls.Label {
+                            id: taskLinkLabel
+                            text: pane.selectedIssueKey || ""
+                            color: Kirigami.Theme.linkColor
+                            visible: pane.selectedIssueKey !== ""
+                            MouseArea {
+                                anchors.fill: parent
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    if (pane.jiraService && pane.selectedIssueKey && typeof pane.jiraService.getIssueUrl === 'function') {
+                                        var url = pane.jiraService.getIssueUrl(pane.selectedIssueKey);
+                                        if (url) {
+                                            Qt.openUrlExternally(url);
+                                        }
                                     }
                                 }
                             }
                         }
                     }
-                }
 
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    Layout.margins: 20
-                    Layout.topMargin: 0
-                    Layout.bottomMargin: 10
-                    spacing: Kirigami.Units.smallSpacing
-
-                    Controls.Label {
-                        text: qsTr("Summary:")
-                        font.bold: true
+                    ColumnLayout {
                         Layout.fillWidth: true
+                        // Layout.margins: 20
+                        // Layout.topMargin: 0
+                        // Layout.bottomMargin: 10
+                        spacing: Kirigami.Units.smallSpacing
+
+                        Controls.Label {
+                            text: qsTr("Summary:")
+                            font.bold: true
+                            Layout.fillWidth: true
+                        }
+
+                        Controls.TextField {
+                            id: summaryFieldTab2
+                            Layout.fillWidth: true
+                            enabled: pane.selectedIssueKey !== "" && !pane.isProcessing
+                            text: pane.issueModel ? pane.issueModel.summary : ""
+                            onTextChanged: if (pane.issueModel)
+                                pane.issueModel.summary = text
+                        }
                     }
 
-                    Controls.TextField {
-                        id: summaryFieldTab2
-                        Layout.fillWidth: true
-                        enabled: pane.selectedIssueKey !== "" && !pane.isProcessing
-                        text: pane.issueModel ? pane.issueModel.summary : ""
-                        onTextChanged: if (pane.issueModel) pane.issueModel.summary = text
-                    }
-                }
-
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    Layout.margins: 20
-                    Layout.topMargin: 0
-                    spacing: Kirigami.Units.smallSpacing
-
-                    Controls.Label {
-                        text: qsTr("Description:")
-                        font.bold: true
-                        Layout.fillWidth: true
-                    }
-
-                    Controls.ScrollView {
-                        id: descriptionScrollView
+                    ColumnLayout {
                         Layout.fillWidth: true
                         Layout.fillHeight: true
-                        clip: true
+                        // Layout.margins: 20
+                        // Layout.topMargin: 0
+                        spacing: Kirigami.Units.smallSpacing
 
-                        Controls.TextArea {
-                            id: descriptionFieldTab2
-                            width: descriptionScrollView.availableWidth
-                            wrapMode: Controls.TextArea.Wrap
-                            enabled: pane.selectedIssueKey !== "" && !pane.isProcessing
-                            text: pane.issueModel ? pane.issueModel.description : ""
-                            onTextChanged: if (pane.issueModel) pane.issueModel.description = text
+                        Controls.Label {
+                            text: qsTr("Description:")
+                            font.bold: true
+                            Layout.fillWidth: true
                         }
-                    }
-                }
 
-                Item {
-                    Layout.fillHeight: true
-                    Layout.fillWidth: true
-                }
-            }
+                        Controls.ScrollView {
+                            id: descriptionScrollView
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+                            clip: true
 
-            DividerBar {
-                id: divider1
-                Layout.fillWidth: true
-            }
-
-            ColumnLayout {
-                id: epicSection
-                Layout.fillWidth: true
-                Layout.preferredHeight: pane.epicSectionHeight
-                Layout.minimumHeight: 150
-                spacing: Kirigami.Units.smallSpacing
-
-                Controls.Label {
-                    text: qsTr("Epic Parent:")
-                    font.bold: true
-                    Layout.fillWidth: true
-                    Layout.leftMargin: 20
-                    Layout.topMargin: 10
-                }
-
-                EpicSearchForm {
-                    id: epicSearchForm
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    Layout.margins: 20
-                    Layout.topMargin: 0
-                    enabled: pane.selectedIssueKey !== "" && !pane.isProcessing
-
-                    Binding {
-                        target: epicSearchForm
-                        property: "jiraService"
-                        value: pane.jiraService
-                        when: pane.jiraService !== null
-                    }
-
-                    onEpicSelected: function (key, summary) {
-                        pane.epicSelected(key, summary);
-                        if (pane.issueModel) {
-                            pane.issueModel.epicParentKey = key;
-                            pane.issueModel.epicParentSummary = summary;
+                            Controls.TextArea {
+                                id: descriptionFieldTab2
+                                width: descriptionScrollView.availableWidth
+                                wrapMode: Controls.TextArea.Wrap
+                                enabled: pane.selectedIssueKey !== "" && !pane.isProcessing
+                                text: pane.issueModel ? pane.issueModel.description : ""
+                                onTextChanged: if (pane.issueModel)
+                                    pane.issueModel.description = text
+                            }
                         }
                     }
 
-                    onEpicCleared: {
-                        pane.sharedEpicKey = "";
-                        pane.sharedEpicSummary = "";
-                        if (pane.issueModel) {
-                            pane.issueModel.epicParentKey = "";
-                            pane.issueModel.epicParentSummary = "";
-                        }
-                    }
-
-                    Binding {
-                        target: epicSearchForm
-                        property: "selectedEpicKey"
-                        value: pane.sharedEpicKey
-                        when: pane.sharedEpicKey !== "" && pane.sharedEpicKey !== epicSearchForm.selectedEpicKey
-                    }
-
-                    Binding {
-                        target: epicSearchForm
-                        property: "selectedEpicSummary"
-                        value: pane.sharedEpicSummary
-                        when: pane.sharedEpicSummary !== "" && pane.sharedEpicSummary !== epicSearchForm.selectedEpicSummary
-                    }
-
-                    Binding {
-                        target: epicSearchForm
-                        property: "selectedEpicKey"
-                        value: pane.issueModel ? pane.issueModel.epicParentKey : ""
-                        when: pane.issueModel
-                    }
-
-                    Binding {
-                        target: epicSearchForm
-                        property: "selectedEpicSummary"
-                        value: pane.issueModel ? pane.issueModel.epicParentSummary : ""
-                        when: pane.issueModel
-                    }
-
-                    Binding {
-                        target: pane.issueModel
-                        property: "epicParentKey"
-                        value: epicSearchForm.selectedEpicKey
-                        when: pane.issueModel
-                    }
-
-                    Binding {
-                        target: pane.issueModel
-                        property: "epicParentSummary"
-                        value: epicSearchForm.selectedEpicSummary
-                        when: pane.issueModel
+                    Item {
+                        Layout.fillHeight: true
+                        Layout.fillWidth: true
                     }
                 }
 
-                Item {
-                    Layout.fillHeight: true
+                DividerBar {
+                    id: divider1
                     Layout.fillWidth: true
                 }
-            }
-
-            DividerBar {
-                id: divider2
-                Layout.fillWidth: true
-            }
-
-            ColumnLayout {
-                id: bottomColumnLayout
-                Layout.fillWidth: true
-                spacing: 0
 
                 ColumnLayout {
+                    id: epicSection
                     Layout.fillWidth: true
-                    Layout.margins: 20
-                    Layout.topMargin: 10
-                    Layout.bottomMargin: 10
+                    Layout.preferredHeight: pane.epicSectionHeight
+                    Layout.minimumHeight: 150
                     spacing: Kirigami.Units.smallSpacing
 
-                    Controls.CheckBox {
-                        id: worklogCheckboxTab2
-                        text: qsTr("Registrar worklog")
+                    Controls.Label {
+                        text: qsTr("Epic Parent:")
+                        font.bold: true
                         Layout.fillWidth: true
+                        // Layout.leftMargin: 20
+                        // Layout.topMargin: 10
+                    }
+
+                    EpicSearchForm {
+                        id: epicSearchForm
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        // Layout.margins: 20
+                        // Layout.topMargin: 0
                         enabled: pane.selectedIssueKey !== "" && !pane.isProcessing
-                        checked: pane.issueModel ? pane.issueModel.registrarWorklog : false
-                        onCheckedChanged: {
+
+                        Binding {
+                            target: epicSearchForm
+                            property: "jiraService"
+                            value: pane.jiraService
+                            when: pane.jiraService !== null
+                        }
+
+                        onEpicSelected: function (key, summary) {
+                            pane.epicSelected(key, summary);
                             if (pane.issueModel) {
-                                pane.issueModel.registrarWorklog = checked;
+                                pane.issueModel.epicParentKey = key;
+                                pane.issueModel.epicParentSummary = summary;
                             }
+                        }
+
+                        onEpicCleared: {
+                            pane.sharedEpicKey = "";
+                            pane.sharedEpicSummary = "";
+                            if (pane.issueModel) {
+                                pane.issueModel.epicParentKey = "";
+                                pane.issueModel.epicParentSummary = "";
+                            }
+                        }
+
+                        Binding {
+                            target: epicSearchForm
+                            property: "selectedEpicKey"
+                            value: pane.sharedEpicKey
+                            when: pane.sharedEpicKey !== "" && pane.sharedEpicKey !== epicSearchForm.selectedEpicKey
+                        }
+
+                        Binding {
+                            target: epicSearchForm
+                            property: "selectedEpicSummary"
+                            value: pane.sharedEpicSummary
+                            when: pane.sharedEpicSummary !== "" && pane.sharedEpicSummary !== epicSearchForm.selectedEpicSummary
+                        }
+
+                        Binding {
+                            target: epicSearchForm
+                            property: "selectedEpicKey"
+                            value: pane.issueModel ? pane.issueModel.epicParentKey : ""
+                            when: pane.issueModel
+                        }
+
+                        Binding {
+                            target: epicSearchForm
+                            property: "selectedEpicSummary"
+                            value: pane.issueModel ? pane.issueModel.epicParentSummary : ""
+                            when: pane.issueModel
+                        }
+
+                        Binding {
+                            target: pane.issueModel
+                            property: "epicParentKey"
+                            value: epicSearchForm.selectedEpicKey
+                            when: pane.issueModel
+                        }
+
+                        Binding {
+                            target: pane.issueModel
+                            property: "epicParentSummary"
+                            value: epicSearchForm.selectedEpicSummary
+                            when: pane.issueModel
                         }
                     }
 
-                    WorklogForm {
-                        id: worklogForm
+                    Item {
+                        Layout.fillHeight: true
                         Layout.fillWidth: true
-                        enabled: pane.selectedIssueKey !== "" && !pane.isProcessing && worklogCheckboxTab2.checked
-                        visible: worklogCheckboxTab2.checked
-                        showCheckbox: false
+                    }
+                }
 
-                        Binding {
-                            target: pane.issueModel
-                            property: "worklogInicio"
-                            value: worklogForm.date && worklogForm.time ? worklogForm.date + " " + worklogForm.time : ""
-                            when: pane.issueModel && worklogForm.date && worklogForm.time
-                        }
+                DividerBar {
+                    id: divider2
+                    Layout.fillWidth: true
+                }
 
-                        Binding {
-                            target: pane.issueModel
-                            property: "worklogDuracao"
-                            value: Math.round(worklogForm.duration)
-                            when: pane.issueModel
-                        }
+                ColumnLayout {
+                    id: bottomColumnLayout
+                    Layout.fillWidth: true
+                    spacing: 0
 
-                        Binding {
-                            target: pane.issueModel
-                            property: "worklogComment"
-                            value: worklogForm.comment
-                            when: pane.issueModel
-                        }
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        // Layout.margins: 20
+                        // Layout.topMargin: 10
+                        // Layout.bottomMargin: 10
+                        spacing: Kirigami.Units.smallSpacing
 
-                        Component.onCompleted: {
-                            if (pane.issueModel && pane.issueModel.worklogInicio) {
-                                var parts = pane.issueModel.worklogInicio.split(" ");
-                                if (parts.length >= 2) {
-                                    worklogForm.date = parts[0];
-                                    worklogForm.time = parts[1];
+                        Controls.CheckBox {
+                            id: worklogCheckboxTab2
+                            text: qsTr("Registrar worklog")
+                            Layout.fillWidth: true
+                            enabled: pane.selectedIssueKey !== "" && !pane.isProcessing
+                            checked: pane.issueModel ? pane.issueModel.registrarWorklog : false
+                            onCheckedChanged: {
+                                if (pane.issueModel) {
+                                    pane.issueModel.registrarWorklog = checked;
                                 }
                             }
-                            if (pane.issueModel) {
-                                worklogForm.duration = pane.issueModel.worklogDuracao || 30;
-                                worklogForm.comment = pane.issueModel.worklogComment || "";
+                        }
+
+                        WorklogForm {
+                            id: worklogForm
+                            Layout.fillWidth: true
+                            enabled: pane.selectedIssueKey !== "" && !pane.isProcessing && worklogCheckboxTab2.checked
+                            visible: worklogCheckboxTab2.checked
+                            showCheckbox: false
+
+                            Binding {
+                                target: pane.issueModel
+                                property: "worklogInicio"
+                                value: worklogForm.date && worklogForm.time ? worklogForm.date + " " + worklogForm.time : ""
+                                when: pane.issueModel && worklogForm.date && worklogForm.time
+                            }
+
+                            Binding {
+                                target: pane.issueModel
+                                property: "worklogDuracao"
+                                value: Math.round(worklogForm.duration)
+                                when: pane.issueModel
+                            }
+
+                            Binding {
+                                target: pane.issueModel
+                                property: "worklogComment"
+                                value: worklogForm.comment
+                                when: pane.issueModel
+                            }
+
+                            Component.onCompleted: {
+                                if (pane.issueModel && pane.issueModel.worklogInicio) {
+                                    var parts = pane.issueModel.worklogInicio.split(" ");
+                                    if (parts.length >= 2) {
+                                        worklogForm.date = parts[0];
+                                        worklogForm.time = parts[1];
+                                    }
+                                }
+                                if (pane.issueModel) {
+                                    worklogForm.duration = pane.issueModel.worklogDuracao || 30;
+                                    worklogForm.comment = pane.issueModel.worklogComment || "";
+                                }
                             }
                         }
                     }
-                }
 
-                IssueMetadataFields {
-                    Layout.fillWidth: true
-                    issueModel: pane.issueModel
-                    enabled: pane.selectedIssueKey !== "" && !pane.isProcessing
-                }
+                    IssueMetadataFields {
+                        Layout.fillWidth: true
+                        issueModel: pane.issueModel
+                        enabled: pane.selectedIssueKey !== "" && !pane.isProcessing
+                    }
 
-                Item {
-                    Layout.fillHeight: true
-                    Layout.fillWidth: true
+                    Item {
+                        Layout.fillHeight: true
+                        Layout.fillWidth: true
+                    }
                 }
             }
         }
@@ -463,7 +474,8 @@ Item {
                 mouse.accepted = false;
             }
             onPositionChanged: function (mouse) {
-                if (resizeOverlay.activeDivider === 0) return;
+                if (resizeOverlay.activeDivider === 0)
+                    return;
                 var cur = resizeOverlay.mapToGlobal(mouse.x, mouse.y).y;
                 var delta = cur - resizeOverlay.startGlobalY;
                 if (resizeOverlay.activeDivider === 1) {
