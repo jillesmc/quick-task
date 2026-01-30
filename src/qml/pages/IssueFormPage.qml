@@ -39,6 +39,7 @@ Kirigami.Page {
 
     // Intermediário para evitar binding loop ao passar context property ao IssueMetadataFields
     property var _ctxIssueModel: issueModel
+    property var _ctxJiraService: jiraService
 
     // ------------------------------------------------------------------
     // Funções públicas para integração com Main.qml (botão global)
@@ -47,15 +48,15 @@ Kirigami.Page {
         // Mantém a mesma semântica original:
         // - Só cria se não estiver processando
         // - Valida antes de chamar o serviço
-        if (!isProcessing && controller && controller.validate()) {
-            controller.createIssue();
+        if (!page.isProcessing && page.controller && page.controller.validate()) {
+            page.controller.createIssue();
         }
     }
 
     // Função pública para cancelar (usada pelo botão global e pela tecla ESC)
     // Esconde a janela ao invés de fechar a aplicação
     function onCancelRequested() {
-        if (!isProcessing) {
+        if (!page.isProcessing) {
             if (typeof hideWindow === "function") {
                 hideWindow();  // Esconde a janela (minimiza ao tray)
             }
@@ -77,42 +78,42 @@ Kirigami.Page {
 
     // Definir foco inicial no campo Summary quando a página for carregada
     Component.onCompleted: {
-        summaryField.forceActiveFocus();
+        page.summaryField.forceActiveFocus();
 
         // Inicializar worklog com data/hora atual se não estiver definido
-        if (issueModel && (!issueModel.worklogInicio || issueModel.worklogInicio === "")) {
+        if (page._ctxIssueModel && (!page._ctxIssueModel.worklogInicio || page._ctxIssueModel.worklogInicio === "")) {
             var now = new Date();
             var dateStr = Qt.formatDateTime(now, "yyyy-MM-dd");
             var timeStr = Qt.formatDateTime(now, "HH:mm:ss");
-            issueModel.worklogInicio = dateStr + " " + timeStr;
+            page._ctxIssueModel.worklogInicio = dateStr + " " + timeStr;
         }
 
         // Criar controller
         var component = Qt.createComponent("../controllers/IssueFormController.qml");
         if (component.status === Component.Ready) {
-            controller = component.createObject(page, {
-                jiraService: jiraService,
-                issueModel: issueModel,
+            page.controller = component.createObject(page, {
+                jiraService: page._ctxJiraService,
+                issueModel: page._ctxIssueModel,
                 enabled: true
             });
 
             // Conectar signals do controller
-            controller.createStarted.connect(function () {
-                isProcessing = true;
+            page.controller.createStarted.connect(function () {
+                page.isProcessing = true;
                 page.progressDialog = DialogHelpers.showProgress(page, "../components/dialogs/ProgressDialog.qml");
             });
 
-            controller.createCompleted.connect(function (issueKey, issueUrl) {
-                isProcessing = false;
+            page.controller.createCompleted.connect(function (issueKey, issueUrl) {
+                page.isProcessing = false;
                 DialogHelpers.hideProgress(page.progressDialog);
                 page.progressDialog = null;
                 DialogHelpers.showSuccess(page, "../components/dialogs/SuccessDialog.qml", issueKey, issueUrl || "", false);
-                resetForm();
+                page.resetForm();
                 page.issueCreated(issueKey);
             });
 
-            controller.createFailed.connect(function (errorMessage) {
-                isProcessing = false;
+            page.controller.createFailed.connect(function (errorMessage) {
+                page.isProcessing = false;
                 DialogHelpers.hideProgress(page.progressDialog);
                 page.progressDialog = null;
                 DialogHelpers.showError(page, "../components/dialogs/ErrorDialog.qml", errorMessage);
@@ -122,11 +123,11 @@ Kirigami.Page {
 
     // Conectar signals do jiraService para progresso
     Connections {
-        target: jiraService
+        target: page._ctxJiraService
 
         function onProgressUpdated(percentage, message) {
-            if (progressDialog) {
-                progressDialog.updateProgress(percentage, message);
+            if (page.progressDialog) {
+                page.progressDialog.updateProgress(percentage, message);
             }
         }
     }
@@ -188,8 +189,8 @@ Kirigami.Page {
                                 id: summaryField
                                 Layout.fillWidth: true
                                 enabled: !isProcessing
-                                text: issueModel ? issueModel.summary : ""
-                                onTextChanged: if (issueModel) issueModel.summary = text
+                                text: page._ctxIssueModel ? page._ctxIssueModel.summary : ""
+                                onTextChanged: if (page._ctxIssueModel) page._ctxIssueModel.summary = text
                             }
                         }
 
@@ -217,8 +218,8 @@ Kirigami.Page {
                                     width: descriptionScrollView.availableWidth
                                     wrapMode: Controls.TextArea.Wrap
                                     enabled: !isProcessing
-                                    text: issueModel ? issueModel.description : ""
-                                    onTextChanged: if (issueModel) issueModel.description = text
+                                    text: page._ctxIssueModel ? page._ctxIssueModel.description : ""
+                                    onTextChanged: if (page._ctxIssueModel) page._ctxIssueModel.description = text
                                 }
                             }
                         }
@@ -255,30 +256,30 @@ Kirigami.Page {
                                 enabled: !isProcessing
 
                                 Binding {
-                                    target: epicSearchForm
+                                    target: page.epicSearchForm
                                     property: "jiraService"
                                     value: typeof jiraService !== "undefined" ? jiraService : null
                                     when: typeof jiraService !== "undefined"
                                 }
 
                                 Binding {
-                                    target: issueModel
+                                    target: page._ctxIssueModel
                                     property: "epicParentKey"
-                                    value: epicSearchForm.selectedEpicKey
-                                    when: issueModel
+                                    value: page.epicSearchForm.selectedEpicKey
+                                    when: page._ctxIssueModel
                                 }
 
                                 Binding {
-                                    target: issueModel
+                                    target: page._ctxIssueModel
                                     property: "epicParentSummary"
-                                    value: epicSearchForm.selectedEpicSummary
-                                    when: issueModel
+                                    value: page.epicSearchForm.selectedEpicSummary
+                                    when: page._ctxIssueModel
                                 }
 
                                 onEpicSelected: function (key, summary) {
-                                    if (issueModel) {
-                                        issueModel.epicParentKey = key;
-                                        issueModel.epicParentSummary = summary;
+                                    if (page._ctxIssueModel) {
+                                        page._ctxIssueModel.epicParentKey = key;
+                                        page._ctxIssueModel.epicParentSummary = summary;
                                     }
                                     page.epicSelected(key, summary);
                                 }
@@ -286,38 +287,38 @@ Kirigami.Page {
                                 onEpicCleared: {
                                     page.sharedEpicKey = "";
                                     page.sharedEpicSummary = "";
-                                    if (issueModel) {
-                                        issueModel.epicParentKey = "";
-                                        issueModel.epicParentSummary = "";
+                                    if (page._ctxIssueModel) {
+                                        page._ctxIssueModel.epicParentKey = "";
+                                        page._ctxIssueModel.epicParentSummary = "";
                                     }
                                 }
 
                                 Binding {
-                                    target: epicSearchForm
+                                    target: page.epicSearchForm
                                     property: "selectedEpicKey"
                                     value: page.sharedEpicKey
                                     when: page.sharedEpicKey !== ""
                                 }
 
                                 Binding {
-                                    target: epicSearchForm
+                                    target: page.epicSearchForm
                                     property: "selectedEpicSummary"
                                     value: page.sharedEpicSummary
                                     when: page.sharedEpicSummary !== ""
                                 }
 
                                 Binding {
-                                    target: epicSearchForm
+                                    target: page.epicSearchForm
                                     property: "selectedEpicKey"
-                                    value: issueModel ? issueModel.epicParentKey : ""
-                                    when: issueModel
+                                    value: page._ctxIssueModel ? page._ctxIssueModel.epicParentKey : ""
+                                    when: page._ctxIssueModel
                                 }
 
                                 Binding {
-                                    target: epicSearchForm
+                                    target: page.epicSearchForm
                                     property: "selectedEpicSummary"
-                                    value: issueModel ? issueModel.epicParentSummary : ""
-                                    when: issueModel
+                                    value: page._ctxIssueModel ? page._ctxIssueModel.epicParentSummary : ""
+                                    when: page._ctxIssueModel
                                 }
                             }
                         }
@@ -359,10 +360,10 @@ Kirigami.Page {
                             text: qsTr("Registrar worklog")
                             Layout.fillWidth: true
                             enabled: !isProcessing
-                            checked: issueModel ? issueModel.registrarWorklog : false
+                            checked: page._ctxIssueModel ? page._ctxIssueModel.registrarWorklog : false
                             onCheckedChanged: {
-                                if (issueModel) {
-                                    issueModel.registrarWorklog = checked;
+                                if (page._ctxIssueModel) {
+                                    page._ctxIssueModel.registrarWorklog = checked;
                                 }
                             }
                         }
@@ -377,38 +378,38 @@ Kirigami.Page {
 
                             // Bindings bidirecionais com issueModel
                             Binding {
-                                target: issueModel
+                                target: page._ctxIssueModel
                                 property: "worklogInicio"
-                                value: worklogForm.date && worklogForm.time ? worklogForm.date + " " + worklogForm.time : ""
-                                when: issueModel && worklogForm.date && worklogForm.time
+                                value: page.worklogForm.date && page.worklogForm.time ? page.worklogForm.date + " " + page.worklogForm.time : ""
+                                when: page._ctxIssueModel && page.worklogForm.date && page.worklogForm.time
                             }
 
                             Binding {
-                                target: issueModel
+                                target: page._ctxIssueModel
                                 property: "worklogDuracao"
-                                value: Math.round(worklogForm.duration)
-                                when: issueModel
+                                value: Math.round(page.worklogForm.duration)
+                                when: page._ctxIssueModel
                             }
 
                             Binding {
-                                target: issueModel
+                                target: page._ctxIssueModel
                                 property: "worklogComment"
-                                value: worklogForm.comment
-                                when: issueModel
+                                value: page.worklogForm.comment
+                                when: page._ctxIssueModel
                             }
 
                             // Binding reverso para inicializar campos
                             Component.onCompleted: {
-                                if (issueModel && issueModel.worklogInicio) {
-                                    var parts = issueModel.worklogInicio.split(" ");
+                                if (page._ctxIssueModel && page._ctxIssueModel.worklogInicio) {
+                                    var parts = page._ctxIssueModel.worklogInicio.split(" ");
                                     if (parts.length >= 2) {
-                                        worklogForm.date = parts[0];
-                                        worklogForm.time = parts[1];
+                                        page.worklogForm.date = parts[0];
+                                        page.worklogForm.time = parts[1];
                                     }
                                 }
-                                if (issueModel) {
-                                    worklogForm.duration = issueModel.worklogDuracao || 30;
-                                    worklogForm.comment = issueModel.worklogComment || "";
+                                if (page._ctxIssueModel) {
+                                    page.worklogForm.duration = page._ctxIssueModel.worklogDuracao || 30;
+                                    page.worklogForm.comment = page._ctxIssueModel.worklogComment || "";
                                 }
                             }
                         }
@@ -485,60 +486,60 @@ Kirigami.Page {
     // Funções auxiliares
     function resetForm() {
         // Resetar campos para valores padrão
-        if (issueModel) {
-            issueModel.summary = "";
-            issueModel.description = "";
+        if (page._ctxIssueModel) {
+            page._ctxIssueModel.summary = "";
+            page._ctxIssueModel.description = "";
 
             // Tipo de atividade padrão
             var defaultTipo = "Suporte Dúvidas/Suporte uso incorreto";
-            var tipoValues = issueModel.tipoAtividadeValues;
+            var tipoValues = page._ctxIssueModel.tipoAtividadeValues;
             if (tipoValues.indexOf(defaultTipo) >= 0) {
-                issueModel.tipoAtividade = defaultTipo;
+                page._ctxIssueModel.tipoAtividade = defaultTipo;
             } else if (tipoValues.length > 0) {
-                issueModel.tipoAtividade = tipoValues[0];
+                page._ctxIssueModel.tipoAtividade = tipoValues[0];
             }
 
             // Status inicial padrão
-            if (issueModel.statusSequence && issueModel.statusSequence.length > 0) {
-                issueModel.statusInicial = issueModel.statusSequence[0];
+            if (page._ctxIssueModel.statusSequence && page._ctxIssueModel.statusSequence.length > 0) {
+                page._ctxIssueModel.statusInicial = page._ctxIssueModel.statusSequence[0];
             }
 
             // Valores padrão
-            issueModel.documentacaoAnexa = "Não";
-            issueModel.utilizacaoIA = "Não";
+            page._ctxIssueModel.documentacaoAnexa = "Não";
+            page._ctxIssueModel.utilizacaoIA = "Não";
 
             // Resetar Valor Entregue e Plataformas afetadas
-            var valorEntregueValues = issueModel.valorEntregueValues;
+            var valorEntregueValues = page._ctxIssueModel.valorEntregueValues;
             if (valorEntregueValues && valorEntregueValues.length > 0) {
-                issueModel.valorEntregue = valorEntregueValues[0];
+                page._ctxIssueModel.valorEntregue = valorEntregueValues[0];
             } else {
-                issueModel.valorEntregue = "";
+                page._ctxIssueModel.valorEntregue = "";
             }
-            issueModel.plataformasAfetadas = [];
+            page._ctxIssueModel.plataformasAfetadas = [];
 
             // Limpar Epic Parent
-            issueModel.epicParentKey = "";
-            issueModel.epicParentSummary = "";
-            if (epicSearchForm) {
-                epicSearchForm.reset();
+            page._ctxIssueModel.epicParentKey = "";
+            page._ctxIssueModel.epicParentSummary = "";
+            if (page.epicSearchForm) {
+                page.epicSearchForm.reset();
             }
 
             // Resetar worklog
-            issueModel.registrarWorklog = false;
+            page._ctxIssueModel.registrarWorklog = false;
             var now = new Date();
             var dateStr = Qt.formatDateTime(now, "yyyy-MM-dd");
             var timeStr = Qt.formatDateTime(now, "HH:mm:ss");
-            issueModel.worklogInicio = dateStr + " " + timeStr;
-            issueModel.worklogDuracao = 30;
-            if (worklogForm) {
-                worklogForm.reset();
+            page._ctxIssueModel.worklogInicio = dateStr + " " + timeStr;
+            page._ctxIssueModel.worklogDuracao = 30;
+            if (page.worklogForm) {
+                page.worklogForm.reset();
             }
         }
     }
 
     function validateForm() {
-        if (controller) {
-            return controller.validate();
+        if (page.controller) {
+            return page.controller.validate();
         }
         return false;
     }

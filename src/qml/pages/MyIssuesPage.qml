@@ -8,7 +8,6 @@
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls as Controls
-import QtQuick.Controls
 import org.kde.kirigami as Kirigami
 import "../components/forms"
 import "../components/lists"
@@ -49,6 +48,9 @@ Kirigami.Page {
     // Intermediários para evitar binding loop ao passar context properties ao detailPane
     property var _ctxIssueModel: issueModel
     property var _ctxJiraService: jiraService
+    property var _ctxMyIssuesModel: myIssuesModel
+    property var _ctxTimerService: timerService
+    property var _ctxTimerModel: timerModel
 
     // Diálogos (progressDialog e searchProgressDialog gerenciados via DialogHelpers)
     property var progressDialog: null
@@ -73,10 +75,10 @@ Kirigami.Page {
             id: refreshAction
             text: qsTr("Buscar")
             icon.name: "search"
-            enabled: !(myIssuesModel && myIssuesModel.isLoading)
+            enabled: !(page._ctxMyIssuesModel && page._ctxMyIssuesModel.isLoading)
             onTriggered: {
-                if (issueSearchForm) {
-                    var query = issueSearchForm.getQuery();
+                if (page.issueSearchForm) {
+                    var query = page.issueSearchForm.getQuery();
                     page.refreshIssues(query);
                 }
             }
@@ -85,49 +87,49 @@ Kirigami.Page {
 
     // Função pública para botão global (Main.qml)
     function refreshIssuesFromToolbar() {
-        if (issueSearchForm) {
-            var query = issueSearchForm.getQuery();
+        if (page.issueSearchForm) {
+            var query = page.issueSearchForm.getQuery();
             page.refreshIssues(query);
         }
     }
 
     // Função pública para iniciar timer do header (Main.qml)
     function startTimerFromToolbar() {
-        if (!timerService || !timerModel || !selectedIssueKey) {
+        if (!page._ctxTimerService || !page._ctxTimerModel || !page.selectedIssueKey) {
             return;
         }
 
         // Se está em pausa, cancelar pausa e iniciar timer
-        if (timerModel && timerModel.isOnBreak) {
-            timerService.cancelBreak();
+        if (page._ctxTimerModel && page._ctxTimerModel.isOnBreak) {
+            page._ctxTimerService.cancelBreak();
             Qt.callLater(function () {
-                if (timerService && selectedIssueKey) {
-                    timerService.start(selectedIssueKey);
+                if (page._ctxTimerService && page.selectedIssueKey) {
+                    page._ctxTimerService.start(page.selectedIssueKey);
                 }
             });
             return;
         }
 
         // Se já há timer ativo para esta issue
-        if (timerModel.issueKey === selectedIssueKey && timerModel.state !== "idle") {
-            if (timerModel.state === "running") {
-                timerService.stop();
+        if (page._ctxTimerModel.issueKey === page.selectedIssueKey && page._ctxTimerModel.state !== "idle") {
+            if (page._ctxTimerModel.state === "running") {
+                page._ctxTimerService.stop();
             }
         } else
         // Se há timer ativo para outra issue, parar e iniciar novo
-        if (timerModel.state !== "idle" && timerModel.issueKey !== selectedIssueKey) {
+        if (page._ctxTimerModel.state !== "idle" && page._ctxTimerModel.issueKey !== page.selectedIssueKey) {
             // Parar timer atual e iniciar novo
-            timerService.stop();
+            page._ctxTimerService.stop();
             // Usar callLater para garantir que o stop termine antes de iniciar
             Qt.callLater(function () {
-                if (timerService && selectedIssueKey) {
-                    timerService.start(selectedIssueKey);
+                if (page._ctxTimerService && page.selectedIssueKey) {
+                    page._ctxTimerService.start(page.selectedIssueKey);
                 }
             });
         } else
         // Iniciar novo timer
         {
-            timerService.start(selectedIssueKey);
+            page._ctxTimerService.start(page.selectedIssueKey);
         }
     }
 
@@ -135,62 +137,62 @@ Kirigami.Page {
     Keys.onPressed: function (event) {
         // Ctrl+Enter: atualizar lista
         if ((event.modifiers & Qt.ControlModifier) && (event.key === Qt.Key_Return || event.key === Qt.Key_Enter)) {
-            refreshIssuesFromToolbar();
+            page.refreshIssuesFromToolbar();
             event.accepted = true;
             return;
         }
 
         // ESC: cancelar
         if (event.key === Qt.Key_Escape) {
-            onCancelRequested();
+            page.onCancelRequested();
             event.accepted = true;
         }
     }
 
     function refreshIssues(query) {
-        if (!myIssuesModel) {
+        if (!page._ctxMyIssuesModel) {
             return;
         }
 
-        DialogHelpers.hideProgress(searchProgressDialog);
-        searchProgressDialog = null;
+        DialogHelpers.hideProgress(page.searchProgressDialog);
+        page.searchProgressDialog = null;
 
-        searchProgressDialog = DialogHelpers.showProgress(page, "../components/dialogs/ProgressDialog.qml");
-        if (searchProgressDialog) {
-            searchProgressDialog.updateProgress(0, "Buscando issues...");
+        page.searchProgressDialog = DialogHelpers.showProgress(page, "../components/dialogs/ProgressDialog.qml");
+        if (page.searchProgressDialog) {
+            page.searchProgressDialog.updateProgress(0, "Buscando issues...");
 
             var loadingConnection = function (isLoading) {
                 if (isLoading) {
-                    if (searchProgressDialog) {
-                        searchProgressDialog.updateProgress(50, "Buscando issues...");
+                    if (page.searchProgressDialog) {
+                        page.searchProgressDialog.updateProgress(50, "Buscando issues...");
                     }
                 } else {
                     Qt.callLater(function () {
-                        if (searchProgressDialog) {
-                            searchProgressDialog.updateProgress(100, "Busca concluída!");
+                        if (page.searchProgressDialog) {
+                            page.searchProgressDialog.updateProgress(100, "Busca concluída!");
                             Qt.callLater(function () {
-                                DialogHelpers.hideProgress(searchProgressDialog);
-                                searchProgressDialog = null;
+                                DialogHelpers.hideProgress(page.searchProgressDialog);
+                                page.searchProgressDialog = null;
 
                                 Qt.callLater(function () {
-                                    if (myIssuesModel && myIssuesModel.issues && myIssuesModel.issues.length > 0) {
-                                        var firstIssue = myIssuesModel.issues[0];
-                                        if (firstIssue && firstIssue.key && issueList) {
-                                            issueList.selectIssue(firstIssue.key);
+                                    if (page._ctxMyIssuesModel && page._ctxMyIssuesModel.issues && page._ctxMyIssuesModel.issues.length > 0) {
+                                        var firstIssue = page._ctxMyIssuesModel.issues[0];
+                                        if (firstIssue && firstIssue.key && page.issueList) {
+                                            page.issueList.selectIssue(firstIssue.key);
                                         }
                                     }
                                 });
                             });
                         }
-                        if (myIssuesModel) {
-                            myIssuesModel.loadingChanged.disconnect(loadingConnection);
+                        if (page._ctxMyIssuesModel) {
+                            page._ctxMyIssuesModel.loadingChanged.disconnect(loadingConnection);
                         }
                     });
                 }
             };
 
-            if (myIssuesModel) {
-                myIssuesModel.loadingChanged.connect(loadingConnection);
+            if (page._ctxMyIssuesModel) {
+                page._ctxMyIssuesModel.loadingChanged.connect(loadingConnection);
             }
         }
 
@@ -198,7 +200,7 @@ Kirigami.Page {
         if (page.controller) {
             page.controller.searchIssues(query || "");
         } else {
-            myIssuesModel.refreshIssues(query || "");
+            page._ctxMyIssuesModel.refreshIssues(query || "");
         }
     }
 
@@ -207,9 +209,9 @@ Kirigami.Page {
         var component = Qt.createComponent("../controllers/MyIssuesController.qml");
         if (component.status === Component.Ready) {
             page.controller = component.createObject(page, {
-                jiraService: jiraService,
-                myIssuesModel: myIssuesModel,
-                issueModel: issueModel,
+                jiraService: page._ctxJiraService,
+                myIssuesModel: page._ctxMyIssuesModel,
+                issueModel: page._ctxIssueModel,
                 enabled: true
             });
 
@@ -224,8 +226,8 @@ Kirigami.Page {
                     DialogHelpers.hideProgress(page.progressDialog);
                     page.progressDialog = null;
                     DialogHelpers.showSuccess(page, "../components/dialogs/SuccessDialog.qml", issueKey, "", true);
-                    if (issueSearchForm) {
-                        var query = issueSearchForm.getQuery();
+                    if (page.issueSearchForm) {
+                        var query = page.issueSearchForm.getQuery();
                         page.refreshIssues(query);
                     }
                 });
@@ -280,7 +282,7 @@ Kirigami.Page {
                         id: issueSearchForm
                         Layout.fillWidth: true
                         enabled: !page.isProcessing
-                        isLoading: myIssuesModel ? myIssuesModel.isLoading : false
+                        isLoading: page._ctxMyIssuesModel ? page._ctxMyIssuesModel.isLoading : false
                         placeholderText: qsTr("Buscar issues por resumo ou chave...")
 
                         onSearchRequested: function (query) {
@@ -304,13 +306,13 @@ Kirigami.Page {
                             id: issueList
                             anchors.fill: parent
                             enabled: !page.isProcessing
-                            model: myIssuesModel ? myIssuesModel.issues : []
-                            isLoading: myIssuesModel ? myIssuesModel.isLoading : false
+                            model: page._ctxMyIssuesModel ? page._ctxMyIssuesModel.issues : []
+                            isLoading: page._ctxMyIssuesModel ? page._ctxMyIssuesModel.isLoading : false
                             selectedIssueKey: page.selectedIssueKey
 
                             onIssueSelected: function (issueKey, issueData) {
                                 page.selectedIssueKey = issueKey;
-                                loadIssueDetails(issueKey);
+                                page.loadIssueDetails(issueKey);
                             }
                         }
                     }
@@ -337,7 +339,7 @@ Kirigami.Page {
 
     // Conectar signals do jiraService
     Connections {
-        target: jiraService
+        target: page._ctxJiraService
 
         function onProgressUpdated(percentage, message) {
             if (page.progressDialog) {
@@ -348,7 +350,7 @@ Kirigami.Page {
 
     // Conectar signals do myIssuesModel para fechar diálogo de busca
     Connections {
-        target: myIssuesModel
+        target: page._ctxMyIssuesModel
 
         function onErrorOccurred(errorMessage) {
             DialogHelpers.hideProgress(page.searchProgressDialog);
@@ -359,13 +361,13 @@ Kirigami.Page {
 
     // Funções auxiliares
     function loadIssueDetails(issueKey) {
-        if (!issueKey || !jiraService) {
+        if (!issueKey || !page._ctxJiraService) {
             return;
         }
         // Delegar carregamento para o JiraService em modo assíncrono.
         // O overlay e o preenchimento dos campos são controlados pelos
         // sinais issueDetailsStarted / issueDetailsLoaded abaixo.
-        jiraService.getIssueDetailsAsync(issueKey);
+        page._ctxJiraService.getIssueDetailsAsync(issueKey);
     }
 
     // Função pública para atualizar issue (chamada pelo botão global / atalho)
@@ -380,20 +382,20 @@ Kirigami.Page {
             return;
         }
 
-        var fieldData = detailPane.getFieldData();
-        var worklogData = detailPane.getWorklogData();
-        var epicKey = detailPane.getEpicKey();
+        var fieldData = page.detailPane.getFieldData();
+        var worklogData = page.detailPane.getWorklogData();
+        var epicKey = page.detailPane.getEpicKey();
         page.controller.updateIssue(page.selectedIssueKey, fieldData, worklogData, epicKey, page.originalStatus);
     }
 
     function resetFields() {
-        detailPane.resetFields();
-        originalStatus = "";
+        page.detailPane.resetFields();
+        page.originalStatus = "";
     }
 
     // Reagir aos sinais assíncronos de carregamento de detalhes de issue
     Connections {
-        target: jiraService
+        target: page._ctxJiraService
 
         function onIssueDetailsStarted(issueKey) {
             // Sempre que iniciar o carregamento de detalhes, limpar campos
@@ -407,10 +409,10 @@ Kirigami.Page {
                 if (!details || !details.key) {
                     return;
                 }
-                originalStatus = String(details.status || "");
-                MyIssuesPageLogic.applyIssueDetailsToForm(details, detailPane);
+                page.originalStatus = String(details.status || "");
+                MyIssuesPageLogic.applyIssueDetailsToForm(details, page.detailPane);
             } finally {
-                isDetailsLoading = false;
+                page.isDetailsLoading = false;
             }
         }
     }

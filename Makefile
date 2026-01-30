@@ -25,6 +25,13 @@ APP_ID := org.kde.jira-quick-task
 MANIFEST := flatpak/org.kde.jira-quick-task.json
 BUILD_DIR := build-dir
 
+# qmllint: use ./6.10.2/gcc_64/bin/qmllint se existir no projeto, senão Qt em HOME
+_QMLLINT_PROJECT := $(wildcard $(CURDIR)/6.10.2/gcc_64/bin/qmllint)
+QMLLINT ?= $(if $(_QMLLINT_PROJECT),$(_QMLLINT_PROJECT),/home/jilles/Qt6/6.10.2/gcc_64/bin/qmllint)
+# Import paths para qmllint (Kirigami, Qt QML, projeto)
+QML_IMPORT_PATHS := /snap/kf6-core24-sdk/current/usr/lib/x86_64-linux-gnu/qml:/home/jilles/Qt6/6.10.2/gcc_64/qml:$(CURDIR)/src/qml
+QML2_IMPORT_PATHS := $(QML_IMPORT_PATHS)
+
 # ============================================================================
 # Help
 # ============================================================================
@@ -50,7 +57,8 @@ help:
 	@echo "  $(YELLOW)make clean-build$(RESET)   - Remove build e aplicação Flatpak instalada"
 	@echo ""
 	@echo "$(GREEN)Utilitários:$(RESET)"
-	@echo "  $(YELLOW)make clean$(RESET)  - Remove arquivos gerados (__pycache__, .pyc, .qmlc, etc)"
+	@echo "  $(YELLOW)make clean$(RESET)    - Remove arquivos gerados (__pycache__, .pyc, .qmlc, etc)"
+	@echo "  $(YELLOW)make qml-lint$(RESET)  - Executa qmllint nos QML (QML_IMPORT_PATH + QML2_IMPORT_PATH)"
 	@echo ""
 
 # ============================================================================
@@ -175,6 +183,11 @@ clean-build: check-flatpak
 # ============================================================================
 # Utilitários
 # ============================================================================
+
+.PHONY: qml-lint
+qml-lint:
+	@echo "$(CYAN)Executando qmllint nos QML...$(RESET)"
+	@QML_IMPORT_PATH="$(QML_IMPORT_PATHS)" QML2_IMPORT_PATH="$(QML2_IMPORT_PATHS)" "$(QMLLINT)" $$(find src/qml -name '*.qml') 2>&1 || true
 
 .PHONY: clean
 clean:

@@ -6,7 +6,6 @@
  * sections in detail pane.
  */
 import QtQuick
-import QtQuick.Controls as Controls
 import org.kde.kirigami as Kirigami
 
 Rectangle {
@@ -24,8 +23,8 @@ Rectangle {
                 width: 3
                 height: 3
                 radius: 1.5
-                color: barMouseArea.containsMouse ? Kirigami.Theme.highlightColor : Kirigami.Theme.textColor
-                opacity: barMouseArea.containsMouse ? 1 : 0.6
+                color: root.barMouseArea.containsMouse ? Kirigami.Theme.highlightColor : Kirigami.Theme.textColor
+                opacity: root.barMouseArea.containsMouse ? 1 : 0.6
                 Behavior on color { ColorAnimation { duration: 150 } }
                 Behavior on opacity { NumberAnimation { duration: 150 } }
             }

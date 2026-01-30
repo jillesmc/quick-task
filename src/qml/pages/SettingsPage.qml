@@ -7,7 +7,6 @@
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls as Controls
-import QtQuick.Dialogs
 import org.kde.kirigami as Kirigami
 import "../components/settings"
 import "../components/controls"
@@ -19,18 +18,21 @@ Kirigami.Page {
 
     focus: true
 
+    property var _ctxSettingsModel: settingsModel
+    property var _ctxJiraService: jiraService
+    property var _ctxMyIssuesModel: myIssuesModel
     property bool isSaving: false
-    property bool isValid: connectionBlock ? connectionBlock.valid : false
+    property bool isValid: page.connectionBlock ? page.connectionBlock.valid : false
 
     // Função pública para integração com Main.qml (botão global no header)
     function saveSettingsFromToolbar() {
-        if (settingsModel && isValid && !isSaving) {
-            isSaving = true;
-            successMessage.visible = false;
-            errorMessage.visible = false;
-            statusMessage.text = qsTr("Salvando configurações...");
-            statusMessage.visible = true;
-            settingsModel.save();
+        if (page._ctxSettingsModel && page.isValid && !page.isSaving) {
+            page.isSaving = true;
+            page.successMessage.visible = false;
+            page.errorMessage.visible = false;
+            page.statusMessage.text = qsTr("Salvando configurações...");
+            page.statusMessage.visible = true;
+            page._ctxSettingsModel.save();
         }
     }
 
@@ -40,44 +42,44 @@ Kirigami.Page {
 
     // Conectar sinais do modelo
     Connections {
-        target: settingsModel
+        target: page._ctxSettingsModel
 
         function onSaved() {
             // Não desabilitar ainda - aguardar accountId
             // O botão só será habilitado quando accountId for buscado ou houver erro
-            statusMessage.text = qsTr("Configuração salva. Buscando accountId...");
-            statusMessage.visible = true;
-            statusMessage.color = Kirigami.Theme.textColor;
+            page.statusMessage.text = qsTr("Configuração salva. Buscando accountId...");
+            page.statusMessage.visible = true;
+            page.statusMessage.color = Kirigami.Theme.textColor;
         }
 
         function onErrorOccurred(message) {
-            isSaving = false;
-            errorMessage.text = message;
-            errorMessage.visible = true;
-            successMessage.visible = false;
-            statusMessage.visible = false;
+            page.isSaving = false;
+            page.errorMessage.text = message;
+            page.errorMessage.visible = true;
+            page.successMessage.visible = false;
+            page.statusMessage.visible = false;
         }
 
         function onAccountIdFetched(accountId) {
-            isSaving = false;
-            statusMessage.text = qsTr("✓ AccountId obtido com sucesso!");
-            statusMessage.color = Kirigami.Theme.positiveTextColor;
-            statusMessage.visible = true;
-            successMessage.visible = true;
-            successMessage.text = qsTr("✓ Configuração salva e accountId obtido com sucesso!");
+            page.isSaving = false;
+            page.statusMessage.text = qsTr("✓ AccountId obtido com sucesso!");
+            page.statusMessage.color = Kirigami.Theme.positiveTextColor;
+            page.statusMessage.visible = true;
+            page.successMessage.visible = true;
+            page.successMessage.text = qsTr("✓ Configuração salva e accountId obtido com sucesso!");
 
-            if (jiraService) {
-                jiraService.reloadConfiguration();
+            if (page._ctxJiraService) {
+                page._ctxJiraService.reloadConfiguration();
             }
-            if (myIssuesModel) {
-                myIssuesModel.reloadConfiguration();
+            if (page._ctxMyIssuesModel) {
+                page._ctxMyIssuesModel.reloadConfiguration();
             }
         }
 
         function onFetchingAccountId() {
-            statusMessage.text = qsTr("Buscando accountId...");
-            statusMessage.color = Kirigami.Theme.textColor;
-            statusMessage.visible = true;
+            page.statusMessage.text = qsTr("Buscando accountId...");
+            page.statusMessage.color = Kirigami.Theme.textColor;
+            page.statusMessage.visible = true;
         }
     }
 
@@ -103,7 +105,7 @@ Kirigami.Page {
                 ConnectionSettingsBlock {
                     id: connectionBlock
                     Layout.fillWidth: true
-                    settingsModel: page.settingsModel
+                    settingsModel: page._ctxSettingsModel
                 }
 
                 // Espaço flexível
@@ -128,12 +130,12 @@ Kirigami.Page {
 
                 PomodoroSettingsBlock {
                     Layout.fillWidth: true
-                    settingsModel: page.settingsModel
+                    settingsModel: page._ctxSettingsModel
                 }
 
                 NotificationSettingsBlock {
                     Layout.fillWidth: true
-                    settingsModel: page.settingsModel
+                    settingsModel: page._ctxSettingsModel
                 }
 
                 // Mensagens de feedback

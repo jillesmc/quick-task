@@ -48,9 +48,13 @@ RowLayout {
                 root.searchRequested(query)
             }
         }
-        
+
         Keys.onEnterPressed: function(event) {
-            Keys.onReturnPressed(event)
+            event.accepted = true
+            if (root.enabled && !root.isLoading) {
+                var query = searchField.text.trim()
+                root.searchRequested(query)
+            }
         }
     }
     

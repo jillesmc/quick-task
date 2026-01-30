@@ -28,7 +28,7 @@ RowLayout {
     Controls.TabBar {
         id: tabBar
         Layout.fillWidth: true
-        currentIndex: stack ? stack.currentIndex : 0
+        currentIndex: root.stack ? root.stack.currentIndex : 0
 
         Controls.TabButton {
             text: "Criar Issue"
@@ -37,9 +37,9 @@ RowLayout {
         Controls.TabButton {
             text: "Minhas Issues"
             onClicked: {
-                if (issuesPage && issuesPage.initialSearchDone === false) {
-                    issuesPage.refreshIssues("");
-                    issuesPage.initialSearchDone = true;
+                if (root.issuesPage && root.issuesPage.initialSearchDone === false) {
+                    root.issuesPage.refreshIssues("");
+                    root.issuesPage.initialSearchDone = true;
                 }
             }
         }
@@ -56,12 +56,12 @@ RowLayout {
     Controls.ToolButton {
         id: globalActionButton
         text: {
-            if (!stack) return "";
-            if (stack.currentIndex === 2) return "";
-            if (stack.currentIndex === 0) return qsTr("Criar");
-            if (stack.currentIndex === 1) return qsTr("Atualizar task");
-            if (stack.currentIndex === 3) {
-                if (settingsPage && settingsPage.isSaving !== undefined && settingsPage.isSaving) {
+            if (!root.stack) return "";
+            if (root.stack.currentIndex === 2) return "";
+            if (root.stack.currentIndex === 0) return qsTr("Criar");
+            if (root.stack.currentIndex === 1) return qsTr("Atualizar task");
+            if (root.stack.currentIndex === 3) {
+                if (root.settingsPage && root.settingsPage.isSaving !== undefined && root.settingsPage.isSaving) {
                     return qsTr("Salvando...");
                 }
                 return qsTr("Salvar");
@@ -69,49 +69,49 @@ RowLayout {
             return "";
         }
         icon.name: {
-            if (!stack) return "";
-            if (stack.currentIndex === 2) return "";
-            if (stack.currentIndex === 0) return "document-new";
-            if (stack.currentIndex === 1) return "document-save";
-            if (stack.currentIndex === 3) return "document-save";
+            if (!root.stack) return "";
+            if (root.stack.currentIndex === 2) return "";
+            if (root.stack.currentIndex === 0) return "document-new";
+            if (root.stack.currentIndex === 1) return "document-save";
+            if (root.stack.currentIndex === 3) return "document-save";
             return "";
         }
-        visible: stack && stack.currentIndex !== 2
+        visible: root.stack && root.stack.currentIndex !== 2
         enabled: {
-            if (!stack) return false;
-            if (stack.currentIndex === 2) return false;
-            if (stack.currentIndex === 0) {
-                if (!createPage) return false;
-                if (createPage.isProcessing !== undefined && createPage.isProcessing) return false;
-                if (!issueModel) return false;
-                var s = issueModel.summary ? issueModel.summary.trim() : "";
+            if (!root.stack) return false;
+            if (root.stack.currentIndex === 2) return false;
+            if (root.stack.currentIndex === 0) {
+                if (!root.createPage) return false;
+                if (root.createPage.isProcessing !== undefined && root.createPage.isProcessing) return false;
+                if (!root.issueModel) return false;
+                var s = root.issueModel.summary ? root.issueModel.summary.trim() : "";
                 return s.length > 0;
             }
-            if (stack.currentIndex === 1) {
-                if (!issuesPage) return false;
-                if (!issuesPage.controller) return false;
-                if (!issuesPage.selectedIssueKey) return false;
-                if (issuesPage.isProcessing !== undefined && issuesPage.isProcessing) return false;
-                if (!jiraService || typeof jiraService.isAvailable !== "function") return false;
-                return jiraService.isAvailable();
+            if (root.stack.currentIndex === 1) {
+                if (!root.issuesPage) return false;
+                if (!root.issuesPage.controller) return false;
+                if (!root.issuesPage.selectedIssueKey) return false;
+                if (root.issuesPage.isProcessing !== undefined && root.issuesPage.isProcessing) return false;
+                if (!root.jiraService || typeof root.jiraService.isAvailable !== "function") return false;
+                return root.jiraService.isAvailable();
             }
-            if (stack.currentIndex === 3) {
-                if (!settingsPage) return false;
-                if (settingsPage.isSaving !== undefined && settingsPage.isSaving) return false;
-                if (settingsPage.isValid !== undefined && !settingsPage.isValid) return false;
+            if (root.stack.currentIndex === 3) {
+                if (!root.settingsPage) return false;
+                if (root.settingsPage.isSaving !== undefined && root.settingsPage.isSaving) return false;
+                if (root.settingsPage.isValid !== undefined && !root.settingsPage.isValid) return false;
                 return true;
             }
             return false;
         }
         onClicked: {
-            if (!stack) return;
-            if (stack.currentIndex === 2) return;
-            if (stack.currentIndex === 0 && createPage && createPage.createIssueFromToolbar) {
-                createPage.createIssueFromToolbar();
-            } else if (stack.currentIndex === 1 && issuesPage && issuesPage.updateIssue) {
-                issuesPage.updateIssue();
-            } else if (stack.currentIndex === 3 && settingsPage && settingsPage.saveSettingsFromToolbar) {
-                settingsPage.saveSettingsFromToolbar();
+            if (!root.stack) return;
+            if (root.stack.currentIndex === 2) return;
+            if (root.stack.currentIndex === 0 && root.createPage && root.createPage.createIssueFromToolbar) {
+                root.createPage.createIssueFromToolbar();
+            } else if (root.stack.currentIndex === 1 && root.issuesPage && root.issuesPage.updateIssue) {
+                root.issuesPage.updateIssue();
+            } else if (root.stack.currentIndex === 3 && root.settingsPage && root.settingsPage.saveSettingsFromToolbar) {
+                root.settingsPage.saveSettingsFromToolbar();
             }
         }
     }
@@ -119,36 +119,36 @@ RowLayout {
     Controls.ToolButton {
         id: startTimerButton
         text: {
-            if (!stack || stack.currentIndex !== 1) return "";
-            if (!issuesPage) return "";
-            if (timerModel && timerModel.state === "running" && timerModel.issueKey === issuesPage.selectedIssueKey) {
+            if (!root.stack || root.stack.currentIndex !== 1) return "";
+            if (!root.issuesPage) return "";
+            if (root.timerModel && root.timerModel.state === "running" && root.timerModel.issueKey === root.issuesPage.selectedIssueKey) {
                 return qsTr("Parar Timer");
             }
-            if (timerModel && timerModel.isOnBreak) return qsTr("Cancelar Pausa e Iniciar");
-            if (timerModel && timerModel.state !== "idle" && timerModel.issueKey !== issuesPage.selectedIssueKey) {
+            if (root.timerModel && root.timerModel.isOnBreak) return qsTr("Cancelar Pausa e Iniciar");
+            if (root.timerModel && root.timerModel.state !== "idle" && root.timerModel.issueKey !== root.issuesPage.selectedIssueKey) {
                 return qsTr("Parar e Iniciar");
             }
             return qsTr("Iniciar Timer");
         }
         icon.name: {
-            if (!stack || stack.currentIndex !== 1) return "";
-            if (timerModel && timerModel.state === "running" && timerModel.issueKey === issuesPage.selectedIssueKey) {
+            if (!root.stack || root.stack.currentIndex !== 1) return "";
+            if (root.timerModel && root.timerModel.state === "running" && root.timerModel.issueKey === root.issuesPage.selectedIssueKey) {
                 return "media-playback-stop";
             }
-            if (timerModel && timerModel.isOnBreak) return "media-playback-start";
+            if (root.timerModel && root.timerModel.isOnBreak) return "media-playback-start";
             return "chronometer";
         }
-        visible: stack && stack.currentIndex === 1
+        visible: root.stack && root.stack.currentIndex === 1
         enabled: {
-            if (!stack || stack.currentIndex !== 1) return false;
-            if (!issuesPage || !issuesPage.selectedIssueKey) return false;
-            if (issuesPage.isProcessing !== undefined && issuesPage.isProcessing) return false;
-            if (!timerService || !timerModel) return false;
+            if (!root.stack || root.stack.currentIndex !== 1) return false;
+            if (!root.issuesPage || !root.issuesPage.selectedIssueKey) return false;
+            if (root.issuesPage.isProcessing !== undefined && root.issuesPage.isProcessing) return false;
+            if (!root.timerService || !root.timerModel) return false;
             return true;
         }
         onClicked: {
-            if (stack && stack.currentIndex === 1 && issuesPage && issuesPage.startTimerFromToolbar) {
-                issuesPage.startTimerFromToolbar();
+            if (root.stack && root.stack.currentIndex === 1 && root.issuesPage && root.issuesPage.startTimerFromToolbar) {
+                root.issuesPage.startTimerFromToolbar();
             }
         }
     }

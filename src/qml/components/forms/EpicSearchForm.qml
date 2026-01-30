@@ -153,7 +153,10 @@ ColumnLayout {
             }
 
             Keys.onEnterPressed: function (event) {
-                Keys.onReturnPressed(event);
+                event.accepted = true;
+                if (root.enabled && root.jiraService) {
+                    root.search(searchField.text);
+                }
             }
         }
 

@@ -4,7 +4,7 @@
  * Atalhos globais: Ctrl+Enter (ação da aba), Esc (esconder), Ctrl+Tab, Ctrl+Shift+Tab.
  */
 import QtQuick
-import QtQuick.Controls as Controls
+import QtQuick.Controls
 
 Item {
     id: root
@@ -22,21 +22,21 @@ Item {
         id: shortcutCreateOrUpdate
         sequences: [ "Ctrl+Return", "Ctrl+Enter" ]
         onActivated: {
-            if (!stack) return;
-            if (stack.currentIndex === 2) return;
-            if (stack.currentIndex === 3) {
-                if (settingsPage && settingsPage.saveSettingsFromToolbar) {
-                    settingsPage.saveSettingsFromToolbar();
+            if (!root.stack) return;
+            if (root.stack.currentIndex === 2) return;
+            if (root.stack.currentIndex === 3) {
+                if (root.settingsPage && root.settingsPage.saveSettingsFromToolbar) {
+                    root.settingsPage.saveSettingsFromToolbar();
                 }
                 return;
             }
-            if (stack.currentIndex === 0) {
-                if (createPage && createPage.createIssueFromToolbar) {
-                    createPage.createIssueFromToolbar();
+            if (root.stack.currentIndex === 0) {
+                if (root.createPage && root.createPage.createIssueFromToolbar) {
+                    root.createPage.createIssueFromToolbar();
                 }
-            } else if (stack.currentIndex === 1) {
-                if (issuesPage && issuesPage.updateIssue) {
-                    issuesPage.updateIssue();
+            } else if (root.stack.currentIndex === 1) {
+                if (root.issuesPage && root.issuesPage.updateIssue) {
+                    root.issuesPage.updateIssue();
                 }
             }
         }
@@ -52,24 +52,24 @@ Item {
         id: shortcutSwitchTab
         sequence: "Ctrl+Tab"
         onActivated: {
-            if (!stack || !tabBar) return;
-            var currentIdx = stack.currentIndex;
+            if (!root.stack || !root.tabBar) return;
+            var currentIdx = root.stack.currentIndex;
             if (currentIdx === 3 || currentIdx === 2) {
-                stack.currentIndex = 0;
-                tabBar.currentIndex = 0;
+                root.stack.currentIndex = 0;
+                root.tabBar.currentIndex = 0;
             } else if (currentIdx === 0) {
-                stack.currentIndex = 1;
-                tabBar.currentIndex = 1;
-                if (issuesPage && !issuesPage.initialSearchDone) {
-                    issuesPage.refreshIssues("");
-                    issuesPage.initialSearchDone = true;
+                root.stack.currentIndex = 1;
+                root.tabBar.currentIndex = 1;
+                if (root.issuesPage && !root.issuesPage.initialSearchDone) {
+                    root.issuesPage.refreshIssues("");
+                    root.issuesPage.initialSearchDone = true;
                 }
             } else if (currentIdx === 1) {
-                stack.currentIndex = 0;
-                tabBar.currentIndex = 0;
+                root.stack.currentIndex = 0;
+                root.tabBar.currentIndex = 0;
             } else {
-                stack.currentIndex = 0;
-                tabBar.currentIndex = 0;
+                root.stack.currentIndex = 0;
+                root.tabBar.currentIndex = 0;
             }
         }
     }
@@ -78,24 +78,24 @@ Item {
         id: shortcutSwitchTabBack
         sequence: "Ctrl+Shift+Tab"
         onActivated: {
-            if (!stack || !tabBar) return;
-            var currentIdx = stack.currentIndex;
+            if (!root.stack || !root.tabBar) return;
+            var currentIdx = root.stack.currentIndex;
             if (currentIdx === 3 || currentIdx === 2) {
-                stack.currentIndex = 1;
-                tabBar.currentIndex = 1;
-                if (issuesPage && !issuesPage.initialSearchDone) {
-                    issuesPage.refreshIssues("");
-                    issuesPage.initialSearchDone = true;
+                root.stack.currentIndex = 1;
+                root.tabBar.currentIndex = 1;
+                if (root.issuesPage && !root.issuesPage.initialSearchDone) {
+                    root.issuesPage.refreshIssues("");
+                    root.issuesPage.initialSearchDone = true;
                 }
             } else if (currentIdx === 1) {
-                stack.currentIndex = 2;
-                tabBar.currentIndex = 2;
+                root.stack.currentIndex = 2;
+                root.tabBar.currentIndex = 2;
             } else if (currentIdx === 0) {
-                stack.currentIndex = 2;
-                tabBar.currentIndex = 2;
+                root.stack.currentIndex = 2;
+                root.tabBar.currentIndex = 2;
             } else {
-                stack.currentIndex = 0;
-                tabBar.currentIndex = 0;
+                root.stack.currentIndex = 0;
+                root.tabBar.currentIndex = 0;
             }
         }
     }
