@@ -139,6 +139,7 @@ Kirigami.Page {
             id: splitView
             anchors.fill: parent
             orientation: Qt.Horizontal
+            handle: SplitViewHandle { }
 
             // Coluna Esquerda: Summary, Description e Epic Parent (ScrollView único com dividers)
             Controls.ScrollView {

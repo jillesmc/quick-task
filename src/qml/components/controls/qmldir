@@ -1,2 +1,3 @@
 IssueMetadataFields IssueMetadataFields.qml
 DividerBar DividerBar.qml
+SplitViewHandle SplitViewHandle.qml

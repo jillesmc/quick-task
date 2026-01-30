@@ -252,6 +252,7 @@ Kirigami.Page {
         id: splitView
         anchors.fill: parent
         orientation: Qt.Horizontal
+        handle: SplitViewHandle { }
 
         // Coluna Esquerda (40% - Master): Busca, Lista e Botão Timer
         Controls.ScrollView {

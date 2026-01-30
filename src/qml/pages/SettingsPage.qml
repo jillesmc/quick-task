@@ -10,6 +10,7 @@ import QtQuick.Controls as Controls
 import QtQuick.Dialogs
 import org.kde.kirigami as Kirigami
 import "../components/settings"
+import "../components/controls"
 
 Kirigami.Page {
     id: page
@@ -84,6 +85,7 @@ Kirigami.Page {
         id: splitView
         anchors.fill: parent
         orientation: Qt.Horizontal
+        handle: SplitViewHandle { }
 
         // Coluna Esquerda (50%): Conexão Jira
         Controls.ScrollView {
