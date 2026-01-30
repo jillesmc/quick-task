@@ -31,7 +31,7 @@ A aplicação usa:
   ```bash
   sudo apt install docker.io docker-compose
   ```
-  Todas as dependências (Python, PySide6, etc.) são instaladas automaticamente no container Docker. **Não é necessário instalar pacotes do sistema.**
+  Todas as dependências (Python, Qt6, KF6, PySide6, ferramentas QML) são instaladas automaticamente no container Docker. **Não é necessário instalar pacotes do sistema.**
 
 ### Para Executar a Aplicação (Flatpak)
 
@@ -39,9 +39,9 @@ A aplicação usa:
   ```bash
   sudo apt install flatpak
   ```
-- SDKs do Flatpak (instalados automaticamente via `make flatpak-install-deps`)
+- SDKs do Flatpak (instalados automaticamente via `make install-deps`)
 
-**Nota**: A estratégia atual é usar Docker para desenvolvimento/testes e Flatpak para executar a aplicação. Não é necessário instalar PySide6 ou Kirigami no sistema host.
+**Nota**: A estratégia atual é usar Docker para desenvolvimento/testes (ambiente completo com Python + Qt6 + KF6) e Flatpak para executar a aplicação. Não é necessário instalar PySide6, Qt6 ou Kirigami no sistema host.
 
 ## Instalação
 
@@ -64,23 +64,30 @@ A aplicação também estará disponível no menu de aplicações do seu desktop
 
 ### Para Desenvolvimento e Testes
 
-Para desenvolvimento e testes, use Docker. Todas as dependências são instaladas automaticamente no container:
+Para desenvolvimento e testes, use Docker. O ambiente Docker unificado fornece Python, Qt6, KF6 (Kirigami 6) e todas as ferramentas necessárias:
 
 ```bash
-# Construir imagem Docker (instala Python, PySide6, dependências)
-make docker-build
+# Construir imagem Docker unificada (Python + Qt6 + KF6) e exportar ferramentas
+make dev-build
 
 # Executar testes unitários
-make docker-test
+make dev-test
+
+# Executar qmllint nos arquivos QML (usa ferramentas exportadas automaticamente)
+make qml-lint
 
 # Abrir shell interativo no container
-make docker-shell
+make dev-shell
 
 # Formatar código com black
-make docker-format
+make dev-format
 ```
 
-**Importante**: O Docker é usado apenas para testes (sem interface gráfica). Para executar a aplicação com UI, use Flatpak (veja seção abaixo).
+**Importante**: 
+- O Docker fornece ambiente completo (Python + Qt6 + KF6) para desenvolvimento e testes
+- As ferramentas Qt6/KF6 são exportadas automaticamente para `dev-tools/` durante o build
+- O comando `make qml-lint` configura variáveis de ambiente automaticamente (não precisa de configuração manual)
+- Para executar a aplicação com UI, use Flatpak (veja seção abaixo)
 
 ## Configuração Inicial
 
@@ -218,15 +225,17 @@ jira-quick-task/
 ### Comandos Úteis
 
 ```bash
-# Desenvolvimento com Docker
-make docker-build      # Construir imagem
-make docker-test       # Executar testes
-make docker-shell      # Shell interativo
+# Desenvolvimento com Docker (ambiente unificado: Python + Qt6 + KF6)
+make dev-build         # Construir imagem e exportar ferramentas Qt6/KF6
+make dev-test          # Executar testes
+make dev-shell         # Shell interativo
+make dev-format        # Formatar código com black
+make qml-lint          # Executar qmllint nos QML (configura variáveis automaticamente)
 
 # Flatpak
-make flatpak-dev       # Build + Run (desenvolvimento)
-make flatpak-build     # Build completo
-make flatpak-clean     # Limpar build
+make dev               # Build + Run (desenvolvimento)
+make build             # Build completo
+make clean-build       # Limpar build
 ```
 
 ## Troubleshooting
@@ -248,9 +257,9 @@ make flatpak-clean     # Limpar build
 
 ### "ModuleNotFoundError: No module named 'PySide6'"
 
-- Se estiver usando Docker: Execute `make docker-build` para construir a imagem com todas as dependências
+- Se estiver usando Docker: Execute `make dev-build` para construir a imagem unificada com todas as dependências (Python + Qt6 + KF6)
 - Se estiver usando Flatpak: O PySide6 vem do runtime `io.qt.PySide.BaseApp` - verifique se o Flatpak foi construído corretamente
-- **Nota**: Não é necessário instalar PySide6 no sistema host se você usar Docker ou Flatpak
+- **Nota**: Não é necessário instalar PySide6, Qt6 ou KF6 no sistema host se você usar Docker ou Flatpak
 
 ### "module 'org.kde.kirigami' is not installed"
 

@@ -103,3 +103,6 @@ build-dir/
 
 # Bundle
 *.flatpak
+
+# Dev tools exportadas do Docker
+/dev-tools/

@@ -1,51 +1,71 @@
-# Dockerfile para desenvolvimento e testes
-FROM ubuntu:24.04
+# Dockerfile para desenvolvimento e testes unificado (Python + Qt6 + KF6)
+FROM registry.opensuse.org/opensuse/tumbleweed:latest
 
-# Evitar prompts interativos durante instalação
-ENV DEBIAN_FRONTEND=noninteractive
+# Instalar dependências do sistema e ferramentas
+RUN zypper refresh && \
+    zypper install -y \
+      # Python e ferramentas Python (usando python313 - versão mais recente)
+      python313 \
+      python313-pip \
+      python313-devel \
+      python313-python-xlib \
+      # Qt6 completo
+      qt6-base-devel \
+      qt6-declarative-tools \
+      qt6-declarative-imports \
+      qt6-tools \
+      # KF6 (Kirigami 6)
+      kf6-kirigami \
+      kf6-ki18n \
+      kf6-kcoreaddons \
+      kf6-qqc2-desktop-style \
+      # PySide6 via pacotes do sistema (compatível com KF6)
+      python313-pyside6 \
+      # Bibliotecas necessárias para testes (X11/XCB)
+      xorg-x11-server \
+      xorg-x11-server-Xvfb \
+      libX11-6 \
+      libX11-xcb1 \
+      libxcb1 \
+      libxcb-xinerama0 \
+      libxcb-cursor0 \
+      libxcb-icccm4 \
+      libxcb-image0 \
+      libxcb-keysyms1 \
+      libxcb-randr0 \
+      libxcb-render-util0 \
+      libxcb-shape0 \
+      libxcb-xfixes0 \
+      libxcb-xkb1 \
+      libxcb-glx0 \
+      libxkbcommon-x11-0 \
+      libxkbcommon0 \
+      libXrender1 \
+      libfontconfig1 \
+      libdbus-1-3 \
+      # Bibliotecas GLib (necessárias para Qt/PySide6)
+      glib2-devel \
+      # Outras dependências do Qt
+      libicu78 \
+      libicu-devel \
+      libpcre2-16-0 \
+      libdouble-conversion3 \
+      libharfbuzz0 \
+      libfreetype6 \
+      libpng16-16 \
+      libjpeg-turbo \
+      # Bibliotecas OpenGL/EGL (necessárias para Qt GUI)
+      Mesa \
+      # Utilitários
+      curl \
+      git \
+      bash \
+    && zypper clean -a
 
-# Instalar dependências do sistema
-RUN apt-get update && apt-get install -y \
-    python3.12 \
-    python3-pip \
-    python3-dev \
-    python3-xlib \
-    xvfb \
-    # Bibliotecas X11/XCB
-    libxcb-xinerama0 \
-    libxcb-cursor0 \
-    libxcb-icccm4 \
-    libxcb-image0 \
-    libxcb-keysyms1 \
-    libxcb-randr0 \
-    libxcb-render-util0 \
-    libxcb-shape0 \
-    libxcb-xfixes0 \
-    libxcb-xkb1 \
-    libxkbcommon-x11-0 \
-    libxkbcommon0 \
-    libxrender1 \
-    libfontconfig1 \
-    libdbus-1-3 \
-    # Bibliotecas GLib (necessárias para Qt/PySide6)
-    libglib2.0-0 \
-    libglib2.0-dev \
-    # Outras dependências do Qt
-    libicu-dev \
-    libpcre2-16-0 \
-    libdouble-conversion3 \
-    libharfbuzz0b \
-    libfreetype6 \
-    libpng16-16 \
-    libjpeg-turbo8 \
-    # Bibliotecas OpenGL/EGL (necessárias para Qt GUI)
-    libegl1 \
-    libgl1 \
-    libgles2 \
-    libglx0 \
-    libx11-6 \
-    libx11-xcb1 \
-    && rm -rf /var/lib/apt/lists/*
+# Criar usuário não-root para desenvolvimento (se não existir)
+# O UID/GID será sobrescrito pelo docker-compose.yml, mas precisamos criar o usuário
+RUN groupadd -g 1000 devuser 2>/dev/null || true && \
+    useradd -u 1000 -g 1000 -m -s /bin/bash devuser 2>/dev/null || true
 
 # Criar diretório de trabalho
 WORKDIR /app
@@ -53,20 +73,29 @@ WORKDIR /app
 # Copiar requirements primeiro (para cache do Docker)
 COPY requirements.txt .
 
-# Instalar PySide6 e dependências Python via pip
-# PySide6 não está disponível via apt no Ubuntu 24.04, então usamos pip
+# Criar symlink python3 -> python3.13 para compatibilidade
+RUN ln -sf /usr/bin/python3.13 /usr/bin/python3 && \
+    python3 --version
+
+# Instalar dependências Python via pip (usando python3.13)
 # --break-system-packages é necessário devido ao PEP 668 (externally-managed-environment)
 # No Docker isso é seguro, pois o container é isolado
-RUN pip3 install --no-cache-dir --break-system-packages \
-    PySide6>=6.6.0 \
-    && pip3 install --no-cache-dir --break-system-packages -r requirements.txt
+RUN python3.13 -m pip install --no-cache-dir --break-system-packages -r requirements.txt
 
 # Copiar código do projeto
 COPY . .
+
+# Copiar scripts para dentro do container
+COPY docker/setup-dev-tools.sh /docker/setup-dev-tools.sh
+COPY docker/entrypoint.sh /docker/entrypoint.sh
+RUN chmod +x /docker/setup-dev-tools.sh /docker/entrypoint.sh
 
 # Definir variáveis de ambiente para testes
 ENV QT_QPA_PLATFORM=offscreen
 ENV DISPLAY=:99
 
+# Usar entrypoint para criar usuário dinamicamente
+ENTRYPOINT ["/docker/entrypoint.sh"]
+
 # Comando padrão (pode ser sobrescrito)
-CMD ["python3", "-m", "pytest", "tests/", "-v"]
+CMD ["python3.13", "-m", "pytest", "tests/", "-v"]

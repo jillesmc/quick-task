@@ -3,10 +3,10 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.dev
-    user: "${UID:-1000}:${GID:-1000}"
     volumes:
       - .:/app
       - pip-cache:/tmp/pip-cache
+      - ./dev-tools:/mnt/dev-tools  # Volume para exportar ferramentas Qt6/KF6
     environment:
       - QT_QPA_PLATFORM=offscreen
       - DISPLAY=:99

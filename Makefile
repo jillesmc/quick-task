@@ -25,11 +25,20 @@ APP_ID := org.kde.jira-quick-task
 MANIFEST := flatpak/org.kde.jira-quick-task.json
 BUILD_DIR := build-dir
 
-# qmllint: use ./6.10.2/gcc_64/bin/qmllint se existir no projeto, senão Qt em HOME
+# Variáveis Dev Tools (exportadas do Docker)
+DEV_TOOLS_DIR := $(CURDIR)/dev-tools
+DEV_TOOLS_BIN := $(DEV_TOOLS_DIR)/bin
+DEV_TOOLS_LIB := $(DEV_TOOLS_DIR)/lib
+DEV_TOOLS_QML := $(DEV_TOOLS_DIR)/qml
+DEV_TOOLS_PLUGINS := $(DEV_TOOLS_DIR)/plugins
+
+# qmllint: usar ferramentas exportadas do Docker se disponíveis, senão fallback
+_QMLLINT_DEV_TOOLS := $(wildcard $(DEV_TOOLS_BIN)/qmllint)
 _QMLLINT_PROJECT := $(wildcard $(CURDIR)/6.10.2/gcc_64/bin/qmllint)
-QMLLINT ?= $(if $(_QMLLINT_PROJECT),$(_QMLLINT_PROJECT),/home/jilles/Qt6/6.10.2/gcc_64/bin/qmllint)
-# Import paths para qmllint (Kirigami, Qt QML, projeto)
-QML_IMPORT_PATHS := /snap/kf6-core24-sdk/current/usr/lib/x86_64-linux-gnu/qml:/home/jilles/Qt6/6.10.2/gcc_64/qml:$(CURDIR)/src/qml
+QMLLINT ?= $(if $(_QMLLINT_DEV_TOOLS),$(_QMLLINT_DEV_TOOLS),$(if $(_QMLLINT_PROJECT),$(_QMLLINT_PROJECT),/home/jilles/Qt6/6.10.2/gcc_64/bin/qmllint))
+
+# Import paths para qmllint (priorizar dev-tools, depois fallback)
+QML_IMPORT_PATHS := $(if $(wildcard $(DEV_TOOLS_QML)),$(DEV_TOOLS_QML):/snap/kf6-core24-sdk/current/usr/lib/x86_64-linux-gnu/qml:/home/jilles/Qt6/6.10.2/gcc_64/qml:$(CURDIR)/src/qml,/snap/kf6-core24-sdk/current/usr/lib/x86_64-linux-gnu/qml:/home/jilles/Qt6/6.10.2/gcc_64/qml:$(CURDIR)/src/qml)
 QML2_IMPORT_PATHS := $(QML_IMPORT_PATHS)
 
 # ============================================================================
@@ -87,27 +96,35 @@ DOCKER_COMPOSE := $(shell docker compose version >/dev/null 2>&1 && echo "docker
 # Rodar como usuário do host para não gerar arquivos como root
 DOCKER_UID := $(shell id -u)
 DOCKER_GID := $(shell id -g)
-DOCKER_USER := UID=$(DOCKER_UID) GID=$(DOCKER_GID)
+DOCKER_USER := -e UID=$(DOCKER_UID) -e GID=$(DOCKER_GID)
 
 .PHONY: dev-build
 dev-build: check-docker
 	@echo "$(CYAN)Construindo imagem Docker para desenvolvimento...$(RESET)"
 	@$(DOCKER_COMPOSE) build
+	@echo "$(CYAN)Exportando ferramentas Qt6/KF6 para dev-tools/...$(RESET)"
+	@mkdir -p $(DEV_TOOLS_DIR)
+	@$(DOCKER_COMPOSE) run $(DOCKER_USER) --rm dev /docker/setup-dev-tools.sh || true
+	@if [ -f "$(DEV_TOOLS_BIN)/qmllint" ]; then \
+		echo "$(GREEN)✓ Ferramentas exportadas com sucesso!$(RESET)"; \
+	else \
+		echo "$(YELLOW)⚠ Ferramentas não foram exportadas. Execute novamente: make dev-build$(RESET)"; \
+	fi
 
 .PHONY: dev-test
 dev-test: check-docker
 	@echo "$(CYAN)Executando testes no Docker...$(RESET)"
-	@$(DOCKER_USER) $(DOCKER_COMPOSE) run --rm dev python3 -m pytest tests/ -v --tb=short
+	@$(DOCKER_COMPOSE) run $(DOCKER_USER) --rm dev python3 -m pytest tests/ -v --tb=short
 
 .PHONY: dev-shell
 dev-shell: check-docker
 	@echo "$(CYAN)Abrindo shell interativo no container...$(RESET)"
-	@$(DOCKER_USER) $(DOCKER_COMPOSE) run --rm dev /bin/bash
+	@$(DOCKER_COMPOSE) run $(DOCKER_USER) --rm dev /bin/bash
 
 .PHONY: dev-format
 dev-format: check-docker
 	@echo "$(CYAN)Formatando código com black no Docker...$(RESET)"
-	@$(DOCKER_USER) $(DOCKER_COMPOSE) run --rm dev black src/ core/ config/ tests/
+	@$(DOCKER_COMPOSE) run $(DOCKER_USER) --rm dev black src/ core/ config/ tests/
 	@echo "$(GREEN)✓ Código formatado$(RESET)"
 
 .PHONY: dev-clean
@@ -185,9 +202,15 @@ clean-build: check-flatpak
 # ============================================================================
 
 .PHONY: qml-lint
-qml-lint:
+qml-lint: check-docker
 	@echo "$(CYAN)Executando qmllint nos QML...$(RESET)"
-	@QML_IMPORT_PATH="$(QML_IMPORT_PATHS)" QML2_IMPORT_PATH="$(QML2_IMPORT_PATHS)" "$(QMLLINT)" $$(find src/qml -name '*.qml') 2>&1 || true
+	@echo "$(CYAN)Usando qmllint dentro do container Docker (garante imports corretos)...$(RESET)"
+	@$(DOCKER_COMPOSE) run $(DOCKER_USER) --rm dev bash -c \
+		"cd /app && \
+		QT_PLUGIN_PATH=/usr/lib64/qt6/plugins \
+		QML_IMPORT_PATH=/usr/lib64/qt6/qml:/app/src/qml \
+		QT_QPA_PLATFORM=offscreen \
+		/usr/lib64/qt6/bin/qmllint \$$(find src/qml -name '*.qml')" 2>&1 || true
 
 .PHONY: clean
 clean:
