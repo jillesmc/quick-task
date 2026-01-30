@@ -34,22 +34,23 @@ help:
 	@echo "$(CYAN)Comandos disponíveis:$(RESET)"
 	@echo ""
 	@echo "$(GREEN)Desenvolvimento e Testes (Docker):$(RESET)"
-	@echo "  $(YELLOW)make docker-build$(RESET)      - Constrói imagem Docker para desenvolvimento"
-	@echo "  $(YELLOW)make docker-test$(RESET)       - Executa testes unitários no Docker"
-	@echo "  $(YELLOW)make docker-shell$(RESET)      - Abre shell interativo no container Docker"
-	@echo "  $(YELLOW)make docker-clean$(RESET)      - Remove containers e imagens Docker"
+	@echo "  $(YELLOW)make dev-build$(RESET)  - Constrói imagem Docker para desenvolvimento"
+	@echo "  $(YELLOW)make dev-test$(RESET)   - Executa testes unitários no Docker"
+	@echo "  $(YELLOW)make dev-shell$(RESET) - Abre shell interativo no container Docker"
+	@echo "  $(YELLOW)make dev-format$(RESET) - Formata código com black no Docker"
+	@echo "  $(YELLOW)make dev-clean$(RESET)  - Remove containers e imagens Docker"
 	@echo ""
 	@echo "$(GREEN)Flatpak (Distribuição):$(RESET)"
-	@echo "  $(YELLOW)make flatpak-install-deps$(RESET) - Instala SDKs e dependências do Flatpak"
-	@echo "  $(YELLOW)make flatpak-build$(RESET)     - Constrói e instala o Flatpak localmente"
-	@echo "  $(YELLOW)make flatpak-run$(RESET)       - Executa a aplicação Flatpak instalada"
-	@echo "  $(YELLOW)make flatpak-dev$(RESET)       - Build + Run (útil durante desenvolvimento)"
-	@echo "  $(YELLOW)make flatpak-bundle$(RESET)   - Cria arquivo .flatpak para distribuição"
-	@echo "  $(YELLOW)make flatpak-clean$(RESET)     - Remove build e aplicação Flatpak instalada"
+	@echo "  $(YELLOW)make install-deps$(RESET)   - Instala SDKs e dependências do Flatpak"
+	@echo "  $(YELLOW)make build$(RESET)          - Constrói e instala o Flatpak localmente"
+	@echo "  $(YELLOW)make run$(RESET)            - Executa a aplicação Flatpak instalada"
+	@echo "  $(YELLOW)make run-debug$(RESET)      - Executa a aplicação com saída de debug"
+	@echo "  $(YELLOW)make dev$(RESET)            - Build + Run (útil durante desenvolvimento)"
+	@echo "  $(YELLOW)make bundle$(RESET)         - Cria arquivo .flatpak para distribuição"
+	@echo "  $(YELLOW)make clean-build$(RESET)   - Remove build e aplicação Flatpak instalada"
 	@echo ""
 	@echo "$(GREEN)Utilitários:$(RESET)"
-	@echo "  $(YELLOW)make format$(RESET)             - Formata código com black (requer black no host ou Docker)"
-	@echo "  $(YELLOW)make clean$(RESET)             - Remove arquivos gerados (__pycache__, .pyc, etc)"
+	@echo "  $(YELLOW)make clean$(RESET)  - Remove arquivos gerados (__pycache__, .pyc, .qmlc, etc)"
 	@echo ""
 
 # ============================================================================
@@ -75,29 +76,34 @@ check-docker:
 
 # Detectar versão do Docker Compose (v2: docker compose, v1: docker-compose)
 DOCKER_COMPOSE := $(shell docker compose version >/dev/null 2>&1 && echo "docker compose" || echo "docker-compose")
+# Rodar como usuário do host para não gerar arquivos como root
+DOCKER_UID := $(shell id -u)
+DOCKER_GID := $(shell id -g)
+DOCKER_USER := UID=$(DOCKER_UID) GID=$(DOCKER_GID)
 
-.PHONY: docker-build
-docker-build: check-docker
+.PHONY: dev-build
+dev-build: check-docker
 	@echo "$(CYAN)Construindo imagem Docker para desenvolvimento...$(RESET)"
 	@$(DOCKER_COMPOSE) build
 
-.PHONY: docker-test
-docker-test: check-docker
+.PHONY: dev-test
+dev-test: check-docker
 	@echo "$(CYAN)Executando testes no Docker...$(RESET)"
-	@$(DOCKER_COMPOSE) run --rm dev python3 -m pytest tests/ -v --tb=short
+	@$(DOCKER_USER) $(DOCKER_COMPOSE) run --rm dev python3 -m pytest tests/ -v --tb=short
 
-.PHONY: docker-shell
-docker-shell: check-docker
+.PHONY: dev-shell
+dev-shell: check-docker
 	@echo "$(CYAN)Abrindo shell interativo no container...$(RESET)"
-	@$(DOCKER_COMPOSE) run --rm dev /bin/bash
+	@$(DOCKER_USER) $(DOCKER_COMPOSE) run --rm dev /bin/bash
 
-.PHONY: docker-format
-docker-format: check-docker
+.PHONY: dev-format
+dev-format: check-docker
 	@echo "$(CYAN)Formatando código com black no Docker...$(RESET)"
-	@$(DOCKER_COMPOSE) run --rm dev black src/ core/ config/ tests/
+	@$(DOCKER_USER) $(DOCKER_COMPOSE) run --rm dev black src/ core/ config/ tests/
+	@echo "$(GREEN)✓ Código formatado$(RESET)"
 
-.PHONY: docker-clean
-docker-clean: check-docker
+.PHONY: dev-clean
+dev-clean: check-docker
 	@echo "$(CYAN)Limpando containers e imagens Docker...$(RESET)"
 	@$(DOCKER_COMPOSE) down -v
 	@docker rmi jira-quick-task_dev 2>/dev/null || true
@@ -128,41 +134,41 @@ check-flatpak:
 	fi
 	@echo "$(GREEN)✓ Manifest encontrado: $(MANIFEST)$(RESET)"
 
-.PHONY: flatpak-install-deps
-flatpak-install-deps: check-flatpak
+.PHONY: install-deps
+install-deps: check-flatpak
 	@echo "$(CYAN)Instalando dependências do Flatpak...$(RESET)"
 	@./build-flatpak.sh install-deps
 
-.PHONY: flatpak-build
-flatpak-build: check-flatpak
+.PHONY: build
+build: check-flatpak
 	@echo "$(CYAN)Construindo Flatpak...$(RESET)"
 	@./build-flatpak.sh build
 
-.PHONY: flatpak-run
-flatpak-run: check-flatpak
+.PHONY: run
+run: check-flatpak
 	@echo "$(CYAN)Executando aplicação Flatpak...$(RESET)"
 	@./build-flatpak.sh test
 
-.PHONY: flatpak-run-debug
-flatpak-run-debug: check-flatpak
+.PHONY: run-debug
+run-debug: check-flatpak
 	@echo "$(CYAN)Executando aplicação Flatpak com debug...$(RESET)"
 	@flatpak run org.kde.jira-quick-task --debug
 
-.PHONY: flatpak-dev
-flatpak-dev: check-flatpak
+.PHONY: dev
+dev: check-flatpak
 	@echo "$(CYAN)Build + Run (desenvolvimento)...$(RESET)"
 	@./build-flatpak.sh build
 	@echo ""
-	@echo "$(CYAN)Executando aplicação...$(RESET)"
-	@./build-flatpak.sh test
+	@echo "$(CYAN)Executando aplicação Flatpak com debug...$(RESET)"
+	@flatpak run org.kde.jira-quick-task --debug
 
-.PHONY: flatpak-bundle
-flatpak-bundle: check-flatpak
+.PHONY: bundle
+bundle: check-flatpak
 	@echo "$(CYAN)Criando bundle Flatpak para distribuição...$(RESET)"
 	@./build-flatpak.sh bundle
 
-.PHONY: flatpak-clean
-flatpak-clean: check-flatpak
+.PHONY: clean-build
+clean-build: check-flatpak
 	@echo "$(CYAN)Limpando dados do Flatpak...$(RESET)"
 	@./build-flatpak.sh clean
 
@@ -170,28 +176,15 @@ flatpak-clean: check-flatpak
 # Utilitários
 # ============================================================================
 
-.PHONY: format
-format:
-	@echo "$(CYAN)Formatando código...$(RESET)"
-	@if command -v black >/dev/null 2>&1; then \
-		black src/ core/ config/ tests/; \
-		echo "$(GREEN)✓ Código formatado$(RESET)"; \
-	else \
-		echo "$(YELLOW)⚠ black não encontrado no host$(RESET)"; \
-		echo "$(YELLOW)Instale com: pip3 install black$(RESET)"; \
-		echo "$(YELLOW)Ou formate dentro do Flatpak após o build$(RESET)"; \
-		exit 1; \
-	fi
-
 .PHONY: clean
 clean:
 	@echo "$(CYAN)Limpando arquivos gerados...$(RESET)"
-	@find . -type d -name "__pycache__" -exec rm -r {} + 2>/dev/null || true
+	@find . -type d -name "__pycache__" -prune -exec rm -r {} + 2>/dev/null || true
 	@find . -type f -name "*.pyc" -delete 2>/dev/null || true
 	@find . -type f -name "*.pyo" -delete 2>/dev/null || true
 	@find . -type f -name "*.qmlc" -delete 2>/dev/null || true
-	@find . -type d -name "*.egg-info" -exec rm -r {} + 2>/dev/null || true
-	@find . -type d -name ".pytest_cache" -exec rm -r {} + 2>/dev/null || true
-	@find . -type d -name ".mypy_cache" -exec rm -r {} + 2>/dev/null || true
+	@find . -type d -name "*.egg-info" -prune -exec rm -r {} + 2>/dev/null || true
+	@find . -type d -name ".pytest_cache" -prune -exec rm -r {} + 2>/dev/null || true
+	@find . -type d -name ".mypy_cache" -prune -exec rm -r {} + 2>/dev/null || true
 	@rm -rf .coverage htmlcov .tox .nox 2>/dev/null || true
 	@echo "$(GREEN)✓ Limpeza concluída$(RESET)"

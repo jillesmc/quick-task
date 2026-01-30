@@ -13,6 +13,7 @@ from typing import Dict, Any, Generator
 # PySide6 está instalado via apt em /usr/lib/python3/dist-packages
 # No Flatpak, PySide6 vem do runtime, então não precisamos adicionar este caminho
 import os
+
 is_flatpak = os.path.exists("/.flatpak-info")
 if not is_flatpak and "/usr/lib/python3/dist-packages" not in sys.path:
     sys.path.insert(0, "/usr/lib/python3/dist-packages")

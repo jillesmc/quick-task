@@ -13,16 +13,16 @@ from io import StringIO
 # Suprimir warnings do Kirigami, do estilo (Controls 2), Controls 1 (SplitView) e QSocketNotifier
 # usando QT_LOGGING_RULES (forma oficial)
 # TEMPORARIAMENTE: Não suprimir erros QML para debug
-os.environ.setdefault("QT_LOGGING_RULES", 
+os.environ.setdefault(
+    "QT_LOGGING_RULES",
     "kf.kirigami.warning=false;"
     "qt.quick.controls.style.warning=false;"
     "qt.quick.controls.warning=false;"
-    "qt.core.socketnotifier.warning=false"  # Suprimir QSocketNotifier warnings
+    "qt.core.socketnotifier.warning=false",  # Suprimir QSocketNotifier warnings
 )
 # Habilitar mensagens QML para debug
-os.environ.setdefault("QT_LOGGING_RULES", 
-    os.environ.get("QT_LOGGING_RULES", "") + ";"
-    "qt.qml.debug=true"
+os.environ.setdefault(
+    "QT_LOGGING_RULES", os.environ.get("QT_LOGGING_RULES", "") + ";" "qt.qml.debug=true"
 )
 
 # Tentar importar QApplication de QtWidgets (necessário para QSystemTrayIcon)
@@ -46,6 +46,7 @@ from PySide6.QtQml import QQmlApplicationEngine, qmlRegisterType  # type: ignore
 # Tentar importar qInstallMessageHandler (disponível no Qt 6)
 try:
     from PySide6.QtCore import qInstallMessageHandler  # type: ignore[import]
+
     HAS_MESSAGE_HANDLER = True
 except ImportError:
     HAS_MESSAGE_HANDLER = False
@@ -55,47 +56,66 @@ def qt_message_handler(msg_type, context, message):
     """Filtro de mensagens do Qt para suprimir avisos específicos"""
     # Importar aqui para evitar import circular
     from src.utils.debug import is_debug_enabled
-    
+
     # Converter mensagem para string de forma segura
     try:
-        if hasattr(message, '__str__'):
+        if hasattr(message, "__str__"):
             msg_str = str(message)
         else:
             msg_str = repr(message)
     except:
         msg_str = ""
-    
+
     # Suprimir mensagem QSocketNotifier
-    if "QSocketNotifier" in msg_str or "Can only be used with threads started with QThread" in msg_str:
+    if (
+        "QSocketNotifier" in msg_str
+        or "Can only be used with threads started with QThread" in msg_str
+    ):
         return
-    
+
     # Suprimir erro conhecido do org.kde.desktop TabButton (bug no estilo KDE)
     # Este é um bug conhecido onde o estilo tenta acessar propriedade 'y' de um objeto null
-    if ("TabButton.qml" in msg_str or "org/kde/desktop/TabButton" in msg_str) and \
-       ("Cannot read property 'y' of null" in msg_str or "TypeError" in msg_str):
+    if ("TabButton.qml" in msg_str or "org/kde/desktop/TabButton" in msg_str) and (
+        "Cannot read property 'y' of null" in msg_str or "TypeError" in msg_str
+    ):
         return  # Suprimir este warning específico
-    
+
     # Se debug estiver ativado, mostrar todas as mensagens QML (incluindo console.log)
     if is_debug_enabled():
-        if "qml" in msg_str.lower() or "QML" in msg_str or context.category in ["qml", "qml.import"]:
+        if (
+            "qml" in msg_str.lower()
+            or "QML" in msg_str
+            or context.category in ["qml", "qml.import"]
+        ):
             # Mostrar todas as mensagens QML quando debug está ativado
-            type_names = {0: "Debug", 1: "Warning", 2: "Critical", 3: "Fatal", 4: "Info"}
+            type_names = {
+                0: "Debug",
+                1: "Warning",
+                2: "Critical",
+                3: "Fatal",
+                4: "Info",
+            }
             type_name = type_names.get(msg_type, f"Type{msg_type}")
             print(f"QML [{type_name}]: {msg_str}", file=sys.stderr)
             if context.file:
                 print(f"  File: {context.file}:{context.line}", file=sys.stderr)
         return
-    
+
     # Se debug não estiver ativado, mostrar apenas erros críticos
-    if "qml" in msg_str.lower() or "QML" in msg_str or context.category in ["qml", "qml.import"]:
+    if (
+        "qml" in msg_str.lower()
+        or "QML" in msg_str
+        or context.category in ["qml", "qml.import"]
+    ):
         # Mostrar apenas erros críticos, não warnings do estilo KDE
         if msg_type in [4, 5]:  # QtCriticalMsg ou QtFatalMsg
             print(f"QML Message [{msg_type}]: {msg_str}", file=sys.stderr)
             if context.file:
                 print(f"  File: {context.file}:{context.line}", file=sys.stderr)
-    
+
     # Para outras mensagens, não fazer nada (suprimir tudo)
     pass
+
 
 # Adicionar diretório raiz ao path
 ROOT_DIR = Path(__file__).parent.parent
@@ -113,18 +133,22 @@ from src.utils.debug import debug_log
 
 class FilteredStderr:
     """Wrapper para stderr que filtra mensagens QSocketNotifier"""
+
     def __init__(self, original_stderr):
         self.original_stderr = original_stderr
-    
+
     def write(self, message):
         # Filtrar mensagem QSocketNotifier
-        if "QSocketNotifier" in message and "Can only be used with threads started with QThread" in message:
+        if (
+            "QSocketNotifier" in message
+            and "Can only be used with threads started with QThread" in message
+        ):
             return  # Não escrever essa mensagem
         self.original_stderr.write(message)
-    
+
     def flush(self):
         self.original_stderr.flush()
-    
+
     def __getattr__(self, name):
         return getattr(self.original_stderr, name)
 
@@ -134,7 +158,7 @@ def main():
     # Redirecionar stderr para filtrar mensagens QSocketNotifier
     filtered_stderr = FilteredStderr(sys.stderr)
     sys.stderr = filtered_stderr
-    
+
     # Instalar filtro de mensagens do Qt para suprimir QSocketNotifier
     # IMPORTANTE: Deve ser feito ANTES de criar QApplication
     if HAS_MESSAGE_HANDLER:
@@ -143,19 +167,23 @@ def main():
         except Exception:
             # Se falhar, continuar sem filtro
             pass
-    
+
     # Verificar single instance ANTES de criar QApplication
     single_instance = SingleInstanceManager("jira-quick-task")
     if not single_instance.try_lock():
         # Outra instância já está rodando
         sys.exit(0)
-    
+
     # Criar QApplication (necessário para QSystemTrayIcon)
     app = QApplication(sys.argv)
 
     # Definir ícone da aplicação (Flatpak: ícone está em /app/share/icons)
-    flatpak_icon = Path("/app/share/icons/hicolor/scalable/apps/org.kde.jira-quick-task.svg")
-    icon_path = flatpak_icon  # Usar mesmo se não existir (SystemTrayManager tem fallbacks)
+    flatpak_icon = Path(
+        "/app/share/icons/hicolor/scalable/apps/org.kde.jira-quick-task.svg"
+    )
+    icon_path = (
+        flatpak_icon  # Usar mesmo se não existir (SystemTrayManager tem fallbacks)
+    )
     if flatpak_icon.exists():
         app.setWindowIcon(QIcon(str(flatpak_icon)))
     else:
@@ -207,9 +235,10 @@ def main():
     except Exception as e:
         print(f"✗ Erro ao criar IssueModel: {e}", file=sys.stderr)
         import traceback
+
         traceback.print_exc(file=sys.stderr)
         raise
-    
+
     try:
         debug_log("App", "main", "Criando MyIssuesModel...")
         my_issues_model = MyIssuesModel()
@@ -217,9 +246,10 @@ def main():
     except Exception as e:
         print(f"✗ Erro ao criar MyIssuesModel: {e}", file=sys.stderr)
         import traceback
+
         traceback.print_exc(file=sys.stderr)
         raise
-    
+
     try:
         debug_log("App", "main", "Criando JiraService...")
         jira_service = JiraService()
@@ -227,9 +257,10 @@ def main():
     except Exception as e:
         print(f"✗ Erro ao criar JiraService: {e}", file=sys.stderr)
         import traceback
+
         traceback.print_exc(file=sys.stderr)
         raise
-    
+
     try:
         debug_log("App", "main", "Criando SettingsModel...")
         settings_model = SettingsModel()
@@ -237,29 +268,31 @@ def main():
     except Exception as e:
         print(f"✗ Erro ao criar SettingsModel: {e}", file=sys.stderr)
         import traceback
+
         traceback.print_exc(file=sys.stderr)
         raise
-    
+
     # Criar SystemTrayManager
     try:
         tray_manager = SystemTrayManager(icon_path, app)
     except Exception as e:
         import traceback
+
         print(f"Erro ao criar SystemTrayManager: {e}", file=sys.stderr)
         traceback.print_exc(file=sys.stderr)
         # Continuar sem tray manager
         tray_manager = None
-    
+
     # Criar GlobalShortcutManager
     shortcut_manager = GlobalShortcutManager(app)
-    
+
     # Criar modelos e serviços de timer (após tray_manager para poder usar o tray_icon)
     timer_model = None
     timer_service = None
     notification_service = None
     worklog_sync_service = None
     worklog_db = None
-    
+
     try:
         from src.models.timer_model import TimerModel
         from src.services.timer_service import TimerService
@@ -267,54 +300,63 @@ def main():
         from src.services.worklog_sync_service import WorklogSyncService
         from src.database.worklog_db import WorklogDatabase
         from config.config_manager import ConfigManager
-        
+
         debug_log("App", "main", "Criando WorklogDatabase...")
         worklog_db = WorklogDatabase()
         debug_log("App", "main", "WorklogDatabase criado com sucesso")
-        
+
         debug_log("App", "main", "Criando TimerModel...")
         timer_model = TimerModel()
         debug_log("App", "main", "TimerModel criado com sucesso")
-        
+
         debug_log("App", "main", "Criando TimerService...")
         config_manager = ConfigManager()
         timer_service = TimerService(timer_model, config_manager, worklog_db)
         debug_log("App", "main", "TimerService criado com sucesso")
-        
+
         # Conectar sinal saved do SettingsModel para recarregar configurações no TimerService
         if settings_model and timer_service:
+
             def on_settings_saved():
                 """Recarrega configurações de Pomodoro no TimerService quando salvas"""
-                debug_log("App", "on_settings_saved", "Configurações salvas, recarregando no TimerService")
+                debug_log(
+                    "App",
+                    "on_settings_saved",
+                    "Configurações salvas, recarregando no TimerService",
+                )
                 timer_service.reload_config()
-            
+
             settings_model.saved.connect(on_settings_saved)
-            debug_log("App", "main", "Sinal saved conectado para recarregar configurações")
-        
+            debug_log(
+                "App", "main", "Sinal saved conectado para recarregar configurações"
+            )
+
         debug_log("App", "main", "Criando NotificationService...")
         tray_icon = None
-        if tray_manager and hasattr(tray_manager, 'tray_icon'):
+        if tray_manager and hasattr(tray_manager, "tray_icon"):
             tray_icon = tray_manager.tray_icon
         notification_service = NotificationService(tray_icon=tray_icon)
         # Conectar settingsModel ao notificationService
         if notification_service and settings_model:
             notification_service.set_settings_model(settings_model)
         debug_log("App", "main", "NotificationService criado com sucesso")
-        
+
         debug_log("App", "main", "Criando WorklogSyncService...")
         worklog_sync_service = WorklogSyncService(worklog_db, config_manager)
         debug_log("App", "main", "WorklogSyncService criado com sucesso")
-        
+
         # Criar TimerTrayManager para ícone separado do timer
         timer_tray_manager = None
         try:
             debug_log("App", "main", "Criando TimerTrayManager...")
             from src.timer_tray_manager import TimerTrayManager
+
             timer_tray_manager = TimerTrayManager(icon_path, app)
             debug_log("App", "main", "TimerTrayManager criado com sucesso")
-            
+
             # Conectar sinais do timerModel para atualizar o timerTrayManager
             if timer_model and timer_tray_manager:
+
                 def update_tray_timer():
                     if timer_model and timer_tray_manager:
                         timer_tray_manager.update_timer_state(
@@ -322,54 +364,62 @@ def main():
                             timer_model.elapsedSeconds or 0,
                             timer_model.state or "idle",
                             timer_model.currentPomodoro or 0,
-                            timer_model.isOnBreak or False
+                            timer_model.isOnBreak or False,
                         )
                         # Mostrar/esconder tray icon baseado no estado
                         # Mostrar se timer está rodando, pausado, ou em qualquer estado de pausa/break
                         timer_is_active = (
-                            timer_model.state in ["running", "paused"] or
-                            timer_model.isWaitingBreakDecision or
-                            timer_model.isOnBreak or
-                            timer_model.isWaitingBreakEndDecision
+                            timer_model.state in ["running", "paused"]
+                            or timer_model.isWaitingBreakDecision
+                            or timer_model.isOnBreak
+                            or timer_model.isWaitingBreakEndDecision
                         )
                         if timer_is_active:
                             timer_tray_manager.show()
                         else:
                             timer_tray_manager.hide()
-                
+
                 # Conectar sinais de mudança de estado
                 timer_model.stateChanged.connect(update_tray_timer)
                 timer_model.timeUpdated.connect(update_tray_timer)
                 timer_model.issueKeyChanged.connect(update_tray_timer)
-                
+
                 # Também conectar a mudanças nos estados de pausa/break
                 def on_break_state_changed():
                     """Atualiza tray quando estados de pausa mudam"""
                     update_tray_timer()
-                
+
                 # Conectar a timeUpdated que é emitido quando propriedades de break mudam
                 timer_model.timeUpdated.connect(on_break_state_changed)
-                
+
                 # Conectar sinais do timerTrayManager para controlar o timer
                 # restoreRequested será gerenciado pelo Main.qml via Connections
-                timer_tray_manager.pauseRequested.connect(lambda: timer_service.pause() if timer_service else None)
+                timer_tray_manager.pauseRequested.connect(
+                    lambda: timer_service.pause() if timer_service else None
+                )
                 # resumeRequested não faz mais sentido - pausas usam cronômetro, mas manter para compatibilidade
-                timer_tray_manager.resumeRequested.connect(lambda: timer_service.resume() if timer_service else None)
-                timer_tray_manager.stopRequested.connect(lambda: timer_service.stop() if timer_service else None)
-                
+                timer_tray_manager.resumeRequested.connect(
+                    lambda: timer_service.resume() if timer_service else None
+                )
+                timer_tray_manager.stopRequested.connect(
+                    lambda: timer_service.stop() if timer_service else None
+                )
+
                 # Atualizar estado inicial
                 update_tray_timer()
         except Exception as e:
             print(f"⚠ Aviso: Erro ao criar TimerTrayManager: {e}", file=sys.stderr)
             import traceback
+
             traceback.print_exc(file=sys.stderr)
             # Não falhar completamente - timer tray é feature opcional
     except Exception as e:
         print(f"✗ Erro ao criar serviços de timer: {e}", file=sys.stderr)
         import traceback
+
         traceback.print_exc(file=sys.stderr)
         # Não falhar completamente - timer é feature opcional
-    
+
     # Expor ao contexto QML
     debug_log("App", "main", "Expondo modelos ao contexto QML...")
     try:
@@ -378,35 +428,35 @@ def main():
     except Exception as e:
         print(f"✗ Erro ao expor issueModel: {e}", file=sys.stderr)
         raise
-    
+
     try:
         engine.rootContext().setContextProperty("myIssuesModel", my_issues_model)
         debug_log("App", "main", "myIssuesModel exposto ao contexto QML")
     except Exception as e:
         print(f"✗ Erro ao expor myIssuesModel: {e}", file=sys.stderr)
         raise
-    
+
     try:
         engine.rootContext().setContextProperty("jiraService", jira_service)
         debug_log("App", "main", "jiraService exposto ao contexto QML")
     except Exception as e:
         print(f"✗ Erro ao expor jiraService: {e}", file=sys.stderr)
         raise
-    
+
     try:
         engine.rootContext().setContextProperty("settingsModel", settings_model)
         debug_log("App", "main", "settingsModel exposto ao contexto QML")
     except Exception as e:
         print(f"✗ Erro ao expor settingsModel: {e}", file=sys.stderr)
         raise
-    
+
     try:
         engine.rootContext().setContextProperty("trayManager", tray_manager)
         debug_log("App", "main", "trayManager exposto ao contexto QML")
     except Exception as e:
         print(f"✗ Erro ao expor trayManager: {e}", file=sys.stderr)
         raise
-    
+
     # Expor serviços de timer ao contexto QML
     # IMPORTANTE: Sempre expor, mesmo se None, para evitar erros no QML
     try:
@@ -415,26 +465,36 @@ def main():
             debug_log("App", "main", "timerModel exposto ao contexto QML")
         else:
             debug_log("App", "main", "timerModel é None - não foi criado")
-            print("⚠ Aviso: timerModel não está disponível (timer é feature opcional)", file=sys.stderr)
+            print(
+                "⚠ Aviso: timerModel não está disponível (timer é feature opcional)",
+                file=sys.stderr,
+            )
     except Exception as e:
         print(f"✗ Erro ao expor timerModel: {e}", file=sys.stderr)
         import traceback
+
         traceback.print_exc(file=sys.stderr)
-    
+
     try:
         engine.rootContext().setContextProperty("timerService", timer_service)
         if timer_service:
             debug_log("App", "main", "timerService exposto ao contexto QML")
         else:
             debug_log("App", "main", "timerService é None - não foi criado")
-            print("⚠ Aviso: timerService não está disponível (timer é feature opcional)", file=sys.stderr)
+            print(
+                "⚠ Aviso: timerService não está disponível (timer é feature opcional)",
+                file=sys.stderr,
+            )
     except Exception as e:
         print(f"✗ Erro ao expor timerService: {e}", file=sys.stderr)
         import traceback
+
         traceback.print_exc(file=sys.stderr)
-    
+
     try:
-        engine.rootContext().setContextProperty("notificationService", notification_service)
+        engine.rootContext().setContextProperty(
+            "notificationService", notification_service
+        )
         if notification_service:
             debug_log("App", "main", "notificationService exposto ao contexto QML")
         else:
@@ -442,10 +502,13 @@ def main():
     except Exception as e:
         print(f"✗ Erro ao expor notificationService: {e}", file=sys.stderr)
         import traceback
+
         traceback.print_exc(file=sys.stderr)
-    
+
     try:
-        engine.rootContext().setContextProperty("worklogSyncService", worklog_sync_service)
+        engine.rootContext().setContextProperty(
+            "worklogSyncService", worklog_sync_service
+        )
         if worklog_sync_service:
             debug_log("App", "main", "worklogSyncService exposto ao contexto QML")
         else:
@@ -453,12 +516,17 @@ def main():
     except Exception as e:
         print(f"✗ Erro ao expor worklogSyncService: {e}", file=sys.stderr)
         import traceback
+
         traceback.print_exc(file=sys.stderr)
-    
+
     # Expor timerTrayManager ao contexto QML
     try:
-        timer_tray_manager_var = timer_tray_manager if 'timer_tray_manager' in locals() else None
-        engine.rootContext().setContextProperty("timerTrayManager", timer_tray_manager_var)
+        timer_tray_manager_var = (
+            timer_tray_manager if "timer_tray_manager" in locals() else None
+        )
+        engine.rootContext().setContextProperty(
+            "timerTrayManager", timer_tray_manager_var
+        )
         if timer_tray_manager_var:
             debug_log("App", "main", "timerTrayManager exposto ao contexto QML")
         else:
@@ -466,37 +534,46 @@ def main():
     except Exception as e:
         print(f"⚠ Aviso: Erro ao expor timerTrayManager: {e}", file=sys.stderr)
         import traceback
+
         traceback.print_exc(file=sys.stderr)
-    
+
     # Criar janela flutuante do timer (gerenciada em Python para drag suave)
     timer_floating_window = None
     try:
         if timer_model and timer_service:
-            debug_log("App", "main", "Criando gerenciador de janela flutuante do timer...")
+            debug_log(
+                "App", "main", "Criando gerenciador de janela flutuante do timer..."
+            )
             from src.timer_floating_window import TimerFloatingWindow
-            
+
             # Caminho para o QML do conteúdo do timer
-            qml_content_path = Path(__file__).parent / "qml" / "components" / "timer" / "TimerFloatingPanelContent.qml"
-            
+            qml_content_path = (
+                Path(__file__).parent
+                / "qml"
+                / "components"
+                / "timer"
+                / "TimerFloatingPanelContent.qml"
+            )
+
             # Estado centralizado de visibilidade da janela
             # "auto" = visibilidade controlada automaticamente pelo estado do timer
             # "hidden" = usuário minimizou manualmente, deve permanecer escondida
             # "visible" = usuário restaurou manualmente, deve permanecer visível
             _window_visibility_state = "auto"  # "auto" | "hidden" | "visible"
-            
+
             # Função auxiliar para ativar janela (reutilizável)
             def _activate_timer_window():
                 """
                 Ativa janela do timer com sequência padrão do Qt.
-                
+
                 IMPORTANTE - Limitação do Wayland:
                 No Wayland, requestActivate() pode não funcionar devido a limitações do protocolo
                 XDG Activation. Esta é uma limitação conhecida do Qt/Wayland, não um bug do nosso código.
-                
+
                 Referências:
                 - Qt Documentation: https://doc.qt.io/qt-6/qwindow.html#requestActivate
                 - Wayland XDG Activation Protocol: https://wayland.app/protocols/xdg-activation-v1
-                
+
                 Em ambientes Wayland, a janela pode não ser trazida para o primeiro plano automaticamente.
                 O usuário pode precisar clicar manualmente na janela ou usar o ícone do system tray.
                 """
@@ -507,12 +584,16 @@ def main():
                 timer_floating_window.requestActivate()
                 # Tentar activate() se disponível (QWindow pode ter este método)
                 try:
-                    if hasattr(timer_floating_window, 'activate'):
+                    if hasattr(timer_floating_window, "activate"):
                         timer_floating_window.activate()
                 except Exception as e:
-                    debug_log("App", "_activate_timer_window", 
-                             "activate() não disponível ou falhou: %s", e)
-                
+                    debug_log(
+                        "App",
+                        "_activate_timer_window",
+                        "activate() não disponível ou falhou: %s",
+                        e,
+                    )
+
                 # Hipótese 1: Garantir foco no root object QML para capturar eventos
                 # IMPORTANTE: Só chamar forceActiveFocus() se a janela estiver visível
                 # Isso evita roubar foco quando a janela não está sendo mostrada
@@ -521,86 +602,111 @@ def main():
                         root_object = timer_floating_window.rootObject()
                         if root_object:
                             # Chamar forceActiveFocus() no root object QML apenas se janela estiver visível
-                            if hasattr(root_object, 'forceActiveFocus'):
+                            if hasattr(root_object, "forceActiveFocus"):
                                 root_object.forceActiveFocus()
-                                debug_log("App", "_activate_timer_window", 
-                                         "forceActiveFocus() chamado no root object (janela visível)")
+                                debug_log(
+                                    "App",
+                                    "_activate_timer_window",
+                                    "forceActiveFocus() chamado no root object (janela visível)",
+                                )
                             else:
-                                debug_log("App", "_activate_timer_window", 
-                                         "root object não tem forceActiveFocus()")
+                                debug_log(
+                                    "App",
+                                    "_activate_timer_window",
+                                    "root object não tem forceActiveFocus()",
+                                )
                     except Exception as e:
-                        debug_log("App", "_activate_timer_window", 
-                                 "Erro ao chamar forceActiveFocus() no root object: %s", e)
+                        debug_log(
+                            "App",
+                            "_activate_timer_window",
+                            "Erro ao chamar forceActiveFocus() no root object: %s",
+                            e,
+                        )
                 else:
-                    debug_log("App", "_activate_timer_window", 
-                             "Janela não está visível, não chamando forceActiveFocus() para evitar roubo de foco")
-            
+                    debug_log(
+                        "App",
+                        "_activate_timer_window",
+                        "Janela não está visível, não chamando forceActiveFocus() para evitar roubo de foco",
+                    )
+
             def create_timer_window():
                 """Cria a janela flutuante do timer"""
                 nonlocal timer_floating_window
                 if timer_floating_window:
                     return  # Já existe
-                
+
                 try:
                     # Criar janela com QML content
                     timer_floating_window = TimerFloatingWindow(str(qml_content_path))
-                    
+
                     # Adicionar import paths ao engine da janela (necessário para Kirigami)
                     qml_dir = Path(__file__).parent / "qml"
                     from PySide6.QtQml import QQmlEngine
+
                     qml_engine = timer_floating_window.engine()
                     if qml_engine:
                         qml_engine.addImportPath(str(qml_dir.absolute()))
-                        
+
                         # Adicionar paths do sistema
                         qml_paths = ["/app/qml", "/usr/qml"]
                         for path in qml_paths:
                             if os.path.exists(path):
                                 qml_engine.addImportPath(path)
-                    
+
                     # Criar um QObject wrapper para expor a função hideWindow ao QML
                     # QQuickView não reconhece funções Python simples como callable no QML
                     # Precisamos usar um QObject com @Slot() para que funcione corretamente
                     from PySide6.QtCore import QObject, Slot
-                    
+
                     class TimerWindowHelper(QObject):
                         """Helper QObject para expor funções da janela do timer ao QML"""
+
                         def __init__(self, window_ref, timer_model_ref, parent=None):
                             super().__init__(parent)
                             # Manter referência forte à janela para evitar garbage collection
                             self._window_ref = window_ref
                             self._timer_model_ref = timer_model_ref
-                        
+
                         @Slot()
                         def hide(self):
                             """Esconde a janela flutuante do timer (chamado do QML)"""
                             nonlocal _window_visibility_state
-                            debug_log("App", "TimerWindowHelper.hide", "Usuário minimizou janela manualmente")
+                            debug_log(
+                                "App",
+                                "TimerWindowHelper.hide",
+                                "Usuário minimizou janela manualmente",
+                            )
                             # Marcar que o usuário quer a janela escondida
                             _window_visibility_state = "hidden"
                             # Atualizar visibilidade baseado no novo estado
                             if timer_floating_window:
                                 _update_window_visibility()
-                    
+
                     # Criar instância do helper COM A JANELA COMO PARENT
                     # Isso garante que o helper não seja garbage collected enquanto a janela existir
-                    timer_window_helper = TimerWindowHelper(timer_floating_window, timer_model, parent=timer_floating_window)
-                    
+                    timer_window_helper = TimerWindowHelper(
+                        timer_floating_window, timer_model, parent=timer_floating_window
+                    )
+
                     # Expor modelos e serviços ao contexto da janela ANTES de carregar QML
                     root_context = timer_floating_window.rootContext()
                     root_context.setContextProperty("timerModel", timer_model)
                     root_context.setContextProperty("timerService", timer_service)
                     root_context.setContextProperty("settingsModel", settings_model)
                     root_context.setContextProperty("hideWindow", timer_window_helper)
-                    
+
                     # Carregar QML após expor propriedades
                     timer_floating_window.load_qml()
-                    
+
                     # Função para restaurar janela do timer do tray
                     def restore_timer_window():
                         """Restaura a janela do timer do tray para primeiro plano"""
                         nonlocal _window_visibility_state
-                        debug_log("App", "restore_timer_window", "Usuário restaurou janela do tray")
+                        debug_log(
+                            "App",
+                            "restore_timer_window",
+                            "Usuário restaurou janela do tray",
+                        )
                         # Mudar estado para "visible" (usuário restaurou manualmente)
                         _window_visibility_state = "visible"
                         if timer_floating_window:
@@ -608,53 +714,72 @@ def main():
                             # Garantir ativação explícita após restaurar (usar função auxiliar)
                             if timer_floating_window.isVisible():
                                 _activate_timer_window()
-                    
+
                     # Conectar sinal de restore do tray manager
                     if timer_tray_manager:
-                        timer_tray_manager.restoreRequested.connect(restore_timer_window)
-                    
+                        timer_tray_manager.restoreRequested.connect(
+                            restore_timer_window
+                        )
+
                     # Conectar sinais de breakDecisionRequested, breakStarted e breakEnded
                     if timer_service:
                         # Conectar sinal breakStarted para tocar som quando pausa manual inicia
                         timer_service.breakStarted.connect(
-                            lambda break_type: notification_service.play_pomodoro_sound(break_type) 
-                            if notification_service else None
+                            lambda break_type: (
+                                notification_service.play_pomodoro_sound(break_type)
+                                if notification_service
+                                else None
+                            )
                         )
-                        
+
                         def on_break_decision_requested(pomodoro_num, break_type):
                             # Alerta de pausa - sempre mostrar janela (mesmo se estava minimizada)
                             nonlocal _window_visibility_state
                             if _window_visibility_state != "visible":
                                 _window_visibility_state = "visible"
-                                debug_log("App", "on_break_decision_requested", 
-                                         "Alerta de pausa, mudando estado para visible (era: %s)", _window_visibility_state)
+                                debug_log(
+                                    "App",
+                                    "on_break_decision_requested",
+                                    "Alerta de pausa, mudando estado para visible (era: %s)",
+                                    _window_visibility_state,
+                                )
                             else:
-                                debug_log("App", "on_break_decision_requested", 
-                                         "Alerta de pausa, estado já é visible")
+                                debug_log(
+                                    "App",
+                                    "on_break_decision_requested",
+                                    "Alerta de pausa, estado já é visible",
+                                )
                             # Atualizar visibilidade (função centralizada)
                             _update_window_visibility()
-                            
+
                             # Garantir ativação explícita quando alerta aparece (mesmo se janela já estiver visível)
-                            if timer_floating_window and timer_floating_window.isVisible():
+                            if (
+                                timer_floating_window
+                                and timer_floating_window.isVisible()
+                            ):
                                 _activate_timer_window()
-                            
+
                             # Tocar som com tipo de pausa
                             if notification_service:
                                 notification_service.play_pomodoro_sound(break_type)
-                        
+
                         def on_break_ended():
                             # Atualizar visibilidade (função centralizada decide baseado no estado)
                             _update_window_visibility()
-                            
+
                             # Tocar som com tipo de pausa correto
                             if notification_service and timer_model:
-                                notification_service.play_pomodoro_sound(timer_model.breakType)
-                        
+                                notification_service.play_pomodoro_sound(
+                                    timer_model.breakType
+                                )
+
                         # Conectar aos sinais do timerModel
                         if timer_model:
-                            timer_model.breakDecisionRequested.connect(on_break_decision_requested)
+                            timer_model.breakDecisionRequested.connect(
+                                on_break_decision_requested
+                            )
                             timer_model.breakEnded.connect(on_break_ended)
-                            
+
                             # Callback para quando aceita pausa (isOnBreak muda para True)
                             def on_is_on_break_changed(value: bool):
                                 """Callback quando isOnBreak muda - atualizar visibilidade"""
@@ -663,14 +788,21 @@ def main():
                                 if value:  # isOnBreak mudou para True
                                     if _window_visibility_state != "visible":
                                         _window_visibility_state = "visible"
-                                        debug_log("App", "on_is_on_break_changed", 
-                                                 "Pausa aceita, mudando estado para visible (era: %s)", _window_visibility_state)
+                                        debug_log(
+                                            "App",
+                                            "on_is_on_break_changed",
+                                            "Pausa aceita, mudando estado para visible (era: %s)",
+                                            _window_visibility_state,
+                                        )
                                     else:
-                                        debug_log("App", "on_is_on_break_changed", 
-                                                 "Pausa aceita, estado já é visible")
+                                        debug_log(
+                                            "App",
+                                            "on_is_on_break_changed",
+                                            "Pausa aceita, estado já é visible",
+                                        )
                                     # Atualizar visibilidade (função centralizada)
                                     _update_window_visibility()
-                            
+
                             # Conectar diretamente aos signals específicos
                             timer_model.isOnBreakChanged.connect(on_is_on_break_changed)
                             timer_model.isWaitingBreakDecisionChanged.connect(
@@ -679,13 +811,19 @@ def main():
                             timer_model.isWaitingBreakEndDecisionChanged.connect(
                                 lambda v: _update_window_visibility() if v else None
                             )
-                    
-                    debug_log("App", "main", "Janela flutuante do timer criada com sucesso")
+
+                    debug_log(
+                        "App", "main", "Janela flutuante do timer criada com sucesso"
+                    )
                 except Exception as e:
-                    print(f"⚠ Aviso: Erro ao criar janela flutuante do timer: {e}", file=sys.stderr)
+                    print(
+                        f"⚠ Aviso: Erro ao criar janela flutuante do timer: {e}",
+                        file=sys.stderr,
+                    )
                     import traceback
+
                     traceback.print_exc(file=sys.stderr)
-            
+
             def destroy_timer_window():
                 """Destrói a janela flutuante do timer"""
                 nonlocal timer_floating_window
@@ -693,30 +831,30 @@ def main():
                     timer_floating_window.close()
                     timer_floating_window = None
                     debug_log("App", "main", "Janela flutuante do timer destruída")
-            
+
             def _update_window_visibility():
                 """
                 Função centralizada que decide se a janela deve estar visível ou escondida.
                 Este é o ÚNICO lugar que chama show()/hide() na janela do timer.
-                
+
                 Lógica simplificada:
                 - Se usuário forçou hidden e timer requer visível: manter escondido (respeitar escolha do usuário)
                 - Se usuário forçou visible ou auto requer visível: mostrar
                 - Se timer não requer visível: esconder e resetar para auto quando idle
                 """
                 nonlocal _window_visibility_state
-                
+
                 if not timer_model or not timer_floating_window:
                     return
-                
+
                 # Verificar se o timer requer janela visível (baseado no estado do timer)
                 timer_requires_visible = (
-                    timer_model.state in ["running", "paused"] or
-                    timer_model.isWaitingBreakDecision or
-                    timer_model.isOnBreak or
-                    timer_model.isWaitingBreakEndDecision
+                    timer_model.state in ["running", "paused"]
+                    or timer_model.isWaitingBreakDecision
+                    or timer_model.isOnBreak
+                    or timer_model.isWaitingBreakEndDecision
                 )
-                
+
                 # Lógica simplificada: se usuário forçou hidden, respeitar
                 # Se usuário forçou visible e timer requer, mostrar
                 # Caso contrário, usar auto (baseado em timer_requires_visible)
@@ -724,7 +862,9 @@ def main():
                     # Timer requer visível mas usuário minimizou - manter escondido
                     if timer_floating_window.isVisible():
                         timer_floating_window.hide()
-                elif _window_visibility_state == "visible" or (_window_visibility_state == "auto" and timer_requires_visible):
+                elif _window_visibility_state == "visible" or (
+                    _window_visibility_state == "auto" and timer_requires_visible
+                ):
                     # Mostrar se usuário restaurou ou auto requer
                     if not timer_floating_window.isVisible():
                         timer_floating_window.show()
@@ -735,47 +875,58 @@ def main():
                         timer_floating_window.hide()
                     if timer_model.state == "idle":
                         _window_visibility_state = "auto"
-            
+
             def update_timer_window_visibility():
                 """Wrapper que garante que a janela existe antes de atualizar visibilidade"""
                 if not timer_floating_window:
                     # Verificar se precisa criar a janela
                     if timer_model and (
-                        timer_model.state in ["running", "paused"] or
-                        timer_model.isWaitingBreakDecision or
-                        timer_model.isOnBreak or
-                        timer_model.isWaitingBreakEndDecision
+                        timer_model.state in ["running", "paused"]
+                        or timer_model.isWaitingBreakDecision
+                        or timer_model.isOnBreak
+                        or timer_model.isWaitingBreakEndDecision
                     ):
                         create_timer_window()
                 # Atualizar visibilidade (função centralizada)
                 _update_window_visibility()
-                
+
                 # Garantir que quando timer para completamente, estado é resetado
                 if timer_model and timer_model.state == "idle":
                     nonlocal _window_visibility_state
-                    if not (timer_model.isWaitingBreakDecision or 
-                            timer_model.isOnBreak or 
-                            timer_model.isWaitingBreakEndDecision):
+                    if not (
+                        timer_model.isWaitingBreakDecision
+                        or timer_model.isOnBreak
+                        or timer_model.isWaitingBreakEndDecision
+                    ):
                         # Timer realmente parado (não está em pausa) - resetar estado
                         if _window_visibility_state != "auto":
                             _window_visibility_state = "auto"
-                            debug_log("App", "update_timer_window_visibility", 
-                                     "Timer completamente parado, resetando estado para auto")
+                            debug_log(
+                                "App",
+                                "update_timer_window_visibility",
+                                "Timer completamente parado, resetando estado para auto",
+                            )
                             # Garantir que janela está escondida
-                            if timer_floating_window and timer_floating_window.isVisible():
+                            if (
+                                timer_floating_window
+                                and timer_floating_window.isVisible()
+                            ):
                                 timer_floating_window.hide()
-            
+
             # Rastrear estado anterior para detectar transições
             _prev_timer_state = timer_model.state if timer_model else "idle"
-            
+
             def on_timer_state_changed(new_state):
                 """Callback quando estado do timer muda - detecta início de timer"""
                 nonlocal _window_visibility_state, _prev_timer_state
-                
+
                 # Detectar transição "idle" -> "running" (novo timer iniciou)
                 if _prev_timer_state == "idle" and new_state == "running":
-                    debug_log("App", "on_timer_state_changed", 
-                             "Novo timer iniciou (idle -> running), resetando estado para auto")
+                    debug_log(
+                        "App",
+                        "on_timer_state_changed",
+                        "Novo timer iniciou (idle -> running), resetando estado para auto",
+                    )
                     # Resetar para "auto" para garantir comportamento padrão
                     # Isso permite que _update_window_visibility() mostre a janela automaticamente
                     _window_visibility_state = "auto"
@@ -784,32 +935,38 @@ def main():
                     # Garantir ativação explícita após mostrar
                     if timer_floating_window and timer_floating_window.isVisible():
                         _activate_timer_window()
-                
+
                 _prev_timer_state = new_state
                 # Também atualizar visibilidade normalmente
                 update_timer_window_visibility()
-            
+
             # Conectar sinais do timerModel para gerenciar a janela
             timer_model.stateChanged.connect(on_timer_state_changed)
             # Também conectar a timeUpdated para capturar mudanças em isOnBreak
             timer_model.timeUpdated.connect(update_timer_window_visibility)
-            
+
             # Verificar estado inicial
             update_timer_window_visibility()
-            
-            debug_log("App", "main", "Gerenciador de janela flutuante do timer configurado")
+
+            debug_log(
+                "App", "main", "Gerenciador de janela flutuante do timer configurado"
+            )
     except Exception as e:
-        print(f"⚠ Aviso: Erro ao configurar janela flutuante do timer: {e}", file=sys.stderr)
+        print(
+            f"⚠ Aviso: Erro ao configurar janela flutuante do timer: {e}",
+            file=sys.stderr,
+        )
         import traceback
+
         traceback.print_exc(file=sys.stderr)
         # Não falhar completamente - janela flutuante é feature opcional
-    
+
     # WorklogDatabase não é QObject, então não pode ser exposto diretamente
     # Será acessado via WorklogSyncService quando necessário
 
     # Variável para armazenar referência à janela principal (será definida depois)
     main_window = None
-    
+
     # Função para esconder janela (minimizar ao tray)
     # Usa closure para acessar main_window quando disponível
     def hide_window():
@@ -817,7 +974,7 @@ def main():
         nonlocal main_window
         if main_window:
             main_window.hide()
-    
+
     # Função para restaurar janela (será definida depois que main_window estiver disponível)
     def restore_window():
         """Restaura e ativa a janela principal"""
@@ -826,7 +983,7 @@ def main():
             main_window.show()
             main_window.raise_()
             main_window.requestActivate()
-    
+
     # Função para toggle (mostrar/esconder) janela
     def toggle_window():
         """Alterna entre mostrar e esconder a janela"""
@@ -838,7 +995,7 @@ def main():
             else:
                 # Janela está escondida - mostrar
                 restore_window()
-    
+
     # Expor função para esconder janela ao QML (antes de carregar QML)
     engine.rootContext().setContextProperty("hideWindow", hide_window)
 
@@ -848,11 +1005,11 @@ def main():
     qml_path = Path(__file__).parent / "qml" / "Main.qml"
     debug_log("App", "main", "Caminho QML: %s", qml_path)
     debug_log("App", "main", "Arquivo existe: %s", qml_path.exists())
-    
+
     if not qml_path.exists():
         print(f"Erro: Arquivo QML não encontrado: {qml_path}", file=sys.stderr)
         sys.exit(-1)
-    
+
     url = QUrl.fromLocalFile(str(qml_path.absolute()))
     debug_log("App", "main", "URL QML: %s", url.toString())
 
@@ -864,15 +1021,15 @@ def main():
     debug_log("App", "main", "Verificando objetos raiz...")
     root_objects = engine.rootObjects()
     debug_log("App", "main", "Número de objetos raiz: %d", len(root_objects))
-    
+
     if not root_objects:
         print("Erro: Não foi possível carregar a interface QML", file=sys.stderr)
         print("Verifique os erros QML acima para mais detalhes.", file=sys.stderr)
-        
+
         # Tentar ler o arquivo QML para verificar se há problemas óbvios
         debug_log("App", "main", "Tentando ler o arquivo QML para diagnóstico...")
         try:
-            with open(qml_path, 'r', encoding='utf-8') as f:
+            with open(qml_path, "r", encoding="utf-8") as f:
                 lines = f.readlines()
                 debug_log("App", "main", "Arquivo QML tem %d linhas", len(lines))
                 # Verificar as primeiras linhas para problemas de import
@@ -881,11 +1038,13 @@ def main():
                     debug_log("App", "main", "  %3d: %s", i, line.rstrip())
         except Exception as e:
             debug_log("App", "main", "Erro ao ler arquivo QML: %s", e)
-        
+
         # Verificar se o problema pode ser com imports
         debug_log("App", "main", "Verificando imports QML...")
-        debug_log("App", "main", "Import paths configurados: %s", engine.importPathList())
-        
+        debug_log(
+            "App", "main", "Import paths configurados: %s", engine.importPathList()
+        )
+
         # Verificar se os módulos necessários estão disponíveis
         debug_log("App", "main", "Verificando disponibilidade de módulos QML...")
         import_paths = engine.importPathList()
@@ -903,97 +1062,120 @@ def main():
                             org_path = os.path.join(path, "org")
                             if os.path.isdir(org_path):
                                 org_items = os.listdir(org_path)
-                                debug_log("App", "main", "  Conteúdo de org/: %s", org_items)
+                                debug_log(
+                                    "App", "main", "  Conteúdo de org/: %s", org_items
+                                )
                                 if "kde" in org_items:
                                     kde_path = os.path.join(org_path, "kde")
                                     if os.path.isdir(kde_path):
                                         kde_items = os.listdir(kde_path)
-                                        debug_log("App", "main", "  Conteúdo de org/kde/: %s", kde_items)
+                                        debug_log(
+                                            "App",
+                                            "main",
+                                            "  Conteúdo de org/kde/: %s",
+                                            kde_items,
+                                        )
                     except Exception as e:
                         debug_log("App", "main", "  Erro ao listar: %s", e)
             else:
                 debug_log("App", "main", "  Path não existe")
-        
+
         sys.exit(-1)
-    
+
     debug_log("App", "main", "QML carregado com sucesso")
-    
+
     # Obter referência à janela principal
     main_window = root_objects[0]
-    
+
     # Conectar sinais do tray manager
     # As funções restore_window, hide_window e toggle_window já foram definidas acima
     # e usam closure para acessar main_window
     tray_manager.restoreRequested.connect(restore_window)
-    tray_manager.toggleRequested.connect(toggle_window)  # Clique no tray icon faz toggle
+    tray_manager.toggleRequested.connect(
+        toggle_window
+    )  # Clique no tray icon faz toggle
     tray_manager.quitRequested.connect(app.quit)
-    
+
     # Conectar sinal do single instance (quando outra instância tenta iniciar)
     single_instance.restoreRequested.connect(restore_window)
-    
+
     # Conectar sinal do shortcut manager (Super+J)
     shortcut_manager.activated.connect(restore_window)
-    
+
     # Registrar atalho global com a janela
     # main_window é um QQuickWindow (Kirigami.ApplicationWindow herda de QQuickWindow)
     try:
         shortcut_manager.register_with_window(main_window)
     except Exception:
         pass
-    
+
     # Mostrar tray icon
     def show_tray_icon():
         """Função para mostrar o tray icon (pode ser chamada múltiplas vezes)"""
         try:
             # Verificar diretamente se system tray está disponível
             from PySide6.QtWidgets import QSystemTrayIcon
+
             tray_available = QSystemTrayIcon.isSystemTrayAvailable()
-            
+
             if tray_available:
                 # Tentar usar is_available() primeiro (que tenta criar se necessário)
                 if tray_manager.is_available():
                     tray_manager.show()
-                elif hasattr(tray_manager, 'tray_icon') and tray_manager.tray_icon is not None:
+                elif (
+                    hasattr(tray_manager, "tray_icon")
+                    and tray_manager.tray_icon is not None
+                ):
                     # Tray icon existe mas is_available() retornou False - mostrar diretamente
                     tray_manager.show()
                 else:
                     # Tentar criar tray icon diretamente
                     tray_manager._setup_tray_icon()
-                    if hasattr(tray_manager, 'tray_icon') and tray_manager.tray_icon is not None:
+                    if (
+                        hasattr(tray_manager, "tray_icon")
+                        and tray_manager.tray_icon is not None
+                    ):
                         tray_manager.show()
         except Exception:
             pass  # Falha silenciosa - tray icon não é crítico
-    
+
     # Verificar disponibilidade do system tray antes de tentar mostrar
     from PySide6.QtWidgets import QSystemTrayIcon
+
     def show_tray_icon():
         try:
             if not QSystemTrayIcon.isSystemTrayAvailable():
                 return  # Tray não disponível, não tentar
             if tray_manager and tray_manager.is_available():
                 tray_manager.show()
-            elif hasattr(tray_manager, 'tray_icon') and tray_manager.tray_icon is not None:
+            elif (
+                hasattr(tray_manager, "tray_icon")
+                and tray_manager.tray_icon is not None
+            ):
                 # Tray icon existe mas is_available() retornou False - mostrar diretamente
                 tray_manager.show()
             else:
                 # Tentar criar tray icon diretamente
-                if hasattr(tray_manager, '_setup_tray_icon'):
+                if hasattr(tray_manager, "_setup_tray_icon"):
                     tray_manager._setup_tray_icon()
-                    if hasattr(tray_manager, 'tray_icon') and tray_manager.tray_icon is not None:
+                    if (
+                        hasattr(tray_manager, "tray_icon")
+                        and tray_manager.tray_icon is not None
+                    ):
                         tray_manager.show()
         except Exception:
             pass  # Falha silenciosa - tray icon não é crítico
-    
+
     # Tentar mostrar imediatamente (após QApplication estar pronto)
     show_tray_icon()
 
     # Executar aplicação
     exit_code = app.exec()
-    
+
     # Cleanup
     shortcut_manager.unregister()
     single_instance.cleanup()
-    
+
     sys.exit(exit_code)
 
 

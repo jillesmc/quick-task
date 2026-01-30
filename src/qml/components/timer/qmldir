@@ -1,1 +1,6 @@
 TimerFloatingPanel TimerFloatingPanel.qml
+TimerFloatingPanelContent TimerFloatingPanelContent.qml
+TimerActiveBlock TimerActiveBlock.qml
+TimerStartBlock TimerStartBlock.qml
+TimerStatsBlock TimerStatsBlock.qml
+TimerPendingWorklogsBlock TimerPendingWorklogsBlock.qml

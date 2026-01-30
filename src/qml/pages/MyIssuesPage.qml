@@ -12,7 +12,11 @@ import QtQuick.Controls
 import org.kde.kirigami as Kirigami
 import "../components/forms"
 import "../components/lists"
+import "../components/controls"
+import "../components/panes"
 import "../controllers"
+import "../utils/DialogHelpers.js" as DialogHelpers
+import "../utils/MyIssuesPageLogic.js" as MyIssuesPageLogic
 
 Kirigami.Page {
     id: page
@@ -42,9 +46,12 @@ Kirigami.Page {
     // Flag para controlar busca automática inicial (apenas uma vez)
     property bool initialSearchDone: false
 
-    // Diálogos
+    // Intermediários para evitar binding loop ao passar context properties ao detailPane
+    property var _ctxIssueModel: issueModel
+    property var _ctxJiraService: jiraService
+
+    // Diálogos (progressDialog e searchProgressDialog gerenciados via DialogHelpers)
     property var progressDialog: null
-    property var successDialog: null
     property var searchProgressDialog: null
 
     // Controller para lógica de negócio
@@ -145,62 +152,45 @@ Kirigami.Page {
             return;
         }
 
-        // Fechar diálogo anterior se existir
+        DialogHelpers.hideProgress(searchProgressDialog);
+        searchProgressDialog = null;
+
+        searchProgressDialog = DialogHelpers.showProgress(page, "../components/dialogs/ProgressDialog.qml");
         if (searchProgressDialog) {
-            searchProgressDialog.close();
-            searchProgressDialog.destroy();
-            searchProgressDialog = null;
-        }
+            searchProgressDialog.updateProgress(0, "Buscando issues...");
 
-        // Mostrar diálogo de progresso durante a busca
-        var component = Qt.createComponent("../components/dialogs/ProgressDialog.qml");
-        if (component.status === Component.Ready) {
-            var window = page.parent && page.parent.parent ? page.parent.parent : page;
-            searchProgressDialog = component.createObject(window);
-            if (searchProgressDialog) {
-                searchProgressDialog.open();
-                searchProgressDialog.updateProgress(0, "Buscando issues...");
-
-                // Conectar ao sinal de loading para atualizar e fechar progresso
-                var loadingConnection = function (isLoading) {
-                    if (isLoading) {
-                        if (searchProgressDialog) {
-                            searchProgressDialog.updateProgress(50, "Buscando issues...");
-                        }
-                    } else {
-                        Qt.callLater(function () {
-                            if (searchProgressDialog) {
-                                searchProgressDialog.updateProgress(100, "Busca concluída!");
-                                Qt.callLater(function () {
-                                    if (searchProgressDialog) {
-                                        searchProgressDialog.close();
-                                        searchProgressDialog.destroy();
-                                        searchProgressDialog = null;
-                                    }
-
-                                    // Selecionar automaticamente a primeira issue se houver resultados
-                                    Qt.callLater(function () {
-                                        if (myIssuesModel && myIssuesModel.issues && myIssuesModel.issues.length > 0) {
-                                            var firstIssue = myIssuesModel.issues[0];
-                                            if (firstIssue && firstIssue.key) {
-                                                if (issueList) {
-                                                    issueList.selectIssue(firstIssue.key);
-                                                }
-                                            }
-                                        }
-                                    });
-                                });
-                            }
-                            if (myIssuesModel) {
-                                myIssuesModel.loadingChanged.disconnect(loadingConnection);
-                            }
-                        });
+            var loadingConnection = function (isLoading) {
+                if (isLoading) {
+                    if (searchProgressDialog) {
+                        searchProgressDialog.updateProgress(50, "Buscando issues...");
                     }
-                };
+                } else {
+                    Qt.callLater(function () {
+                        if (searchProgressDialog) {
+                            searchProgressDialog.updateProgress(100, "Busca concluída!");
+                            Qt.callLater(function () {
+                                DialogHelpers.hideProgress(searchProgressDialog);
+                                searchProgressDialog = null;
 
-                if (myIssuesModel) {
-                    myIssuesModel.loadingChanged.connect(loadingConnection);
+                                Qt.callLater(function () {
+                                    if (myIssuesModel && myIssuesModel.issues && myIssuesModel.issues.length > 0) {
+                                        var firstIssue = myIssuesModel.issues[0];
+                                        if (firstIssue && firstIssue.key && issueList) {
+                                            issueList.selectIssue(firstIssue.key);
+                                        }
+                                    }
+                                });
+                            });
+                        }
+                        if (myIssuesModel) {
+                            myIssuesModel.loadingChanged.disconnect(loadingConnection);
+                        }
+                    });
                 }
+            };
+
+            if (myIssuesModel) {
+                myIssuesModel.loadingChanged.connect(loadingConnection);
             }
         }
 
@@ -226,13 +216,14 @@ Kirigami.Page {
             if (page.controller) {
                 page.controller.updateStarted.connect(function () {
                     page.isProcessing = true;
-                    page.showProgressDialog();
+                    page.progressDialog = DialogHelpers.showProgress(page, "../components/dialogs/ProgressDialog.qml");
                 });
 
                 page.controller.updateCompleted.connect(function (issueKey) {
                     page.isProcessing = false;
-                    page.hideProgressDialog();
-                    page.showSuccessDialog(issueKey);
+                    DialogHelpers.hideProgress(page.progressDialog);
+                    page.progressDialog = null;
+                    DialogHelpers.showSuccess(page, "../components/dialogs/SuccessDialog.qml", issueKey, "", true);
                     if (issueSearchForm) {
                         var query = issueSearchForm.getQuery();
                         page.refreshIssues(query);
@@ -241,8 +232,9 @@ Kirigami.Page {
 
                 page.controller.updateFailed.connect(function (errorMessage) {
                     page.isProcessing = false;
-                    page.hideProgressDialog();
-                    page.showErrorDialog(errorMessage);
+                    DialogHelpers.hideProgress(page.progressDialog);
+                    page.progressDialog = null;
+                    DialogHelpers.showError(page, "../components/dialogs/ErrorDialog.qml", errorMessage);
                 });
 
                 page.controller.issueSelected.connect(function (issueKey, issueData) {
@@ -316,713 +308,18 @@ Kirigami.Page {
         }
 
         // Coluna Direita (60% - Detail)
-        Item {
+        MyIssuesDetailPane {
             id: detailPane
-            Controls.SplitView.fillWidth: true
-            Controls.SplitView.minimumWidth: 400
-            property real topSectionHeight: 300
-            property real epicSectionHeight: 250
-            // Para feedback visual dos divisores (hover) via overlay
-            property bool divider1Hovered: false
-            property bool divider2Hovered: false
-
-            Controls.ScrollView {
-                id: mainDetailsScrollView
-                anchors.fill: parent
-                clip: true
-                // Garantir que o conteúdo role apenas verticalmente
-                contentWidth: availableWidth
-
-                // Coluna única com scroll; Description e Epic redimensionáveis por divisores 3 pontos
-                ColumnLayout {
-                    width: mainDetailsScrollView.availableWidth
-                    spacing: 0
-
-                    // Bloco Top (Description) – altura redimensionável pelo divisor abaixo
-                    ColumnLayout {
-                        id: topSection
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: detailPane.topSectionHeight
-                        Layout.minimumHeight: 150
-                        spacing: 0
-
-                        // Heading e Link
-                        RowLayout {
-                            Layout.fillWidth: true
-                            Layout.margins: 20
-                            Layout.bottomMargin: 5
-
-                            Kirigami.Heading {
-                                text: qsTr("Atualizar Task")
-                                level: 3
-                                Layout.fillWidth: true
-                            }
-
-                            Controls.Label {
-                                id: taskLinkLabel
-                                text: page.selectedIssueKey || ""
-                                color: Kirigami.Theme.linkColor
-                                visible: page.selectedIssueKey !== ""
-                                MouseArea {
-                                    anchors.fill: parent
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: {
-                                        if (page.jiraService && page.selectedIssueKey && typeof page.jiraService.getIssueUrl === 'function') {
-                                            var url = page.jiraService.getIssueUrl(page.selectedIssueKey);
-                                            if (url) {
-                                                Qt.openUrlExternally(url);
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        // Summary
-                        ColumnLayout {
-                            Layout.fillWidth: true
-                            Layout.margins: 20
-                            Layout.topMargin: 0
-                            Layout.bottomMargin: 10
-                            spacing: Kirigami.Units.smallSpacing
-
-                            Controls.Label {
-                                text: qsTr("Summary:")
-                                font.bold: true
-                                Layout.fillWidth: true
-                            }
-
-                            Controls.TextField {
-                                id: summaryFieldTab2
-                                Layout.fillWidth: true
-                                enabled: page.selectedIssueKey !== "" && !page.isProcessing
-                                text: issueModel ? issueModel.summary : ""
-                                onTextChanged: if (issueModel)
-                                    issueModel.summary = text
-                            }
-                        }
-
-                        // Description (expande no espaço do topSection)
-                        ColumnLayout {
-                            Layout.fillWidth: true
-                            Layout.fillHeight: true
-                            Layout.margins: 20
-                            Layout.topMargin: 0
-                            spacing: Kirigami.Units.smallSpacing
-
-                            Controls.Label {
-                                text: qsTr("Description:")
-                                font.bold: true
-                                Layout.fillWidth: true
-                            }
-
-                            Controls.ScrollView {
-                                id: descriptionScrollView
-                                Layout.fillWidth: true
-                                Layout.fillHeight: true
-                                clip: true
-
-                                Controls.TextArea {
-                                    id: descriptionFieldTab2
-                                    width: descriptionScrollView.availableWidth
-                                    wrapMode: Controls.TextArea.Wrap
-                                    enabled: page.selectedIssueKey !== "" && !page.isProcessing
-                                    text: issueModel ? issueModel.description : ""
-                                    onTextChanged: if (issueModel)
-                                        issueModel.description = text
-                                }
-                            }
-                        }
-
-                        Item {
-                            Layout.fillHeight: true
-                            Layout.fillWidth: true
-                        }
-                    }
-
-                    // Divisor 3 pontos (logo abaixo de Description) – arrastar para redimensionar
-                    Rectangle {
-                        id: divider1
-                        Layout.fillWidth: true
-                        implicitHeight: 14
-                        color: "transparent"
-
-                        Row {
-                            anchors.centerIn: parent
-                            spacing: 4
-                            Repeater {
-                                model: 3
-                                Rectangle {
-                                    width: 3
-                                    height: 3
-                                    radius: 1.5
-                                    color: divider1MA.containsMouse ? Kirigami.Theme.highlightColor : Kirigami.Theme.textColor
-                                    opacity: divider1MA.containsMouse ? 1 : 0.6
-                                    Behavior on color { ColorAnimation { duration: 150 } }
-                                    Behavior on opacity { NumberAnimation { duration: 150 } }
-                                }
-                            }
-                        }
-
-                        MouseArea {
-                            id: divider1MA
-                            anchors.fill: parent
-                            anchors.margins: -5
-                            hoverEnabled: true
-                            cursorShape: containsMouse ? Qt.SizeVerCursor : Qt.ArrowCursor
-                            property real startY: 0
-                            property real startHeight: 0
-                            onPressed: function (mouse) {
-                                startY = mouse.y
-                                startHeight = detailPane.topSectionHeight
-                            }
-                            onPositionChanged: function (mouse) {
-                                if (pressed) {
-                                    var newHeight = Math.max(150, startHeight + (mouse.y - startY))
-                                    detailPane.topSectionHeight = newHeight
-                                }
-                            }
-                        }
-                    }
-
-                    // Bloco Epic Parent – altura redimensionável pelo divisor abaixo
-                    ColumnLayout {
-                        id: epicSection
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: detailPane.epicSectionHeight
-                        Layout.minimumHeight: 150
-                        spacing: Kirigami.Units.smallSpacing
-
-                        Controls.Label {
-                            text: qsTr("Epic Parent:")
-                            font.bold: true
-                            Layout.fillWidth: true
-                            Layout.leftMargin: 20
-                            Layout.topMargin: 10
-                        }
-
-                        EpicSearchForm {
-                            id: epicSearchForm
-                            Layout.fillWidth: true
-                            Layout.fillHeight: true
-                            Layout.margins: 20
-                            Layout.topMargin: 0
-                            enabled: page.selectedIssueKey !== "" && !page.isProcessing
-
-                            Binding {
-                                target: epicSearchForm
-                                property: "jiraService"
-                                value: typeof jiraService !== "undefined" ? jiraService : null
-                                when: typeof jiraService !== "undefined"
-                            }
-
-                            onEpicSelected: function (key, summary) {
-                                page.epicSelected(key, summary);
-                                if (issueModel) {
-                                    issueModel.epicParentKey = key;
-                                    issueModel.epicParentSummary = summary;
-                                }
-                            }
-
-                            onEpicCleared: {
-                                page.sharedEpicKey = "";
-                                page.sharedEpicSummary = "";
-                                if (issueModel) {
-                                    issueModel.epicParentKey = "";
-                                    issueModel.epicParentSummary = "";
-                                }
-                            }
-
-                            Binding {
-                                target: epicSearchForm
-                                property: "selectedEpicKey"
-                                value: page.sharedEpicKey
-                                when: page.sharedEpicKey !== "" && page.sharedEpicKey !== epicSearchForm.selectedEpicKey
-                            }
-
-                            Binding {
-                                target: epicSearchForm
-                                property: "selectedEpicSummary"
-                                value: page.sharedEpicSummary
-                                when: page.sharedEpicSummary !== "" && page.sharedEpicSummary !== epicSearchForm.selectedEpicSummary
-                            }
-
-                            Binding {
-                                target: epicSearchForm
-                                property: "selectedEpicKey"
-                                value: issueModel ? issueModel.epicParentKey : ""
-                                when: issueModel
-                            }
-
-                            Binding {
-                                target: epicSearchForm
-                                property: "selectedEpicSummary"
-                                value: issueModel ? issueModel.epicParentSummary : ""
-                                when: issueModel
-                            }
-
-                            Binding {
-                                target: issueModel
-                                property: "epicParentKey"
-                                value: epicSearchForm.selectedEpicKey
-                                when: issueModel
-                            }
-
-                            Binding {
-                                target: issueModel
-                                property: "epicParentSummary"
-                                value: epicSearchForm.selectedEpicSummary
-                                when: issueModel
-                            }
-                        }
-
-                        Item {
-                            Layout.fillHeight: true
-                            Layout.fillWidth: true
-                        }
-                    }
-
-                    // Divisor 3 pontos (logo abaixo de Epic Parent) – arrastar para redimensionar
-                    Rectangle {
-                        id: divider2
-                        Layout.fillWidth: true
-                        implicitHeight: 14
-                        color: "transparent"
-
-                        Row {
-                            anchors.centerIn: parent
-                            spacing: 4
-                            Repeater {
-                                model: 3
-                                Rectangle {
-                                    width: 3
-                                    height: 3
-                                    radius: 1.5
-                                    color: divider2MA.containsMouse ? Kirigami.Theme.highlightColor : Kirigami.Theme.textColor
-                                    opacity: divider2MA.containsMouse ? 1 : 0.6
-                                    Behavior on color { ColorAnimation { duration: 150 } }
-                                    Behavior on opacity { NumberAnimation { duration: 150 } }
-                                }
-                            }
-                        }
-
-                        MouseArea {
-                            id: divider2MA
-                            anchors.fill: parent
-                            anchors.margins: -5
-                            hoverEnabled: true
-                            cursorShape: containsMouse ? Qt.SizeVerCursor : Qt.ArrowCursor
-                            property real startY: 0
-                            property real startHeight: 0
-                            onPressed: function (mouse) {
-                                startY = mouse.y
-                                startHeight = detailPane.epicSectionHeight
-                            }
-                            onPositionChanged: function (mouse) {
-                                if (pressed) {
-                                    var newHeight = Math.max(150, startHeight + (mouse.y - startY))
-                                    detailPane.epicSectionHeight = newHeight
-                                }
-                            }
-                        }
-                    }
-
-                    // Bloco Bottom (Worklog, Status, Documentação, IA, etc.) – altura implícita
-                    ColumnLayout {
-                        id: bottomColumnLayout
-                        Layout.fillWidth: true
-                        spacing: 0
-
-                            // Worklog (Movido para cá para ficar acima do Status)
-                            ColumnLayout {
-                                Layout.fillWidth: true
-                                Layout.margins: 20
-                                Layout.topMargin: 10
-                                Layout.bottomMargin: 10
-                                spacing: Kirigami.Units.smallSpacing
-
-                                Controls.CheckBox {
-                                    id: worklogCheckboxTab2
-                                    text: qsTr("Registrar worklog")
-                                    Layout.fillWidth: true
-                                    enabled: page.selectedIssueKey !== "" && !page.isProcessing
-                                    checked: issueModel ? issueModel.registrarWorklog : false
-                                    onCheckedChanged: {
-                                        if (issueModel) {
-                                            issueModel.registrarWorklog = checked;
-                                        }
-                                    }
-                                }
-
-                                WorklogForm {
-                                    id: worklogForm
-                                    Layout.fillWidth: true
-                                    enabled: page.selectedIssueKey !== "" && !page.isProcessing && worklogCheckboxTab2.checked
-                                    visible: worklogCheckboxTab2.checked
-                                    showCheckbox: false
-
-                                    Binding {
-                                        target: issueModel
-                                        property: "worklogInicio"
-                                        value: worklogForm.date && worklogForm.time ? worklogForm.date + " " + worklogForm.time : ""
-                                        when: issueModel && worklogForm.date && worklogForm.time
-                                    }
-
-                                    Binding {
-                                        target: issueModel
-                                        property: "worklogDuracao"
-                                        value: Math.round(worklogForm.duration)
-                                        when: issueModel
-                                    }
-
-                                    Binding {
-                                        target: issueModel
-                                        property: "worklogComment"
-                                        value: worklogForm.comment
-                                        when: issueModel
-                                    }
-
-                                    Component.onCompleted: {
-                                        if (issueModel && issueModel.worklogInicio) {
-                                            var parts = issueModel.worklogInicio.split(" ");
-                                            if (parts.length >= 2) {
-                                                worklogForm.date = parts[0];
-                                                worklogForm.time = parts[1];
-                                            }
-                                        }
-                                        if (issueModel) {
-                                            worklogForm.duration = issueModel.worklogDuracao || 30;
-                                            worklogForm.comment = issueModel.worklogComment || "";
-                                        }
-                                    }
-                                }
-                            }
-
-                            GridLayout {
-                                id: bottomGridLayout
-                                Layout.fillWidth: true
-                                Layout.margins: 20
-                                columnSpacing: Kirigami.Units.largeSpacing
-                                rowSpacing: Kirigami.Units.largeSpacing
-                                columns: width > 650 ? 2 : 1
-
-                                // Status
-                                ColumnLayout {
-                                    Layout.fillWidth: true
-                                    Layout.alignment: Qt.AlignTop
-                                    spacing: Kirigami.Units.smallSpacing
-
-                                    Controls.Label {
-                                        text: qsTr("Status:")
-                                        font.bold: true
-                                        Layout.fillWidth: true
-                                    }
-
-                                    Column {
-                                        Layout.fillWidth: true
-                                        spacing: Kirigami.Units.smallSpacing
-
-                                        Repeater {
-                                            model: issueModel ? issueModel.statusSequence : []
-
-                                            Controls.RadioButton {
-                                                text: modelData
-                                                enabled: page.selectedIssueKey !== "" && !page.isProcessing
-                                                checked: issueModel && issueModel.statusInicial === modelData
-                                                onCheckedChanged: {
-                                                    if (checked && issueModel) {
-                                                        issueModel.statusInicial = modelData;
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-
-                                // Documentação e IA
-                                ColumnLayout {
-                                    Layout.fillWidth: true
-                                    Layout.alignment: Qt.AlignTop
-                                    spacing: Kirigami.Units.largeSpacing
-
-                                    // Documentação anexa
-                                    ColumnLayout {
-                                        Layout.fillWidth: true
-                                        spacing: Kirigami.Units.smallSpacing
-
-                                        Controls.Label {
-                                            text: qsTr("Documentação anexa:")
-                                            font.bold: true
-                                            Layout.fillWidth: true
-                                        }
-
-                                        Row {
-                                            spacing: Kirigami.Units.largeSpacing
-                                            Controls.RadioButton {
-                                                text: qsTr("Não")
-                                                enabled: page.selectedIssueKey !== "" && !page.isProcessing
-                                                checked: issueModel && issueModel.documentacaoAnexa === "Não"
-                                                onCheckedChanged: {
-                                                    if (checked && issueModel) {
-                                                        issueModel.documentacaoAnexa = "Não";
-                                                    }
-                                                }
-                                            }
-                                            Controls.RadioButton {
-                                                text: qsTr("Sim")
-                                                enabled: page.selectedIssueKey !== "" && !page.isProcessing
-                                                checked: issueModel && issueModel.documentacaoAnexa === "Sim"
-                                                onCheckedChanged: {
-                                                    if (checked && issueModel) {
-                                                        issueModel.documentacaoAnexa = "Sim";
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-
-                                    // Utilização de IA
-                                    ColumnLayout {
-                                        Layout.fillWidth: true
-                                        spacing: Kirigami.Units.smallSpacing
-
-                                        Controls.Label {
-                                            text: qsTr("Utilização de IA:")
-                                            font.bold: true
-                                            Layout.fillWidth: true
-                                        }
-
-                                        Row {
-                                            spacing: Kirigami.Units.largeSpacing
-                                            Controls.RadioButton {
-                                                text: qsTr("Não")
-                                                enabled: page.selectedIssueKey !== "" && !page.isProcessing
-                                                checked: issueModel && issueModel.utilizacaoIA === "Não"
-                                                onCheckedChanged: {
-                                                    if (checked && issueModel) {
-                                                        issueModel.utilizacaoIA = "Não";
-                                                    }
-                                                }
-                                            }
-                                            Controls.RadioButton {
-                                                text: qsTr("Sim")
-                                                enabled: page.selectedIssueKey !== "" && !page.isProcessing
-                                                checked: issueModel && issueModel.utilizacaoIA === "Sim"
-                                                onCheckedChanged: {
-                                                    if (checked && issueModel) {
-                                                        issueModel.utilizacaoIA = "Sim";
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-
-                                // Tipo de Atividade
-                                ColumnLayout {
-                                    Layout.fillWidth: true
-                                    Layout.alignment: Qt.AlignTop
-                                    spacing: Kirigami.Units.smallSpacing
-
-                                    Controls.Label {
-                                        text: qsTr("Tipo de atividade:")
-                                        font.bold: true
-                                        Layout.fillWidth: true
-                                    }
-
-                                    Column {
-                                        Layout.fillWidth: true
-                                        spacing: 0
-
-                                        Repeater {
-                                            model: issueModel ? issueModel.tipoAtividadeValues : []
-
-                                            Controls.RadioButton {
-                                                text: modelData
-                                                enabled: page.selectedIssueKey !== "" && !page.isProcessing
-                                                checked: issueModel && issueModel.tipoAtividade === modelData
-                                                onCheckedChanged: {
-                                                    if (checked && issueModel) {
-                                                        issueModel.tipoAtividade = modelData;
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-
-                                // Valor Entregue
-                                ColumnLayout {
-                                    Layout.fillWidth: true
-                                    Layout.alignment: Qt.AlignTop
-                                    spacing: Kirigami.Units.smallSpacing
-
-                                    Controls.Label {
-                                        text: qsTr("Valor Entregue:")
-                                        font.bold: true
-                                        Layout.fillWidth: true
-                                    }
-
-                                    Column {
-                                        Layout.fillWidth: true
-                                        spacing: 0
-
-                                        Repeater {
-                                            model: issueModel ? issueModel.valorEntregueValues : []
-
-                                            Controls.RadioButton {
-                                                text: modelData
-                                                enabled: page.selectedIssueKey !== "" && !page.isProcessing
-                                                checked: issueModel && issueModel.valorEntregue === modelData
-                                                onCheckedChanged: {
-                                                    if (checked && issueModel) {
-                                                        issueModel.valorEntregue = modelData;
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-
-                            // Plataformas Afetadas
-                            ColumnLayout {
-                                Layout.fillWidth: true
-                                Layout.margins: 20
-                                Layout.topMargin: 0
-                                spacing: Kirigami.Units.smallSpacing
-
-                                Controls.Label {
-                                    text: qsTr("Plataformas afetadas:")
-                                    font.bold: true
-                                    Layout.fillWidth: true
-                                }
-
-                                ListView {
-                                    id: plataformasListView
-                                    Layout.fillWidth: true
-                                    implicitHeight: contentHeight
-                                    interactive: false
-                                    clip: true
-                                    model: issueModel ? issueModel.plataformasAfetadasValues : []
-
-                                    delegate: Controls.CheckDelegate {
-                                        width: plataformasListView.width
-                                        enabled: page.selectedIssueKey !== "" && !page.isProcessing
-                                        checked: {
-                                            if (!issueModel)
-                                                return false;
-                                            var plataformas = issueModel.plataformasAfetadas || [];
-                                            return plataformas.indexOf(modelData.col1) >= 0;
-                                        }
-
-                                        contentItem: RowLayout {
-                                            spacing: Kirigami.Units.largeSpacing
-                                            Controls.Label {
-                                                text: modelData.col1
-                                                font.bold: true
-                                                Layout.preferredWidth: 150
-                                            }
-                                            Controls.Label {
-                                                text: modelData.col2
-                                                font.italic: true
-                                                opacity: 0.7
-                                                Layout.fillWidth: true
-                                            }
-                                        }
-
-                                        onCheckedChanged: {
-                                            if (!issueModel || page.isDetailsLoading)
-                                                return;
-                                            var plataformas = issueModel.plataformasAfetadas || [];
-                                            var val = modelData.col1;
-                                            if (checked) {
-                                                if (plataformas.indexOf(val) < 0) {
-                                                    plataformas.push(val);
-                                                    issueModel.plataformasAfetadas = plataformas;
-                                                }
-                                            } else {
-                                                var index = plataformas.indexOf(val);
-                                                if (index >= 0) {
-                                                    plataformas.splice(index, 1);
-                                                    issueModel.plataformasAfetadas = plataformas;
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-
-                            // Spacer Final para empurrar tudo para cima
-                            Item {
-                                Layout.fillHeight: true
-                                Layout.fillWidth: true
-                            }
-                        }
-                    }
-                }
-
-            // Overlay transparente para capturar drag dos divisores sem perder o grab (usa coordenadas globais)
-            Item {
-                id: resizeOverlay
-                z: 10
-                anchors.fill: parent
-                property int activeDivider: 0
-                property real startGlobalY: 0
-                property real startHeight: 0
-
-                MouseArea {
-                    anchors.fill: parent
-                    hoverEnabled: false
-                    cursorShape: parent.activeDivider ? Qt.SizeVerCursor : Qt.ArrowCursor
-                    onPressed: function (mouse) {
-                        var margin = 8
-                        var p1 = divider1.mapToItem(resizeOverlay, 0, 0)
-                        if (mouse.y >= p1.y - margin && mouse.y < p1.y + divider1.height + margin) {
-                            resizeOverlay.activeDivider = 1
-                            resizeOverlay.startGlobalY = resizeOverlay.mapToGlobal(mouse.x, mouse.y).y
-                            resizeOverlay.startHeight = detailPane.topSectionHeight
-                            mouse.accepted = true
-                            return
-                        }
-                        var p2 = divider2.mapToItem(resizeOverlay, 0, 0)
-                        if (mouse.y >= p2.y - margin && mouse.y < p2.y + divider2.height + margin) {
-                            resizeOverlay.activeDivider = 2
-                            resizeOverlay.startGlobalY = resizeOverlay.mapToGlobal(mouse.x, mouse.y).y
-                            resizeOverlay.startHeight = detailPane.epicSectionHeight
-                            mouse.accepted = true
-                            return
-                        }
-                        mouse.accepted = false
-                    }
-                    onPositionChanged: function (mouse) {
-                        if (resizeOverlay.activeDivider === 0) return
-                        var cur = resizeOverlay.mapToGlobal(mouse.x, mouse.y).y
-                        var delta = cur - resizeOverlay.startGlobalY
-                        if (resizeOverlay.activeDivider === 1) {
-                            detailPane.topSectionHeight = Math.max(150, resizeOverlay.startHeight + delta)
-                        } else if (resizeOverlay.activeDivider === 2) {
-                            detailPane.epicSectionHeight = Math.max(150, resizeOverlay.startHeight + delta)
-                        }
-                    }
-                    onReleased: {
-                        resizeOverlay.activeDivider = 0
-                    }
-                }
-            }
-
-            // Overlay de loading sobre toda a coluna direita
-            Rectangle {
-                anchors.fill: parent
-                color: Qt.rgba(0, 0, 0, 0.4)
-                visible: page.isDetailsLoading
-                z: 100
-
-                Controls.BusyIndicator {
-                    anchors.centerIn: parent
-                    running: page.isDetailsLoading
-                    visible: page.isDetailsLoading
-                }
+            issueModel: page._ctxIssueModel
+            selectedIssueKey: page.selectedIssueKey
+            isProcessing: page.isProcessing
+            isDetailsLoading: page.isDetailsLoading
+            jiraService: page._ctxJiraService
+            sharedEpicKey: page.sharedEpicKey
+            sharedEpicSummary: page.sharedEpicSummary
+
+            onEpicSelected: function (key, summary) {
+                page.epicSelected(key, summary);
             }
         }
     }
@@ -1043,12 +340,9 @@ Kirigami.Page {
         target: myIssuesModel
 
         function onErrorOccurred(errorMessage) {
-            if (page.searchProgressDialog) {
-                page.searchProgressDialog.close();
-                page.searchProgressDialog.destroy();
-                page.searchProgressDialog = null;
-            }
-            page.showErrorDialog(errorMessage);
+            DialogHelpers.hideProgress(page.searchProgressDialog);
+            page.searchProgressDialog = null;
+            DialogHelpers.showError(page, "../components/dialogs/ErrorDialog.qml", errorMessage);
         }
     }
 
@@ -1066,128 +360,24 @@ Kirigami.Page {
     // Função pública para atualizar issue (chamada pelo botão global / atalho)
     function updateIssue() {
         if (!page.selectedIssueKey || page.selectedIssueKey === "") {
-            page.showErrorDialog("Por favor, selecione uma task para atualizar");
+            DialogHelpers.showError(page, "../components/dialogs/ErrorDialog.qml", "Por favor, selecione uma task para atualizar");
             return;
         }
 
         if (!page.controller) {
-            page.showErrorDialog("Controller não disponível");
+            DialogHelpers.showError(page, "../components/dialogs/ErrorDialog.qml", "Controller não disponível");
             return;
         }
 
-        // Obter dados dos componentes
-        var fieldData = {};
-        // Incluir summary editado na aba 2
-        if (summaryFieldTab2) {
-            fieldData.summary = summaryFieldTab2.text || "";
-        }
-        if (descriptionFieldTab2) {
-            fieldData.description = descriptionFieldTab2.text || "";
-        }
-        // Incluir todos os campos do issueModel
-        if (issueModel) {
-            fieldData.tipoAtividade = issueModel.tipoAtividade || "";
-            fieldData.status = issueModel.statusInicial || "";
-            fieldData.valorEntregue = issueModel.valorEntregue || "";
-            fieldData.plataformasAfetadas = issueModel.plataformasAfetadas || [];
-            fieldData.documentacaoAnexa = issueModel.documentacaoAnexa || "Não";
-            fieldData.utilizacaoIA = issueModel.utilizacaoIA || "Não";
-        }
-        // Worklog só é incluído se o checkbox estiver marcado
-        var worklogData = {};
-        if (worklogCheckboxTab2 && worklogCheckboxTab2.checked && worklogForm) {
-            worklogData = worklogForm.getWorklogData();
-        }
-        var epicKey = epicSearchForm ? epicSearchForm.selectedEpicKey : "";
-
-        // Atualizar via controller
+        var fieldData = detailPane.getFieldData();
+        var worklogData = detailPane.getWorklogData();
+        var epicKey = detailPane.getEpicKey();
         page.controller.updateIssue(page.selectedIssueKey, fieldData, worklogData, epicKey, page.originalStatus);
     }
 
     function resetFields() {
-        // Resetar campos para valores padrão
-        if (summaryFieldTab2) {
-            summaryFieldTab2.text = "";
-        }
-        if (descriptionFieldTab2) {
-            descriptionFieldTab2.text = "";
-        }
-        if (issueModel) {
-            if (issueModel.tipoAtividadeValues && issueModel.tipoAtividadeValues.length > 0) {
-                issueModel.tipoAtividade = issueModel.tipoAtividadeValues[0];
-            } else {
-                issueModel.tipoAtividade = "";
-            }
-            if (issueModel.statusSequence && issueModel.statusSequence.length > 0) {
-                issueModel.statusInicial = issueModel.statusSequence[0];
-            } else {
-                issueModel.statusInicial = "";
-            }
-            issueModel.documentacaoAnexa = "Não";
-            issueModel.utilizacaoIA = "Não";
-            issueModel.valorEntregue = "";
-            issueModel.plataformasAfetadas = [];
-            issueModel.registrarWorklog = false;
-        }
-
-        if (worklogForm) {
-            worklogForm.reset();
-        }
-
-        if (epicSearchForm) {
-            epicSearchForm.reset();
-        }
-
+        detailPane.resetFields();
         originalStatus = "";
-    }
-
-    function showProgressDialog() {
-        var component = Qt.createComponent("../components/dialogs/ProgressDialog.qml");
-        if (component.status === Component.Ready) {
-            var window = page.parent && page.parent.parent ? page.parent.parent : page;
-            progressDialog = component.createObject(window);
-            if (progressDialog) {
-                progressDialog.open();
-            }
-        } else {
-            console.error("Erro ao criar ProgressDialog:", component.errorString());
-        }
-    }
-
-    function hideProgressDialog() {
-        if (progressDialog) {
-            progressDialog.close();
-            progressDialog.destroy();
-            progressDialog = null;
-        }
-    }
-
-    function showSuccessDialog(issueKey) {
-        var component = Qt.createComponent("../components/dialogs/SuccessDialog.qml");
-        if (component.status === Component.Ready) {
-            var window = page.parent && page.parent.parent ? page.parent.parent : page;
-            successDialog = component.createObject(window);
-            if (successDialog) {
-                var issueUrl = "";
-                successDialog.show(issueKey, issueUrl, true);  // true indica que é atualização
-            }
-        } else {
-            console.error("Erro ao criar SuccessDialog:", component.errorString());
-        }
-    }
-
-    function showErrorDialog(message) {
-        var component = Qt.createComponent("../components/dialogs/ErrorDialog.qml");
-        if (component.status === Component.Ready) {
-            var window = page.parent && page.parent.parent ? page.parent.parent : page;
-            var dialog = component.createObject(window);
-            if (dialog) {
-                dialog.show(message);
-            }
-        } else {
-            console.error("Erro:", message);
-            console.error("Erro ao criar ErrorDialog:", component.errorString());
-        }
     }
 
     // Reagir aos sinais assíncronos de carregamento de detalhes de issue
@@ -1202,73 +392,12 @@ Kirigami.Page {
         }
 
         function onIssueDetailsLoaded(details) {
-            // Garantir que o overlay seja sempre removido ao final
-            // (mesmo em caso de erro ou dados vazios).
             try {
                 if (!details || !details.key) {
                     return;
                 }
-
-                // Preencher campos do formulário
-                if (summaryFieldTab2) {
-                    summaryFieldTab2.text = String(details.summary || "");
-                }
-                if (descriptionFieldTab2) {
-                    descriptionFieldTab2.text = String(details.description || "");
-                }
-
-                // Preencher campos do issueModel
-                if (issueModel) {
-                    issueModel.tipoAtividade = String(details.tipoAtividade || "");
-                    issueModel.statusInicial = String(details.status || "");
-                    issueModel.valorEntregue = String(details.valorEntregue || "");
-                    issueModel.plataformasAfetadas = details.plataformasAfetadas || [];
-                    issueModel.documentacaoAnexa = String(details.documentacaoAnexa || "Não");
-                    issueModel.utilizacaoIA = String(details.utilizacaoIA || "Não");
-                    issueModel.registrarWorklog = false;  // Resetar checkbox de worklog ao carregar nova issue
-                }
-
-                // Armazenar status original
                 originalStatus = String(details.status || "");
-
-                // Epic Parent - regras específicas para aba 2
-                if (details.parentKey) {
-                    // Issue TEM parent
-                    var parentKey = String(details.parentKey || "");
-                    var parentSummary = String(details.parentSummary || "");
-
-                    if (epicSearchForm && jiraService) {
-                        // 1. Limpar todos os checkboxes (todos desmarcados)
-                        epicSearchForm.clearFilters();
-
-                        // 2. Limpar campo de busca e listview
-                        epicSearchForm.clearAll();
-
-                        // 3. Preencher campo de busca com parent key
-                        epicSearchForm.setSearchText(parentKey);
-
-                        // 4. Buscar epic exato por key
-                        var epic = jiraService.searchEpicByKey(parentKey);
-
-                        if (epic && epic.key) {
-                            // Epic encontrado, adicionar à lista e selecionar
-                            epicSearchForm.selectEpic(epic.key, epic.summary || parentSummary);
-                        } else {
-                            // Epic não encontrado, buscar normalmente (vai mostrar só ele pois busca por key)
-                            epicSearchForm.requestAutoSelect(parentKey, parentSummary);
-                            epicSearchForm.search(parentKey);
-                        }
-                    }
-                } else {
-                    // Issue NÃO TEM parent
-                    if (epicSearchForm) {
-                        // 1. Configurar checkboxes padrão
-                        epicSearchForm.setDefaultFiltersForNoParent();
-
-                        // 2. Limpar campo de busca, listview e seleção (sem buscar)
-                        epicSearchForm.clearAll();
-                    }
-                }
+                MyIssuesPageLogic.applyIssueDetailsToForm(details, detailPane);
             } finally {
                 isDetailsLoading = false;
             }

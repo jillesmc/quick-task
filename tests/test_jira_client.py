@@ -38,13 +38,13 @@ def test_get_current_user_success(mock_request, mock_config_file, mock_env_token
     mock_response.json.return_value = {
         "accountId": "12345",
         "emailAddress": "test@example.com",
-        "displayName": "Test User"
+        "displayName": "Test User",
     }
     mock_request.return_value = mock_response
-    
+
     client = JiraClient(jira_cli_config_path=mock_config_file)
     result = client.get_current_user()
-    
+
     assert result == "test@example.com"
     mock_request.assert_called_once()
     call_args = mock_request.call_args
@@ -58,10 +58,10 @@ def test_get_current_user_fallback(mock_request, mock_config_file, mock_env_toke
     mock_response = Mock()
     mock_response.status_code = 500
     mock_request.return_value = mock_response
-    
+
     client = JiraClient(jira_cli_config_path=mock_config_file)
     result = client.get_current_user()
-    
+
     assert result == "test@example.com"  # Fallback para config
 
 
@@ -73,20 +73,20 @@ def test_create_issue_success(mock_request, mock_config_file, mock_env_token):
     myself_response.status_code = 200
     myself_response.json.return_value = {
         "accountId": "test-account-id-123",
-        "emailAddress": "test@example.com"
+        "emailAddress": "test@example.com",
     }
-    
+
     # Mock para POST issue (criação)
     create_response = Mock()
     create_response.status_code = 201
     create_response.json.return_value = {
         "key": "TEST-123",
-        "self": "https://test.atlassian.net/rest/api/3/issue/TEST-123"
+        "self": "https://test.atlassian.net/rest/api/3/issue/TEST-123",
     }
-    
+
     # Configurar side_effect para múltiplas chamadas
     mock_request.side_effect = [myself_response, create_response]
-    
+
     client = JiraClient(jira_cli_config_path=mock_config_file)
     result = client.create_issue(
         project="TEST",
@@ -95,7 +95,7 @@ def test_create_issue_success(mock_request, mock_config_file, mock_env_token):
         description="Test description",
         assignee="test@example.com",
     )
-    
+
     assert result["issue_key"] == "TEST-123"
     assert "TEST-123" in result["issue_url"]
     # Verificar que foram feitas 2 chamadas: GET myself + POST issue
@@ -116,17 +116,19 @@ def test_create_issue_success(mock_request, mock_config_file, mock_env_token):
 
 
 @patch("core.jira_client.requests.request")
-def test_create_issue_with_custom_fields(mock_request, mock_config_file, mock_env_token):
+def test_create_issue_with_custom_fields(
+    mock_request, mock_config_file, mock_env_token
+):
     """Testa criação de issue com campos customizados"""
     # Mock para POST issue (criação sem assignee, então não precisa de GET myself)
     create_response = Mock()
     create_response.status_code = 201
     create_response.json.return_value = {
         "key": "TEST-123",
-        "self": "https://test.atlassian.net/rest/api/3/issue/TEST-123"
+        "self": "https://test.atlassian.net/rest/api/3/issue/TEST-123",
     }
     mock_request.return_value = create_response
-    
+
     client = JiraClient(jira_cli_config_path=mock_config_file)
     result = client.create_issue(
         project="TEST",
@@ -135,7 +137,7 @@ def test_create_issue_with_custom_fields(mock_request, mock_config_file, mock_en
         description="Test",
         custom_fields={"customfield_123": "valor1", "customfield_456": "valor2"},
     )
-    
+
     assert result["issue_key"] == "TEST-123"
     # Verificar que campos customizados estão em fields
     # CREATE agora também usa formato {"value": "text"} para consistência
@@ -153,10 +155,10 @@ def test_create_issue_with_parent(mock_request, mock_config_file, mock_env_token
     create_response.status_code = 201
     create_response.json.return_value = {
         "key": "TEST-123",
-        "self": "https://test.atlassian.net/rest/api/3/issue/TEST-123"
+        "self": "https://test.atlassian.net/rest/api/3/issue/TEST-123",
     }
     mock_request.return_value = create_response
-    
+
     client = JiraClient(jira_cli_config_path=mock_config_file)
     result = client.create_issue(
         project="TEST",
@@ -165,7 +167,7 @@ def test_create_issue_with_parent(mock_request, mock_config_file, mock_env_token
         description="Test",
         parent_issue_key="EPIC-456",
     )
-    
+
     assert result["issue_key"] == "TEST-123"
     # Verificar que parent está em fields
     call_args = mock_request.call_args
@@ -181,7 +183,7 @@ def test_create_issue_error(mock_request, mock_config_file, mock_env_token):
     mock_response.text = "Bad Request"
     mock_response.json.return_value = {"errorMessages": ["Invalid project"]}
     mock_request.return_value = mock_response
-    
+
     client = JiraClient(jira_cli_config_path=mock_config_file)
     with pytest.raises(RuntimeError, match="Erro na requisição"):
         client.create_issue(
@@ -208,12 +210,12 @@ def test_transition_issue_success(mock_request, mock_config_file, mock_env_token
     # Segundo, mock da transição
     transition_response = Mock()
     transition_response.status_code = 204
-    
+
     mock_request.side_effect = [transitions_response, transition_response]
-    
+
     client = JiraClient(jira_cli_config_path=mock_config_file)
     result = client.transition_issue("TEST-123", "In Progress")
-    
+
     assert result is True
     assert mock_request.call_count == 2
     # Verificar que a segunda chamada foi para transitions
@@ -225,12 +227,16 @@ def test_transition_issue_success(mock_request, mock_config_file, mock_env_token
 
 @patch("core.jira_client.time.sleep")
 @patch("core.jira_client.requests.request")
-def test_transition_issue_retry(mock_request, mock_sleep, mock_config_file, mock_env_token):
+def test_transition_issue_retry(
+    mock_request, mock_sleep, mock_config_file, mock_env_token
+):
     """Testa retry em caso de falha"""
     transitions_response = Mock()
     transitions_response.status_code = 200
     transitions_response.json.return_value = {
-        "transitions": [{"id": "21", "name": "In Progress", "to": {"name": "In Progress"}}]
+        "transitions": [
+            {"id": "21", "name": "In Progress", "to": {"name": "In Progress"}}
+        ]
     }
     # Primeira tentativa falha, segunda sucede
     transition_response_fail = Mock()
@@ -238,17 +244,17 @@ def test_transition_issue_retry(mock_request, mock_sleep, mock_config_file, mock
     transition_response_fail.text = "Internal Server Error"
     transition_response_success = Mock()
     transition_response_success.status_code = 204
-    
+
     # 1 GET para buscar transições + 2 POSTs (falha + sucesso)
     mock_request.side_effect = [
-        transitions_response,      # GET transitions (uma vez no início)
+        transitions_response,  # GET transitions (uma vez no início)
         transition_response_fail,  # POST transition (primeira tentativa - falha)
         transition_response_success,  # POST transition (segunda tentativa - sucesso)
     ]
-    
+
     client = JiraClient(jira_cli_config_path=mock_config_file)
     result = client.transition_issue("TEST-123", "In Progress", max_retries=3)
-    
+
     assert result is True
     assert mock_request.call_count == 3  # 1 GET + 2 POSTs
 
@@ -259,13 +265,15 @@ def test_transition_issue_not_found(mock_request, mock_config_file, mock_env_tok
     transitions_response = Mock()
     transitions_response.status_code = 200
     transitions_response.json.return_value = {
-        "transitions": [{"id": "21", "name": "In Progress", "to": {"name": "In Progress"}}]
+        "transitions": [
+            {"id": "21", "name": "In Progress", "to": {"name": "In Progress"}}
+        ]
     }
     mock_request.return_value = transitions_response
-    
+
     client = JiraClient(jira_cli_config_path=mock_config_file)
     result = client.transition_issue("TEST-123", "Non-existent Status")
-    
+
     assert result is False
 
 
@@ -275,14 +283,14 @@ def test_update_issue_success(mock_request, mock_config_file, mock_env_token):
     mock_response = Mock()
     mock_response.status_code = 204
     mock_request.return_value = mock_response
-    
+
     client = JiraClient(jira_cli_config_path=mock_config_file)
     result = client.update_issue(
         "TEST-123",
         summary="Updated summary",
         description="Updated description",
     )
-    
+
     assert result is True
     mock_request.assert_called_once()
     call_args = mock_request.call_args
@@ -294,18 +302,20 @@ def test_update_issue_success(mock_request, mock_config_file, mock_env_token):
 
 
 @patch("core.jira_client.requests.request")
-def test_update_issue_with_custom_fields(mock_request, mock_config_file, mock_env_token):
+def test_update_issue_with_custom_fields(
+    mock_request, mock_config_file, mock_env_token
+):
     """Testa atualização de issue com campos customizados"""
     mock_response = Mock()
     mock_response.status_code = 204
     mock_request.return_value = mock_response
-    
+
     client = JiraClient(jira_cli_config_path=mock_config_file)
     result = client.update_issue(
         "TEST-123",
         custom_fields={"customfield_123": "valor1"},
     )
-    
+
     assert result is True
     call_args = mock_request.call_args
     payload = call_args[1]["json"]
@@ -325,13 +335,13 @@ def test_get_issue_details_success(mock_request, mock_config_file, mock_env_toke
             "summary": "Test issue",
             "description": {"type": "doc", "content": []},
             "status": {"name": "In Progress"},
-        }
+        },
     }
     mock_request.return_value = mock_response
-    
+
     client = JiraClient(jira_cli_config_path=mock_config_file)
     result = client.get_issue_details("TEST-123")
-    
+
     assert result is not None
     assert result["key"] == "TEST-123"
     assert result["summary"] == "Test issue"
@@ -348,10 +358,10 @@ def test_get_issue_details_not_found(mock_request, mock_config_file, mock_env_to
     mock_response = Mock()
     mock_response.status_code = 404
     mock_request.return_value = mock_response
-    
+
     client = JiraClient(jira_cli_config_path=mock_config_file)
     result = client.get_issue_details("TEST-999")
-    
+
     assert result is None
 
 
@@ -361,10 +371,10 @@ def test_register_worklog_success(mock_request, mock_config_file, mock_env_token
     mock_response = Mock()
     mock_response.status_code = 201
     mock_request.return_value = mock_response
-    
+
     client = JiraClient(jira_cli_config_path=mock_config_file)
     result = client.register_worklog("TEST-123", "1h 30m", "2024-01-01 10:00:00", "UTC")
-    
+
     assert result is True
     mock_request.assert_called_once()
     call_args = mock_request.call_args
@@ -383,12 +393,12 @@ def test_register_worklog_with_comment(mock_request, mock_config_file, mock_env_
     mock_response = Mock()
     mock_response.status_code = 201
     mock_request.return_value = mock_response
-    
+
     client = JiraClient(jira_cli_config_path=mock_config_file)
     result = client.register_worklog(
         "TEST-123", "1h", "2024-01-01 10:00:00", "UTC", comment="Trabalho realizado"
     )
-    
+
     assert result is True
     call_args = mock_request.call_args
     payload = call_args[1]["json"]
@@ -406,13 +416,13 @@ def test_search_issues_success(mock_request, mock_config_file, mock_env_token):
             {"key": "TEST-1", "fields": {"summary": "Issue 1"}},
             {"key": "TEST-2", "fields": {"summary": "Issue 2"}},
         ],
-        "nextPageToken": None
+        "nextPageToken": None,
     }
     mock_request.return_value = mock_response
-    
+
     client = JiraClient(jira_cli_config_path=mock_config_file)
     results = client.search_issues("project = TEST", max_results=50)
-    
+
     assert len(results) == 2
     assert results[0]["key"] == "TEST-1"
     mock_request.assert_called_once()

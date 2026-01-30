@@ -7,6 +7,8 @@ import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls as Controls
 import org.kde.kirigami as Kirigami
+import "../components/forms"
+import "../utils/PendingWorklogsLogic.js" as PendingWorklogsLogic
 
 Kirigami.Page {
     id: page
@@ -18,48 +20,12 @@ Kirigami.Page {
     property var pendingWorklogs: []
     property var issueSummaries: ({})  // Cache de summaries por issue_key
     property var filteredWorklogs: []  // Worklogs filtrados
-    property string filterIssueKey: ""  // Filtro por issue key
-    property string filterDateFrom: ""  // Filtro data inicial
-    property string filterDateTo: ""  // Filtro data final
+    property string filterIssueKey: filtersBar ? filtersBar.filterIssueKey : ""
+    property string filterDateFrom: filtersBar ? filtersBar.filterDateFrom : ""
+    property string filterDateTo: filtersBar ? filtersBar.filterDateTo : ""
 
-    // Função para filtrar worklogs
     function applyFilters() {
-        var filtered = [];
-        for (var i = 0; i < pendingWorklogs.length; i++) {
-            var worklog = pendingWorklogs[i];
-            var matches = true;
-
-            // Filtro por issue key
-            if (filterIssueKey && filterIssueKey.trim() !== "") {
-                var issueKey = worklog.issue_key || "";
-                if (issueKey.toLowerCase().indexOf(filterIssueKey.toLowerCase()) < 0) {
-                    matches = false;
-                }
-            }
-
-            // Filtro por data
-            if (matches && (filterDateFrom || filterDateTo)) {
-                if (worklog.start_time) {
-                    var worklogDate = new Date(worklog.start_time);
-                    var dateFrom = filterDateFrom ? new Date(filterDateFrom) : null;
-                    var dateTo = filterDateTo ? new Date(filterDateTo) : null;
-
-                    if (dateFrom && worklogDate < dateFrom) {
-                        matches = false;
-                    }
-                    if (dateTo && worklogDate > dateTo) {
-                        matches = false;
-                    }
-                } else {
-                    matches = false;
-                }
-            }
-
-            if (matches) {
-                filtered.push(worklog);
-            }
-        }
-        filteredWorklogs = filtered;
+        filteredWorklogs = PendingWorklogsLogic.applyFilters(pendingWorklogs, filterIssueKey, filterDateFrom, filterDateTo);
     }
 
     // Função para recarregar worklogs (pode ser chamada externamente)
@@ -88,11 +54,6 @@ Kirigami.Page {
     }
 
     function loadIssueSummaries() {
-        if (!jiraService) {
-            return;
-        }
-
-        // Coletar issue_keys únicas
         var uniqueKeys = [];
         var keysSet = {};
         for (var i = 0; i < pendingWorklogs.length; i++) {
@@ -102,22 +63,7 @@ Kirigami.Page {
                 keysSet[key] = true;
             }
         }
-
-        // Buscar summary para cada issue_key
-        var summaries = {};
-        for (var j = 0; j < uniqueKeys.length; j++) {
-            var issueKey = uniqueKeys[j];
-            try {
-                var details = jiraService.getIssueDetails(issueKey);
-                if (details && details.summary) {
-                    summaries[issueKey] = details.summary;
-                }
-            } catch (e) {
-                console.error("PendingWorklogsPage: Erro ao buscar summary para", issueKey, ":", e);
-            }
-        }
-
-        issueSummaries = summaries;
+        issueSummaries = PendingWorklogsLogic.loadSummaries(jiraService, uniqueKeys);
     }
 
     // Conectar sinais do worklogSyncService para atualizar lista
@@ -297,102 +243,9 @@ Kirigami.Page {
             }
         }
 
-        // Barra de filtros
-        RowLayout {
+        WorklogFiltersBar {
+            id: filtersBar
             Layout.fillWidth: true
-            spacing: Kirigami.Units.mediumSpacing
-
-            // Filtro por Issue Key
-            Controls.Label {
-                text: qsTr("Filtrar por Issue Key:")
-            }
-
-            Controls.TextField {
-                id: filterIssueKeyField
-                Layout.preferredWidth: 150
-                placeholderText: qsTr("Ex: PLATFORM-123")
-                text: filterIssueKey
-                onTextChanged: {
-                    filterIssueKey = text;
-                }
-            }
-
-            // Filtro por Data Inicial
-            Controls.Label {
-                text: qsTr("Data Inicial:")
-            }
-
-            Controls.TextField {
-                id: filterDateFromField
-                Layout.preferredWidth: 120
-                placeholderText: qsTr("YYYY-MM-DD")
-                text: filterDateFrom
-                onTextChanged: {
-                    filterDateFrom = text;
-                }
-            }
-
-            // Filtro por Data Final
-            Controls.Label {
-                text: qsTr("Data Final:")
-            }
-
-            Controls.TextField {
-                id: filterDateToField
-                Layout.preferredWidth: 120
-                placeholderText: qsTr("YYYY-MM-DD")
-                text: filterDateTo
-                onTextChanged: {
-                    filterDateTo = text;
-                }
-            }
-
-            // Botões rápidos de data
-            Controls.Button {
-                text: qsTr("Hoje")
-                onClicked: {
-                    var today = new Date();
-                    var todayStr = Qt.formatDate(today, "yyyy-MM-dd");
-                    filterDateFrom = todayStr;
-                    filterDateTo = todayStr;
-                }
-            }
-
-            Controls.Button {
-                text: qsTr("Últimos 7 dias")
-                onClicked: {
-                    var today = new Date();
-                    var weekAgo = new Date(today);
-                    weekAgo.setDate(today.getDate() - 7);
-                    filterDateFrom = Qt.formatDate(weekAgo, "yyyy-MM-dd");
-                    filterDateTo = Qt.formatDate(today, "yyyy-MM-dd");
-                }
-            }
-
-            Controls.Button {
-                text: qsTr("Últimos 30 dias")
-                onClicked: {
-                    var today = new Date();
-                    var monthAgo = new Date(today);
-                    monthAgo.setDate(today.getDate() - 30);
-                    filterDateFrom = Qt.formatDate(monthAgo, "yyyy-MM-dd");
-                    filterDateTo = Qt.formatDate(today, "yyyy-MM-dd");
-                }
-            }
-
-            Item {
-                Layout.fillWidth: true
-            }
-
-            // Botão Limpar Filtros
-            Controls.Button {
-                text: qsTr("Limpar Filtros")
-                onClicked: {
-                    filterIssueKey = "";
-                    filterDateFrom = "";
-                    filterDateTo = "";
-                }
-            }
         }
 
         // Indicador de filtros ativos

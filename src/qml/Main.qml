@@ -4,6 +4,7 @@ import QtQuick.Layouts
 import QtQuick.Controls as Controls
 import org.kde.kirigami as Kirigami
 import "./pages"
+import "."
 
 
 Kirigami.ApplicationWindow {
@@ -57,281 +58,43 @@ Kirigami.ApplicationWindow {
         })
     }
 
-    // -----------------------------------------------------------------
     // Atalhos globais (independentes de foco)
-    // -----------------------------------------------------------------
-    Shortcut {
-        id: shortcutCreateOrUpdate
-        sequences: [ "Ctrl+Return", "Ctrl+Enter" ]
-        onActivated: {
-            // Não fazer nada se estiver na página de worklogs (índice 2)
-            if (stack.currentIndex === 2) return
-            
-            // Página de Settings (índice 3): Salvar configurações
-            if (stack.currentIndex === 3) {
-                if (settingsPage && settingsPage.saveSettingsFromToolbar) {
-                    settingsPage.saveSettingsFromToolbar()
-                }
-                return
-            }
-            
-            if (stack.currentIndex === 0) {
-                // Aba Criar Issue - delega a validação e feedback ao controller
-                if (createPage && createPage.createIssueFromToolbar) {
-                    createPage.createIssueFromToolbar()
-                }
-            } else if (stack.currentIndex === 1) {
-                // Aba Minhas Issues: Atualizar task
-                if (issuesPage && issuesPage.updateIssue) {
-                    issuesPage.updateIssue()
-                }
-            }
-        }
-    }
-
-    Shortcut {
-        id: shortcutCancel
-        sequence: "Esc"
-        onActivated: {
-            // ESC sempre esconde a janela (minimiza ao tray)
-            // Não chama onCancelRequested() para evitar lógica de cancelamento
-            if (typeof hideWindow === "function") {
+    Shortcuts {
+        id: shortcuts
+        stack: stack
+        tabBar: mainHeader.tabBar
+        createPage: createPage
+        issuesPage: issuesPage
+        settingsPage: settingsPage
+        pendingWorklogsPage: pendingWorklogsPage
+        onHideRequested: {
+            if (typeof hideWindow === "function")
                 hideWindow()
-            } else {
+            else
                 root.hide()
-            }
         }
     }
 
-    Shortcut {
-        id: shortcutSwitchTab
-        sequence: "Ctrl+Tab"
-        onActivated: {
-            // Alternar apenas entre as abas principais (índices 0 e 1)
-            // Ignorar a aba de Worklogs Pendentes (índice 2) e Configuração (índice 3)
-            var currentIdx = stack.currentIndex
-            
-            // Se estiver na aba de Configuração (3) ou Worklogs (2), ir para Criar Issue (0)
-            if (currentIdx === 3 || currentIdx === 2) {
-                stack.currentIndex = 0
-                tabBar.currentIndex = 0
-            }
-            // Se estiver em Criar Issue (0), ir para Minhas Issues (1)
-            else if (currentIdx === 0) {
-                stack.currentIndex = 1
-                tabBar.currentIndex = 1
-                // Buscar issues automaticamente apenas na primeira vez
-                if (issuesPage && !issuesPage.initialSearchDone) {
-                    issuesPage.refreshIssues("")
-                    issuesPage.initialSearchDone = true
-                }
-            }
-            // Se estiver em Minhas Issues (1), voltar para Criar Issue (0) (pula Worklogs)
-            else if (currentIdx === 1) {
-                stack.currentIndex = 0
-                tabBar.currentIndex = 0
-            }
-            // Caso padrão: voltar para Criar Issue (0)
-            else {
-                stack.currentIndex = 0
-                tabBar.currentIndex = 0
-            }
-        }
-    }
+    // Intermediários para evitar binding loop ao passar context properties ao header
+    property var _ctxIssueModel: issueModel
+    property var _ctxJiraService: jiraService
+    property var _ctxTimerModel: timerModel
+    property var _ctxTimerService: timerService
 
-    Shortcut {
-        id: shortcutSwitchTabBack
-        sequence: "Ctrl+Shift+Tab"
-        onActivated: {
-            // Alternar apenas entre as três abas principais (índices 0, 1 e 2)
-            // Ignorar a aba de Configuração (índice 3)
-            var currentIdx = stack.currentIndex
-            
-            // Se estiver na aba de Configuração (3) ou Timer (2), ir para Minhas Issues (1)
-            if (currentIdx === 3 || currentIdx === 2) {
-                stack.currentIndex = 1
-                tabBar.currentIndex = 1
-                // Buscar issues automaticamente apenas na primeira vez
-                if (issuesPage && !issuesPage.initialSearchDone) {
-                    issuesPage.refreshIssues("")
-                    issuesPage.initialSearchDone = true
-                }
-            }
-            // Se estiver em Minhas Issues (1), ir para Timer (2)
-            else if (currentIdx === 1) {
-                stack.currentIndex = 2
-                tabBar.currentIndex = 2
-            }
-            // Se estiver em Criar Issue (0), ir para Timer (2)
-            else if (currentIdx === 0) {
-                stack.currentIndex = 2
-                tabBar.currentIndex = 2
-            }
-            // Caso padrão: voltar para Criar Issue (0)
-            else {
-                stack.currentIndex = 0
-                tabBar.currentIndex = 0
-            }
-        }
-    }
-
-    // -----------------------------------------------------------------
     // Header customizado com TabBar e botão global dinâmico
-    // -----------------------------------------------------------------
-    header: RowLayout {
-        id: headerRow
-        width: parent.width
-        spacing: Kirigami.Units.smallSpacing
-
-        // TabBar para alternar entre abas
-        Controls.TabBar {
-            id: tabBar
-            Layout.fillWidth: true
-            currentIndex: stack.currentIndex
-
-            // Aba Criar Issue
-            Controls.TabButton {
-                text: "Criar Issue"
-            }
-            
-            // Aba Minhas Issues
-            Controls.TabButton {
-                text: "Minhas Issues"
-                onClicked: {
-                    // Buscar issues automaticamente apenas na primeira vez
-                    if (issuesPage && !issuesPage.initialSearchDone) {
-                        issuesPage.refreshIssues("")
-                        issuesPage.initialSearchDone = true
-                    }
-                }
-            }
-
-            // Aba Worklogs Pendentes
-            Controls.TabButton {
-                icon.name: "chronometer"
-            }
-
-            // Aba de Configuração (última, à direita)
-            Controls.TabButton {
-                icon.name: "configure"
-            }
-        }
-
-        // Botão global que muda dinamicamente baseado na aba ativa
-        Controls.ToolButton {
-            id: globalActionButton
-            text: {
-                if (stack.currentIndex === 2) return ""  // Página de worklogs não tem ação global
-                if (stack.currentIndex === 0) return qsTr("Criar")
-                if (stack.currentIndex === 1) return qsTr("Atualizar task")
-                if (stack.currentIndex === 3) {
-                    // Aba Settings: mostrar "Salvando..." quando estiver salvando
-                    if (settingsPage && settingsPage.isSaving !== undefined && settingsPage.isSaving) {
-                        return qsTr("Salvando...")
-                    }
-                    return qsTr("Salvar")
-                }
-                return ""
-            }
-            icon.name: {
-                if (stack.currentIndex === 2) return ""  // Página de worklogs não tem ação global
-                if (stack.currentIndex === 0) return "document-new"
-                if (stack.currentIndex === 1) return "document-save"
-                if (stack.currentIndex === 3) return "document-save"
-                return ""
-            }
-            visible: stack.currentIndex !== 2  // Ocultar apenas na página de worklogs
-            enabled: {
-                if (stack.currentIndex === 2) return false  // Página de worklogs pendentes
-                if (stack.currentIndex === 0) {
-                    // Aba Criar Issue
-                    if (!createPage)
-                        return false
-                    if (createPage.isProcessing !== undefined && createPage.isProcessing)
-                        return false
-                    // Requisito mínimo: summary preenchido.
-                    if (!issueModel)
-                        return false
-                    var s = issueModel.summary ? issueModel.summary.trim() : ""
-                    return s.length > 0
-                } else if (stack.currentIndex === 1) {
-                    // Aba Minhas Issues: Atualizar task
-                    if (!issuesPage) return false
-                    if (issuesPage.controller === undefined || !issuesPage.controller) return false
-                    if (issuesPage.selectedIssueKey === undefined || issuesPage.selectedIssueKey === "") return false
-                    if (issuesPage.isProcessing !== undefined && issuesPage.isProcessing) return false
-                    if (!jiraService) return false
-                    if (typeof jiraService.isAvailable !== "function") return false
-                    return jiraService.isAvailable()
-                } else if (stack.currentIndex === 3) {
-                    // Aba Settings: Salvar configurações
-                    if (!settingsPage) return false
-                    if (settingsPage.isSaving !== undefined && settingsPage.isSaving) return false
-                    if (settingsPage.isValid !== undefined && !settingsPage.isValid) return false
-                    return true
-                }
-                return false
-            }
-            onClicked: {
-                if (stack.currentIndex === 2) return  // Página de worklogs
-                if (stack.currentIndex === 0) {
-                    // Aba Criar Issue
-                    if (createPage && createPage.createIssueFromToolbar) {
-                        createPage.createIssueFromToolbar()
-                    }
-                } else if (stack.currentIndex === 1) {
-                    // Aba Minhas Issues: Atualizar task
-                    if (issuesPage && issuesPage.updateIssue) {
-                        issuesPage.updateIssue()
-                    }
-                } else if (stack.currentIndex === 3) {
-                    // Aba Settings: Salvar configurações
-                    if (settingsPage && settingsPage.saveSettingsFromToolbar) {
-                        settingsPage.saveSettingsFromToolbar()
-                    }
-                }
-            }
-        }
-        
-        // Botão Iniciar Timer (visível apenas na aba Minhas Issues)
-        Controls.ToolButton {
-            id: startTimerButton
-            text: {
-                if (stack.currentIndex !== 1) return ""
-                if (timerModel && timerModel.state === "running" && timerModel.issueKey === issuesPage.selectedIssueKey) {
-                    return qsTr("Parar Timer")
-                } else if (timerModel && timerModel.isOnBreak) {
-                    return qsTr("Cancelar Pausa e Iniciar")
-                } else if (timerModel && timerModel.state !== "idle" && timerModel.issueKey !== issuesPage.selectedIssueKey) {
-                    return qsTr("Parar e Iniciar")
-                }
-                return qsTr("Iniciar Timer")
-            }
-            icon.name: {
-                if (stack.currentIndex !== 1) return ""
-                if (timerModel && timerModel.state === "running" && timerModel.issueKey === issuesPage.selectedIssueKey) {
-                    return "media-playback-stop"
-                } else if (timerModel && timerModel.isOnBreak) {
-                    return "media-playback-start"
-                }
-                return "chronometer"
-            }
-            visible: stack.currentIndex === 1  // Apenas na aba Minhas Issues
-            enabled: {
-                if (stack.currentIndex !== 1) return false
-                if (!issuesPage) return false
-                if (issuesPage.selectedIssueKey === undefined || issuesPage.selectedIssueKey === "") return false
-                if (issuesPage.isProcessing !== undefined && issuesPage.isProcessing) return false
-                if (!timerService || !timerModel) return false
-                return true
-            }
-            onClicked: {
-                if (stack.currentIndex === 1 && issuesPage && issuesPage.startTimerFromToolbar) {
-                    issuesPage.startTimerFromToolbar()
-                }
-            }
-        }
+    header: MainHeader {
+        id: mainHeader
+        stack: stack
+        createPage: createPage
+        issuesPage: issuesPage
+        settingsPage: settingsPage
+        issueModel: root._ctxIssueModel
+        jiraService: root._ctxJiraService
+        timerModel: root._ctxTimerModel
+        timerService: root._ctxTimerService
     }
+
+    property alias tabBar: mainHeader.tabBar
 
     // Propriedade compartilhada para sincronizar epic selecionado entre abas
     property string sharedEpicKey: ""

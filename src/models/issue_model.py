@@ -46,6 +46,7 @@ class IssueModel(QObject):
         # Carregar configuração
         try:
             from src.utils.debug import debug_log
+
             debug_log("IssueModel", "__init__", "Carregando configuração...")
             self._config = ConfigManager()
             debug_log("IssueModel", "__init__", "Configuração carregada com sucesso")
@@ -74,7 +75,7 @@ class IssueModel(QObject):
 
         self._documentacaoAnexa = "Não"
         self._utilizacaoIA = "Não"
-        
+
         # Valor Entregue e Plataformas afetadas
         valor_entregue_values = self.valorEntregueValues
         self._valorEntregue = valor_entregue_values[0] if valor_entregue_values else ""
@@ -261,7 +262,7 @@ class IssueModel(QObject):
 
         self.documentacaoAnexa = "Não"
         self.utilizacaoIA = "Não"
-        
+
         # Resetar Valor Entregue e Plataformas afetadas
         valor_entregue_values = self.valorEntregueValues
         self.valorEntregue = valor_entregue_values[0] if valor_entregue_values else ""

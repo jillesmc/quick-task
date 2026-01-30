@@ -3,12 +3,16 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.dev
+    user: "${UID:-1000}:${GID:-1000}"
     volumes:
       - .:/app
-      - pip-cache:/root/.cache/pip
+      - pip-cache:/tmp/pip-cache
     environment:
       - QT_QPA_PLATFORM=offscreen
       - DISPLAY=:99
+      - HOME=/tmp/dev-home
+      - PIP_CACHE_DIR=/tmp/pip-cache
+      - PYTEST_CACHE_DIR=/tmp/pytest-cache
     command: tail -f /dev/null  # Mantém container rodando para desenvolvimento
 
 volumes:

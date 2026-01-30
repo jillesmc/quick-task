@@ -46,13 +46,13 @@ htmlcov/
 .coverage
 .coverage.*
 .cache
+.fontconfig
 nosetests.xml
 coverage.xml
 *.cover
 *.py,cover
 .hypothesis/
 .pytest_cache/
-
 # Jupyter Notebook
 .ipynb_checkpoints
 
@@ -99,6 +99,7 @@ pip-cache/
 
 # Flatpak
 .flatpak-builder/
+build-dir/
 
 # Bundle
 *.flatpak

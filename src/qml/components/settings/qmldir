@@ -1,0 +1,3 @@
+ConnectionSettingsBlock ConnectionSettingsBlock.qml
+PomodoroSettingsBlock PomodoroSettingsBlock.qml
+NotificationSettingsBlock NotificationSettingsBlock.qml

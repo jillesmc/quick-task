@@ -89,12 +89,12 @@ class JiraWorker(QThread):
                 )
             if uso_ia_alias:
                 custom_fields[uso_ia_alias] = self.uso_ia if self.uso_ia else "Não"
-            
+
             # Adicionar Valor Entregue (seleção única)
             valor_entregue_alias = self.config.get_custom_field("valor_entregue")
             if valor_entregue_alias and self.valor_entregue:
                 custom_fields[valor_entregue_alias] = self.valor_entregue
-            
+
             # Adicionar Plataformas afetadas (seleção múltipla)
             # Para campos multi-select no Jira, o formato é uma lista de objetos {"value": "text"}
             plataformas_alias = self.config.get_custom_field("plataformas_afetadas")
@@ -243,17 +243,18 @@ class UpdateWorker(QThread):
                 uso_ia_alias = self.config.get_custom_field("utilizacao_ia")
                 if uso_ia_alias:
                     custom_fields[uso_ia_alias] = self.uso_ia
-            
+
             if self.valor_entregue:
                 valor_entregue_alias = self.config.get_custom_field("valor_entregue")
                 if valor_entregue_alias:
                     custom_fields[valor_entregue_alias] = self.valor_entregue
-            
+
             if self.plataformas_afetadas:
                 plataformas_alias = self.config.get_custom_field("plataformas_afetadas")
                 if plataformas_alias:
                     custom_fields[plataformas_alias] = [
-                        {"value": plataforma} for plataforma in self.plataformas_afetadas
+                        {"value": plataforma}
+                        for plataforma in self.plataformas_afetadas
                     ]
 
             # Atualizar campos da issue (sem status)
@@ -274,16 +275,19 @@ class UpdateWorker(QThread):
 
             # Transicionar status sequencialmente se fornecido
             if self.status and self.status.strip():
-                from core.status_transition import transition_sequentially, WorklogConfig
-                
+                from core.status_transition import (
+                    transition_sequentially,
+                    WorklogConfig,
+                )
+
                 self.progressUpdated.emit(60, "Iniciando transições de status...")
-                
+
                 # Callback para progresso de transições
                 def progress_callback(status, percentage, message):
                     # Converter porcentagem de transição (0-100) para range 60-100
                     transition_progress = 60 + int((percentage * 40) / 100)
                     self.progressUpdated.emit(transition_progress, message)
-                
+
                 # Criar configuração de worklog se necessário
                 worklog_config = None
                 if self.registrar_worklog:
@@ -294,7 +298,7 @@ class UpdateWorker(QThread):
                         timezone=self.worklog_timezone,
                         comment=self.worklog_comment or None,
                     )
-                
+
                 # Transicionar sequencialmente
                 transition_sequentially(
                     jira_client=self.jira_client,
@@ -304,14 +308,16 @@ class UpdateWorker(QThread):
                     progress_callback=progress_callback,
                     worklog=worklog_config,
                 )
-                
+
                 self.progressUpdated.emit(100, "Transições concluídas!")
             else:
                 # Se não houver transição de status, registrar worklog separadamente se solicitado
                 if self.registrar_worklog and self.worklog_inicio:
                     self.progressUpdated.emit(60, "Registrando worklog...")
 
-                    time_spent = self.jira_client._format_duration_minutes(self.worklog_duracao)
+                    time_spent = self.jira_client._format_duration_minutes(
+                        self.worklog_duracao
+                    )
                     started_str = self.worklog_inicio.strftime("%Y-%m-%d %H:%M:%S")
 
                     success = self.jira_client.register_worklog(
@@ -323,7 +329,9 @@ class UpdateWorker(QThread):
                     )
 
                     if not success:
-                        self.errorOccurred.emit(f"Erro ao registrar worklog para {self.issue_key}")
+                        self.errorOccurred.emit(
+                            f"Erro ao registrar worklog para {self.issue_key}"
+                        )
                         return
 
                     self.progressUpdated.emit(90, "Worklog registrado com sucesso!")
@@ -348,8 +356,12 @@ class JiraService(QObject):
     errorOccurred = Signal(str)  # error_message
     # Signals específicos para busca de Epics (modo assíncrono)
     epicSearchStarted = Signal()
-    epicSearchCompleted = Signal("QVariant", str)  # lista de epics (list[dict], nextPageToken)
-    epicSearchPageCompleted = Signal("QVariant", str)  # lista de epics para paginação incremental (list[dict], nextPageToken)
+    epicSearchCompleted = Signal(
+        "QVariant", str
+    )  # lista de epics (list[dict], nextPageToken)
+    epicSearchPageCompleted = Signal(
+        "QVariant", str
+    )  # lista de epics para paginação incremental (list[dict], nextPageToken)
     # Signals específicos para carregamento de detalhes de issue (modo assíncrono)
     issueDetailsStarted = Signal(str)  # issueKey
     issueDetailsLoaded = Signal("QVariant")  # dict com detalhes da issue
@@ -360,6 +372,7 @@ class JiraService(QObject):
         # Carregar configuração
         try:
             from src.utils.debug import debug_log
+
             debug_log("JiraService", "__init__", "Carregando configuração...")
             self._config = ConfigManager()
             debug_log("JiraService", "__init__", "Configuração carregada com sucesso")
@@ -374,14 +387,21 @@ class JiraService(QObject):
             if self._config:
                 jira_cli_config_path = self._config.get_jira_cli_config_path()
                 account_id = self._config.get_account_id()
-            self._jira_client = JiraClient(jira_cli_config_path=jira_cli_config_path, account_id=account_id)
+            self._jira_client = JiraClient(
+                jira_cli_config_path=jira_cli_config_path, account_id=account_id
+            )
         except RuntimeError as e:
             # Não é erro crítico - é esperado na primeira inicialização sem config
             # Usar debug_log para não alarmar
             try:
                 from src.utils.debug import debug_log
-                debug_log("JiraService", "__init__", 
-                         "JiraClient não inicializado: %s (normal se configuração ainda não foi feita)", e)
+
+                debug_log(
+                    "JiraService",
+                    "__init__",
+                    "JiraClient não inicializado: %s (normal se configuração ainda não foi feita)",
+                    e,
+                )
             except ImportError:
                 # Se debug não estiver disponível, não fazer nada (silencioso)
                 pass
@@ -400,31 +420,61 @@ class JiraService(QObject):
         """
         try:
             from src.utils.debug import debug_log
-            debug_log("JiraService", "reloadConfiguration", "Recarregando configuração...")
-            
+
+            debug_log(
+                "JiraService", "reloadConfiguration", "Recarregando configuração..."
+            )
+
             # Recarregar ConfigManager
             self._config = ConfigManager()
-            
+
             # Recriar JiraClient com nova config
             jira_cli_config_path = None
             account_id = None
             if self._config:
                 jira_cli_config_path = self._config.get_jira_cli_config_path()
                 account_id = self._config.get_account_id()
-            
+
             try:
-                self._jira_client = JiraClient(jira_cli_config_path=jira_cli_config_path, account_id=account_id)
-                debug_log("JiraService", "reloadConfiguration", "JiraClient recriado com sucesso")
+                self._jira_client = JiraClient(
+                    jira_cli_config_path=jira_cli_config_path, account_id=account_id
+                )
+                debug_log(
+                    "JiraService",
+                    "reloadConfiguration",
+                    "JiraClient recriado com sucesso",
+                )
             except RuntimeError as e:
-                debug_log("JiraService", "reloadConfiguration", 
-                         "JiraClient não pôde ser recriado: %s", e)
+                debug_log(
+                    "JiraService",
+                    "reloadConfiguration",
+                    "JiraClient não pôde ser recriado: %s",
+                    e,
+                )
                 self._jira_client = None
         except Exception as e:
             from src.utils.debug import debug_log
+
             debug_log("JiraService", "reloadConfiguration", "Erro ao recarregar: %s", e)
             # Manter estado anterior em caso de erro
 
-    @Slot(str, str, str, str, str, str, str, list, bool, str, int, str, str, str, result=bool)
+    @Slot(
+        str,
+        str,
+        str,
+        str,
+        str,
+        str,
+        str,
+        list,
+        bool,
+        str,
+        int,
+        str,
+        str,
+        str,
+        result=bool,
+    )
     def createIssue(  # NOSONAR - camelCase necessário para compatibilidade com QML
         self,
         summary: str,
@@ -494,7 +544,9 @@ class JiraService(QObject):
                 return False
 
         # Sempre usar timezone do config.json (não aceitar da UI)
-        worklogTimezone = self._config.get_timezone() if self._config else "America/Sao_Paulo"
+        worklogTimezone = (
+            self._config.get_timezone() if self._config else "America/Sao_Paulo"
+        )
 
         # Criar novo worker
         self._worker = JiraWorker(
@@ -640,14 +692,22 @@ class JiraService(QObject):
             return False
 
         # Cancelar busca anterior se ainda estiver rodando (apenas se não for paginação)
-        if not next_page_token and self._epic_search_worker and self._epic_search_worker.isRunning():
+        if (
+            not next_page_token
+            and self._epic_search_worker
+            and self._epic_search_worker.isRunning()
+        ):
             self._epic_search_worker.terminate()
             self._epic_search_worker.wait()
 
         # Worker simples inline para não poluir o namespace público
         class _EpicSearchWorker(QThread):
-            resultsReady = Signal("QVariant", str)  # Para busca normal: (results, nextPageToken)
-            pageReady = Signal("QVariant", str)  # Para paginação incremental: (results, nextPageToken)
+            resultsReady = Signal(
+                "QVariant", str
+            )  # Para busca normal: (results, nextPageToken)
+            pageReady = Signal(
+                "QVariant", str
+            )  # Para paginação incremental: (results, nextPageToken)
             errorOccurred = Signal(str)
             is_pagination: bool = False
 
@@ -707,7 +767,7 @@ class JiraService(QObject):
 
                     # Sempre incluir nextPageToken nos resultados
                     next_token_str = next_page if next_page else ""
-                    
+
                     # Se for paginação, usar signal diferente
                     if self.is_pagination:
                         self.pageReady.emit(epics, next_token_str)
@@ -723,7 +783,7 @@ class JiraService(QObject):
         project_key = self._config.get_project()
         project_filter = "PLATFORM" if project_platform else None
         is_pagination = bool(next_page_token)
-        
+
         worker = _EpicSearchWorker(
             self._jira_client,
             project_key,
@@ -809,7 +869,7 @@ class JiraService(QObject):
     def getEpicFilters(self) -> Dict[str, bool]:
         """
         Retorna os filtros de busca de épicos salvos na configuração.
-        
+
         Returns:
             Dict com os filtros: created_by_me, assigned_to_me, project_platform, exclude_done
         """
@@ -823,23 +883,27 @@ class JiraService(QObject):
 
     @Slot(bool, bool, bool, bool, result=bool)
     def setEpicFilters(
-        self, created_by_me: bool, assigned_to_me: bool, project_platform: bool, exclude_done: bool
+        self,
+        created_by_me: bool,
+        assigned_to_me: bool,
+        project_platform: bool,
+        exclude_done: bool,
     ) -> bool:
         """
         Salva os filtros de busca de épicos no arquivo de configuração.
-        
+
         Args:
             created_by_me: Filtrar apenas epics criados por mim.
             assigned_to_me: Filtrar apenas epics atribuídos a mim.
             project_platform: Filtrar por projeto PLATFORM.
             exclude_done: Excluir epics com status DONE.
-        
+
         Returns:
             True se salvou com sucesso, False caso contrário.
         """
         if not self._config:
             return False
-        
+
         try:
             filters = {
                 "created_by_me": created_by_me,
@@ -931,7 +995,9 @@ class JiraService(QObject):
             return False
 
         # Sempre usar timezone do config.json (não aceitar da UI)
-        worklogTimezone = self._config.get_timezone() if self._config else "America/Sao_Paulo"
+        worklogTimezone = (
+            self._config.get_timezone() if self._config else "America/Sao_Paulo"
+        )
 
         # Converter duração em minutos para formato do jira-cli
         time_spent = self._jira_client._format_duration_minutes(worklogDuracao)
@@ -945,7 +1011,9 @@ class JiraService(QObject):
         )
 
         if not success:
-            self.errorOccurred.emit(f"Não foi possível registrar worklog para {issueKey}")
+            self.errorOccurred.emit(
+                f"Não foi possível registrar worklog para {issueKey}"
+            )
 
         return success
 
@@ -973,7 +1041,24 @@ class JiraService(QObject):
 
         return self._build_issue_details_dict(issue_data)
 
-    @Slot(str, str, str, str, str, str, str, str, list, str, bool, str, int, str, str, result=bool)
+    @Slot(
+        str,
+        str,
+        str,
+        str,
+        str,
+        str,
+        str,
+        str,
+        list,
+        str,
+        bool,
+        str,
+        int,
+        str,
+        str,
+        result=bool,
+    )
     def updateIssue(  # NOSONAR - camelCase necessário para compatibilidade com QML
         self,
         issueKey: str,  # NOSONAR
@@ -1044,7 +1129,9 @@ class JiraService(QObject):
                 return False
 
         # Sempre usar timezone do config.json (não aceitar da UI)
-        worklogTimezone = self._config.get_timezone() if self._config else "America/Sao_Paulo"
+        worklogTimezone = (
+            self._config.get_timezone() if self._config else "America/Sao_Paulo"
+        )
 
         # Criar novo worker de atualização
         self._update_worker = UpdateWorker(
@@ -1085,7 +1172,7 @@ class JiraService(QObject):
         """
         Constrói o dicionário de detalhes de issue no formato esperado pelo QML.
         Reutilizado tanto pelo caminho síncrono quanto pelo assíncrono.
-        
+
         A REST API retorna dados em data["fields"], mas get_issue_details já expande
         os campos no topo do dicionário para compatibilidade.
         """
@@ -1097,7 +1184,7 @@ class JiraService(QObject):
         else:
             # Estrutura com campos no topo (REST API após expansão)
             fields = issue_data
-        
+
         parent = fields.get("parent")
         parent_key = ""
         parent_summary = ""
@@ -1123,11 +1210,27 @@ class JiraService(QObject):
         # Obter IDs dos campos customizados do config (com fallback para valores hardcoded)
         config = self._config
         CUSTOM_FIELD_IDS = {
-            "tipo_atividade": config.get_custom_field("tipo_atividade") if config else "customfield_12088",
-            "documentacao_anexa": config.get_custom_field("documentacao_anexa") if config else "customfield_14840",
-            "utilizacao_ia": config.get_custom_field("utilizacao_ia") if config else "customfield_14841",
-            "valor_entregue": config.get_custom_field("valor_entregue") if config else "",
-            "plataformas_afetadas": config.get_custom_field("plataformas_afetadas") if config else "",
+            "tipo_atividade": (
+                config.get_custom_field("tipo_atividade")
+                if config
+                else "customfield_12088"
+            ),
+            "documentacao_anexa": (
+                config.get_custom_field("documentacao_anexa")
+                if config
+                else "customfield_14840"
+            ),
+            "utilizacao_ia": (
+                config.get_custom_field("utilizacao_ia")
+                if config
+                else "customfield_14841"
+            ),
+            "valor_entregue": (
+                config.get_custom_field("valor_entregue") if config else ""
+            ),
+            "plataformas_afetadas": (
+                config.get_custom_field("plataformas_afetadas") if config else ""
+            ),
         }
 
         def extract_custom_field_by_id(field_id: str) -> str:
@@ -1180,12 +1283,16 @@ class JiraService(QObject):
             CUSTOM_FIELD_IDS["documentacao_anexa"]
         )
         utilizacao_ia = extract_custom_field_by_id(CUSTOM_FIELD_IDS["utilizacao_ia"])
-        
+
         if CUSTOM_FIELD_IDS["valor_entregue"]:
-            valor_entregue = extract_custom_field_by_id(CUSTOM_FIELD_IDS["valor_entregue"])
-        
+            valor_entregue = extract_custom_field_by_id(
+                CUSTOM_FIELD_IDS["valor_entregue"]
+            )
+
         if CUSTOM_FIELD_IDS["plataformas_afetadas"]:
-            plataformas_afetadas = extract_multi_select_field(CUSTOM_FIELD_IDS["plataformas_afetadas"])
+            plataformas_afetadas = extract_multi_select_field(
+                CUSTOM_FIELD_IDS["plataformas_afetadas"]
+            )
 
         # Converter description para string se for objeto (ADF format)
         description = fields.get("description", "")
@@ -1308,34 +1415,34 @@ class JiraService(QObject):
     def getIssueUrl(self, issueKey: str) -> str:
         """
         Constrói a URL de uma issue/epic no Jira.
-        
+
         Args:
             issueKey: Chave da issue/epic (ex: PLATFORM-123)
-            
+
         Returns:
             URL completa da issue/epic no Jira
         """
         if not issueKey or not issueKey.strip():
             return ""
-        
+
         # Obter server URL do jira_client
         if not self._jira_client:
             return ""
-        
+
         # Tentar obter server URL do jira_client
         # O JiraClient tem _server_url que vem do .jira-config.yml
         try:
             # Usar reflexão para acessar _server_url (propriedade privada)
-            server_url = getattr(self._jira_client, '_server_url', None)
+            server_url = getattr(self._jira_client, "_server_url", None)
             if server_url:
                 return f"{server_url}/browse/{issueKey.strip()}"
         except Exception:
             pass
-        
+
         # Fallback: tentar construir URL baseado na chave
         # Assumir formato padrão: https://<project>.atlassian.net
-        if '-' in issueKey:
-            project = issueKey.split('-')[0]
+        if "-" in issueKey:
+            project = issueKey.split("-")[0]
             return f"https://{project.lower()}.atlassian.net/browse/{issueKey.strip()}"
-        
+
         return ""

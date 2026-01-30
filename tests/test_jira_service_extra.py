@@ -98,4 +98,3 @@ def test_get_issue_details_maps_fields_and_uppercases_status(
     assert details["status"] == "IN DEVELOPMENT"
     assert details["parentKey"] == "PLATFORM-1"
     assert details["parentSummary"] == "Epic summary"
-

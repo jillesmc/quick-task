@@ -29,6 +29,7 @@ packages = ["src", "config", "core", "src.models", "src.utils", "src.services", 
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+cache_dir = "/tmp/pytest-cache"
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]

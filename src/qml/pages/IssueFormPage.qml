@@ -10,7 +10,9 @@ import QtQuick.Layouts
 import QtQuick.Controls as Controls
 import org.kde.kirigami as Kirigami
 import "../components/forms"
+import "../components/controls"
 import "../controllers"
+import "../utils/DialogHelpers.js" as DialogHelpers
 
 Kirigami.Page {
     id: page
@@ -30,12 +32,13 @@ Kirigami.Page {
     signal epicSelected(string key, string summary)
     signal issueCreated(string issueKey)  // Emitido quando uma issue é criada com sucesso
 
-    // Diálogos
     property var progressDialog: null
-    property var successDialog: null
 
     // Controller para lógica de negócio
     property var controller: null
+
+    // Intermediário para evitar binding loop ao passar context property ao IssueMetadataFields
+    property var _ctxIssueModel: issueModel
 
     // ------------------------------------------------------------------
     // Funções públicas para integração com Main.qml (botão global)
@@ -96,22 +99,23 @@ Kirigami.Page {
             // Conectar signals do controller
             controller.createStarted.connect(function () {
                 isProcessing = true;
-                showProgressDialog();
+                page.progressDialog = DialogHelpers.showProgress(page, "../components/dialogs/ProgressDialog.qml");
             });
 
             controller.createCompleted.connect(function (issueKey, issueUrl) {
                 isProcessing = false;
-                hideProgressDialog();
-                showSuccessDialog(issueKey, issueUrl);
+                DialogHelpers.hideProgress(page.progressDialog);
+                page.progressDialog = null;
+                DialogHelpers.showSuccess(page, "../components/dialogs/SuccessDialog.qml", issueKey, issueUrl || "", false);
                 resetForm();
-                // Emitir signal para notificar que uma issue foi criada
                 page.issueCreated(issueKey);
             });
 
             controller.createFailed.connect(function (errorMessage) {
                 isProcessing = false;
-                hideProgressDialog();
-                showErrorDialog(errorMessage);
+                DialogHelpers.hideProgress(page.progressDialog);
+                page.progressDialog = null;
+                DialogHelpers.showError(page, "../components/dialogs/ErrorDialog.qml", errorMessage);
             });
         }
     }
@@ -369,252 +373,10 @@ Kirigami.Page {
                         }
                     }
 
-                    // GridLayout unificada para Status, Documentação, IA, Tipo de Atividade e Valor Entregue
-                    GridLayout {
+                    IssueMetadataFields {
                         Layout.fillWidth: true
-                        columnSpacing: Kirigami.Units.largeSpacing
-                        rowSpacing: Kirigami.Units.largeSpacing
-                        columns: width > 650 ? 2 : 1
-
-                        // Status (Linha 1, Coluna 1)
-                        ColumnLayout {
-                            Layout.fillWidth: true
-                            Layout.alignment: Qt.AlignTop
-                            spacing: Kirigami.Units.smallSpacing
-
-                            Controls.Label {
-                                text: qsTr("Status:")
-                                font.bold: true
-                                Layout.fillWidth: true
-                            }
-
-                            Column {
-                                Layout.fillWidth: true
-                                spacing: Kirigami.Units.smallSpacing
-
-                                Repeater {
-                                    model: issueModel ? issueModel.statusSequence : []
-
-                                    Controls.RadioButton {
-                                        text: modelData
-                                        enabled: !isProcessing
-                                        checked: issueModel && issueModel.statusInicial === modelData
-                                        onCheckedChanged: {
-                                            if (checked && issueModel) {
-                                                issueModel.statusInicial = modelData;
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        // Documentação e IA (Linha 1, Coluna 2)
-                        ColumnLayout {
-                            Layout.fillWidth: true
-                            Layout.alignment: Qt.AlignTop
-                            spacing: Kirigami.Units.largeSpacing
-
-                            // Documentação anexa
-                            ColumnLayout {
-                                Layout.fillWidth: true
-                                spacing: Kirigami.Units.smallSpacing
-
-                                Controls.Label {
-                                    text: qsTr("Documentação anexa:")
-                                    font.bold: true
-                                    Layout.fillWidth: true
-                                }
-
-                                Row {
-                                    spacing: Kirigami.Units.largeSpacing
-                                    Controls.RadioButton {
-                                        text: qsTr("Não")
-                                        enabled: !isProcessing
-                                        checked: issueModel && issueModel.documentacaoAnexa === "Não"
-                                        onCheckedChanged: {
-                                            if (checked && issueModel) {
-                                                issueModel.documentacaoAnexa = "Não";
-                                            }
-                                        }
-                                    }
-                                    Controls.RadioButton {
-                                        text: qsTr("Sim")
-                                        enabled: !isProcessing
-                                        checked: issueModel && issueModel.documentacaoAnexa === "Sim"
-                                        onCheckedChanged: {
-                                            if (checked && issueModel) {
-                                                issueModel.documentacaoAnexa = "Sim";
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-
-                            // Utilização de IA
-                            ColumnLayout {
-                                Layout.fillWidth: true
-                                spacing: Kirigami.Units.smallSpacing
-
-                                Controls.Label {
-                                    text: qsTr("Utilização de IA:")
-                                    font.bold: true
-                                    Layout.fillWidth: true
-                                }
-
-                                Row {
-                                    spacing: Kirigami.Units.largeSpacing
-                                    Controls.RadioButton {
-                                        text: qsTr("Não")
-                                        enabled: !isProcessing
-                                        checked: issueModel && issueModel.utilizacaoIA === "Não"
-                                        onCheckedChanged: {
-                                            if (checked && issueModel) {
-                                                issueModel.utilizacaoIA = "Não";
-                                            }
-                                        }
-                                    }
-                                    Controls.RadioButton {
-                                        text: qsTr("Sim")
-                                        enabled: !isProcessing
-                                        checked: issueModel && issueModel.utilizacaoIA === "Sim"
-                                        onCheckedChanged: {
-                                            if (checked && issueModel) {
-                                                issueModel.utilizacaoIA = "Sim";
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        // Tipo de Atividade (Linha 2, Coluna 1)
-                        ColumnLayout {
-                            Layout.fillWidth: true
-                            Layout.alignment: Qt.AlignTop
-                            spacing: Kirigami.Units.smallSpacing
-
-                            Controls.Label {
-                                text: qsTr("Tipo de atividade:")
-                                font.bold: true
-                                Layout.fillWidth: true
-                            }
-
-                            Column {
-                                Layout.fillWidth: true
-                                spacing: 0
-
-                                Repeater {
-                                    model: issueModel ? issueModel.tipoAtividadeValues : []
-
-                                    Controls.RadioButton {
-                                        text: modelData
-                                        enabled: !isProcessing
-                                        checked: issueModel && issueModel.tipoAtividade === modelData
-                                        onCheckedChanged: {
-                                            if (checked && issueModel) {
-                                                issueModel.tipoAtividade = modelData;
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        // Valor Entregue (Linha 2, Coluna 2)
-                        ColumnLayout {
-                            Layout.fillWidth: true
-                            Layout.alignment: Qt.AlignTop
-                            spacing: Kirigami.Units.smallSpacing
-
-                            Controls.Label {
-                                text: qsTr("Valor Entregue:")
-                                font.bold: true
-                                Layout.fillWidth: true
-                            }
-
-                            Column {
-                                Layout.fillWidth: true
-                                spacing: 0
-
-                                Repeater {
-                                    model: issueModel ? issueModel.valorEntregueValues : []
-
-                                    Controls.RadioButton {
-                                        text: modelData
-                                        enabled: !isProcessing
-                                        checked: issueModel && issueModel.valorEntregue === modelData
-                                        onCheckedChanged: {
-                                            if (checked && issueModel) {
-                                                issueModel.valorEntregue = modelData;
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    // Plataformas afetadas
-                    Controls.Label {
-                        text: qsTr("Plataformas afetadas:")
-                        font.bold: true
-                        Layout.fillWidth: true
-                    }
-
-                    // Usando ListView com CheckDelegate para multisseleção (duas colunas no item)
-                    ListView {
-                        id: plataformasListViewForm
-                        Layout.fillWidth: true
-                        implicitHeight: contentHeight
-                        interactive: false
-                        clip: true
-                        model: issueModel ? issueModel.plataformasAfetadasValues : []
-
-                        delegate: Controls.CheckDelegate {
-                            width: plataformasListViewForm.width
-                            enabled: !isProcessing
-                            checked: {
-                                if (!issueModel)
-                                    return false;
-                                var plataformas = issueModel.plataformasAfetadas || [];
-                                return plataformas.indexOf(modelData.col1) >= 0;
-                            }
-
-                            contentItem: RowLayout {
-                                spacing: Kirigami.Units.largeSpacing
-                                Controls.Label {
-                                    text: modelData.col1
-                                    font.bold: true
-                                    Layout.preferredWidth: 150
-                                }
-                                Controls.Label {
-                                    text: modelData.col2
-                                    font.italic: true
-                                    opacity: 0.7
-                                    Layout.fillWidth: true
-                                }
-                            }
-
-                            onCheckedChanged: {
-                                if (!issueModel)
-                                    return;
-                                var plataformas = issueModel.plataformasAfetadas || [];
-                                var val = modelData.col1;
-                                if (checked) {
-                                    if (plataformas.indexOf(val) < 0) {
-                                        plataformas.push(val);
-                                        issueModel.plataformasAfetadas = plataformas;
-                                    }
-                                } else {
-                                    var index = plataformas.indexOf(val);
-                                    if (index >= 0) {
-                                        plataformas.splice(index, 1);
-                                        issueModel.plataformasAfetadas = plataformas;
-                                    }
-                                }
-                            }
-                        }
+                        issueModel: page._ctxIssueModel
+                        enabled: !isProcessing
                     }
 
                     // Espaço extra no final para não "comer" o último campo
@@ -688,51 +450,4 @@ Kirigami.Page {
         return false;
     }
 
-    function showProgressDialog() {
-        var component = Qt.createComponent("../components/dialogs/ProgressDialog.qml");
-        if (component.status === Component.Ready) {
-            var window = page.parent && page.parent.parent ? page.parent.parent : page;
-            progressDialog = component.createObject(window);
-            if (progressDialog) {
-                progressDialog.open();
-            }
-        } else {
-            console.error("Erro ao criar ProgressDialog:", component.errorString());
-        }
-    }
-
-    function hideProgressDialog() {
-        if (progressDialog) {
-            progressDialog.close();
-            progressDialog.destroy();
-            progressDialog = null;
-        }
-    }
-
-    function showSuccessDialog(issueKey, issueUrl) {
-        var component = Qt.createComponent("../components/dialogs/SuccessDialog.qml");
-        if (component.status === Component.Ready) {
-            var window = page.parent && page.parent.parent ? page.parent.parent : page;
-            successDialog = component.createObject(window);
-            if (successDialog) {
-                successDialog.show(issueKey, issueUrl, false);  // false indica que é criação
-            }
-        } else {
-            console.error("Erro ao criar SuccessDialog:", component.errorString());
-        }
-    }
-
-    function showErrorDialog(message) {
-        var component = Qt.createComponent("../components/dialogs/ErrorDialog.qml");
-        if (component.status === Component.Ready) {
-            var window = page.parent && page.parent.parent ? page.parent.parent : page;
-            var dialog = component.createObject(window);
-            if (dialog) {
-                dialog.show(message);
-            }
-        } else {
-            console.error("Erro:", message);
-            console.error("Erro ao criar ErrorDialog:", component.errorString());
-        }
-    }
 }

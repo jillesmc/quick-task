@@ -8,7 +8,6 @@ from typing import Callable, List, Optional, Dict
 
 from core.jira_client import JiraClient
 
-
 # Mapeamento de nomes de status do config.json para nomes reais do Jira
 # Este mapeamento é usado apenas quando necessário (normalmente jira-cli aceita uppercase)
 # Se algum status não funcionar, adicione o mapeamento aqui
@@ -21,20 +20,20 @@ STATUS_NAME_MAPPING: Dict[str, str] = {
 def normalize_status_name(status: str) -> str:
     """
     Normaliza o nome do status do config.json para o nome real usado no Jira.
-    
+
     O jira-cli aceita nomes em uppercase, então retornamos o status como está.
     Se houver mapeamento explícito, usamos ele.
-    
+
     Args:
         status: Nome do status do config.json (ex: "TO DO", "DONE")
-    
+
     Returns:
         Nome do status para uso com jira-cli (mantém formato original ou mapeado)
     """
     # Se houver mapeamento explícito, usar ele
     if status in STATUS_NAME_MAPPING:
         return STATUS_NAME_MAPPING[status]
-    
+
     # Caso contrário, retornar como está (jira-cli aceita uppercase)
     return status
 
@@ -196,7 +195,9 @@ def transition_sequentially(
     # Se já está no estado alvo ou além dele, não fazer nada
     if current_index >= target_index:
         if progress_callback:
-            progress_callback("", 100, f"Issue já está em {target_status} ou estado posterior")
+            progress_callback(
+                "", 100, f"Issue já está em {target_status} ou estado posterior"
+            )
         return
 
     # Transicionar sequencialmente do estado atual até o estado alvo

@@ -20,10 +20,10 @@ from core.jira_client import JiraClient
 
 class SearchWorker(QThread):
     """Worker thread para busca assíncrona de issues"""
-    
+
     issuesFound = Signal(list)  # Lista de issues encontradas
     errorOccurred = Signal(str)  # Mensagem de erro
-    
+
     def __init__(
         self,
         jira_client,
@@ -37,12 +37,12 @@ class SearchWorker(QThread):
         self._config = config
         self._assignee_email = assignee_email
         self._query = query
-    
+
     def run(self):
         """Executa a busca em thread separada"""
         try:
             # Filtrar para não trazer issues já concluídas (statusCategory != Done)
-            extra_jql = 'AND statusCategory != Done'
+            extra_jql = "AND statusCategory != Done"
             raw_issues = self._jira_client.get_my_issues(
                 assignee_email=self._assignee_email,
                 max_results=100,
@@ -58,7 +58,7 @@ class SearchWorker(QThread):
                 status = (fields.get("status") or {}).get("name", "")
                 issue_type = (fields.get("issuetype") or {}).get("name", "")
                 assignee = (fields.get("assignee") or {}).get("displayName", "")
-                
+
                 # Extrair informação de parent (Epic ou outro parent)
                 # REST API retorna parent diretamente na busca
                 parent_key = ""
@@ -103,7 +103,9 @@ class MyIssuesModel(QObject):
         try:
             self._config = ConfigManager()
         except Exception as e:  # pragma: no cover - log simples
-            print(f"Erro ao carregar configuração em MyIssuesModel: {e}", file=sys.stderr)
+            print(
+                f"Erro ao carregar configuração em MyIssuesModel: {e}", file=sys.stderr
+            )
             self._config = None
 
         # Inicializar JiraClient com o mesmo caminho de config do .jira-config.yml
@@ -113,14 +115,21 @@ class MyIssuesModel(QObject):
             if self._config:
                 jira_cli_config_path = self._config.get_jira_cli_config_path()
                 account_id = self._config.get_account_id()
-            self._jira_client = JiraClient(jira_cli_config_path=jira_cli_config_path, account_id=account_id)
+            self._jira_client = JiraClient(
+                jira_cli_config_path=jira_cli_config_path, account_id=account_id
+            )
         except RuntimeError as e:  # pragma: no cover - log simples
             # Não é erro crítico - é esperado na primeira inicialização sem config
             # Usar debug_log para não alarmar
             try:
                 from src.utils.debug import debug_log
-                debug_log("MyIssuesModel", "__init__", 
-                         "JiraClient não inicializado: %s (normal se configuração ainda não foi feita)", e)
+
+                debug_log(
+                    "MyIssuesModel",
+                    "__init__",
+                    "JiraClient não inicializado: %s (normal se configuração ainda não foi feita)",
+                    e,
+                )
             except ImportError:
                 # Se debug não estiver disponível, não fazer nada (silencioso)
                 pass
@@ -134,28 +143,44 @@ class MyIssuesModel(QObject):
         """
         try:
             from src.utils.debug import debug_log
-            debug_log("MyIssuesModel", "reloadConfiguration", "Recarregando configuração...")
-            
+
+            debug_log(
+                "MyIssuesModel", "reloadConfiguration", "Recarregando configuração..."
+            )
+
             # Recarregar ConfigManager
             self._config = ConfigManager()
-            
+
             # Recriar JiraClient com nova config
             jira_cli_config_path = None
             account_id = None
             if self._config:
                 jira_cli_config_path = self._config.get_jira_cli_config_path()
                 account_id = self._config.get_account_id()
-            
+
             try:
-                self._jira_client = JiraClient(jira_cli_config_path=jira_cli_config_path, account_id=account_id)
-                debug_log("MyIssuesModel", "reloadConfiguration", "JiraClient recriado com sucesso")
+                self._jira_client = JiraClient(
+                    jira_cli_config_path=jira_cli_config_path, account_id=account_id
+                )
+                debug_log(
+                    "MyIssuesModel",
+                    "reloadConfiguration",
+                    "JiraClient recriado com sucesso",
+                )
             except RuntimeError as e:
-                debug_log("MyIssuesModel", "reloadConfiguration", 
-                         "JiraClient não pôde ser recriado: %s", e)
+                debug_log(
+                    "MyIssuesModel",
+                    "reloadConfiguration",
+                    "JiraClient não pôde ser recriado: %s",
+                    e,
+                )
                 self._jira_client = None
         except Exception as e:
             from src.utils.debug import debug_log
-            debug_log("MyIssuesModel", "reloadConfiguration", "Erro ao recarregar: %s", e)
+
+            debug_log(
+                "MyIssuesModel", "reloadConfiguration", "Erro ao recarregar: %s", e
+            )
             # Manter estado anterior em caso de erro
 
     # ------------------------------------------------------------------
@@ -215,12 +240,14 @@ class MyIssuesModel(QObject):
     def refreshIssues(self, query: str = "") -> None:
         """
         Atualiza a lista de issues do usuário atual de forma assíncrona.
-        
+
         Args:
             query: Texto opcional para buscar por summary ou key. Se vazio, busca todas as issues.
         """
         if not self._jira_client:
-            self.errorOccurred.emit("JiraClient não inicializado. Configure a conexão na aba de Configurações.")
+            self.errorOccurred.emit(
+                "JiraClient não inicializado. Configure a conexão na aba de Configurações."
+            )
             return
 
         assignee_email = self._resolve_assignee_email()
@@ -280,4 +307,3 @@ class MyIssuesModel(QObject):
             if issue.get("key") == key:
                 return issue
         return {}
-

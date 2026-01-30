@@ -126,10 +126,10 @@ install_deps() {
 build() {
     print_header "Construindo Flatpak"
     
-    # Verificar se aplicação já está instalada
-    if flatpak info "$APP_ID" &> /dev/null; then
-        print_info "Aplicação já instalada, desinstalando..."
-        flatpak uninstall --user -y "$APP_ID" || true
+    # Tentar desinstalar versão anterior (ignora erro se não estiver instalada)
+    print_info "Desinstalando versão anterior (se instalada)..."
+    if flatpak uninstall --user -y "$APP_ID" 2>/dev/null; then
+        print_success "Versão anterior desinstalada"
     fi
     
     # Limpar build anterior
@@ -229,10 +229,11 @@ bundle() {
 clean() {
     print_header "Limpando Dados Locais"
     
-    if flatpak info "$APP_ID" &> /dev/null; then
-        print_info "Desinstalando aplicação..."
-        flatpak uninstall --user -y "$APP_ID"
+    print_info "Desinstalando aplicação (se instalada)..."
+    if flatpak uninstall --user -y "$APP_ID" 2>/dev/null; then
         print_success "Aplicação desinstalada"
+    else
+        print_info "Aplicação não estava instalada (nada a desinstalar)"
     fi
     
     if [ -d "$BUILD_DIR" ]; then
