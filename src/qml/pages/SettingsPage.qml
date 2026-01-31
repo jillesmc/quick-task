@@ -97,21 +97,29 @@ Kirigami.Page {
             Controls.SplitView.minimumWidth: 400
             clip: true
 
-            ColumnLayout {
-                id: leftColumn
+            Item {
                 width: leftScrollView.availableWidth
-                anchors.margins: 20
-                spacing: Kirigami.Units.largeSpacing
+                height: leftColumn.implicitHeight + 2 * Kirigami.Units.largeSpacing
 
-                ConnectionSettingsBlock {
-                    id: connectionBlock
-                    Layout.fillWidth: true
-                    settingsModel: page.settingsModel
-                }
+                ColumnLayout {
+                    id: leftColumn
+                    anchors.fill: parent
+                    anchors.leftMargin: Kirigami.Units.largeSpacing
+                    anchors.rightMargin: Kirigami.Units.largeSpacing
+                    anchors.topMargin: Kirigami.Units.largeSpacing
+                    anchors.bottomMargin: Kirigami.Units.largeSpacing
+                    spacing: Kirigami.Units.largeSpacing
 
-                // Espaço flexível
-                Item {
-                    Layout.fillHeight: true
+                    ConnectionSettingsBlock {
+                        id: connectionBlock
+                        Layout.fillWidth: true
+                        settingsModel: page.settingsModel
+                    }
+
+                    // Espaço flexível
+                    Item {
+                        Layout.fillHeight: true
+                    }
                 }
             }
         }
@@ -123,56 +131,64 @@ Kirigami.Page {
             Controls.SplitView.minimumWidth: 400
             clip: true
 
-            ColumnLayout {
-                id: rightColumn
+            Item {
                 width: rightScrollView.availableWidth
-                anchors.margins: 20
-                spacing: Kirigami.Units.largeSpacing
+                height: rightColumn.implicitHeight + 2 * Kirigami.Units.largeSpacing
 
-                PomodoroSettingsBlock {
-                    Layout.fillWidth: true
-                    settingsModel: page.settingsModel
-                }
+                ColumnLayout {
+                    id: rightColumn
+                    anchors.fill: parent
+                    anchors.leftMargin: Kirigami.Units.largeSpacing
+                    anchors.rightMargin: Kirigami.Units.largeSpacing
+                    anchors.topMargin: Kirigami.Units.largeSpacing
+                    anchors.bottomMargin: Kirigami.Units.largeSpacing
+                    spacing: Kirigami.Units.largeSpacing
 
-                NotificationSettingsBlock {
-                    Layout.fillWidth: true
-                    settingsModel: page.settingsModel
-                }
+                    PomodoroSettingsBlock {
+                        Layout.fillWidth: true
+                        settingsModel: page.settingsModel
+                    }
 
-                // Mensagens de feedback
-                Controls.Label {
-                    id: successMessage
-                    Layout.fillWidth: true
-                    Layout.topMargin: Kirigami.Units.mediumSpacing
-                    text: qsTr("✓ Configuração salva com sucesso!")
-                    color: Kirigami.Theme.positiveTextColor
-                    visible: false
-                    wrapMode: Text.Wrap
-                }
+                    NotificationSettingsBlock {
+                        Layout.fillWidth: true
+                        settingsModel: page.settingsModel
+                    }
 
-                Controls.Label {
-                    id: errorMessage
-                    Layout.fillWidth: true
-                    Layout.topMargin: Kirigami.Units.mediumSpacing
-                    text: ""
-                    color: Kirigami.Theme.negativeTextColor
-                    visible: false
-                    wrapMode: Text.Wrap
-                }
+                    // Mensagens de feedback
+                    Controls.Label {
+                        id: successMessage
+                        Layout.fillWidth: true
+                        Layout.topMargin: Kirigami.Units.mediumSpacing
+                        text: qsTr("✓ Configuração salva com sucesso!")
+                        color: Kirigami.Theme.positiveTextColor
+                        visible: false
+                        wrapMode: Text.Wrap
+                    }
 
-                Controls.Label {
-                    id: statusMessage
-                    Layout.fillWidth: true
-                    Layout.topMargin: Kirigami.Units.mediumSpacing
-                    text: ""
-                    color: Kirigami.Theme.textColor
-                    visible: false
-                    wrapMode: Text.Wrap
-                }
+                    Controls.Label {
+                        id: errorMessage
+                        Layout.fillWidth: true
+                        Layout.topMargin: Kirigami.Units.mediumSpacing
+                        text: ""
+                        color: Kirigami.Theme.negativeTextColor
+                        visible: false
+                        wrapMode: Text.Wrap
+                    }
 
-                // Espaço flexível
-                Item {
-                    Layout.fillHeight: true
+                    Controls.Label {
+                        id: statusMessage
+                        Layout.fillWidth: true
+                        Layout.topMargin: Kirigami.Units.mediumSpacing
+                        text: ""
+                        color: Kirigami.Theme.textColor
+                        visible: false
+                        wrapMode: Text.Wrap
+                    }
+
+                    // Espaço flexível
+                    Item {
+                        Layout.fillHeight: true
+                    }
                 }
             }
         }

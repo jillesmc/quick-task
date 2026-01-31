@@ -28,9 +28,19 @@ Kirigami.ApplicationWindow {
     // Inicializar Kirigami (ajuda a reduzir warnings)
     Component.onCompleted: {
         Kirigami.Theme.inherit = true
-        
+
+        // Garantir que o header receba referências ao stack e às páginas após eles existirem
+        // (no ApplicationWindow o header é criado antes do conteúdo, então stack/createPage/etc.
+        // podem ser undefined na declaração; reatribuir aqui para os bindings dos botões funcionarem)
+        Qt.callLater(function() {
+            mainHeader.stack = root.stack
+            mainHeader.createPage = createPage
+            mainHeader.issuesPage = issuesPage
+            mainHeader.settingsPage = settingsPage
+            mainHeader.pendingWorklogsPage = pendingWorklogsPage
+        })
+
         // Verificar se precisa configurar antes de abrir
-        // (stack e tabBar são definidos depois, então usamos Qt.callLater para garantir que estejam prontos)
         Qt.callLater(function() {
             if (root.stack && root.tabBar && root._ctxSettingsModel) {
                 // Verificar se configuração está completa
@@ -59,6 +69,7 @@ Kirigami.ApplicationWindow {
 
     // Único ponto de injeção: context properties injetadas pelo Python em app.py; não podem ser qualificadas estaticamente
     property var _ctxIssueModel: issueModel // qmllint disable unqualified
+    property var _ctxEditingIssueModel: editingIssueModel // qmllint disable unqualified
     property var _ctxJiraService: jiraService // qmllint disable unqualified
     property var _ctxTimerModel: timerModel // qmllint disable unqualified
     property var _ctxTimerService: timerService // qmllint disable unqualified
@@ -74,6 +85,7 @@ Kirigami.ApplicationWindow {
         createPage: createPage
         issuesPage: issuesPage
         settingsPage: settingsPage
+        pendingWorklogsPage: pendingWorklogsPage
         issueModel: root._ctxIssueModel
         jiraService: root._ctxJiraService
         timerModel: root._ctxTimerModel
@@ -127,7 +139,7 @@ Kirigami.ApplicationWindow {
         // Índice 1: Minhas Issues
         MyIssuesPage {
             id: issuesPage
-            issueModel: root._ctxIssueModel
+            issueModel: root._ctxEditingIssueModel
             jiraService: root._ctxJiraService
             myIssuesModel: root._ctxMyIssuesModel
             timerService: root._ctxTimerService
@@ -164,7 +176,7 @@ Kirigami.ApplicationWindow {
             console.log("Main.qml: TabBar mudou para índice:", root.tabBar.currentIndex)
             root.stack.currentIndex = root.tabBar.currentIndex
             console.log("Main.qml: StackLayout mudou para índice:", root.stack.currentIndex)
-            
+
             // Recarregar worklogs automaticamente quando a aba de worklogs for selecionada
             // Índice 2 corresponde à aba de Worklogs
             if (root.tabBar.currentIndex === 2 && pendingWorklogsPage) {

@@ -229,11 +229,22 @@ def main():
     # Criar instâncias do modelo e serviço
     debug_log("App", "main", "Criando modelos e serviços...")
     try:
-        debug_log("App", "main", "Criando IssueModel...")
+        debug_log("App", "main", "Criando IssueModel (formulário de criação)...")
         issue_model = IssueModel()
         debug_log("App", "main", "IssueModel criado com sucesso")
     except Exception as e:
         print(f"✗ Erro ao criar IssueModel: {e}", file=sys.stderr)
+        import traceback
+
+        traceback.print_exc(file=sys.stderr)
+        raise
+
+    try:
+        debug_log("App", "main", "Criando IssueModel (detalhe/edição em Minhas Issues)...")
+        editing_issue_model = IssueModel()
+        debug_log("App", "main", "editingIssueModel criado com sucesso")
+    except Exception as e:
+        print(f"✗ Erro ao criar editingIssueModel: {e}", file=sys.stderr)
         import traceback
 
         traceback.print_exc(file=sys.stderr)
@@ -427,6 +438,13 @@ def main():
         debug_log("App", "main", "issueModel exposto ao contexto QML")
     except Exception as e:
         print(f"✗ Erro ao expor issueModel: {e}", file=sys.stderr)
+        raise
+
+    try:
+        engine.rootContext().setContextProperty("editingIssueModel", editing_issue_model)
+        debug_log("App", "main", "editingIssueModel exposto ao contexto QML")
+    except Exception as e:
+        print(f"✗ Erro ao expor editingIssueModel: {e}", file=sys.stderr)
         raise
 
     try:

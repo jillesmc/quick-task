@@ -293,20 +293,8 @@ Kirigami.Page {
                                     }
                                 }
 
-                                Binding {
-                                    target: epicSearchForm
-                                    property: "selectedEpicKey"
-                                    value: page.sharedEpicKey
-                                    when: page.sharedEpicKey !== ""
-                                }
-
-                                Binding {
-                                    target: epicSearchForm
-                                    property: "selectedEpicSummary"
-                                    value: page.sharedEpicSummary
-                                    when: page.sharedEpicSummary !== ""
-                                }
-
+                                // Epic no formulário de criação vem apenas do modelo de criação (issueModel),
+                                // não de sharedEpicKey (que é atualizado pela aba Minhas Issues)
                                 Binding {
                                     target: epicSearchForm
                                     property: "selectedEpicKey"

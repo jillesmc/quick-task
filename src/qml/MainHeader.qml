@@ -17,10 +17,14 @@ RowLayout {
     property var createPage: null
     property var issuesPage: null
     property var settingsPage: null
+    property var pendingWorklogsPage: null
     property var issueModel: null
     property var jiraService: null
     property var timerModel: null
     property var timerService: null
+
+    // Espelha o índice da aba atual para bindings de visible/enabled rastrearem corretamente
+    property int currentTabIndex: stack ? stack.currentIndex : -1
 
     width: parent ? parent.width : 0
     spacing: Kirigami.Units.smallSpacing
@@ -28,7 +32,7 @@ RowLayout {
     Controls.TabBar {
         id: tabBar
         Layout.fillWidth: true
-        currentIndex: root.stack ? root.stack.currentIndex : 0
+        currentIndex: root.currentTabIndex >= 0 ? root.currentTabIndex : 0
 
         Controls.TabButton {
             text: "Criar Issue"
@@ -56,11 +60,9 @@ RowLayout {
     Controls.ToolButton {
         id: globalActionButton
         text: {
-            if (!root.stack) return "";
-            if (root.stack.currentIndex === 2) return "";
-            if (root.stack.currentIndex === 0) return qsTr("Criar");
-            if (root.stack.currentIndex === 1) return qsTr("Atualizar task");
-            if (root.stack.currentIndex === 3) {
+            if (root.currentTabIndex === 0) return qsTr("Criar");
+            if (root.currentTabIndex === 1) return qsTr("Atualizar task");
+            if (root.currentTabIndex === 3) {
                 if (root.settingsPage && root.settingsPage.isSaving !== undefined && root.settingsPage.isSaving) {
                     return qsTr("Salvando...");
                 }
@@ -69,25 +71,21 @@ RowLayout {
             return "";
         }
         icon.name: {
-            if (!root.stack) return "";
-            if (root.stack.currentIndex === 2) return "";
-            if (root.stack.currentIndex === 0) return "document-new";
-            if (root.stack.currentIndex === 1) return "document-save";
-            if (root.stack.currentIndex === 3) return "document-save";
+            if (root.currentTabIndex === 0) return "document-new";
+            if (root.currentTabIndex === 1) return "document-save";
+            if (root.currentTabIndex === 3) return "document-save";
             return "";
         }
-        visible: root.stack && root.stack.currentIndex !== 2
+        visible: root.currentTabIndex >= 0 && root.currentTabIndex !== 2
         enabled: {
-            if (!root.stack) return false;
-            if (root.stack.currentIndex === 2) return false;
-            if (root.stack.currentIndex === 0) {
+            if (root.currentTabIndex === 0) {
                 if (!root.createPage) return false;
                 if (root.createPage.isProcessing !== undefined && root.createPage.isProcessing) return false;
                 if (!root.issueModel) return false;
                 var s = root.issueModel.summary ? root.issueModel.summary.trim() : "";
                 return s.length > 0;
             }
-            if (root.stack.currentIndex === 1) {
+            if (root.currentTabIndex === 1) {
                 if (!root.issuesPage) return false;
                 if (!root.issuesPage.controller) return false;
                 if (!root.issuesPage.selectedIssueKey) return false;
@@ -95,7 +93,7 @@ RowLayout {
                 if (!root.jiraService || typeof root.jiraService.isAvailable !== "function") return false;
                 return root.jiraService.isAvailable();
             }
-            if (root.stack.currentIndex === 3) {
+            if (root.currentTabIndex === 3) {
                 if (!root.settingsPage) return false;
                 if (root.settingsPage.isSaving !== undefined && root.settingsPage.isSaving) return false;
                 if (root.settingsPage.isValid !== undefined && !root.settingsPage.isValid) return false;
@@ -104,14 +102,27 @@ RowLayout {
             return false;
         }
         onClicked: {
-            if (!root.stack) return;
-            if (root.stack.currentIndex === 2) return;
-            if (root.stack.currentIndex === 0 && root.createPage && root.createPage.createIssueFromToolbar) {
+            if (root.currentTabIndex === 0 && root.createPage && root.createPage.createIssueFromToolbar) {
                 root.createPage.createIssueFromToolbar();
-            } else if (root.stack.currentIndex === 1 && root.issuesPage && root.issuesPage.updateIssue) {
+            } else if (root.currentTabIndex === 1 && root.issuesPage && root.issuesPage.updateIssue) {
                 root.issuesPage.updateIssue();
-            } else if (root.stack.currentIndex === 3 && root.settingsPage && root.settingsPage.saveSettingsFromToolbar) {
+            } else if (root.currentTabIndex === 3 && root.settingsPage && root.settingsPage.saveSettingsFromToolbar) {
                 root.settingsPage.saveSettingsFromToolbar();
+            }
+        }
+    }
+
+    Controls.ToolButton {
+        id: syncWorklogsButton
+        text: qsTr("Sincronizar")
+        icon.name: "document-send"
+        visible: root.currentTabIndex === 2
+        enabled: root.pendingWorklogsPage && root.pendingWorklogsPage.filteredWorklogs
+                 && root.pendingWorklogsPage.filteredWorklogs.length > 0
+        onClicked: {
+            if (root.currentTabIndex === 2 && root.pendingWorklogsPage
+                    && typeof root.pendingWorklogsPage.syncAllFromToolbar === "function") {
+                root.pendingWorklogsPage.syncAllFromToolbar();
             }
         }
     }
@@ -119,7 +130,7 @@ RowLayout {
     Controls.ToolButton {
         id: startTimerButton
         text: {
-            if (!root.stack || root.stack.currentIndex !== 1) return "";
+            if (root.currentTabIndex !== 1) return "";
             if (!root.issuesPage) return "";
             if (root.timerModel && root.timerModel.state === "running" && root.timerModel.issueKey === root.issuesPage.selectedIssueKey) {
                 return qsTr("Parar Timer");
@@ -131,23 +142,23 @@ RowLayout {
             return qsTr("Iniciar Timer");
         }
         icon.name: {
-            if (!root.stack || root.stack.currentIndex !== 1) return "";
+            if (root.currentTabIndex !== 1) return "";
             if (root.timerModel && root.timerModel.state === "running" && root.timerModel.issueKey === root.issuesPage.selectedIssueKey) {
                 return "media-playback-stop";
             }
             if (root.timerModel && root.timerModel.isOnBreak) return "media-playback-start";
             return "chronometer";
         }
-        visible: root.stack && root.stack.currentIndex === 1
+        visible: root.currentTabIndex === 1
         enabled: {
-            if (!root.stack || root.stack.currentIndex !== 1) return false;
+            if (root.currentTabIndex !== 1) return false;
             if (!root.issuesPage || !root.issuesPage.selectedIssueKey) return false;
             if (root.issuesPage.isProcessing !== undefined && root.issuesPage.isProcessing) return false;
             if (!root.timerService || !root.timerModel) return false;
             return true;
         }
         onClicked: {
-            if (root.stack && root.stack.currentIndex === 1 && root.issuesPage && root.issuesPage.startTimerFromToolbar) {
+            if (root.currentTabIndex === 1 && root.issuesPage && root.issuesPage.startTimerFromToolbar) {
                 root.issuesPage.startTimerFromToolbar();
             }
         }

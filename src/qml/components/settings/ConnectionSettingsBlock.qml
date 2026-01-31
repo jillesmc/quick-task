@@ -26,7 +26,7 @@ Rectangle {
     ColumnLayout {
         id: connectionBlock
         anchors.fill: parent
-        anchors.margins: 20
+        anchors.margins: Kirigami.Units.largeSpacing
         spacing: Kirigami.Units.mediumSpacing
 
         Kirigami.Heading {

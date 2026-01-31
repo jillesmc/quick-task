@@ -46,6 +46,25 @@ Kirigami.Page {
         }
     }
 
+    // Função para integração com MainHeader (botão Sincronizar no header)
+    function syncAllFromToolbar() {
+        if (!page.worklogSyncService || page.filteredWorklogs.length === 0) return;
+        var hasFilters = page.filterIssueKey !== "" || page.filterDateFrom !== "" || page.filterDateTo !== "";
+        if (hasFilters) {
+            var sessionIds = [];
+            for (var i = 0; i < page.filteredWorklogs.length; i++) {
+                if (page.filteredWorklogs[i].id) {
+                    sessionIds.push(page.filteredWorklogs[i].id);
+                }
+            }
+            console.log("PendingWorklogsPage: Sincronizando %d worklogs filtrados", sessionIds.length);
+            page.worklogSyncService.sync_pending_worklogs(sessionIds);
+        } else {
+            console.log("PendingWorklogsPage: Sincronizando todos os worklogs pendentes");
+            page.worklogSyncService.sync_pending_worklogs([]);
+        }
+    }
+
     // Aplicar filtros quando mudarem
     onFilterIssueKeyChanged: applyFilters()
     onFilterDateFromChanged: applyFilters()
