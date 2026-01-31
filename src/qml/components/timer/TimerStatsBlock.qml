@@ -39,7 +39,7 @@ ColumnLayout {
                 Layout.fillWidth: true
             }
             Controls.Label {
-                text: formatTime(timerModel ? timerModel.totalSecondsToday : 0)
+                text: root.formatTime(root.timerModel ? root.timerModel.totalSecondsToday : 0)
                 Layout.fillWidth: true
             }
         }
@@ -52,7 +52,7 @@ ColumnLayout {
                 Layout.fillWidth: true
             }
             Controls.Label {
-                text: timerModel ? timerModel.pomodorosToday : 0
+                text: root.timerModel ? root.timerModel.pomodorosToday : 0
                 Layout.fillWidth: true
             }
         }

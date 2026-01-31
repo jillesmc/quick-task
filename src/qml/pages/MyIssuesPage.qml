@@ -13,7 +13,6 @@ import "../components/forms"
 import "../components/lists"
 import "../components/controls"
 import "../components/panes"
-import "../controllers"
 import "../utils/DialogHelpers.js" as DialogHelpers
 import "../utils/MyIssuesPageLogic.js" as MyIssuesPageLogic
 
@@ -45,12 +44,13 @@ Kirigami.Page {
     // Flag para controlar busca automática inicial (apenas uma vez)
     property bool initialSearchDone: false
 
-    // Intermediários para evitar binding loop ao passar context properties ao detailPane
-    property var _ctxIssueModel: issueModel
-    property var _ctxJiraService: jiraService
-    property var _ctxMyIssuesModel: myIssuesModel
-    property var _ctxTimerService: timerService
-    property var _ctxTimerModel: timerModel
+    // Recebidos do Main (passados explicitamente)
+    property var issueModel: null
+    property var jiraService: null
+    property var myIssuesModel: null
+    property var timerService: null
+    property var timerModel: null
+    property var hideWindowFn: null
 
     // Diálogos (progressDialog e searchProgressDialog gerenciados via DialogHelpers)
     property var progressDialog: null
@@ -59,14 +59,17 @@ Kirigami.Page {
     // Controller para lógica de negócio
     property var controller: null
 
+    // Property aliases para permitir acesso externo aos componentes
+    property alias issueSearchForm: issueSearchForm
+    property alias issueList: issueList
+    property alias detailPane: detailPane
+
     // Função pública para cancelar (usada pelo botão global e pela tecla ESC)
     // Esconde a janela ao invés de fechar a aplicação
     function onCancelRequested() {
-        if (typeof hideWindow === "function") {
-            hideWindow();  // Esconde a janela (minimiza ao tray)
+        if (page.hideWindowFn && typeof page.hideWindowFn === "function") {
+            page.hideWindowFn(); // qmllint disable use-proper-function
         }
-        // Se hideWindow não estiver disponível, não fazer nada
-        // (a aplicação deve estar configurada corretamente)
     }
 
     // Ações da página (Kirigami 6 usa 'actions' ao invés de 'mainAction')
@@ -75,7 +78,7 @@ Kirigami.Page {
             id: refreshAction
             text: qsTr("Buscar")
             icon.name: "search"
-            enabled: !(page._ctxMyIssuesModel && page._ctxMyIssuesModel.isLoading)
+            enabled: !(page.myIssuesModel && page.myIssuesModel.isLoading)
             onTriggered: {
                 if (page.issueSearchForm) {
                     var query = page.issueSearchForm.getQuery();
@@ -95,41 +98,41 @@ Kirigami.Page {
 
     // Função pública para iniciar timer do header (Main.qml)
     function startTimerFromToolbar() {
-        if (!page._ctxTimerService || !page._ctxTimerModel || !page.selectedIssueKey) {
+        if (!page.timerService || !page.timerModel || !page.selectedIssueKey) {
             return;
         }
 
         // Se está em pausa, cancelar pausa e iniciar timer
-        if (page._ctxTimerModel && page._ctxTimerModel.isOnBreak) {
-            page._ctxTimerService.cancelBreak();
+        if (page.timerModel && page.timerModel.isOnBreak) {
+            page.timerService.cancelBreak();
             Qt.callLater(function () {
-                if (page._ctxTimerService && page.selectedIssueKey) {
-                    page._ctxTimerService.start(page.selectedIssueKey);
+                if (page.timerService && page.selectedIssueKey) {
+                    page.timerService.start(page.selectedIssueKey);
                 }
             });
             return;
         }
 
         // Se já há timer ativo para esta issue
-        if (page._ctxTimerModel.issueKey === page.selectedIssueKey && page._ctxTimerModel.state !== "idle") {
-            if (page._ctxTimerModel.state === "running") {
-                page._ctxTimerService.stop();
+        if (page.timerModel.issueKey === page.selectedIssueKey && page.timerModel.state !== "idle") {
+            if (page.timerModel.state === "running") {
+                page.timerService.stop();
             }
         } else
         // Se há timer ativo para outra issue, parar e iniciar novo
-        if (page._ctxTimerModel.state !== "idle" && page._ctxTimerModel.issueKey !== page.selectedIssueKey) {
+        if (page.timerModel.state !== "idle" && page.timerModel.issueKey !== page.selectedIssueKey) {
             // Parar timer atual e iniciar novo
-            page._ctxTimerService.stop();
+            page.timerService.stop();
             // Usar callLater para garantir que o stop termine antes de iniciar
             Qt.callLater(function () {
-                if (page._ctxTimerService && page.selectedIssueKey) {
-                    page._ctxTimerService.start(page.selectedIssueKey);
+                if (page.timerService && page.selectedIssueKey) {
+                    page.timerService.start(page.selectedIssueKey);
                 }
             });
         } else
         // Iniciar novo timer
         {
-            page._ctxTimerService.start(page.selectedIssueKey);
+            page.timerService.start(page.selectedIssueKey);
         }
     }
 
@@ -150,7 +153,7 @@ Kirigami.Page {
     }
 
     function refreshIssues(query) {
-        if (!page._ctxMyIssuesModel) {
+        if (!page.myIssuesModel) {
             return;
         }
 
@@ -175,8 +178,8 @@ Kirigami.Page {
                                 page.searchProgressDialog = null;
 
                                 Qt.callLater(function () {
-                                    if (page._ctxMyIssuesModel && page._ctxMyIssuesModel.issues && page._ctxMyIssuesModel.issues.length > 0) {
-                                        var firstIssue = page._ctxMyIssuesModel.issues[0];
+                                    if (page.myIssuesModel && page.myIssuesModel.issues && page.myIssuesModel.issues.length > 0) {
+                                        var firstIssue = page.myIssuesModel.issues[0];
                                         if (firstIssue && firstIssue.key && page.issueList) {
                                             page.issueList.selectIssue(firstIssue.key);
                                         }
@@ -184,15 +187,15 @@ Kirigami.Page {
                                 });
                             });
                         }
-                        if (page._ctxMyIssuesModel) {
-                            page._ctxMyIssuesModel.loadingChanged.disconnect(loadingConnection);
+                        if (page.myIssuesModel) {
+                            page.myIssuesModel.loadingChanged.disconnect(loadingConnection);
                         }
                     });
                 }
             };
 
-            if (page._ctxMyIssuesModel) {
-                page._ctxMyIssuesModel.loadingChanged.connect(loadingConnection);
+            if (page.myIssuesModel) {
+                page.myIssuesModel.loadingChanged.connect(loadingConnection);
             }
         }
 
@@ -200,7 +203,7 @@ Kirigami.Page {
         if (page.controller) {
             page.controller.searchIssues(query || "");
         } else {
-            page._ctxMyIssuesModel.refreshIssues(query || "");
+            page.myIssuesModel.refreshIssues(query || "");
         }
     }
 
@@ -209,9 +212,9 @@ Kirigami.Page {
         var component = Qt.createComponent("../controllers/MyIssuesController.qml");
         if (component.status === Component.Ready) {
             page.controller = component.createObject(page, {
-                jiraService: page._ctxJiraService,
-                myIssuesModel: page._ctxMyIssuesModel,
-                issueModel: page._ctxIssueModel,
+                jiraService: page.jiraService,
+                myIssuesModel: page.myIssuesModel,
+                issueModel: page.issueModel,
                 enabled: true
             });
 
@@ -282,7 +285,7 @@ Kirigami.Page {
                         id: issueSearchForm
                         Layout.fillWidth: true
                         enabled: !page.isProcessing
-                        isLoading: page._ctxMyIssuesModel ? page._ctxMyIssuesModel.isLoading : false
+                        isLoading: page.myIssuesModel ? page.myIssuesModel.isLoading : false
                         placeholderText: qsTr("Buscar issues por resumo ou chave...")
 
                         onSearchRequested: function (query) {
@@ -306,9 +309,11 @@ Kirigami.Page {
                             id: issueList
                             anchors.fill: parent
                             enabled: !page.isProcessing
-                            model: page._ctxMyIssuesModel ? page._ctxMyIssuesModel.issues : []
-                            isLoading: page._ctxMyIssuesModel ? page._ctxMyIssuesModel.isLoading : false
+                            model: page.myIssuesModel ? page.myIssuesModel.issues : []
+                            isLoading: page.myIssuesModel ? page.myIssuesModel.isLoading : false
                             selectedIssueKey: page.selectedIssueKey
+                            timerModel: page.timerModel
+                            timerService: page.timerService
 
                             onIssueSelected: function (issueKey, issueData) {
                                 page.selectedIssueKey = issueKey;
@@ -323,11 +328,11 @@ Kirigami.Page {
         // Coluna Direita (60% - Detail)
         MyIssuesDetailPane {
             id: detailPane
-            issueModel: page._ctxIssueModel
+            issueModel: page.issueModel
             selectedIssueKey: page.selectedIssueKey
             isProcessing: page.isProcessing
             isDetailsLoading: page.isDetailsLoading
-            jiraService: page._ctxJiraService
+            jiraService: page.jiraService
             sharedEpicKey: page.sharedEpicKey
             sharedEpicSummary: page.sharedEpicSummary
 
@@ -339,7 +344,7 @@ Kirigami.Page {
 
     // Conectar signals do jiraService
     Connections {
-        target: page._ctxJiraService
+        target: page.jiraService
 
         function onProgressUpdated(percentage, message) {
             if (page.progressDialog) {
@@ -350,7 +355,7 @@ Kirigami.Page {
 
     // Conectar signals do myIssuesModel para fechar diálogo de busca
     Connections {
-        target: page._ctxMyIssuesModel
+        target: page.myIssuesModel
 
         function onErrorOccurred(errorMessage) {
             DialogHelpers.hideProgress(page.searchProgressDialog);
@@ -361,13 +366,13 @@ Kirigami.Page {
 
     // Funções auxiliares
     function loadIssueDetails(issueKey) {
-        if (!issueKey || !page._ctxJiraService) {
+        if (!issueKey || !page.jiraService) {
             return;
         }
         // Delegar carregamento para o JiraService em modo assíncrono.
         // O overlay e o preenchimento dos campos são controlados pelos
         // sinais issueDetailsStarted / issueDetailsLoaded abaixo.
-        page._ctxJiraService.getIssueDetailsAsync(issueKey);
+        page.jiraService.getIssueDetailsAsync(issueKey);
     }
 
     // Função pública para atualizar issue (chamada pelo botão global / atalho)
@@ -395,7 +400,7 @@ Kirigami.Page {
 
     // Reagir aos sinais assíncronos de carregamento de detalhes de issue
     Connections {
-        target: page._ctxJiraService
+        target: page.jiraService
 
         function onIssueDetailsStarted(issueKey) {
             // Sempre que iniciar o carregamento de detalhes, limpar campos

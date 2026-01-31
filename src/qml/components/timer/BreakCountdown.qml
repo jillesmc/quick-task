@@ -1,6 +1,7 @@
+pragma ComponentBehavior: Bound
 /**
  * BreakCountdown.qml
- * 
+ *
  * Componente de contagem regressiva durante a pausa
  */
 import QtQuick
@@ -10,7 +11,11 @@ import org.kde.kirigami as Kirigami
 
 Item {
     id: root
-    
+
+    property var timerModel: null
+    property var timerService: null
+    property var hideWindow: null
+
     function formatTime(seconds) {
         var minutes = Math.floor(seconds / 60)
         var secs = seconds % 60
@@ -36,8 +41,8 @@ Item {
                 
                 Controls.Label {
                     Layout.fillWidth: true
-                    text: timerModel && timerModel.breakType === "long" 
-                        ? qsTr("Pausa Longa") 
+                    text: root.timerModel && root.timerModel.breakType === "long"
+                        ? qsTr("Pausa Longa")
                         : qsTr("Pausa Curta")
                     font.bold: true
                     font.pointSize: Kirigami.Theme.defaultFont.pointSize + 1
@@ -46,9 +51,8 @@ Item {
                 Controls.ToolButton {
                     icon.name: "window-minimize"
                     onClicked: {
-                        // Minimizar ao tray (esconder janela)
-                        if (hideWindow && typeof hideWindow.hide === "function") {
-                            hideWindow.hide()
+                        if (root.hideWindow && typeof root.hideWindow.hide === "function") {
+                            root.hideWindow.hide()
                         }
                     }
                 }
@@ -61,17 +65,17 @@ Item {
             // Contador regressivo grande
             Controls.Label {
                 id: countdownDisplay
-                text: formatTime(timerModel ? timerModel.breakRemainingSeconds : 0)
+                text: root.formatTime(root.timerModel ? root.timerModel.breakRemainingSeconds : 0)
                 font.pointSize: Kirigami.Theme.defaultFont.pointSize + 8
                 font.bold: true
                 Layout.fillWidth: true
                 horizontalAlignment: Text.AlignHCenter
                 
                 Connections {
-                    target: timerModel || null
+                    target: root.timerModel || null
                     function onTimeUpdated() {
-                        if (timerModel) {
-                            countdownDisplay.text = formatTime(timerModel.breakRemainingSeconds)
+                        if (root.timerModel) {
+                            countdownDisplay.text = root.formatTime(root.timerModel.breakRemainingSeconds)
                         }
                     }
                 }
@@ -88,13 +92,12 @@ Item {
                 Layout.fillWidth: true
                 Layout.preferredHeight: 50
                 onClicked: {
-                    if (timerService && timerModel) {
-                        // Cancelar pausa e iniciar timer imediatamente
-                        var issueKey = timerModel.issueKey
-                        timerService.cancelBreak()
+                    if (root.timerService && root.timerModel) {
+                        var issueKey = root.timerModel.issueKey
+                        root.timerService.cancelBreak()
                         Qt.callLater(function() {
-                            if (timerService && issueKey) {
-                                timerService.start(issueKey)
+                            if (root.timerService && issueKey) {
+                                root.timerService.start(issueKey)
                             }
                         })
                     }

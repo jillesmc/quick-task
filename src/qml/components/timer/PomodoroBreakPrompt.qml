@@ -8,37 +8,40 @@ import QtQuick.Layouts
 import QtQuick.Controls as Controls
 import org.kde.kirigami as Kirigami
 
+pragma ComponentBehavior: Bound
 Item {
     id: root
-    
+
     property int pomodoroNum: 0
     property string breakType: ""
     property int autoContinueTimeout: 30
     property int remainingSeconds: autoContinueTimeout
-    
+    property var timerService: null
+    property var timerModel: null
+    property var hideWindow: null
+    property var settingsModel: null
+
     Timer {
         id: countdownTimer
         interval: 1000
         running: false
         repeat: true
         onTriggered: {
-            if (remainingSeconds > 0) {
-                remainingSeconds--
+            if (root.remainingSeconds > 0) {
+                root.remainingSeconds--
             } else {
-                // Timeout - continuar automaticamente
                 countdownTimer.stop()
-                if (timerService) {
-                    timerService.continueWithoutBreak()
+                if (root.timerService) {
+                    root.timerService.continueWithoutBreak()
                 }
             }
         }
     }
-    
-    // Parar contador quando alerta for escondido
+
     Connections {
-        target: timerModel || null
+        target: root.timerModel || null
         function onTimeUpdated() {
-            if (timerModel && !timerModel.isWaitingBreakDecision) {
+            if (root.timerModel && !root.timerModel.isWaitingBreakDecision) {
                 countdownTimer.stop()
             }
         }
@@ -71,9 +74,8 @@ Item {
                 Controls.ToolButton {
                     icon.name: "window-minimize"
                     onClicked: {
-                        // Minimizar ao tray (esconder janela)
-                        if (hideWindow && typeof hideWindow.hide === "function") {
-                            hideWindow.hide()
+                        if (root.hideWindow && typeof root.hideWindow.hide === "function") {
+                            root.hideWindow.hide()
                         }
                     }
                 }
@@ -81,7 +83,7 @@ Item {
             
             // Título
             Controls.Label {
-                text: qsTr("Pomodoro %1 completado!").arg(pomodoroNum)
+                text: qsTr("Pomodoro %1 completado!").arg(root.pomodoroNum)
                 font.pointSize: Kirigami.Theme.defaultFont.pointSize + 4
                 font.bold: true
                 Layout.fillWidth: true
@@ -98,7 +100,7 @@ Item {
             
             // Contador regressivo
             Controls.Label {
-                text: qsTr("Continuando automaticamente em %1s...").arg(remainingSeconds)
+                text: qsTr("Continuando automaticamente em %1s...").arg(root.remainingSeconds)
                 font.pointSize: Kirigami.Theme.smallFont.pointSize
                 Layout.fillWidth: true
                 horizontalAlignment: Text.AlignHCenter
@@ -120,20 +122,20 @@ Item {
                     Layout.fillWidth: true
                     Layout.preferredHeight: 50
                     onClicked: {
-                        if (timerService && breakType) {
-                            timerService.acceptBreak(breakType)
+                        if (root.timerService && root.breakType) {
+                            root.timerService.acceptBreak(root.breakType)
                         }
                     }
                 }
-                
+
                 Controls.Button {
                     text: qsTr("Continuar")
                     icon.name: "media-playback-start"
                     Layout.fillWidth: true
                     Layout.preferredHeight: 50
                     onClicked: {
-                        if (timerService) {
-                            timerService.continueWithoutBreak()
+                        if (root.timerService) {
+                            root.timerService.continueWithoutBreak()
                         }
                     }
                 }
@@ -142,19 +144,19 @@ Item {
     }
     
     Connections {
-        target: timerModel || null
+        target: root.timerModel || null
         function onBreakDecisionRequested(pomodoro_num, break_type) {
-            pomodoroNum = pomodoro_num
-            breakType = break_type
-            remainingSeconds = autoContinueTimeout
+            root.pomodoroNum = pomodoro_num
+            root.breakType = break_type
+            root.remainingSeconds = root.autoContinueTimeout
             countdownTimer.start()
         }
     }
-    
+
     Component.onCompleted: {
-        if (settingsModel && settingsModel.autoContinueTimeoutSeconds) {
-            autoContinueTimeout = settingsModel.autoContinueTimeoutSeconds
-            remainingSeconds = autoContinueTimeout
+        if (root.settingsModel && root.settingsModel.autoContinueTimeoutSeconds) {
+            root.autoContinueTimeout = root.settingsModel.autoContinueTimeoutSeconds
+            root.remainingSeconds = root.autoContinueTimeout
         }
     }
 }

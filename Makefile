@@ -67,7 +67,8 @@ help:
 	@echo ""
 	@echo "$(GREEN)Utilitários:$(RESET)"
 	@echo "  $(YELLOW)make clean$(RESET)    - Remove arquivos gerados (__pycache__, .pyc, .qmlc, etc)"
-	@echo "  $(YELLOW)make qml-lint$(RESET)  - Executa qmllint nos QML (QML_IMPORT_PATH + QML2_IMPORT_PATH)"
+	@echo "  $(YELLOW)make qml-lint$(RESET)  - Executa qmllint em todos os arquivos QML"
+	@echo "  $(YELLOW)make qml-lint FILES=\"arquivo1.qml arquivo2.qml\"$(RESET)  - Executa qmllint apenas nos arquivos especificados"
 	@echo ""
 
 # ============================================================================
@@ -204,13 +205,27 @@ clean-build: check-flatpak
 .PHONY: qml-lint
 qml-lint: check-docker
 	@echo "$(CYAN)Executando qmllint nos QML...$(RESET)"
-	@echo "$(CYAN)Usando qmllint dentro do container Docker (garante imports corretos)...$(RESET)"
-	@$(DOCKER_COMPOSE) run $(DOCKER_USER) --rm dev bash -c \
-		"cd /app && \
-		QT_PLUGIN_PATH=/usr/lib64/qt6/plugins \
-		QML_IMPORT_PATH=/usr/lib64/qt6/qml:/app/src/qml \
-		QT_QPA_PLATFORM=offscreen \
-		/usr/lib64/qt6/bin/qmllint \$$(find src/qml -name '*.qml')" 2>&1 || true
+	@if [ -z "$(FILES)" ]; then \
+		echo "$(CYAN)Usando qmllint dentro do container Docker (garante imports corretos)...$(RESET)"; \
+		echo "$(CYAN)Verificando todos os arquivos QML...$(RESET)"; \
+		$(DOCKER_COMPOSE) run $(DOCKER_USER) --rm dev bash -c \
+			"cd /app && \
+			LANG=C.UTF-8 LC_ALL=C.UTF-8 \
+			QT_PLUGIN_PATH=/usr/lib64/qt6/plugins \
+			QML_IMPORT_PATH=/usr/lib64/qt6/qml:/app/src/qml \
+			QT_QPA_PLATFORM=offscreen \
+			/usr/lib64/qt6/bin/qmllint \$$(find src/qml -name '*.qml')" 2>&1 || true; \
+	else \
+		echo "$(CYAN)Usando qmllint dentro do container Docker (garante imports corretos)...$(RESET)"; \
+		echo "$(CYAN)Verificando arquivos especificados: $(FILES)$(RESET)"; \
+		$(DOCKER_COMPOSE) run $(DOCKER_USER) --rm dev bash -c \
+			"cd /app && \
+			LANG=C.UTF-8 LC_ALL=C.UTF-8 \
+			QT_PLUGIN_PATH=/usr/lib64/qt6/plugins \
+			QML_IMPORT_PATH=/usr/lib64/qt6/qml:/app/src/qml \
+			QT_QPA_PLATFORM=offscreen \
+			/usr/lib64/qt6/bin/qmllint $(FILES)" 2>&1 || true; \
+	fi
 
 .PHONY: clean
 clean:

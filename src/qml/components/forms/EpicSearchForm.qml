@@ -207,27 +207,27 @@ ColumnLayout {
     RowLayout {
         Layout.fillWidth: true
         Layout.alignment: Qt.AlignLeft | Qt.AlignTop
-        visible: selectedEpicKey !== ""
+        visible: root.selectedEpicKey !== ""
 
         Controls.Label {
             Layout.fillWidth: true
             Layout.alignment: Qt.AlignLeft | Qt.AlignTop
-            text: selectedEpicKey ? qsTr("Epic selecionada: %1 - %2").arg(selectedEpicKey).arg(selectedEpicSummary) : ""
+            text: root.selectedEpicKey ? qsTr("Epic selecionada: %1 - %2").arg(root.selectedEpicKey).arg(root.selectedEpicSummary) : ""
             elide: Text.ElideRight
         }
 
         // Link clicável para abrir epic no browser
         Controls.Label {
             id: epicLinkLabel
-            text: selectedEpicKey || ""
+            text: root.selectedEpicKey || ""
             color: Kirigami.Theme.linkColor
-            visible: selectedEpicKey !== ""
+            visible: root.selectedEpicKey !== ""
             MouseArea {
                 anchors.fill: parent
                 cursorShape: Qt.PointingHandCursor
                 onClicked: {
-                    if (root.jiraService && selectedEpicKey && typeof root.jiraService.getIssueUrl === 'function') {
-                        var url = root.jiraService.getIssueUrl(selectedEpicKey);
+                    if (root.jiraService && root.selectedEpicKey && typeof root.jiraService.getIssueUrl === 'function') {
+                        var url = root.jiraService.getIssueUrl(root.selectedEpicKey);
                         if (url) {
                             Qt.openUrlExternally(url);
                         }
@@ -238,7 +238,7 @@ ColumnLayout {
 
         Controls.Button {
             text: qsTr("Limpar")
-            enabled: selectedEpicKey !== ""
+            enabled: root.selectedEpicKey !== ""
             onClicked: {
                 root.clear();
             }

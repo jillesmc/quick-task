@@ -19,7 +19,9 @@ Controls.Dialog {
     
     property string issueKey: ""
     property string issueUrl: ""
-    
+    property var timerService: null
+    property var timerModel: null
+
     // Não usar botões padrão, vamos criar botões customizados
     standardButtons: Controls.Dialog.NoButton
     
@@ -43,7 +45,7 @@ Controls.Dialog {
         
         // Mensagem de sucesso
         Controls.Label {
-            text: isUpdate ? "Task atualizada com sucesso!" : "Issue criada com sucesso!"
+            text: dialog.isUpdate ? "Task atualizada com sucesso!" : "Issue criada com sucesso!"
             Layout.fillWidth: true
             Layout.leftMargin: Kirigami.Units.smallSpacing
             Layout.rightMargin: Kirigami.Units.smallSpacing
@@ -97,12 +99,12 @@ Controls.Dialog {
             Layout.fillWidth: true
             Layout.leftMargin: Kirigami.Units.smallSpacing
             Layout.rightMargin: Kirigami.Units.smallSpacing
-            visible: !isUpdate && issueKey !== "" && timerService && timerModel
-            enabled: timerService && timerModel
-            
+            visible: !dialog.isUpdate && dialog.issueKey !== "" && dialog.timerService && dialog.timerModel
+            enabled: dialog.timerService && dialog.timerModel
+
             onClicked: {
-                if (timerService && issueKey) {
-                    timerService.start(issueKey)
+                if (dialog.timerService && dialog.issueKey) {
+                    dialog.timerService.start(dialog.issueKey)
                     dialog.close()
                 }
             }

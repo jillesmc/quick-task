@@ -186,7 +186,7 @@ Item {
     
     // Conectar signals do jiraService
     Connections {
-        target: jiraService
+        target: root.jiraService
         
         function onIssueUpdated(issueKey) {
             root.updateCompleted(issueKey)
@@ -199,7 +199,7 @@ Item {
     
     // Conectar signals do myIssuesModel
     Connections {
-        target: myIssuesModel
+        target: root.myIssuesModel
         
         function onErrorOccurred(errorMessage) {
             root.updateFailed(errorMessage)

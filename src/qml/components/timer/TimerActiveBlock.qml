@@ -20,7 +20,7 @@ Rectangle {
     visible: hasActiveTimer
     Layout.preferredHeight: 200
     color: Kirigami.Theme.backgroundColor || "#f0f0f0"
-    border.color: Kirigami.Theme.separatorColor || "#d0d0d0"
+    border.color: Kirigami.Theme.textColor || "#d0d0d0"
     border.width: 1
     radius: Kirigami.Units.smallSpacing
 
@@ -44,25 +44,25 @@ Rectangle {
         }
 
         Controls.Label {
-            text: timerModel ? timerModel.issueKey : ""
+            text: root.timerModel ? root.timerModel.issueKey : ""
             font.pointSize: Kirigami.Theme.defaultFont.pointSize + 1
             Layout.fillWidth: true
         }
 
         Controls.Label {
             id: timeDisplay
-            text: formatTime(timerModel ? timerModel.elapsedSeconds : 0)
+            text: root.formatTime(root.timerModel ? root.timerModel.elapsedSeconds : 0)
             font.pointSize: Kirigami.Theme.defaultFont.pointSize + 4
             font.bold: true
             Layout.fillWidth: true
             horizontalAlignment: Text.AlignHCenter
 
             Connections {
-                enabled: timerModel !== null && timerModel !== undefined
-                target: timerModel
+                enabled: root.timerModel !== null && root.timerModel !== undefined
+                target: root.timerModel
                 function onTimeUpdated() {
-                    if (timerModel) {
-                        timeDisplay.text = formatTime(timerModel.elapsedSeconds);
+                    if (root.timerModel) {
+                        timeDisplay.text = root.formatTime(root.timerModel.elapsedSeconds);
                     }
                 }
             }
@@ -70,13 +70,13 @@ Rectangle {
 
         Controls.Label {
             id: pomodoroLabelPage
-            text: qsTr("Pomodoro %1").arg(timerModel ? timerModel.currentPomodoro : 0)
+            text: qsTr("Pomodoro %1").arg(root.timerModel ? root.timerModel.currentPomodoro : 0)
             Layout.fillWidth: true
             horizontalAlignment: Text.AlignHCenter
-            visible: settingsModel && settingsModel.pomodoroEnabled
+            visible: root.settingsModel && root.settingsModel.pomodoroEnabled
 
             Connections {
-                target: timerModel || null
+                target: root.timerModel || null
                 function onPomodoroCompleted(pomodoroNum) {
                     pomodoroLabelPage.text = qsTr("Pomodoro %1").arg(pomodoroNum);
                 }
@@ -91,11 +91,11 @@ Rectangle {
                 text: qsTr("Pausar")
                 icon.name: "media-playback-pause"
                 Layout.fillWidth: true
-                enabled: timerModel && timerModel.state === "running" && !timerModel.isOnBreak && !timerModel.isWaitingBreakDecision
-                visible: timerModel && timerModel.state === "running" && !timerModel.isOnBreak && !timerModel.isWaitingBreakDecision && !timerModel.isWaitingBreakEndDecision
+                enabled: root.timerModel && root.timerModel.state === "running" && !root.timerModel.isOnBreak && !root.timerModel.isWaitingBreakDecision
+                visible: root.timerModel && root.timerModel.state === "running" && !root.timerModel.isOnBreak && !root.timerModel.isWaitingBreakDecision && !root.timerModel.isWaitingBreakEndDecision
                 onClicked: {
-                    if (timerService && timerModel && timerModel.state === "running") {
-                        timerService.pause();
+                    if (root.timerService && root.timerModel && root.timerModel.state === "running") {
+                        root.timerService.pause();
                     }
                 }
             }
@@ -104,11 +104,11 @@ Rectangle {
                 text: qsTr("Parar")
                 icon.name: "media-playback-stop"
                 Layout.fillWidth: true
-                enabled: timerModel && timerModel.state !== "idle" && !timerModel.isOnBreak && !timerModel.isWaitingBreakEndDecision
-                visible: timerModel && timerModel.state !== "idle" && !timerModel.isOnBreak && !timerModel.isWaitingBreakEndDecision
+                enabled: root.timerModel && root.timerModel.state !== "idle" && !root.timerModel.isOnBreak && !root.timerModel.isWaitingBreakEndDecision
+                visible: root.timerModel && root.timerModel.state !== "idle" && !root.timerModel.isOnBreak && !root.timerModel.isWaitingBreakEndDecision
                 onClicked: {
-                    if (timerService) {
-                        timerService.stop();
+                    if (root.timerService) {
+                        root.timerService.stop();
                     }
                 }
             }

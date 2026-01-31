@@ -1,6 +1,7 @@
+pragma ComponentBehavior: Bound
 /**
  * EpicList.qml
- * 
+ *
  * Componente reutilizável para lista de epics com seleção
  * Segue Single Responsibility Principle - apenas gerencia lista e seleção
  * Segue Open/Closed Principle - pode ser estendido sem modificar
@@ -25,7 +26,7 @@ import org.kde.kirigami as Kirigami
 import "."
 
 Controls.Frame {
-    id: root
+    id: epicListRoot
     
     property var model: []
     property bool enabled: true
@@ -41,6 +42,39 @@ Controls.Frame {
     
     // Propriedade para salvar/restaurar posição do scroll
     property real _savedScrollPosition: 0
+
+    // ListModel com roles nomeadas para o delegate (bind automático às required properties)
+    ListModel {
+        id: epicListModel
+    }
+
+    /**
+     * Sincroniza epicListModel a partir de epicListRoot.model (array) para o ListView com roles key, summary, status, index.
+     */
+    function syncEpicModel() {
+        epicListModel.clear()
+        if (!epicListRoot.model || !epicListRoot.model.length) return
+        for (var i = 0; i < epicListRoot.model.length; i++) {
+            var item = epicListRoot.model[i]
+            epicListModel.append({
+                key: item && item.key !== undefined ? item.key : "",
+                summary: item && item.summary !== undefined ? item.summary : "",
+                status: item && item.status !== undefined ? item.status : "",
+                index: i
+            })
+        }
+    }
+
+    Connections {
+        target: epicListRoot
+        function onModelChanged() {
+            epicListRoot.syncEpicModel()
+        }
+    }
+
+    Component.onCompleted: {
+        epicListRoot.syncEpicModel()
+    }
     
     /**
      * Limpa a seleção visual (currentIndex) sem limpar selectedEpicKey
@@ -53,7 +87,7 @@ Controls.Frame {
      * Salva a posição atual do scroll
      */
     function saveScrollPosition() {
-        root._savedScrollPosition = epicsListView.contentY
+        epicListRoot._savedScrollPosition = epicsListView.contentY
     }
     
     /**
@@ -61,7 +95,7 @@ Controls.Frame {
      */
     function restoreScrollPosition() {
         Qt.callLater(function() {
-            epicsListView.contentY = root._savedScrollPosition
+            epicsListView.contentY = epicListRoot._savedScrollPosition
         })
     }
     
@@ -83,11 +117,11 @@ Controls.Frame {
         }
         highlightFollowsCurrentItem: true
         
-        model: root.model
+        model: epicListModel
         
         // Detectar quando scroll chega próximo do fim para paginação
         onContentYChanged: {
-            if (!root.isLoading && root.enabled && epicsListView.count > 0 && !root._paginationRequested) {
+            if (!epicListRoot.isLoading && epicListRoot.enabled && epicsListView.count > 0 && !epicListRoot._paginationRequested) {
                 var scrollPosition = epicsListView.contentY
                 var scrollMax = epicsListView.contentHeight - epicsListView.height
                 
@@ -97,8 +131,8 @@ Controls.Frame {
                 
                 // Quando chegar a 80% do scroll OU estiver a menos de 100px do fim
                 if (scrollPercentage >= 0.8 || (distanceFromEnd <= 100 && distanceFromEnd >= 0)) {
-                    root._paginationRequested = true
-                    root.loadMoreRequested()
+                    epicListRoot._paginationRequested = true
+                    epicListRoot.loadMoreRequested()
                 }
             }
         }
@@ -107,27 +141,23 @@ Controls.Frame {
         // E manter currentIndex sincronizado com selectedEpicKey
         onModelChanged: {
             // Resetar flag após um pequeno delay para permitir próxima paginação
-            if (root._paginationRequested) {
+            if (epicListRoot._paginationRequested) {
                 Qt.callLater(function() {
-                    root._paginationRequested = false
+                    epicListRoot._paginationRequested = false
                 })
             }
-            
             // Manter currentIndex sincronizado com selectedEpicKey quando o modelo muda
             Qt.callLater(function() {
-                if (root.selectedEpicKey !== "" && epicsListView.count > 0) {
-                    // Encontrar o índice do epic selecionado após atualização do modelo
-                    for (var i = 0; i < epicsListView.count; i++) {
-                        var item = epicsListView.model[i]
-                        if (item && item.key === root.selectedEpicKey) {
+                if (epicListRoot.selectedEpicKey !== "" && epicListRoot.model && epicListRoot.model.length > 0) {
+                    for (var i = 0; i < epicListRoot.model.length; i++) {
+                        var item = epicListRoot.model[i]
+                        if (item && item.key === epicListRoot.selectedEpicKey) {
                             epicsListView.currentIndex = i
                             return
                         }
                     }
                 }
-                // Se não há selectedEpicKey ou não foi encontrado, garantir que currentIndex seja -1
-                // Isso evita que o primeiro item apareça visualmente selecionado
-                if (root.selectedEpicKey === "") {
+                if (epicListRoot.selectedEpicKey === "") {
                     epicsListView.currentIndex = -1
                 }
             })
@@ -135,43 +165,44 @@ Controls.Frame {
         
         // Sincronizar quando selectedEpicKey muda
         Connections {
-            target: root
+            target: epicListRoot
             function onSelectedEpicKeyChanged() {
-                if (root.selectedEpicKey !== "" && epicsListView.count > 0) {
-                    // Encontrar o índice do epic selecionado
-                    for (var i = 0; i < epicsListView.count; i++) {
-                        var item = epicsListView.model[i]
-                        if (item && item.key === root.selectedEpicKey) {
+                if (epicListRoot.selectedEpicKey !== "" && epicListRoot.model && epicListRoot.model.length > 0) {
+                    for (var i = 0; i < epicListRoot.model.length; i++) {
+                        var item = epicListRoot.model[i]
+                        if (item && item.key === epicListRoot.selectedEpicKey) {
                             epicsListView.currentIndex = i
                             break
                         }
                     }
-                } else if (root.selectedEpicKey === "") {
+                } else if (epicListRoot.selectedEpicKey === "") {
                     epicsListView.currentIndex = -1
                 }
             }
         }
         
         delegate: EpicListItem {
+            id: epicDelegateItem
             onClicked: {
-                root.selectedEpicKey = epicKey
-                epicsListView.currentIndex = index
-                var epicData = epicsListView.model[index]
-                root.epicSelected(epicKey, epicData)
+                epicListRoot.selectedEpicKey = epicDelegateItem.key
+                epicsListView.currentIndex = epicDelegateItem.index
+                var epicData = (epicListRoot.model && epicDelegateItem.index >= 0 && epicDelegateItem.index < epicListRoot.model.length)
+                    ? epicListRoot.model[epicDelegateItem.index] : null
+                epicListRoot.epicSelected(epicDelegateItem.key, epicData)
             }
             checked: ListView.isCurrentItem
         }
         
         Kirigami.PlaceholderMessage {
             anchors.centerIn: parent
-            visible: (!root.model || root.model.length === 0) && !root.isLoading
+            visible: (!epicListRoot.model || epicListRoot.model.length === 0) && !epicListRoot.isLoading
             text: qsTr("Nenhum épico encontrado")
             explanation: qsTr("Faça uma busca ou ajuste os filtros.")
         }
         
         Controls.BusyIndicator {
             anchors.centerIn: parent
-            running: root.isLoading
+            running: epicListRoot.isLoading
             visible: running
         }
     }
@@ -186,15 +217,13 @@ Controls.Frame {
             return
         }
         
-        selectedEpicKey = epicKey
-        
-        // Encontrar e selecionar na lista
-        for (var i = 0; i < epicsListView.count; i++) {
-            var item = epicsListView.model[i]
+        epicListRoot.selectedEpicKey = epicKey
+        if (!epicListRoot.model || !epicListRoot.model.length) return
+        for (var i = 0; i < epicListRoot.model.length; i++) {
+            var item = epicListRoot.model[i]
             if (item && item.key === epicKey) {
                 epicsListView.currentIndex = i
-                var epicData = epicsListView.model[i]
-                epicSelected(epicKey, epicData)
+                epicListRoot.epicSelected(epicKey, epicListRoot.model[i])
                 return
             }
         }
@@ -204,7 +233,7 @@ Controls.Frame {
      * Limpa seleção
      */
     function clearSelection() {
-        selectedEpicKey = ""
+        epicListRoot.selectedEpicKey = ""
         epicsListView.currentIndex = -1
     }
 }

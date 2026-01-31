@@ -44,11 +44,11 @@ Kirigami.FormLayout {
         text: qsTr("Iniciar Timer")
         icon.name: "media-playback-start"
         Layout.fillWidth: true
-        enabled: issueKeyField.text.trim().length > 0 && timerService && timerModel
+        enabled: issueKeyField.text.trim().length > 0 && root.timerService && root.timerModel
         onClicked: {
             var issueKey = issueKeyField.text.trim();
-            if (!timerService || !timerModel || issueKey.length === 0) return;
-            timerService.start(issueKey);
+            if (!root.timerService || !root.timerModel || issueKey.length === 0) return;
+            root.timerService.start(issueKey);
         }
     }
 }

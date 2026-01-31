@@ -90,6 +90,10 @@ COPY docker/setup-dev-tools.sh /docker/setup-dev-tools.sh
 COPY docker/entrypoint.sh /docker/entrypoint.sh
 RUN chmod +x /docker/setup-dev-tools.sh /docker/entrypoint.sh
 
+# Locale UTF-8 (Qt exige UTF-8; evita aviso "Detected locale C with character encoding ANSI_X3.4-1968")
+ENV LANG=C.UTF-8
+ENV LC_ALL=C.UTF-8
+
 # Definir variáveis de ambiente para testes
 ENV QT_QPA_PLATFORM=offscreen
 ENV DISPLAY=:99

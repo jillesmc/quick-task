@@ -32,53 +32,40 @@ Kirigami.ApplicationWindow {
         // Verificar se precisa configurar antes de abrir
         // (stack e tabBar são definidos depois, então usamos Qt.callLater para garantir que estejam prontos)
         Qt.callLater(function() {
-            if (stack && tabBar && settingsModel) {
+            if (root.stack && root.tabBar && root._ctxSettingsModel) {
                 // Verificar se configuração está completa
                 // needsConfiguration verifica se arquivos existem E se valores estão preenchidos
-                if (settingsModel.needsConfiguration || !settingsModel.isConfigured) {
+                if (root._ctxSettingsModel.needsConfiguration || !root._ctxSettingsModel.isConfigured) {
                     // Não está configurado - abrir na aba de Configuração (índice 3)
-                    stack.currentIndex = 3
-                    tabBar.currentIndex = 3
+                    root.stack.currentIndex = 3
+                    root.tabBar.currentIndex = 3
                 } else {
                     // Está configurado - abrir na primeira aba (Criar Issue, índice 0)
-                    stack.currentIndex = 0
-                    tabBar.currentIndex = 0
+                    root.stack.currentIndex = 0
+                    root.tabBar.currentIndex = 0
                 }
             } else {
                 // Se settingsModel não estiver disponível, abrir na primeira aba por padrão
-                if (stack && tabBar) {
-                    stack.currentIndex = 0
-                    tabBar.currentIndex = 0
+                if (root.stack && root.tabBar) {
+                    root.stack.currentIndex = 0
+                    root.tabBar.currentIndex = 0
                 }
             }
-            
+
             // Janela flutuante do timer agora é gerenciada pelo Python (app.py)
             // Não precisa criar aqui
         })
     }
 
-    // Atalhos globais (independentes de foco)
-    Shortcuts {
-        id: shortcuts
-        stack: stack
-        tabBar: mainHeader.tabBar
-        createPage: createPage
-        issuesPage: issuesPage
-        settingsPage: settingsPage
-        pendingWorklogsPage: pendingWorklogsPage
-        onHideRequested: {
-            if (typeof hideWindow === "function")
-                hideWindow()
-            else
-                root.hide()
-        }
-    }
-
-    // Intermediários para evitar binding loop ao passar context properties ao header
-    property var _ctxIssueModel: issueModel
-    property var _ctxJiraService: jiraService
-    property var _ctxTimerModel: timerModel
-    property var _ctxTimerService: timerService
+    // Único ponto de injeção: context properties injetadas pelo Python em app.py; não podem ser qualificadas estaticamente
+    property var _ctxIssueModel: issueModel // qmllint disable unqualified
+    property var _ctxJiraService: jiraService // qmllint disable unqualified
+    property var _ctxTimerModel: timerModel // qmllint disable unqualified
+    property var _ctxTimerService: timerService // qmllint disable unqualified
+    property var _ctxSettingsModel: settingsModel // qmllint disable unqualified
+    property var _ctxMyIssuesModel: myIssuesModel // qmllint disable unqualified
+    property var _ctxWorklogSyncService: worklogSyncService // qmllint disable unqualified
+    property var hideWindowFn: hideWindow // qmllint disable unqualified
 
     // Header customizado com TabBar e botão global dinâmico
     header: MainHeader {
@@ -94,6 +81,7 @@ Kirigami.ApplicationWindow {
     }
 
     property alias tabBar: mainHeader.tabBar
+    property alias stack: stackLayout
 
     // Propriedade compartilhada para sincronizar epic selecionado entre abas
     property string sharedEpicKey: ""
@@ -104,14 +92,19 @@ Kirigami.ApplicationWindow {
     // Conteúdo principal: abas empilhadas
     // -----------------------------------------------------------------
     StackLayout {
-        id: stack
+        id: stackLayout
         anchors.fill: parent
         // Sincronizar com TabBar
-        currentIndex: tabBar.currentIndex
+        currentIndex: root.tabBar.currentIndex
 
         // Índice 0: Criar Issue
         IssueFormPage {
             id: createPage
+            issueModel: root._ctxIssueModel
+            jiraService: root._ctxJiraService
+            hideWindowFn: root.hideWindowFn
+            timerService: root._ctxTimerService
+            timerModel: root._ctxTimerModel
             sharedEpicKey: root.sharedEpicKey
             sharedEpicSummary: root.sharedEpicSummary
             onEpicSelected: function(key, summary) {
@@ -134,6 +127,12 @@ Kirigami.ApplicationWindow {
         // Índice 1: Minhas Issues
         MyIssuesPage {
             id: issuesPage
+            issueModel: root._ctxIssueModel
+            jiraService: root._ctxJiraService
+            myIssuesModel: root._ctxMyIssuesModel
+            timerService: root._ctxTimerService
+            timerModel: root._ctxTimerModel
+            hideWindowFn: root.hideWindowFn
             sharedEpicKey: root.sharedEpicKey
             sharedEpicSummary: root.sharedEpicSummary
             onEpicSelected: function(key, summary) {
@@ -145,25 +144,30 @@ Kirigami.ApplicationWindow {
         // Índice 2: Worklogs Pendentes
         PendingWorklogsPage {
             id: pendingWorklogsPage
+            worklogSyncService: root._ctxWorklogSyncService
+            jiraService: root._ctxJiraService
         }
 
         // Índice 3: Configuração
         SettingsPage {
             id: settingsPage
+            settingsModel: root._ctxSettingsModel
+            jiraService: root._ctxJiraService
+            myIssuesModel: root._ctxMyIssuesModel
         }
     }
 
     // Sincronizar TabBar com StackLayout quando mudar de aba
     Connections {
-        target: tabBar
+        target: root.tabBar
         function onCurrentIndexChanged() {
-            console.log("Main.qml: TabBar mudou para índice:", tabBar.currentIndex)
-            stack.currentIndex = tabBar.currentIndex
-            console.log("Main.qml: StackLayout mudou para índice:", stack.currentIndex)
+            console.log("Main.qml: TabBar mudou para índice:", root.tabBar.currentIndex)
+            root.stack.currentIndex = root.tabBar.currentIndex
+            console.log("Main.qml: StackLayout mudou para índice:", root.stack.currentIndex)
             
             // Recarregar worklogs automaticamente quando a aba de worklogs for selecionada
             // Índice 2 corresponde à aba de Worklogs
-            if (tabBar.currentIndex === 2 && pendingWorklogsPage) {
+            if (root.tabBar.currentIndex === 2 && pendingWorklogsPage) {
                 console.log("Main.qml: Aba de worklogs selecionada, recarregando worklogs...")
                 pendingWorklogsPage.reloadWorklogs()
             }
@@ -171,9 +175,26 @@ Kirigami.ApplicationWindow {
     }
     
     Connections {
-        target: stack
+        target: root.stack
         function onCurrentIndexChanged() {
-            console.log("Main.qml: StackLayout mudou para índice:", stack.currentIndex)
+            console.log("Main.qml: StackLayout mudou para índice:", root.stack.currentIndex)
+        }
+    }
+
+    // Atalhos globais (após stack/tabBar existirem para Ctrl+Tab funcionar)
+    Shortcuts {
+        id: shortcuts
+        stack: root.stack
+        tabBar: root.tabBar
+        createPage: createPage
+        issuesPage: issuesPage
+        settingsPage: settingsPage
+        pendingWorklogsPage: pendingWorklogsPage
+        onHideRequested: {
+            if (root.hideWindowFn && typeof root.hideWindowFn === "function")
+                root.hideWindowFn() // qmllint disable use-proper-function
+            else
+                root.hide()
         }
     }
     

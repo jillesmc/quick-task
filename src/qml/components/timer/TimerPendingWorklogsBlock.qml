@@ -1,3 +1,4 @@
+pragma ComponentBehavior: Bound
 /**
  * TimerPendingWorklogsBlock.qml
  *
@@ -27,14 +28,17 @@ ColumnLayout {
         model: root.pendingWorklogs
 
         delegate: Rectangle {
+            id: delegateRect
+            required property int index
+            required property var modelData
             Layout.fillWidth: true
             Layout.preferredHeight: 80
             color: Kirigami.Theme.backgroundColor || "#f0f0f0"
-            border.color: Kirigami.Theme.separatorColor || "#d0d0d0"
+            border.color: Kirigami.Theme.textColor || "#d0d0d0"
             border.width: 1
             radius: Kirigami.Units.smallSpacing
 
-            property var worklogData: root.pendingWorklogs[index] || {}
+            property var worklogData: delegateRect.modelData || {}
 
             RowLayout {
                 anchors.fill: parent
@@ -45,14 +49,14 @@ ColumnLayout {
                     Layout.fillWidth: true
 
                     Controls.Label {
-                        text: worklogData.issue_key || ""
+                        text: delegateRect.worklogData.issue_key || ""
                         font.bold: true
                         Layout.fillWidth: true
                     }
 
                     Controls.Label {
                         text: {
-                            var duration = worklogData.duration_seconds || 0;
+                            var duration = delegateRect.worklogData.duration_seconds || 0;
                             var hours = Math.floor(duration / 3600);
                             var minutes = Math.floor((duration % 3600) / 60);
                             return qsTr("%1h %2m").arg(hours).arg(minutes);
@@ -63,8 +67,8 @@ ColumnLayout {
 
                     Controls.Label {
                         text: {
-                            if (worklogData.start_time) {
-                                var date = new Date(worklogData.start_time);
+                            if (delegateRect.worklogData.start_time) {
+                                var date = new Date(delegateRect.worklogData.start_time);
                                 return Qt.formatDateTime(date, "dd/MM/yyyy HH:mm");
                             }
                             return "";
@@ -80,8 +84,8 @@ ColumnLayout {
                     icon.name: "network-upload"
                     enabled: root.worklogSyncService !== null && root.worklogSyncService !== undefined
                     onClicked: {
-                        if (root.worklogSyncService && worklogData.id) {
-                            root.worklogSyncService.sync_pending_worklogs([worklogData.id]);
+                        if (root.worklogSyncService && delegateRect.worklogData.id) {
+                            root.worklogSyncService.sync_pending_worklogs([delegateRect.worklogData.id]);
                         }
                     }
                 }

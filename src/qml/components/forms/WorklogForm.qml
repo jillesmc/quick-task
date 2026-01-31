@@ -29,10 +29,12 @@ import org.kde.kirigami as Kirigami
 import "../../utils/FormatUtils.js" as FormatUtils
 
 // Componente WorklogForm - tipo raiz com nome correto
+pragma ComponentBehavior: Bound
 ColumnLayout {
     id: root
     
     property bool enabled: true
+    property var jiraService: null
     property bool showCheckbox: true
     property alias shouldRegister: registrarCheckbox.checked
     property alias date: dateField.text
@@ -245,15 +247,13 @@ ColumnLayout {
                         Layout.preferredWidth: implicitWidth
                     }
                     
+                    ListModel {
+                        id: presetDurationsModel
+                    }
                     Repeater {
-                        model: root.defaultDurations ? root.defaultDurations : []
-                        Controls.Button {
-                            text: FormatUtils.formatDuration(modelData)
-                            Layout.preferredWidth: implicitWidth
-                            onClicked: {
-                                durationSlider.value = modelData
-                                root.worklogChanged()
-                            }
+                        model: presetDurationsModel
+                        delegate: WorklogPresetButton {
+                            formRoot: root
                         }
                     }
                 }
@@ -288,6 +288,25 @@ ColumnLayout {
         }
     }
     
+    /**
+     * Sincroniza presetDurationsModel com root.defaultDurations (para delegate com model.duration qualificado).
+     */
+    function syncPresetDurations() {
+        presetDurationsModel.clear()
+        if (root.defaultDurations && root.defaultDurations.length) {
+            for (var i = 0; i < root.defaultDurations.length; i++) {
+                presetDurationsModel.append({ duration: root.defaultDurations[i] })
+            }
+        }
+    }
+
+    Connections {
+        target: root
+        function onDefaultDurationsChanged() {
+            root.syncPresetDurations()
+        }
+    }
+
     /**
      * Inicializa campos com valores padrão
      */
@@ -379,28 +398,28 @@ ColumnLayout {
     
     Component.onCompleted: {
         initializeDefaults()
-        
+        root.syncPresetDurations()
         // Carregar configurações de worklog retroativo se jiraService estiver disponível
-        // Usar Qt.callLater para garantir que jiraService esteja disponível
         Qt.callLater(function() {
-            if (typeof jiraService !== "undefined" && jiraService) {
+            if (root.jiraService) {
                 try {
-                    if (typeof jiraService.getRetroactiveMaxHours === "function") {
-                        var maxHours = jiraService.getRetroactiveMaxHours()
+                    if (typeof root.jiraService.getRetroactiveMaxHours === "function") {
+                        var maxHours = root.jiraService.getRetroactiveMaxHours()
                         if (maxHours > 0) {
-                            retroactiveMaxHours = maxHours
+                            root.retroactiveMaxHours = maxHours
                         }
                     }
-                    if (typeof jiraService.getDefaultDurations === "function") {
-                        var durations = jiraService.getDefaultDurations()
+                    if (typeof root.jiraService.getDefaultDurations === "function") {
+                        var durations = root.jiraService.getDefaultDurations()
                         if (durations && Array.isArray(durations) && durations.length > 0) {
-                            defaultDurations = durations
+                            root.defaultDurations = durations
                         }
                     }
                 } catch (e) {
                     console.warn("Erro ao carregar configurações de worklog retroativo:", e)
                 }
             }
+            root.syncPresetDurations()
         })
     }
 }

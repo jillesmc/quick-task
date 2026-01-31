@@ -149,7 +149,7 @@ Item {
     
     // Conectar signals do jiraService
     Connections {
-        target: jiraService
+        target: root.jiraService
         
         function onIssueCreated(issueKey, issueUrl) {
             root.createCompleted(issueKey, issueUrl)
@@ -162,7 +162,7 @@ Item {
     
     // Validar quando issueModel muda
     Connections {
-        target: issueModel
+        target: root.issueModel
         
         function onSummaryChanged() {
             if (root.enabled) {

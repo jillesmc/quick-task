@@ -1,6 +1,7 @@
+pragma ComponentBehavior: Bound
 /**
  * IssueFieldsForm.qml
- * 
+ *
  * Componente reutilizável para campos de issue
  * Segue Single Responsibility Principle - apenas gerencia campos de issue
  * Segue Open/Closed Principle - pode ser estendido sem modificar
@@ -131,9 +132,10 @@ ColumnLayout {
                 spacing: Kirigami.Units.smallSpacing
                 
                 Repeater {
-                    model: tipoAtividadeValues
-                    
+                    model: root.tipoAtividadeValues
+
                     Controls.RadioButton {
+                        required property var modelData
                         text: modelData
                         enabled: root.enabled
                         checked: root.tipoAtividade === modelData

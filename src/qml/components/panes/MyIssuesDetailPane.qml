@@ -384,6 +384,7 @@ Item {
 
                         WorklogForm {
                             id: worklogForm
+                            jiraService: pane.jiraService
                             Layout.fillWidth: true
                             enabled: pane.selectedIssueKey !== "" && !pane.isProcessing && worklogCheckboxTab2.checked
                             visible: worklogCheckboxTab2.checked

@@ -46,8 +46,10 @@ function hideProgress(dialog) {
  * @param {string} issueKey - Issue key to display
  * @param {string} issueUrl - Issue URL (can be "")
  * @param {boolean} isUpdate - true for update, false for create
+ * @param {object} timerService - Optional timer service for "Iniciar Timer" button
+ * @param {object} timerModel - Optional timer model for "Iniciar Timer" button
  */
-function showSuccess(parent, componentPath, issueKey, issueUrl, isUpdate) {
+function showSuccess(parent, componentPath, issueKey, issueUrl, isUpdate, timerService, timerModel) {
     var component = Qt.createComponent(componentPath);
     if (component.status !== Component.Ready) {
         console.error("DialogHelpers.showSuccess:", component.errorString());
@@ -56,6 +58,12 @@ function showSuccess(parent, componentPath, issueKey, issueUrl, isUpdate) {
     var window = parent && parent.parent ? parent.parent : parent;
     var dialog = component.createObject(window);
     if (dialog) {
+        if (timerService !== undefined) {
+            dialog.timerService = timerService;
+        }
+        if (timerModel !== undefined) {
+            dialog.timerModel = timerModel;
+        }
         dialog.show(issueKey, issueUrl || "", isUpdate);
     }
 }

@@ -16,7 +16,7 @@ Rectangle {
     implicitHeight: pomodoroBlock.implicitHeight + (Kirigami.Units.largeSpacing * 2)
 
     color: Kirigami.Theme.backgroundColor || "#f0f0f0"
-    border.color: Kirigami.Theme.separatorColor || "#d0d0d0"
+    border.color: Kirigami.Theme.textColor || "#d0d0d0"
     border.width: 1
     radius: Kirigami.Units.smallSpacing
 
@@ -38,8 +38,8 @@ Rectangle {
             Layout.fillWidth: true
             checked: true
             onCheckedChanged: {
-                if (settingsModel) {
-                    settingsModel.pomodoroEnabled = checked;
+                if (root.settingsModel) {
+                    root.settingsModel.pomodoroEnabled = checked;
                 }
                 pomodoroDurationSpinBox.enabled = checked;
                 shortBreakSpinBox.enabled = checked;
@@ -61,8 +61,8 @@ Rectangle {
             to: 120
             value: 25
             onValueChanged: {
-                if (settingsModel) {
-                    settingsModel.pomodoroDurationMinutes = value;
+                if (root.settingsModel) {
+                    root.settingsModel.pomodoroDurationMinutes = value;
                 }
             }
         }
@@ -79,8 +79,8 @@ Rectangle {
             to: 60
             value: 5
             onValueChanged: {
-                if (settingsModel) {
-                    settingsModel.shortBreakMinutes = value;
+                if (root.settingsModel) {
+                    root.settingsModel.shortBreakMinutes = value;
                 }
             }
         }
@@ -97,8 +97,8 @@ Rectangle {
             to: 120
             value: 15
             onValueChanged: {
-                if (settingsModel) {
-                    settingsModel.longBreakMinutes = value;
+                if (root.settingsModel) {
+                    root.settingsModel.longBreakMinutes = value;
                 }
             }
         }
@@ -115,8 +115,8 @@ Rectangle {
             to: 10
             value: 4
             onValueChanged: {
-                if (settingsModel) {
-                    settingsModel.pomodorosBeforeLongBreak = value;
+                if (root.settingsModel) {
+                    root.settingsModel.pomodorosBeforeLongBreak = value;
                 }
             }
         }
@@ -134,21 +134,21 @@ Rectangle {
             value: 30
             stepSize: 5
             onValueChanged: {
-                if (settingsModel) {
-                    settingsModel.autoContinueTimeoutSeconds = value;
+                if (root.settingsModel) {
+                    root.settingsModel.autoContinueTimeoutSeconds = value;
                 }
             }
         }
     }
 
     Component.onCompleted: {
-        if (settingsModel) {
-            pomodoroEnabledCheckbox.checked = settingsModel.pomodoroEnabled;
-            pomodoroDurationSpinBox.value = settingsModel.pomodoroDurationMinutes;
-            shortBreakSpinBox.value = settingsModel.shortBreakMinutes;
-            longBreakSpinBox.value = settingsModel.longBreakMinutes;
-            pomodorosBeforeLongBreakSpinBox.value = settingsModel.pomodorosBeforeLongBreak;
-            autoContinueTimeoutSpinBox.value = settingsModel.autoContinueTimeoutSeconds;
+        if (root.settingsModel) {
+            pomodoroEnabledCheckbox.checked = root.settingsModel.pomodoroEnabled;
+            pomodoroDurationSpinBox.value = root.settingsModel.pomodoroDurationMinutes;
+            shortBreakSpinBox.value = root.settingsModel.shortBreakMinutes;
+            longBreakSpinBox.value = root.settingsModel.longBreakMinutes;
+            pomodorosBeforeLongBreakSpinBox.value = root.settingsModel.pomodorosBeforeLongBreak;
+            autoContinueTimeoutSpinBox.value = root.settingsModel.autoContinueTimeoutSeconds;
         }
     }
 }

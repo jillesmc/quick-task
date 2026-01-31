@@ -11,7 +11,12 @@ import org.kde.kirigami as Kirigami
 
 Item {
     id: root
-    
+
+    property var timerModel: timerModel // qmllint disable unqualified
+    property var timerService: timerService // qmllint disable unqualified
+    property var hideWindow: hideWindow // qmllint disable unqualified
+    property var settingsModel: settingsModel // qmllint disable unqualified
+
     // Habilitar foco para capturar eventos de mouse/teclado
     // Necessário para que a janela seja clicável (Hipótese 1 do diagnóstico)
     focus: true
@@ -65,8 +70,8 @@ Item {
                     icon.name: "window-minimize"
                     onClicked: {
                         try {
-                            if (hideWindow) {
-                                hideWindow.hide()
+                            if (root.hideWindow) {
+                                root.hideWindow.hide()
                             }
                         } catch (e) {
                             console.error("TimerFloatingPanel: Erro ao minimizar janela:", e)
@@ -77,7 +82,7 @@ Item {
             
             // Issue Key
             Controls.Label {
-                text: timerModel ? timerModel.issueKey : ""
+                text: root.timerModel ? root.timerModel.issueKey : ""
                 font.pointSize: Kirigami.Theme.defaultFont.pointSize + 1
                 Layout.fillWidth: true
                 horizontalAlignment: Text.AlignHCenter
@@ -86,7 +91,7 @@ Item {
             // Tempo decorrido
             Controls.Label {
                 id: timeDisplay
-                text: formatTime(timerModel ? timerModel.elapsedSeconds : 0)
+                text: root.formatTime(root.timerModel ? root.timerModel.elapsedSeconds : 0)
                 font.pointSize: Kirigami.Theme.defaultFont.pointSize + 4
                 font.bold: true
                 Layout.fillWidth: true
@@ -94,10 +99,10 @@ Item {
                 
                 // Atualizar a cada segundo
                 Connections {
-                    target: timerModel || null
-                    function onTimeUpdated() {
-                        if (timerModel) {
-                            timeDisplay.text = formatTime(timerModel.elapsedSeconds)
+                    target: root.timerModel || null
+        function onTimeUpdated() {
+            if (root.timerModel) {
+                timeDisplay.text = root.formatTime(root.timerModel.elapsedSeconds)
                         }
                     }
                 }
@@ -106,15 +111,15 @@ Item {
             // Pomodoro (se habilitado)
             Controls.Label {
                 id: pomodoroLabel
-                text: qsTr("Pomodoro %1").arg(timerModel ? timerModel.currentPomodoro : 0)
+                text: qsTr("Pomodoro %1").arg(root.timerModel ? root.timerModel.currentPomodoro : 0)
                 Layout.fillWidth: true
                 horizontalAlignment: Text.AlignHCenter
-                visible: settingsModel && settingsModel.pomodoroEnabled
+                visible: root.settingsModel && root.settingsModel.pomodoroEnabled
                 font.pointSize: Kirigami.Theme.smallFont.pointSize
                 
                 // Garantir atualização quando signal for emitido
                 Connections {
-                    target: timerModel || null
+                    target: root.timerModel || null
                     function onPomodoroCompleted(pomodoroNum) {
                         pomodoroLabel.text = qsTr("Pomodoro %1").arg(pomodoroNum)
                     }
@@ -130,13 +135,13 @@ Item {
                     text: qsTr("Pausar")
                     icon.name: "media-playback-pause"
                     Layout.fillWidth: true
-                    enabled: timerModel && timerModel.state === "running" && !timerModel.isOnBreak && !timerModel.isWaitingBreakDecision
-                    visible: timerModel && timerModel.state === "running" && !timerModel.isOnBreak && !timerModel.isWaitingBreakDecision && !timerModel.isWaitingBreakEndDecision
+                    enabled: root.timerModel && root.timerModel.state === "running" && !root.timerModel.isOnBreak && !root.timerModel.isWaitingBreakDecision
+                    visible: root.timerModel && root.timerModel.state === "running" && !root.timerModel.isOnBreak && !root.timerModel.isWaitingBreakDecision && !root.timerModel.isWaitingBreakEndDecision
                     onClicked: {
                         console.log("TimerFloatingPanel: Botão Pausar clicado")
-                        if (timerService && timerModel && timerModel.state === "running") {
+                        if (root.timerService && root.timerModel && root.timerModel.state === "running") {
                             console.log("TimerFloatingPanel: Chamando pause()")
-                            timerService.pause()
+                            root.timerService.pause()
                         }
                     }
                 }
@@ -145,17 +150,17 @@ Item {
                     text: qsTr("Parar")
                     icon.name: "media-playback-stop"
                     Layout.fillWidth: true
-                    enabled: timerModel && timerModel.state !== "idle" && !timerModel.isOnBreak && !timerModel.isWaitingBreakEndDecision
-                    visible: timerModel && timerModel.state !== "idle" && !timerModel.isOnBreak && !timerModel.isWaitingBreakEndDecision
+                    enabled: root.timerModel && root.timerModel.state !== "idle" && !root.timerModel.isOnBreak && !root.timerModel.isWaitingBreakEndDecision
+                    visible: root.timerModel && root.timerModel.state !== "idle" && !root.timerModel.isOnBreak && !root.timerModel.isWaitingBreakEndDecision
                     onClicked: {
                         console.log("TimerFloatingPanel: Botão Parar clicado")
-                        if (timerService) {
+                        if (root.timerService) {
                             console.log("TimerFloatingPanel: Chamando stop()")
-                            timerService.stop()
+                            root.timerService.stop()
                         }
                         // Fechar janela após parar (será gerenciado pelo Python)
-                        if (hideWindow && typeof hideWindow.hide === "function") {
-                            hideWindow.hide()
+                        if (root.hideWindow && typeof root.hideWindow.hide === "function") {
+                            root.hideWindow.hide()
                         }
                     }
                 }
@@ -166,16 +171,25 @@ Item {
         // Alerta de pomodoro completo
         PomodoroBreakPrompt {
             id: breakPrompt
+            timerModel: root.timerModel
+            timerService: root.timerService
+            hideWindow: root.hideWindow
+            settingsModel: root.settingsModel
         }
         
         // Contagem regressiva da pausa
         BreakCountdown {
             id: breakCountdown
+            timerModel: root.timerModel
+            timerService: root.timerService
+            hideWindow: root.hideWindow
         }
-        
+
         // Questionamento após pausa terminar
         BreakEndPrompt {
             id: breakEndPrompt
+            timerService: root.timerService
+            hideWindow: root.hideWindow
         }
     }
     
@@ -183,34 +197,30 @@ Item {
     states: [
         State {
             name: "normal"
-            when: !timerModel || (!timerModel.isWaitingBreakDecision && !timerModel.isOnBreak && !timerModel.isWaitingBreakEndDecision)
+            when: !root.timerModel || (!root.timerModel.isWaitingBreakDecision && !root.timerModel.isOnBreak && !root.timerModel.isWaitingBreakEndDecision)
             PropertyChanges {
-                target: contentStack
-                currentIndex: 0
+                contentStack.currentIndex: 0
             }
         },
         State {
             name: "breakDecision"
-            when: timerModel && timerModel.isWaitingBreakDecision
+            when: root.timerModel && root.timerModel.isWaitingBreakDecision
             PropertyChanges {
-                target: contentStack
-                currentIndex: 1
+                contentStack.currentIndex: 1
             }
         },
         State {
             name: "onBreak"
-            when: timerModel && timerModel.isOnBreak
+            when: root.timerModel && root.timerModel.isOnBreak
             PropertyChanges {
-                target: contentStack
-                currentIndex: 2
+                contentStack.currentIndex: 2
             }
         },
         State {
             name: "breakEnd"
-            when: timerModel && timerModel.isWaitingBreakEndDecision
+            when: root.timerModel && root.timerModel.isWaitingBreakEndDecision
             PropertyChanges {
-                target: contentStack
-                currentIndex: 3
+                contentStack.currentIndex: 3
             }
         }
     ]

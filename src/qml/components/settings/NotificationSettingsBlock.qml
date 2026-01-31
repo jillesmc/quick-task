@@ -16,7 +16,7 @@ Rectangle {
     implicitHeight: notificationsBlock.implicitHeight + (Kirigami.Units.largeSpacing * 2)
 
     color: Kirigami.Theme.backgroundColor || "#f0f0f0"
-    border.color: Kirigami.Theme.separatorColor || "#d0d0d0"
+    border.color: Kirigami.Theme.textColor || "#d0d0d0"
     border.width: 1
     radius: Kirigami.Units.smallSpacing
 
@@ -37,10 +37,10 @@ Rectangle {
             text: qsTr("Notificações Desktop")
             Layout.fillWidth: true
             checked: true
-            enabled: settingsModel ? settingsModel.pomodoroEnabled : true
+            enabled: root.settingsModel ? root.settingsModel.pomodoroEnabled : true
             onCheckedChanged: {
-                if (settingsModel) {
-                    settingsModel.notificationsEnabled = checked;
+                if (root.settingsModel) {
+                    root.settingsModel.notificationsEnabled = checked;
                 }
             }
         }
@@ -50,12 +50,12 @@ Rectangle {
             text: qsTr("Som de Alerta")
             Layout.fillWidth: true
             checked: false
-            enabled: settingsModel ? settingsModel.pomodoroEnabled : true
+            enabled: root.settingsModel ? root.settingsModel.pomodoroEnabled : true
             onCheckedChanged: {
-                if (settingsModel) {
-                    settingsModel.soundEnabled = checked;
+                if (root.settingsModel) {
+                    root.settingsModel.soundEnabled = checked;
                 }
-                shortSoundFileField.enabled = checked && (settingsModel ? settingsModel.pomodoroEnabled : true);
+                shortSoundFileField.enabled = checked && (root.settingsModel ? root.settingsModel.pomodoroEnabled : true);
                 longSoundFileField.enabled = shortSoundFileField.enabled;
             }
         }
@@ -75,10 +75,10 @@ Rectangle {
                 id: shortSoundFileField
                 Layout.fillWidth: true
                 placeholderText: qsTr("short")
-                enabled: soundEnabledCheckbox.checked && (settingsModel ? settingsModel.pomodoroEnabled : true)
+                enabled: soundEnabledCheckbox.checked && (root.settingsModel ? root.settingsModel.pomodoroEnabled : true)
                 onTextChanged: {
-                    if (settingsModel && text.length > 0) {
-                        settingsModel.shortSoundFile = text;
+                    if (root.settingsModel && text.length > 0) {
+                        root.settingsModel.shortSoundFile = text;
                     }
                 }
             }
@@ -100,8 +100,8 @@ Rectangle {
                 var filePath = urlString.replace(/^file:\/{2,3}/, "");
                 filePath = decodeURIComponent(filePath);
                 shortSoundFileField.text = filePath;
-                if (settingsModel) {
-                    settingsModel.shortSoundFile = filePath;
+                if (root.settingsModel) {
+                    root.settingsModel.shortSoundFile = filePath;
                 }
             }
         }
@@ -121,10 +121,10 @@ Rectangle {
                 id: longSoundFileField
                 Layout.fillWidth: true
                 placeholderText: qsTr("long")
-                enabled: soundEnabledCheckbox.checked && (settingsModel ? settingsModel.pomodoroEnabled : true)
+                enabled: soundEnabledCheckbox.checked && (root.settingsModel ? root.settingsModel.pomodoroEnabled : true)
                 onTextChanged: {
-                    if (settingsModel && text.length > 0) {
-                        settingsModel.longSoundFile = text;
+                    if (root.settingsModel && text.length > 0) {
+                        root.settingsModel.longSoundFile = text;
                     }
                 }
             }
@@ -146,8 +146,8 @@ Rectangle {
                 var filePath = urlString.replace(/^file:\/{2,3}/, "");
                 filePath = decodeURIComponent(filePath);
                 longSoundFileField.text = filePath;
-                if (settingsModel) {
-                    settingsModel.longSoundFile = filePath;
+                if (root.settingsModel) {
+                    root.settingsModel.longSoundFile = filePath;
                 }
             }
         }
@@ -157,22 +157,22 @@ Rectangle {
             text: qsTr("Usar Notificações do Sistema")
             Layout.fillWidth: true
             checked: true
-            enabled: settingsModel ? settingsModel.pomodoroEnabled : true
+            enabled: root.settingsModel ? root.settingsModel.pomodoroEnabled : true
             onCheckedChanged: {
-                if (settingsModel) {
-                    settingsModel.desktopNotifications = checked;
+                if (root.settingsModel) {
+                    root.settingsModel.desktopNotifications = checked;
                 }
             }
         }
     }
 
     Component.onCompleted: {
-        if (settingsModel) {
-            notificationsEnabledCheckbox.checked = settingsModel.notificationsEnabled;
-            soundEnabledCheckbox.checked = settingsModel.soundEnabled;
-            desktopNotificationsCheckbox.checked = settingsModel.desktopNotifications;
-            shortSoundFileField.text = settingsModel.shortSoundFile || "short";
-            longSoundFileField.text = settingsModel.longSoundFile || "long";
+        if (root.settingsModel) {
+            notificationsEnabledCheckbox.checked = root.settingsModel.notificationsEnabled;
+            soundEnabledCheckbox.checked = root.settingsModel.soundEnabled;
+            desktopNotificationsCheckbox.checked = root.settingsModel.desktopNotifications;
+            shortSoundFileField.text = root.settingsModel.shortSoundFile || "short";
+            longSoundFileField.text = root.settingsModel.longSoundFile || "long";
             shortSoundFileField.enabled = soundEnabledCheckbox.checked;
             longSoundFileField.enabled = soundEnabledCheckbox.checked;
         }

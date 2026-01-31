@@ -1,3 +1,4 @@
+pragma ComponentBehavior: Bound
 /**
  * DividerBar.qml
  *
@@ -13,6 +14,7 @@ Rectangle {
 
     implicitHeight: 14
     color: "transparent"
+    property bool containsMouse: barMouseArea.containsMouse
 
     Row {
         anchors.centerIn: parent
@@ -20,11 +22,12 @@ Rectangle {
         Repeater {
             model: 3
             Rectangle {
+                id: dotRect
                 width: 3
                 height: 3
                 radius: 1.5
-                color: root.barMouseArea.containsMouse ? Kirigami.Theme.highlightColor : Kirigami.Theme.textColor
-                opacity: root.barMouseArea.containsMouse ? 1 : 0.6
+                color: root.containsMouse ? Kirigami.Theme.highlightColor : Kirigami.Theme.textColor
+                opacity: root.containsMouse ? 1 : 0.6
                 Behavior on color { ColorAnimation { duration: 150 } }
                 Behavior on opacity { NumberAnimation { duration: 150 } }
             }

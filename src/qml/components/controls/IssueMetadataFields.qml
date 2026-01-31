@@ -11,7 +11,7 @@ import QtQuick.Controls as Controls
 import org.kde.kirigami as Kirigami
 
 ColumnLayout {
-    id: root
+    id: metadataFieldsRoot
 
     property var issueModel: null
     property bool enabled: true
@@ -21,13 +21,13 @@ ColumnLayout {
     GridLayout {
         id: metadataGrid
         Layout.fillWidth: true
-        // Layout.margins: 20
         columnSpacing: Kirigami.Units.largeSpacing
         rowSpacing: Kirigami.Units.largeSpacing
         columns: width > 650 ? 2 : 1
 
         // Status
         ColumnLayout {
+            id: statusColumnLayout
             Layout.fillWidth: true
             Layout.alignment: Qt.AlignTop
             spacing: Kirigami.Units.smallSpacing
@@ -38,22 +38,15 @@ ColumnLayout {
                 Layout.fillWidth: true
             }
 
-            Column {
+            IssueRadioGroup {
+                id: statusRadioGroup
                 Layout.fillWidth: true
-                spacing: Kirigami.Units.smallSpacing
-
-                Repeater {
-                    model: root.issueModel ? root.issueModel.statusSequence : []
-
-                    Controls.RadioButton {
-                        text: modelData
-                        enabled: root.enabled
-                        checked: root.issueModel && root.issueModel.statusInicial === modelData
-                        onCheckedChanged: {
-                            if (checked && root.issueModel) {
-                                root.issueModel.statusInicial = modelData;
-                            }
-                        }
+                model: metadataFieldsRoot.issueModel ? metadataFieldsRoot.issueModel.statusSequence : []
+                enabled: metadataFieldsRoot.enabled
+                selectedValue: metadataFieldsRoot.issueModel ? metadataFieldsRoot.issueModel.statusInicial : ""
+                onValueChanged: function(value) {
+                    if (metadataFieldsRoot.issueModel) {
+                        metadataFieldsRoot.issueModel.statusInicial = value
                     }
                 }
             }
@@ -80,21 +73,21 @@ ColumnLayout {
                     spacing: Kirigami.Units.largeSpacing
                     Controls.RadioButton {
                         text: qsTr("Não")
-                        enabled: root.enabled
-                        checked: root.issueModel && root.issueModel.documentacaoAnexa === "Não"
+                        enabled: metadataFieldsRoot.enabled
+                        checked: metadataFieldsRoot.issueModel && metadataFieldsRoot.issueModel.documentacaoAnexa === "Não"
                         onCheckedChanged: {
-                            if (checked && root.issueModel) {
-                                root.issueModel.documentacaoAnexa = "Não";
+                            if (checked && metadataFieldsRoot.issueModel) {
+                                metadataFieldsRoot.issueModel.documentacaoAnexa = "Não"
                             }
                         }
                     }
                     Controls.RadioButton {
                         text: qsTr("Sim")
-                        enabled: root.enabled
-                        checked: root.issueModel && root.issueModel.documentacaoAnexa === "Sim"
+                        enabled: metadataFieldsRoot.enabled
+                        checked: metadataFieldsRoot.issueModel && metadataFieldsRoot.issueModel.documentacaoAnexa === "Sim"
                         onCheckedChanged: {
-                            if (checked && root.issueModel) {
-                                root.issueModel.documentacaoAnexa = "Sim";
+                            if (checked && metadataFieldsRoot.issueModel) {
+                                metadataFieldsRoot.issueModel.documentacaoAnexa = "Sim"
                             }
                         }
                     }
@@ -116,21 +109,21 @@ ColumnLayout {
                     spacing: Kirigami.Units.largeSpacing
                     Controls.RadioButton {
                         text: qsTr("Não")
-                        enabled: root.enabled
-                        checked: root.issueModel && root.issueModel.utilizacaoIA === "Não"
+                        enabled: metadataFieldsRoot.enabled
+                        checked: metadataFieldsRoot.issueModel && metadataFieldsRoot.issueModel.utilizacaoIA === "Não"
                         onCheckedChanged: {
-                            if (checked && root.issueModel) {
-                                root.issueModel.utilizacaoIA = "Não";
+                            if (checked && metadataFieldsRoot.issueModel) {
+                                metadataFieldsRoot.issueModel.utilizacaoIA = "Não"
                             }
                         }
                     }
                     Controls.RadioButton {
                         text: qsTr("Sim")
-                        enabled: root.enabled
-                        checked: root.issueModel && root.issueModel.utilizacaoIA === "Sim"
+                        enabled: metadataFieldsRoot.enabled
+                        checked: metadataFieldsRoot.issueModel && metadataFieldsRoot.issueModel.utilizacaoIA === "Sim"
                         onCheckedChanged: {
-                            if (checked && root.issueModel) {
-                                root.issueModel.utilizacaoIA = "Sim";
+                            if (checked && metadataFieldsRoot.issueModel) {
+                                metadataFieldsRoot.issueModel.utilizacaoIA = "Sim"
                             }
                         }
                     }
@@ -140,6 +133,7 @@ ColumnLayout {
 
         // Tipo de Atividade
         ColumnLayout {
+            id: tipoAtividadeColumnLayout
             Layout.fillWidth: true
             Layout.alignment: Qt.AlignTop
             spacing: Kirigami.Units.smallSpacing
@@ -150,22 +144,15 @@ ColumnLayout {
                 Layout.fillWidth: true
             }
 
-            Column {
+            IssueRadioGroup {
+                id: tipoAtividadeRadioGroup
                 Layout.fillWidth: true
-                spacing: 0
-
-                Repeater {
-                    model: root.issueModel ? root.issueModel.tipoAtividadeValues : []
-
-                    Controls.RadioButton {
-                        text: modelData
-                        enabled: root.enabled
-                        checked: root.issueModel && root.issueModel.tipoAtividade === modelData
-                        onCheckedChanged: {
-                            if (checked && root.issueModel) {
-                                root.issueModel.tipoAtividade = modelData;
-                            }
-                        }
+                model: metadataFieldsRoot.issueModel ? metadataFieldsRoot.issueModel.tipoAtividadeValues : []
+                enabled: metadataFieldsRoot.enabled
+                selectedValue: metadataFieldsRoot.issueModel ? metadataFieldsRoot.issueModel.tipoAtividade : ""
+                onValueChanged: function(value) {
+                    if (metadataFieldsRoot.issueModel) {
+                        metadataFieldsRoot.issueModel.tipoAtividade = value
                     }
                 }
             }
@@ -173,6 +160,7 @@ ColumnLayout {
 
         // Valor Entregue
         ColumnLayout {
+            id: valorEntregueColumnLayout
             Layout.fillWidth: true
             Layout.alignment: Qt.AlignTop
             spacing: Kirigami.Units.smallSpacing
@@ -183,22 +171,15 @@ ColumnLayout {
                 Layout.fillWidth: true
             }
 
-            Column {
+            IssueRadioGroup {
+                id: valorEntregueRadioGroup
                 Layout.fillWidth: true
-                spacing: 0
-
-                Repeater {
-                    model: root.issueModel ? root.issueModel.valorEntregueValues : []
-
-                    Controls.RadioButton {
-                        text: modelData
-                        enabled: root.enabled
-                        checked: root.issueModel && root.issueModel.valorEntregue === modelData
-                        onCheckedChanged: {
-                            if (checked && root.issueModel) {
-                                root.issueModel.valorEntregue = modelData;
-                            }
-                        }
+                model: metadataFieldsRoot.issueModel ? metadataFieldsRoot.issueModel.valorEntregueValues : []
+                enabled: metadataFieldsRoot.enabled
+                selectedValue: metadataFieldsRoot.issueModel ? metadataFieldsRoot.issueModel.valorEntregue : ""
+                onValueChanged: function(value) {
+                    if (metadataFieldsRoot.issueModel) {
+                        metadataFieldsRoot.issueModel.valorEntregue = value
                     }
                 }
             }
@@ -207,9 +188,8 @@ ColumnLayout {
 
     // Plataformas Afetadas
     ColumnLayout {
+        id: plataformasColumnLayout
         Layout.fillWidth: true
-        // Layout.margins: 20
-        // Layout.topMargin: 0
         spacing: Kirigami.Units.smallSpacing
 
         Controls.Label {
@@ -218,56 +198,15 @@ ColumnLayout {
             Layout.fillWidth: true
         }
 
-        ListView {
-            id: plataformasListView
+        IssueCheckList {
+            id: plataformasCheckList
             Layout.fillWidth: true
-            implicitHeight: contentHeight
-            interactive: false
-            clip: true
-            model: root.issueModel ? root.issueModel.plataformasAfetadasValues : []
-
-            delegate: Controls.CheckDelegate {
-                width: plataformasListView.width
-                enabled: root.enabled
-                checked: {
-                    if (!root.issueModel)
-                        return false;
-                    var plataformas = root.issueModel.plataformasAfetadas || [];
-                    return plataformas.indexOf(modelData.col1) >= 0;
-                }
-
-                contentItem: RowLayout {
-                    spacing: Kirigami.Units.largeSpacing
-                    Controls.Label {
-                        text: modelData.col1
-                        font.bold: true
-                        Layout.preferredWidth: 150
-                    }
-                    Controls.Label {
-                        text: modelData.col2
-                        font.italic: true
-                        opacity: 0.7
-                        Layout.fillWidth: true
-                    }
-                }
-
-                onCheckedChanged: {
-                    if (!root.issueModel)
-                        return;
-                    var plataformas = root.issueModel.plataformasAfetadas || [];
-                    var val = modelData.col1;
-                    if (checked) {
-                        if (plataformas.indexOf(val) < 0) {
-                            plataformas.push(val);
-                            root.issueModel.plataformasAfetadas = plataformas;
-                        }
-                    } else {
-                        var index = plataformas.indexOf(val);
-                        if (index >= 0) {
-                            plataformas.splice(index, 1);
-                            root.issueModel.plataformasAfetadas = plataformas;
-                        }
-                    }
+            model: metadataFieldsRoot.issueModel ? metadataFieldsRoot.issueModel.plataformasAfetadasValues : []
+            enabled: metadataFieldsRoot.enabled
+            selectedValues: metadataFieldsRoot.issueModel ? (metadataFieldsRoot.issueModel.plataformasAfetadas || []) : []
+            onSelectionChanged: function(values) {
+                if (metadataFieldsRoot.issueModel) {
+                    metadataFieldsRoot.issueModel.plataformasAfetadas = values
                 }
             }
         }

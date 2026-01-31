@@ -12,25 +12,29 @@ import org.kde.kirigami as Kirigami
 
 Window {
     id: floatingWindow
-    
+
+    // Context property injetada pelo Python (timer window); não pode ser qualificada estaticamente
+    property var timerModel: timerModel // qmllint disable unqualified
+    property var timerService: timerService // qmllint disable unqualified
+    property var settingsModel: settingsModel // qmllint disable unqualified
+
     // Configuração da janela
     title: qsTr("Timer Ativo")
     flags: Qt.Window | Qt.WindowStaysOnTopHint | Qt.FramelessWindowHint | Qt.Tool
     color: "transparent"
-    
+
     // Dimensões
     width: 320
     height: 200
     minimumWidth: 320
     minimumHeight: 200
-    
+
     // Posicionamento inicial (canto superior direito)
-    // Será ajustado após criação
     x: 100
     y: 100
-    
+
     // Visibilidade baseada no estado do timer
-    visible: timerModel && (timerModel.state === "running" || timerModel.state === "paused")
+    visible: floatingWindow.timerModel && (floatingWindow.timerModel.state === "running" || floatingWindow.timerModel.state === "paused")
     
     Component.onCompleted: {
         // Posicionar no canto superior direito
@@ -102,19 +106,19 @@ Window {
                     property int windowStartY: 0
                     
                     onPressed: function(mouse) {
-                        // Captura posição inicial da janela e do mouse (coordenadas de tela)
                         windowStartX = floatingWindow.x
                         windowStartY = floatingWindow.y
-                        lastMouseX = mouse.screenX
-                        lastMouseY = mouse.screenY
+                        var gp = dragArea.mapToGlobal(mouse.x, mouse.y)
+                        lastMouseX = gp.x
+                        lastMouseY = gp.y
                         floatingWindow.isDragging = true
                     }
-                    
+
                     onPositionChanged: function(mouse) {
                         if (pressed) {
-                            // Calcula diferença desde início do arrasto (coordenadas de tela)
-                            var deltaX = mouse.screenX - lastMouseX
-                            var deltaY = mouse.screenY - lastMouseY
+                            var gp = dragArea.mapToGlobal(mouse.x, mouse.y)
+                            var deltaX = gp.x - lastMouseX
+                            var deltaY = gp.y - lastMouseY
                             
                             // Atualiza posição relativamente
                             var newX = windowStartX + deltaX
@@ -137,9 +141,8 @@ Window {
                             floatingWindow.x = Math.max(0, Math.min(newX, maxX))
                             floatingWindow.y = Math.max(0, Math.min(newY, maxY))
                             
-                            // Atualizar último ponto conhecido
-                            lastMouseX = mouse.screenX
-                            lastMouseY = mouse.screenY
+                            lastMouseX = gp.x
+                            lastMouseY = gp.y
                         }
                     }
                     
@@ -172,7 +175,7 @@ Window {
             
             // Issue Key
             Controls.Label {
-                text: timerModel ? timerModel.issueKey : ""
+                text: floatingWindow.timerModel ? floatingWindow.timerModel.issueKey : ""
                 font.pointSize: Kirigami.Theme.defaultFont.pointSize + 1
                 Layout.fillWidth: true
                 horizontalAlignment: Text.AlignHCenter
@@ -181,7 +184,7 @@ Window {
             // Tempo decorrido
             Controls.Label {
                 id: timeDisplay
-                text: formatTime(timerModel ? timerModel.elapsedSeconds : 0)
+                text: floatingWindow.formatTime(floatingWindow.timerModel ? floatingWindow.timerModel.elapsedSeconds : 0)
                 font.pointSize: Kirigami.Theme.defaultFont.pointSize + 4
                 font.bold: true
                 Layout.fillWidth: true
@@ -189,10 +192,10 @@ Window {
                 
                 // Atualizar a cada segundo
                 Connections {
-                    target: timerModel || null
+                    target: floatingWindow.timerModel || null
                     function onTimeUpdated() {
-                        if (timerModel) {
-                            timeDisplay.text = formatTime(timerModel.elapsedSeconds)
+                        if (floatingWindow.timerModel) {
+                            timeDisplay.text = floatingWindow.formatTime(floatingWindow.timerModel.elapsedSeconds)
                         }
                     }
                 }
@@ -201,15 +204,15 @@ Window {
             // Pomodoro (se habilitado)
             Controls.Label {
                 id: pomodoroLabelPanel
-                text: qsTr("Pomodoro %1").arg(timerModel ? timerModel.currentPomodoro : 0)
+                text: qsTr("Pomodoro %1").arg(floatingWindow.timerModel ? floatingWindow.timerModel.currentPomodoro : 0)
                 Layout.fillWidth: true
                 horizontalAlignment: Text.AlignHCenter
-                visible: settingsModel && settingsModel.pomodoroEnabled
+                visible: floatingWindow.settingsModel && floatingWindow.settingsModel.pomodoroEnabled
                 font.pointSize: Kirigami.Theme.smallFont.pointSize
                 
                 // Garantir atualização quando signal for emitido
                 Connections {
-                    target: timerModel || null
+                    target: floatingWindow.timerModel || null
                     function onPomodoroCompleted(pomodoroNum) {
                         pomodoroLabelPanel.text = qsTr("Pomodoro %1").arg(pomodoroNum)
                     }
@@ -225,27 +228,23 @@ Window {
                     text: qsTr("Pausar")
                     icon.name: "media-playback-pause"
                     Layout.fillWidth: true
-                    enabled: timerModel && timerModel.state === "running" && !timerModel.isOnBreak && !timerModel.isWaitingBreakDecision
-                    visible: timerModel && timerModel.state === "running" && !timerModel.isOnBreak && !timerModel.isWaitingBreakDecision && !timerModel.isWaitingBreakEndDecision
+                    enabled: floatingWindow.timerModel && floatingWindow.timerModel.state === "running" && !floatingWindow.timerModel.isOnBreak && !floatingWindow.timerModel.isWaitingBreakDecision
+                    visible: floatingWindow.timerModel && floatingWindow.timerModel.state === "running" && !floatingWindow.timerModel.isOnBreak && !floatingWindow.timerModel.isWaitingBreakDecision && !floatingWindow.timerModel.isWaitingBreakEndDecision
                     onClicked: {
-                        console.log("TimerFloatingPanel: Botão Pausar clicado")
-                        if (timerService && timerModel && timerModel.state === "running") {
-                            console.log("TimerFloatingPanel: Chamando pause()")
-                            timerService.pause()
+                        if (floatingWindow.timerService && floatingWindow.timerModel && floatingWindow.timerModel.state === "running") {
+                            floatingWindow.timerService.pause()
                         }
                     }
                 }
-                
+
                 Controls.Button {
                     text: qsTr("Parar")
                     icon.name: "media-playback-stop"
                     Layout.fillWidth: true
-                    enabled: timerModel && timerModel.state !== "idle"
+                    enabled: floatingWindow.timerModel && floatingWindow.timerModel.state !== "idle"
                     onClicked: {
-                        console.log("TimerFloatingPanel: Botão Parar clicado")
-                        if (timerService) {
-                            console.log("TimerFloatingPanel: Chamando stop()")
-                            timerService.stop()
+                        if (floatingWindow.timerService) {
+                            floatingWindow.timerService.stop()
                         }
                         // Fechar janela após parar
                         floatingWindow.visible = false

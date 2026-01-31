@@ -4,7 +4,6 @@
  * Atalhos globais: Ctrl+Enter (ação da aba), Esc (esconder), Ctrl+Tab, Ctrl+Shift+Tab.
  */
 import QtQuick
-import QtQuick.Controls
 
 Item {
     id: root

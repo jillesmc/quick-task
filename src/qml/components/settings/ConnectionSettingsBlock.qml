@@ -19,7 +19,7 @@ Rectangle {
 
     implicitHeight: connectionBlock.implicitHeight + (Kirigami.Units.largeSpacing * 2)
     color: Kirigami.Theme.backgroundColor || "#f0f0f0"
-    border.color: Kirigami.Theme.separatorColor || "#d0d0d0"
+    border.color: Kirigami.Theme.textColor || "#d0d0d0"
     border.width: 1
     radius: Kirigami.Units.smallSpacing
 
@@ -46,8 +46,8 @@ Rectangle {
             Layout.fillWidth: true
             placeholderText: qsTr("https://seu-projeto.atlassian.net")
             onTextChanged: {
-                if (settingsModel) {
-                    settingsModel.jiraBaseUrl = text.trim();
+                if (root.settingsModel) {
+                    root.settingsModel.jiraBaseUrl = text.trim();
                 }
             }
         }
@@ -64,8 +64,8 @@ Rectangle {
             placeholderText: qsTr("seu-email@exemplo.com")
             inputMethodHints: Qt.ImhEmailCharactersOnly
             onTextChanged: {
-                if (settingsModel) {
-                    settingsModel.jiraEmail = text.trim();
+                if (root.settingsModel) {
+                    root.settingsModel.jiraEmail = text.trim();
                 }
             }
         }
@@ -82,8 +82,8 @@ Rectangle {
             echoMode: TextInput.Password
             placeholderText: qsTr("Digite seu token de API")
             onTextChanged: {
-                if (settingsModel) {
-                    settingsModel.jiraApiToken = text;
+                if (root.settingsModel) {
+                    root.settingsModel.jiraApiToken = text;
                 }
             }
         }
@@ -116,7 +116,7 @@ Rectangle {
     }
 
     Connections {
-        target: settingsModel || null
+        target: root.settingsModel || null
         function onAccountIdFetched(accountId) {
             accountIdLabel.text = accountId;
             accountIdLabel.color = Kirigami.Theme.positiveTextColor;
@@ -140,11 +140,11 @@ Rectangle {
     }
 
     Component.onCompleted: {
-        if (settingsModel) {
-            urlField.text = settingsModel.jiraBaseUrl || "";
-            emailField.text = settingsModel.jiraEmail || "";
-            tokenField.text = settingsModel.jiraApiToken || "";
-            var accountId = settingsModel.accountId;
+        if (root.settingsModel) {
+            urlField.text = root.settingsModel.jiraBaseUrl || "";
+            emailField.text = root.settingsModel.jiraEmail || "";
+            tokenField.text = root.settingsModel.jiraApiToken || "";
+            var accountId = root.settingsModel.accountId;
             accountIdLabel.text = accountId && accountId.length > 0 ? accountId : qsTr("Não configurado");
         }
     }

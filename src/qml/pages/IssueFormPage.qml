@@ -11,7 +11,6 @@ import QtQuick.Controls as Controls
 import org.kde.kirigami as Kirigami
 import "../components/forms"
 import "../components/controls"
-import "../controllers"
 import "../utils/DialogHelpers.js" as DialogHelpers
 
 Kirigami.Page {
@@ -37,9 +36,12 @@ Kirigami.Page {
     // Controller para lógica de negócio
     property var controller: null
 
-    // Intermediário para evitar binding loop ao passar context property ao IssueMetadataFields
-    property var _ctxIssueModel: issueModel
-    property var _ctxJiraService: jiraService
+    // Recebidos do Main (passados explicitamente)
+    property var issueModel: null
+    property var jiraService: null
+    property var hideWindowFn: null
+    property var timerService: null
+    property var timerModel: null
 
     // ------------------------------------------------------------------
     // Funções públicas para integração com Main.qml (botão global)
@@ -57,11 +59,9 @@ Kirigami.Page {
     // Esconde a janela ao invés de fechar a aplicação
     function onCancelRequested() {
         if (!page.isProcessing) {
-            if (typeof hideWindow === "function") {
-                hideWindow();  // Esconde a janela (minimiza ao tray)
+            if (page.hideWindowFn && typeof page.hideWindowFn === "function") {
+                page.hideWindowFn(); // qmllint disable use-proper-function
             }
-            // Se hideWindow não estiver disponível, não fazer nada
-            // (a aplicação deve estar configurada corretamente)
         }
     }
 
@@ -78,22 +78,22 @@ Kirigami.Page {
 
     // Definir foco inicial no campo Summary quando a página for carregada
     Component.onCompleted: {
-        page.summaryField.forceActiveFocus();
+        summaryField.forceActiveFocus();
 
         // Inicializar worklog com data/hora atual se não estiver definido
-        if (page._ctxIssueModel && (!page._ctxIssueModel.worklogInicio || page._ctxIssueModel.worklogInicio === "")) {
+        if (page.issueModel && (!page.issueModel.worklogInicio || page.issueModel.worklogInicio === "")) {
             var now = new Date();
             var dateStr = Qt.formatDateTime(now, "yyyy-MM-dd");
             var timeStr = Qt.formatDateTime(now, "HH:mm:ss");
-            page._ctxIssueModel.worklogInicio = dateStr + " " + timeStr;
+            page.issueModel.worklogInicio = dateStr + " " + timeStr;
         }
 
         // Criar controller
         var component = Qt.createComponent("../controllers/IssueFormController.qml");
         if (component.status === Component.Ready) {
             page.controller = component.createObject(page, {
-                jiraService: page._ctxJiraService,
-                issueModel: page._ctxIssueModel,
+                jiraService: page.jiraService,
+                issueModel: page.issueModel,
                 enabled: true
             });
 
@@ -107,7 +107,7 @@ Kirigami.Page {
                 page.isProcessing = false;
                 DialogHelpers.hideProgress(page.progressDialog);
                 page.progressDialog = null;
-                DialogHelpers.showSuccess(page, "../components/dialogs/SuccessDialog.qml", issueKey, issueUrl || "", false);
+                DialogHelpers.showSuccess(page, "../components/dialogs/SuccessDialog.qml", issueKey, issueUrl || "", false, page.timerService, page.timerModel);
                 page.resetForm();
                 page.issueCreated(issueKey);
             });
@@ -123,7 +123,7 @@ Kirigami.Page {
 
     // Conectar signals do jiraService para progresso
     Connections {
-        target: page._ctxJiraService
+        target: page.jiraService
 
         function onProgressUpdated(percentage, message) {
             if (page.progressDialog) {
@@ -188,9 +188,9 @@ Kirigami.Page {
                             Controls.TextField {
                                 id: summaryField
                                 Layout.fillWidth: true
-                                enabled: !isProcessing
-                                text: page._ctxIssueModel ? page._ctxIssueModel.summary : ""
-                                onTextChanged: if (page._ctxIssueModel) page._ctxIssueModel.summary = text
+                                enabled: !page.isProcessing
+                                text: page.issueModel ? page.issueModel.summary : ""
+                                onTextChanged: if (page.issueModel) page.issueModel.summary = text
                             }
                         }
 
@@ -217,9 +217,9 @@ Kirigami.Page {
                                     id: descriptionField
                                     width: descriptionScrollView.availableWidth
                                     wrapMode: Controls.TextArea.Wrap
-                                    enabled: !isProcessing
-                                    text: page._ctxIssueModel ? page._ctxIssueModel.description : ""
-                                    onTextChanged: if (page._ctxIssueModel) page._ctxIssueModel.description = text
+                                    enabled: !page.isProcessing
+                                    text: page.issueModel ? page.issueModel.description : ""
+                                    onTextChanged: if (page.issueModel) page.issueModel.description = text
                                 }
                             }
                         }
@@ -253,33 +253,33 @@ Kirigami.Page {
                                 id: epicSearchForm
                                 Layout.fillWidth: true
                                 Layout.fillHeight: true
-                                enabled: !isProcessing
+                                enabled: !page.isProcessing
 
                                 Binding {
-                                    target: page.epicSearchForm
+                                    target: epicSearchForm
                                     property: "jiraService"
-                                    value: typeof jiraService !== "undefined" ? jiraService : null
-                                    when: typeof jiraService !== "undefined"
+                                    value: typeof page.jiraService !== "undefined" ? page.jiraService : null
+                                    when: typeof page.jiraService !== "undefined"
                                 }
 
                                 Binding {
-                                    target: page._ctxIssueModel
+                                    target: page.issueModel
                                     property: "epicParentKey"
-                                    value: page.epicSearchForm.selectedEpicKey
-                                    when: page._ctxIssueModel
+                                    value: epicSearchForm.selectedEpicKey
+                                    when: page.issueModel
                                 }
 
                                 Binding {
-                                    target: page._ctxIssueModel
+                                    target: page.issueModel
                                     property: "epicParentSummary"
-                                    value: page.epicSearchForm.selectedEpicSummary
-                                    when: page._ctxIssueModel
+                                    value: epicSearchForm.selectedEpicSummary
+                                    when: page.issueModel
                                 }
 
                                 onEpicSelected: function (key, summary) {
-                                    if (page._ctxIssueModel) {
-                                        page._ctxIssueModel.epicParentKey = key;
-                                        page._ctxIssueModel.epicParentSummary = summary;
+                                    if (page.issueModel) {
+                                        page.issueModel.epicParentKey = key;
+                                        page.issueModel.epicParentSummary = summary;
                                     }
                                     page.epicSelected(key, summary);
                                 }
@@ -287,38 +287,38 @@ Kirigami.Page {
                                 onEpicCleared: {
                                     page.sharedEpicKey = "";
                                     page.sharedEpicSummary = "";
-                                    if (page._ctxIssueModel) {
-                                        page._ctxIssueModel.epicParentKey = "";
-                                        page._ctxIssueModel.epicParentSummary = "";
+                                    if (page.issueModel) {
+                                        page.issueModel.epicParentKey = "";
+                                        page.issueModel.epicParentSummary = "";
                                     }
                                 }
 
                                 Binding {
-                                    target: page.epicSearchForm
+                                    target: epicSearchForm
                                     property: "selectedEpicKey"
                                     value: page.sharedEpicKey
                                     when: page.sharedEpicKey !== ""
                                 }
 
                                 Binding {
-                                    target: page.epicSearchForm
+                                    target: epicSearchForm
                                     property: "selectedEpicSummary"
                                     value: page.sharedEpicSummary
                                     when: page.sharedEpicSummary !== ""
                                 }
 
                                 Binding {
-                                    target: page.epicSearchForm
+                                    target: epicSearchForm
                                     property: "selectedEpicKey"
-                                    value: page._ctxIssueModel ? page._ctxIssueModel.epicParentKey : ""
-                                    when: page._ctxIssueModel
+                                    value: page.issueModel ? page.issueModel.epicParentKey : ""
+                                    when: page.issueModel
                                 }
 
                                 Binding {
-                                    target: page.epicSearchForm
+                                    target: epicSearchForm
                                     property: "selectedEpicSummary"
-                                    value: page._ctxIssueModel ? page._ctxIssueModel.epicParentSummary : ""
-                                    when: page._ctxIssueModel
+                                    value: page.issueModel ? page.issueModel.epicParentSummary : ""
+                                    when: page.issueModel
                                 }
                             }
                         }
@@ -359,11 +359,11 @@ Kirigami.Page {
                             id: worklogCheckbox
                             text: qsTr("Registrar worklog")
                             Layout.fillWidth: true
-                            enabled: !isProcessing
-                            checked: page._ctxIssueModel ? page._ctxIssueModel.registrarWorklog : false
+                            enabled: !page.isProcessing
+                            checked: page.issueModel ? page.issueModel.registrarWorklog : false
                             onCheckedChanged: {
-                                if (page._ctxIssueModel) {
-                                    page._ctxIssueModel.registrarWorklog = checked;
+                                if (page.issueModel) {
+                                    page.issueModel.registrarWorklog = checked;
                                 }
                             }
                         }
@@ -371,53 +371,54 @@ Kirigami.Page {
                         // WorklogForm (oculto quando checkbox não está marcado)
                         WorklogForm {
                             id: worklogForm
+                            jiraService: page.jiraService
                             Layout.fillWidth: true
-                            enabled: !isProcessing && worklogCheckbox.checked
+                            enabled: !page.isProcessing && worklogCheckbox.checked
                             visible: worklogCheckbox.checked
                             showCheckbox: false  // Não mostrar checkbox aqui, já temos acima
 
                             // Bindings bidirecionais com issueModel
                             Binding {
-                                target: page._ctxIssueModel
+                                target: page.issueModel
                                 property: "worklogInicio"
-                                value: page.worklogForm.date && page.worklogForm.time ? page.worklogForm.date + " " + page.worklogForm.time : ""
-                                when: page._ctxIssueModel && page.worklogForm.date && page.worklogForm.time
+                                value: worklogForm.date && worklogForm.time ? worklogForm.date + " " + worklogForm.time : ""
+                                when: page.issueModel && worklogForm.date && worklogForm.time
                             }
 
                             Binding {
-                                target: page._ctxIssueModel
+                                target: page.issueModel
                                 property: "worklogDuracao"
-                                value: Math.round(page.worklogForm.duration)
-                                when: page._ctxIssueModel
+                                value: Math.round(worklogForm.duration)
+                                when: page.issueModel
                             }
 
                             Binding {
-                                target: page._ctxIssueModel
+                                target: page.issueModel
                                 property: "worklogComment"
-                                value: page.worklogForm.comment
-                                when: page._ctxIssueModel
+                                value: worklogForm.comment
+                                when: page.issueModel
                             }
 
                             // Binding reverso para inicializar campos
                             Component.onCompleted: {
-                                if (page._ctxIssueModel && page._ctxIssueModel.worklogInicio) {
-                                    var parts = page._ctxIssueModel.worklogInicio.split(" ");
+                                if (page.issueModel && page.issueModel.worklogInicio) {
+                                    var parts = page.issueModel.worklogInicio.split(" ");
                                     if (parts.length >= 2) {
-                                        page.worklogForm.date = parts[0];
-                                        page.worklogForm.time = parts[1];
+                                        worklogForm.date = parts[0];
+                                        worklogForm.time = parts[1];
                                     }
                                 }
-                                if (page._ctxIssueModel) {
-                                    page.worklogForm.duration = page._ctxIssueModel.worklogDuracao || 30;
-                                    page.worklogForm.comment = page._ctxIssueModel.worklogComment || "";
+                                if (page.issueModel) {
+                                    worklogForm.duration = page.issueModel.worklogDuracao || 30;
+                                    worklogForm.comment = page.issueModel.worklogComment || "";
                                 }
                             }
                         }
 
                         IssueMetadataFields {
                             Layout.fillWidth: true
-                            issueModel: page._ctxIssueModel
-                            enabled: !isProcessing
+                            issueModel: page.issueModel
+                            enabled: !page.isProcessing
                         }
 
                         // Espaço extra no final para não "comer" o último campo
@@ -486,53 +487,53 @@ Kirigami.Page {
     // Funções auxiliares
     function resetForm() {
         // Resetar campos para valores padrão
-        if (page._ctxIssueModel) {
-            page._ctxIssueModel.summary = "";
-            page._ctxIssueModel.description = "";
+        if (page.issueModel) {
+            page.issueModel.summary = "";
+            page.issueModel.description = "";
 
             // Tipo de atividade padrão
             var defaultTipo = "Suporte Dúvidas/Suporte uso incorreto";
-            var tipoValues = page._ctxIssueModel.tipoAtividadeValues;
+            var tipoValues = page.issueModel.tipoAtividadeValues;
             if (tipoValues.indexOf(defaultTipo) >= 0) {
-                page._ctxIssueModel.tipoAtividade = defaultTipo;
+                page.issueModel.tipoAtividade = defaultTipo;
             } else if (tipoValues.length > 0) {
-                page._ctxIssueModel.tipoAtividade = tipoValues[0];
+                page.issueModel.tipoAtividade = tipoValues[0];
             }
 
             // Status inicial padrão
-            if (page._ctxIssueModel.statusSequence && page._ctxIssueModel.statusSequence.length > 0) {
-                page._ctxIssueModel.statusInicial = page._ctxIssueModel.statusSequence[0];
+            if (page.issueModel.statusSequence && page.issueModel.statusSequence.length > 0) {
+                page.issueModel.statusInicial = page.issueModel.statusSequence[0];
             }
 
             // Valores padrão
-            page._ctxIssueModel.documentacaoAnexa = "Não";
-            page._ctxIssueModel.utilizacaoIA = "Não";
+            page.issueModel.documentacaoAnexa = "Não";
+            page.issueModel.utilizacaoIA = "Não";
 
             // Resetar Valor Entregue e Plataformas afetadas
-            var valorEntregueValues = page._ctxIssueModel.valorEntregueValues;
+            var valorEntregueValues = page.issueModel.valorEntregueValues;
             if (valorEntregueValues && valorEntregueValues.length > 0) {
-                page._ctxIssueModel.valorEntregue = valorEntregueValues[0];
+                page.issueModel.valorEntregue = valorEntregueValues[0];
             } else {
-                page._ctxIssueModel.valorEntregue = "";
+                page.issueModel.valorEntregue = "";
             }
-            page._ctxIssueModel.plataformasAfetadas = [];
+            page.issueModel.plataformasAfetadas = [];
 
             // Limpar Epic Parent
-            page._ctxIssueModel.epicParentKey = "";
-            page._ctxIssueModel.epicParentSummary = "";
-            if (page.epicSearchForm) {
-                page.epicSearchForm.reset();
+            page.issueModel.epicParentKey = "";
+            page.issueModel.epicParentSummary = "";
+            if (epicSearchForm) {
+                epicSearchForm.reset();
             }
 
             // Resetar worklog
-            page._ctxIssueModel.registrarWorklog = false;
+            page.issueModel.registrarWorklog = false;
             var now = new Date();
             var dateStr = Qt.formatDateTime(now, "yyyy-MM-dd");
             var timeStr = Qt.formatDateTime(now, "HH:mm:ss");
-            page._ctxIssueModel.worklogInicio = dateStr + " " + timeStr;
-            page._ctxIssueModel.worklogDuracao = 30;
-            if (page.worklogForm) {
-                page.worklogForm.reset();
+            page.issueModel.worklogInicio = dateStr + " " + timeStr;
+            page.issueModel.worklogDuracao = 30;
+            if (worklogForm) {
+                worklogForm.reset();
             }
         }
     }

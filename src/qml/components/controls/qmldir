@@ -1,3 +1,5 @@
 IssueMetadataFields IssueMetadataFields.qml
+IssueRadioGroup IssueRadioGroup.qml
+IssueCheckList IssueCheckList.qml
 DividerBar DividerBar.qml
 SplitViewHandle SplitViewHandle.qml

@@ -8,6 +8,8 @@ services:
       - pip-cache:/tmp/pip-cache
       - ./dev-tools:/mnt/dev-tools  # Volume para exportar ferramentas Qt6/KF6
     environment:
+      - LANG=C.UTF-8
+      - LC_ALL=C.UTF-8
       - QT_QPA_PLATFORM=offscreen
       - DISPLAY=:99
       - HOME=/tmp/dev-home

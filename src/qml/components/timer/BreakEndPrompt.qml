@@ -1,6 +1,7 @@
+pragma ComponentBehavior: Bound
 /**
  * BreakEndPrompt.qml
- * 
+ *
  * Componente de questionamento quando a pausa termina
  */
 import QtQuick
@@ -10,7 +11,10 @@ import org.kde.kirigami as Kirigami
 
 Item {
     id: root
-    
+
+    property var timerService: null
+    property var hideWindow: null
+
     Rectangle {
         anchors.fill: parent
         color: Kirigami.Theme.backgroundColor || "#f0f0f0"
@@ -38,9 +42,8 @@ Item {
                 Controls.ToolButton {
                     icon.name: "window-minimize"
                     onClicked: {
-                        // Minimizar ao tray (esconder janela)
-                        if (hideWindow && typeof hideWindow.hide === "function") {
-                            hideWindow.hide()
+                        if (root.hideWindow && typeof root.hideWindow.hide === "function") {
+                            root.hideWindow.hide()
                         }
                     }
                 }
@@ -78,20 +81,20 @@ Item {
                     Layout.fillWidth: true
                     Layout.preferredHeight: 50
                     onClicked: {
-                        if (timerService) {
-                            timerService.continueAfterBreak()
+                        if (root.timerService) {
+                            root.timerService.continueAfterBreak()
                         }
                     }
                 }
-                
+
                 Controls.Button {
                     text: qsTr("Parar")
                     icon.name: "media-playback-stop"
                     Layout.fillWidth: true
                     Layout.preferredHeight: 50
                     onClicked: {
-                        if (timerService) {
-                            timerService.stopAfterBreak()
+                        if (root.timerService) {
+                            root.timerService.stopAfterBreak()
                         }
                     }
                 }

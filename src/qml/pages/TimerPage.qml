@@ -19,23 +19,36 @@ Kirigami.Page {
     property string selectedIssueKey: ""
     property var pendingWorklogs: []
 
+    // Context properties são injetadas pelo Python - não podem ser qualificadas
+    property var _ctxTimerModel: timerModel // qmllint disable unqualified
+    property var _ctxTimerService: timerService // qmllint disable unqualified
+    property var _ctxWorklogSyncService: worklogSyncService // qmllint disable unqualified
+    property var _ctxSettingsModel: settingsModel // qmllint disable unqualified
+    property var _ctxNotificationService: notificationService // qmllint disable unqualified
+
+    // Property aliases para expor propriedades aos componentes filhos
+    property alias timerModel: page._ctxTimerModel
+    property alias timerService: page._ctxTimerService
+    property alias worklogSyncService: page._ctxWorklogSyncService
+    property alias settingsModel: page._ctxSettingsModel
+
     // Propriedade calculada que reage às mudanças de estado
     property bool hasActiveTimer: {
-        if (!timerModel)
+        if (!page._ctxTimerModel)
             return false;
-        var state = timerModel.state;
+        var state = page._ctxTimerModel.state;
         return state === "running" || state === "paused";
     }
 
     // Conectar mudanças de estado do timer
     Connections {
         id: timerModelConnections
-        target: timerModel || null
+        target: page._ctxTimerModel || null
 
         function onStateChanged() {
-            if (timerModel) {
-                console.log("TimerPage: Estado do timer mudou para:", timerModel.state);
-                console.log("TimerPage: hasActiveTimer agora é:", hasActiveTimer);
+            if (page._ctxTimerModel) {
+                console.log("TimerPage: Estado do timer mudou para:", page._ctxTimerModel.state);
+                console.log("TimerPage: hasActiveTimer agora é:", page.hasActiveTimer);
             }
         }
 
@@ -44,8 +57,8 @@ Kirigami.Page {
         }
 
         function onIssueKeyChanged() {
-            if (timerModel) {
-                console.log("TimerPage: Issue key mudou para:", timerModel.issueKey);
+            if (page._ctxTimerModel) {
+                console.log("TimerPage: Issue key mudou para:", page._ctxTimerModel.issueKey);
             }
         }
     }
@@ -53,13 +66,13 @@ Kirigami.Page {
     // Conectar sinais do worklog sync service
     Connections {
         id: worklogSyncConnections
-        target: worklogSyncService || null
+        target: page._ctxWorklogSyncService || null
 
         function onSyncCompleted(count) {
             // Atualizar lista quando sincronização for concluída
-            if (worklogSyncService) {
-                pendingWorklogs = worklogSyncService.get_pending_worklogs();
-                console.log("TimerPage: Lista atualizada após sincronização, worklogs pendentes:", pendingWorklogs.length);
+            if (page._ctxWorklogSyncService) {
+                page.pendingWorklogs = page._ctxWorklogSyncService.get_pending_worklogs();
+                console.log("TimerPage: Lista atualizada após sincronização, worklogs pendentes:", page.pendingWorklogs.length);
             }
         }
     }
@@ -67,7 +80,7 @@ Kirigami.Page {
     // Conectar sinais do timer
     Connections {
         id: timerServiceConnections
-        target: timerService || null
+        target: page._ctxTimerService || null
 
         function onTick(seconds) {
             // Timer atualizado - o binding do QML já atualiza o display
@@ -89,22 +102,22 @@ Kirigami.Page {
         console.log("TimerPage: ========================================");
         console.log("TimerPage: Component.onCompleted EXECUTADO!");
         console.log("TimerPage: Página Timer foi carregada");
-        console.log("TimerPage: timerService disponível:", !!timerService);
-        console.log("TimerPage: timerModel disponível:", !!timerModel);
-        console.log("TimerPage: notificationService disponível:", !!notificationService);
-        console.log("TimerPage: settingsModel disponível:", !!settingsModel);
+        console.log("TimerPage: timerService disponível:", !!page._ctxTimerService);
+        console.log("TimerPage: timerModel disponível:", !!page._ctxTimerModel);
+        console.log("TimerPage: notificationService disponível:", !!page._ctxNotificationService);
+        console.log("TimerPage: settingsModel disponível:", !!page._ctxSettingsModel);
 
-        if (timerModel) {
-            console.log("TimerPage: Estado inicial do timer:", timerModel.state);
-            console.log("TimerPage: Issue key inicial:", timerModel.issueKey);
-            console.log("TimerPage: Elapsed seconds inicial:", timerModel.elapsedSeconds);
+        if (page._ctxTimerModel) {
+            console.log("TimerPage: Estado inicial do timer:", page._ctxTimerModel.state);
+            console.log("TimerPage: Issue key inicial:", page._ctxTimerModel.issueKey);
+            console.log("TimerPage: Elapsed seconds inicial:", page._ctxTimerModel.elapsedSeconds);
         } else {
             console.error("TimerPage: timerModel NÃO está disponível!");
         }
 
-        if (timerService) {
+        if (page._ctxTimerService) {
             console.log("TimerPage: timerService está disponível");
-            console.log("TimerPage: timerService.start é função:", typeof timerService.start === "function");
+            console.log("TimerPage: timerService.start é função:", typeof page._ctxTimerService.start === "function");
         } else {
             console.error("TimerPage: timerService NÃO está disponível!");
         }
@@ -113,22 +126,22 @@ Kirigami.Page {
 
     // Conectar sinais do worklogSyncService para atualizar lista
     Connections {
-        target: worklogSyncService || null
+        target: page._ctxWorklogSyncService || null
 
         function onSyncCompleted(count) {
             console.log("TimerPage: Sincronização concluída, %d worklogs sincronizados", count);
             // Atualizar lista de worklogs pendentes
-            if (worklogSyncService) {
-                pendingWorklogs = worklogSyncService.get_pending_worklogs();
-                console.log("TimerPage: Lista atualizada após sincronização, worklogs pendentes:", pendingWorklogs.length);
+            if (page._ctxWorklogSyncService) {
+                page.pendingWorklogs = page._ctxWorklogSyncService.get_pending_worklogs();
+                console.log("TimerPage: Lista atualizada após sincronização, worklogs pendentes:", page.pendingWorklogs.length);
             }
         }
 
         function onSessionSynced(sessionId, jiraWorklogId) {
             console.log("TimerPage: Worklog sincronizado:", sessionId, "->", jiraWorklogId);
             // Atualizar lista imediatamente quando um worklog é sincronizado
-            if (worklogSyncService) {
-                pendingWorklogs = worklogSyncService.get_pending_worklogs();
+            if (page._ctxWorklogSyncService) {
+                page.pendingWorklogs = page._ctxWorklogSyncService.get_pending_worklogs();
             }
         }
     }
@@ -147,16 +160,16 @@ Kirigami.Page {
 
             TimerActiveBlock {
                 Layout.fillWidth: true
-                timerModel: page.timerModel
-                timerService: page.timerService
-                settingsModel: page.settingsModel
+                timerModel: page._ctxTimerModel
+                timerService: page._ctxTimerService
+                settingsModel: page._ctxSettingsModel
             }
 
             TimerStartBlock {
                 id: timerStartBlock
                 Layout.fillWidth: true
-                timerService: page.timerService
-                timerModel: page.timerModel
+                timerService: page._ctxTimerService
+                timerModel: page._ctxTimerModel
                 selectedIssueKey: page.selectedIssueKey
                 hasActiveTimer: page.hasActiveTimer
             }
@@ -176,7 +189,7 @@ Kirigami.Page {
 
             TimerStatsBlock {
                 Layout.fillWidth: true
-                timerModel: page.timerModel
+                timerModel: page._ctxTimerModel
             }
 
             // Separador
@@ -189,11 +202,11 @@ Kirigami.Page {
                 id: timerPendingBlock
                 Layout.fillWidth: true
                 pendingWorklogs: page.pendingWorklogs
-                worklogSyncService: page.worklogSyncService
+                worklogSyncService: page._ctxWorklogSyncService
 
                 onRefreshRequested: {
-                    if (worklogSyncService) {
-                        page.pendingWorklogs = worklogSyncService.get_pending_worklogs();
+                    if (page._ctxWorklogSyncService) {
+                        page.pendingWorklogs = page._ctxWorklogSyncService.get_pending_worklogs();
                     }
                 }
             }
