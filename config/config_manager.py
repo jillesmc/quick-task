@@ -96,6 +96,8 @@ class ConfigManager:
             debug_log(
                 "ConfigManager", "load_config", "Configuração carregada com sucesso"
             )
+            # Garantir que "assets" exista com object_type_id_* (evita ql_ve/ql_pa None no Flatpak)
+            self._ensure_assets_defaults()
         except json.JSONDecodeError as e:
             import sys
 
@@ -131,6 +133,76 @@ class ConfigManager:
                 )
                 print(f"Aviso: Configuração incompleta: {e}", file=sys.stderr)
                 # Continuar com config parcial
+
+    def _ensure_assets_defaults(self) -> None:
+        """
+        Garante que _config tenha "assets" com object_type_id_* quando ausentes,
+        para que a query AQL seja montada (evita ql_ve/ql_pa None no Flatpak
+        quando o config do usuário foi criado sem o bloco assets).
+        Só preenche em memória; não grava no disco (o usuário pode editar depois).
+        """
+        if "assets" not in self._config or not isinstance(self._config["assets"], dict):
+            self._config["assets"] = {
+                "cloud_id": None,
+                "object_type_id_valor_entregue": 434,
+                "object_type_id_plataformas_afetadas": 441,
+                "object_type_valor_entregue": None,
+                "object_type_plataformas_afetadas": None,
+            }
+            return
+        assets = self._config["assets"]
+        # Valor entregue: se nem ID nem nome estão preenchidos, usar ID padrão
+        if assets.get("object_type_id_valor_entregue") is None and not assets.get(
+            "object_type_valor_entregue"
+        ):
+            assets["object_type_id_valor_entregue"] = 434
+        # Plataformas: idem
+        if assets.get("object_type_id_plataformas_afetadas") is None and not assets.get(
+            "object_type_plataformas_afetadas"
+        ):
+            assets["object_type_id_plataformas_afetadas"] = 441
+
+    def save_config(self) -> bool:
+        """Persiste a configuração atual no arquivo JSON. Retorna True se salvou com sucesso."""
+        try:
+            self.config_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(self.config_path, "w", encoding="utf-8") as f:
+                json.dump(self._config, f, indent=2, ensure_ascii=False)
+            return True
+        except Exception:
+            return False
+
+    def set_custom_field(self, field_name: str, field_id: str) -> None:
+        """Define o ID de um campo customizado em custom_fields (em memória). Use save_config() para persistir."""
+        if "custom_fields" not in self._config:
+            self._config["custom_fields"] = {}
+        self._config["custom_fields"][field_name] = field_id
+
+    def set_assets_config(
+        self,
+        cloud_id: Optional[str] = None,
+        object_type_valor_entregue: Optional[str] = None,
+        object_type_plataformas_afetadas: Optional[str] = None,
+        object_type_id_valor_entregue: Optional[int] = None,
+        object_type_id_plataformas_afetadas: Optional[int] = None,
+    ) -> None:
+        """Define opções de Assets (em memória). Use save_config() para persistir."""
+        if "assets" not in self._config:
+            self._config["assets"] = {}
+        if cloud_id is not None:
+            self._config["assets"]["cloud_id"] = cloud_id
+        if object_type_valor_entregue is not None:
+            self._config["assets"]["object_type_valor_entregue"] = object_type_valor_entregue
+        if object_type_plataformas_afetadas is not None:
+            self._config["assets"]["object_type_plataformas_afetadas"] = (
+                object_type_plataformas_afetadas
+            )
+        if object_type_id_valor_entregue is not None:
+            self._config["assets"]["object_type_id_valor_entregue"] = object_type_id_valor_entregue
+        if object_type_id_plataformas_afetadas is not None:
+            self._config["assets"]["object_type_id_plataformas_afetadas"] = (
+                object_type_id_plataformas_afetadas
+            )
 
     def _validate_config(self) -> None:
         """Valida a estrutura básica da configuração"""
@@ -244,6 +316,57 @@ class ConfigManager:
     def get_plataformas_afetadas_values(self) -> List[str]:
         """Retorna a lista de valores para Plataformas afetadas"""
         return self._config.get("plataformas_afetadas_values", [])
+
+    def get_assets_cloud_id(self) -> Optional[str]:
+        """
+        Retorna o cloudId da instância Jira Cloud para chamadas à API de Assets em api.atlassian.com.
+        Opcional: se não configurado, a listagem de objetos Asset não será possível.
+        O usuário pode obter o cloudId via OAuth accessible-resources ou documentação Atlassian.
+        """
+        assets = self._config.get("assets") or {}
+        if isinstance(assets, dict):
+            return assets.get("cloud_id") or None
+        return None
+
+    def get_assets_object_type_valor_entregue(self) -> Optional[str]:
+        """Nome do object type AQL para Valor entregue (ex.: 'TipoValor'). Opcional."""
+        assets = self._config.get("assets") or {}
+        if isinstance(assets, dict):
+            return assets.get("object_type_valor_entregue") or None
+        return None
+
+    def get_assets_object_type_plataformas(self) -> Optional[str]:
+        """Nome do object type AQL para Plataformas afetadas (ex.: 'Plataforma'). Opcional."""
+        assets = self._config.get("assets") or {}
+        if isinstance(assets, dict):
+            return assets.get("object_type_plataformas_afetadas") or None
+        return None
+
+    def get_assets_object_type_id_valor_entregue(self) -> Optional[int]:
+        """ID do object type para Valor entregue (ex.: 434). Preferível ao nome, pois não muda se o nome for alterado."""
+        assets = self._config.get("assets") or {}
+        if not isinstance(assets, dict):
+            return None
+        val = assets.get("object_type_id_valor_entregue")
+        if val is None:
+            return None
+        try:
+            return int(val)
+        except (TypeError, ValueError):
+            return None
+
+    def get_assets_object_type_id_plataformas(self) -> Optional[int]:
+        """ID do object type para Plataformas afetadas (ex.: 441). Preferível ao nome."""
+        assets = self._config.get("assets") or {}
+        if not isinstance(assets, dict):
+            return None
+        val = assets.get("object_type_id_plataformas_afetadas")
+        if val is None:
+            return None
+        try:
+            return int(val)
+        except (TypeError, ValueError):
+            return None
 
     def get_timezone(self) -> str:
         """Retorna o timezone para worklog (default: America/Sao_Paulo)"""

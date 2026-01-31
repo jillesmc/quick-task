@@ -28,6 +28,13 @@
   ],
   "valor_entregue_values": ["Alto", "Médio", "Baixo"],
   "plataformas_afetadas_values": ["Web", "Mobile", "API", "Backend"],
+  "assets": {
+    "cloud_id": null,
+    "object_type_id_valor_entregue": 434,
+    "object_type_id_plataformas_afetadas": 441,
+    "object_type_valor_entregue": null,
+    "object_type_plataformas_afetadas": null
+  },
   "worklog_timezone": "America/Sao_Paulo",
   "worklog": {
     "retroactive_max_hours": 24,

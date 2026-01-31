@@ -6,7 +6,7 @@ Expõe propriedades observáveis para QML
 from pathlib import Path
 import sys
 from datetime import datetime
-from typing import Optional, List
+from typing import Any, Dict, List, Optional
 
 from PySide6.QtCore import QObject, Property, Signal, QDateTime, Slot  # type: ignore[import]
 
@@ -57,6 +57,8 @@ class IssueModel(QObject):
             print(f"Erro ao carregar configuração: {e}", file=sys.stderr)
             self._config = None
 
+        self._assets_cache: Any = None
+
         # Valores padrão
         self._summary = ""
         self._description = ""
@@ -76,10 +78,10 @@ class IssueModel(QObject):
         self._documentacaoAnexa = "Não"
         self._utilizacaoIA = "Não"
 
-        # Valor Entregue e Plataformas afetadas
+        # Valor Entregue e Plataformas afetadas (objectIds quando usar Assets; labels como fallback)
         valor_entregue_values = self.valorEntregueValues
         self._valorEntregue = valor_entregue_values[0] if valor_entregue_values else ""
-        self._plataformasAfetadas: List[str] = []
+        self._plataformasAfetadas: List[str] = []  # lista de objectIds quando usar Assets
 
         # Worklog padrão
         self._registrarWorklog = False
@@ -263,9 +265,17 @@ class IssueModel(QObject):
         self.documentacaoAnexa = "Não"
         self.utilizacaoIA = "Não"
 
-        # Resetar Valor Entregue e Plataformas afetadas
-        valor_entregue_values = self.valorEntregueValues
-        self.valorEntregue = valor_entregue_values[0] if valor_entregue_values else ""
+        # Resetar Valor Entregue e Plataformas afetadas (objectId quando usar Assets)
+        if self._assets_cache:
+            opts = self._assets_cache.get_valor_entregue_options()
+            first = opts[0] if opts else None
+            self.valorEntregue = (first.get("objectId", "") if isinstance(first, dict) else "") or ""
+        else:
+            try:
+                valor_entregue_values = self.valorEntregueValues
+                self.valorEntregue = valor_entregue_values[0] if valor_entregue_values else ""
+            except Exception:
+                self.valorEntregue = ""
         self.plataformasAfetadas = []
 
         # Resetar worklog
@@ -327,18 +337,97 @@ class IssueModel(QObject):
             self._plataformasAfetadas = value.copy() if value else []
             self.plataformasAfetadasChanged.emit(self._plataformasAfetadas)
 
-    # Propriedade: valorEntregueValues (read-only)
+    # Propriedade: valorEntregueValues (read-only) — labels para exibição (do cache de Assets ou config)
     @Property(list, notify=valorEntregueValuesChanged)
     def valorEntregueValues(self) -> List[str]:
-        """Retorna lista de valores para Valor Entregue"""
-        if self._config:
-            return self._config.get_valor_entregue_values()
+        """Retorna lista de labels para Valor Entregue (do cache de Assets ou config). Nunca levanta."""
+        try:
+            if self._assets_cache:
+                return self._assets_cache.get_valor_entregue_labels()
+            if self._config:
+                return self._config.get_valor_entregue_values() or []
+        except Exception:
+            pass
         return []
 
-    # Propriedade: plataformasAfetadasValues (read-only)
+    # Propriedade: plataformasAfetadasValues (read-only) — labels para exibição (do cache de Assets ou config)
     @Property(list, notify=plataformasAfetadasValuesChanged)
     def plataformasAfetadasValues(self) -> List[str]:
-        """Retorna lista de valores para Plataformas afetadas"""
-        if self._config:
-            return self._config.get_plataformas_afetadas_values()
+        """Retorna lista de labels para Plataformas afetadas (do cache de Assets ou config). Nunca levanta."""
+        try:
+            if self._assets_cache:
+                return self._assets_cache.get_plataformas_afetadas_labels()
+            if self._config:
+                return self._config.get_plataformas_afetadas_values() or []
+        except Exception:
+            pass
+        return []
+
+    def set_assets_cache(self, cache: Any) -> None:
+        """Define o serviço de cache de Assets (chamado pelo app após criar JiraService). Nunca levanta."""
+        try:
+            self._assets_cache = cache
+            if self._valorEntregue and cache:
+                opts = cache.get_valor_entregue_options()
+                for e in opts:
+                    if isinstance(e, dict) and e.get("label") == self._valorEntregue:
+                        self._valorEntregue = e.get("objectId", self._valorEntregue)
+                        break
+            if self._plataformasAfetadas and cache:
+                opts = cache.get_plataformas_afetadas_options()
+                label_to_id = {e.get("label"): e.get("objectId") for e in opts if isinstance(e, dict)}
+                self._plataformasAfetadas = [
+                    label_to_id.get(v, v) for v in self._plataformasAfetadas
+                ]
+            self.valorEntregueValuesChanged.emit()
+            self.plataformasAfetadasValuesChanged.emit()
+            self.valorEntregueOptionsChanged.emit()
+            self.plataformasAfetadasOptionsChanged.emit()
+            self.valorEntregueChanged.emit(self._valorEntregue)
+            self.plataformasAfetadasChanged.emit(self._plataformasAfetadas)
+        except Exception:
+            pass
+
+    @Slot()
+    def on_assets_cache_loaded(self) -> None:
+        """Chamado quando o cache de Assets é recarregado (emitir mudança nas listas)."""
+        self.valorEntregueValuesChanged.emit()
+        self.plataformasAfetadasValuesChanged.emit()
+        self.valorEntregueOptionsChanged.emit()
+        self.plataformasAfetadasOptionsChanged.emit()
+
+    # Opções no formato [{ value, label }] para UI (value = objectId quando Assets, senão label)
+    valorEntregueOptionsChanged = Signal()
+    plataformasAfetadasOptionsChanged = Signal()
+
+    @Property(list, notify=valorEntregueOptionsChanged)
+    def valorEntregueOptions(self) -> List[Dict[str, str]]:
+        """Retorna lista de opções para Valor Entregue: [{ value: objectId, label: label }]. Nunca levanta."""
+        try:
+            if self._assets_cache:
+                return [
+                    {"value": (e.get("objectId", "") if isinstance(e, dict) else ""), "label": (e.get("label", "") if isinstance(e, dict) else "")}
+                    for e in self._assets_cache.get_valor_entregue_options()
+                ]
+            if self._config:
+                vals = self._config.get_valor_entregue_values() or []
+                return [{"value": v, "label": v} for v in vals]
+        except Exception:
+            pass
+        return []
+
+    @Property(list, notify=plataformasAfetadasOptionsChanged)
+    def plataformasAfetadasOptions(self) -> List[Dict[str, str]]:
+        """Retorna lista de opções para Plataformas afetadas: [{ value: objectId, label: label }]. Nunca levanta."""
+        try:
+            if self._assets_cache:
+                return [
+                    {"value": (e.get("objectId", "") if isinstance(e, dict) else ""), "label": (e.get("label", "") if isinstance(e, dict) else "")}
+                    for e in self._assets_cache.get_plataformas_afetadas_options()
+                ]
+            if self._config:
+                vals = self._config.get_plataformas_afetadas_values() or []
+                return [{"value": v, "label": v} for v in vals]
+        except Exception:
+            pass
         return []

@@ -270,8 +270,8 @@ Kirigami.Page {
 
             Item {
                 width: leftScrollView.width
-                // Garante altura mínima da viewport para o ColumnLayout dar espaço ao IssueList (fillHeight)
-                implicitHeight: Math.max(leftScrollView.height, leftColumnLayout.implicitHeight)
+                // Garantir altura mínima = viewport para o list preencher o pane (evita espaço vazio abaixo da lista)
+                height: Math.max(leftColumnLayout.implicitHeight, leftScrollView.availableHeight)
 
                 ColumnLayout {
                     id: leftColumnLayout
@@ -304,6 +304,7 @@ Kirigami.Page {
                         id: issueListContainer
                         Layout.fillWidth: true
                         Layout.fillHeight: true
+                        Layout.minimumHeight: 200
 
                         IssueList {
                             id: issueList

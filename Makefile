@@ -67,8 +67,9 @@ help:
 	@echo ""
 	@echo "$(GREEN)Utilitários:$(RESET)"
 	@echo "  $(YELLOW)make clean$(RESET)    - Remove arquivos gerados (__pycache__, .pyc, .qmlc, etc)"
-	@echo "  $(YELLOW)make qml-lint$(RESET)  - Executa qmllint em todos os arquivos QML"
-	@echo "  $(YELLOW)make qml-lint FILES=\"arquivo1.qml arquivo2.qml\"$(RESET)  - Executa qmllint apenas nos arquivos especificados"
+	@echo "  $(YELLOW)make qml-lint$(RESET)    - Executa qmllint em todos os arquivos QML"
+	@echo "  $(YELLOW)make qml-lint FILES=\"...\"$(RESET)  - qmllint nos arquivos indicados"
+	@echo "  $(YELLOW)make python-lint$(RESET) - Verifica Python (ruff ou py_compile)"
 	@echo ""
 
 # ============================================================================
@@ -225,6 +226,16 @@ qml-lint: check-docker
 			QML_IMPORT_PATH=/usr/lib64/qt6/qml:/app/src/qml \
 			QT_QPA_PLATFORM=offscreen \
 			/usr/lib64/qt6/bin/qmllint $(FILES)" 2>&1 || true; \
+	fi
+
+.PHONY: python-lint
+python-lint:
+	@echo "$(CYAN)Verificando Python...$(RESET)"
+	@if command -v ruff >/dev/null 2>&1; then \
+		ruff check src/ config/ core/ 2>&1 && echo "$(GREEN)✓ ruff OK$(RESET)" || exit 1; \
+	else \
+		echo "$(YELLOW)ruff não instalado; usando py_compile$(RESET)"; \
+		python3 -m py_compile src/app.py config/config_manager.py core/jira_client.py 2>&1 && echo "$(GREEN)✓ py_compile OK$(RESET)" || exit 1; \
 	fi
 
 .PHONY: clean

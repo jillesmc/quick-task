@@ -13,20 +13,18 @@ from typing import Any, Dict, List, Optional
 
 from PySide6.QtCore import QObject, Property, Signal, Slot  # type: ignore[import]
 
-from src.utils.debug import debug_log
+from src.utils.debug import debug_log, get_debug_log_path
 
 
 # Helper para escrever logs de debug de forma segura
 def _write_debug_log(data: dict) -> None:
     """Escreve log de debug, criando diretório se necessário"""
     try:
-        log_path = Path(
-            "/home/jilles/data/projects/personal/jira-quick-task/.cursor/debug.log"
-        )
-        log_path.parent.mkdir(parents=True, exist_ok=True)
         import json
 
-        with open(log_path, "a") as f:
+        log_path = get_debug_log_path()
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(log_path, "a", encoding="utf-8") as f:
             f.write(f"{json.dumps(data)}\n")
     except Exception:
         pass  # Ignorar erros de logging para não quebrar a aplicação

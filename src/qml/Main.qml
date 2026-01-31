@@ -27,6 +27,11 @@ Kirigami.ApplicationWindow {
 
     // Inicializar Kirigami (ajuda a reduzir warnings)
     Component.onCompleted: {
+        // #region agent log
+        if (typeof debugLog !== "undefined" && debugLog && typeof debugLog.log === "function") {
+            debugLog.log("Main.qml:onCompleted", "start")
+        }
+        // #endregion
         Kirigami.Theme.inherit = true
 
         // Garantir que o header receba referências ao stack e às páginas após eles existirem
@@ -42,28 +47,30 @@ Kirigami.ApplicationWindow {
 
         // Verificar se precisa configurar antes de abrir
         Qt.callLater(function() {
+            // #region agent log
+            if (typeof debugLog !== "undefined" && debugLog && typeof debugLog.log === "function") {
+                debugLog.log("Main.qml:callLater2", "before set tab index")
+            }
+            // #endregion
             if (root.stack && root.tabBar && root._ctxSettingsModel) {
-                // Verificar se configuração está completa
-                // needsConfiguration verifica se arquivos existem E se valores estão preenchidos
                 if (root._ctxSettingsModel.needsConfiguration || !root._ctxSettingsModel.isConfigured) {
-                    // Não está configurado - abrir na aba de Configuração (índice 3)
                     root.stack.currentIndex = 3
                     root.tabBar.currentIndex = 3
+                    if (typeof debugLog !== "undefined" && debugLog && typeof debugLog.log === "function") {
+                        debugLog.log("Main.qml:callLater2", "set index 3")
+                    }
                 } else {
-                    // Está configurado - abrir na primeira aba (Criar Issue, índice 0)
-                    root.stack.currentIndex = 0
-                    root.tabBar.currentIndex = 0
+                    // Só alterar índice se não for já 0 (evitar setar stack+tabBar em sequência que pode disparar SIGABRT no Flatpak/Kirigami)
+                    if (root.tabBar.currentIndex !== 0) {
+                        root.tabBar.currentIndex = 0
+                    }
+                    if (typeof debugLog !== "undefined" && debugLog && typeof debugLog.log === "function") {
+                        debugLog.log("Main.qml:callLater2", "set index 0 or skip")
+                    }
                 }
-            } else {
-                // Se settingsModel não estiver disponível, abrir na primeira aba por padrão
-                if (root.stack && root.tabBar) {
-                    root.stack.currentIndex = 0
-                    root.tabBar.currentIndex = 0
-                }
+            } else if (root.stack && root.tabBar && root.tabBar.currentIndex !== 0) {
+                root.tabBar.currentIndex = 0
             }
-
-            // Janela flutuante do timer agora é gerenciada pelo Python (app.py)
-            // Não precisa criar aqui
         })
     }
 
@@ -78,10 +85,8 @@ Kirigami.ApplicationWindow {
     property var _ctxWorklogSyncService: worklogSyncService // qmllint disable unqualified
     property var hideWindowFn: hideWindow // qmllint disable unqualified
 
-    // Header customizado com TabBar e botão global dinâmico
     header: MainHeader {
         id: mainHeader
-        stack: stack
         createPage: createPage
         issuesPage: issuesPage
         settingsPage: settingsPage
@@ -106,7 +111,6 @@ Kirigami.ApplicationWindow {
     StackLayout {
         id: stackLayout
         anchors.fill: parent
-        // Sincronizar com TabBar
         currentIndex: root.tabBar.currentIndex
 
         // Índice 0: Criar Issue
@@ -169,31 +173,16 @@ Kirigami.ApplicationWindow {
         }
     }
 
-    // Sincronizar TabBar com StackLayout quando mudar de aba
     Connections {
         target: root.tabBar
         function onCurrentIndexChanged() {
-            console.log("Main.qml: TabBar mudou para índice:", root.tabBar.currentIndex)
             root.stack.currentIndex = root.tabBar.currentIndex
-            console.log("Main.qml: StackLayout mudou para índice:", root.stack.currentIndex)
-
-            // Recarregar worklogs automaticamente quando a aba de worklogs for selecionada
-            // Índice 2 corresponde à aba de Worklogs
             if (root.tabBar.currentIndex === 2 && pendingWorklogsPage) {
-                console.log("Main.qml: Aba de worklogs selecionada, recarregando worklogs...")
                 pendingWorklogsPage.reloadWorklogs()
             }
         }
     }
-    
-    Connections {
-        target: root.stack
-        function onCurrentIndexChanged() {
-            console.log("Main.qml: StackLayout mudou para índice:", root.stack.currentIndex)
-        }
-    }
 
-    // Atalhos globais (após stack/tabBar existirem para Ctrl+Tab funcionar)
     Shortcuts {
         id: shortcuts
         stack: root.stack

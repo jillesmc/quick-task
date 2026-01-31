@@ -2,9 +2,9 @@ pragma ComponentBehavior: Bound
 /**
  * IssueCheckList.qml
  *
- * Lista de checkboxes a partir de um model (array de {col1, col2}).
- * Recebe model, enabled, selectedValues (array de col1); emite selectionChanged(values).
- * Não referencia hierarquia externa - apenas propriedades passadas.
+ * Lista de checkboxes a partir de um model (array de { value, label } ou { col1, col2 }).
+ * value/col1 é o identificador (ex.: objectId); label/col2 é exibido.
+ * Recebe model, enabled, selectedValues (array de value); emite selectionChanged(values).
  */
 import QtQuick
 import QtQuick.Layouts
@@ -16,11 +16,25 @@ ColumnLayout {
 
     property var model: []
     property bool enabled: true
-    property var selectedValues: []  // array of col1 strings
+    property var selectedValues: []  // array of value strings (e.g. objectIds)
 
     signal selectionChanged(var values)
 
     spacing: Kirigami.Units.smallSpacing
+
+    function itemValue(data) {
+        if (!data) return ""
+        if (typeof data.value !== "undefined") return String(data.value)
+        if (typeof data.col1 !== "undefined") return String(data.col1)
+        return String(data)
+    }
+    function itemLabel(data) {
+        if (!data) return ""
+        if (typeof data.label !== "undefined") return String(data.label)
+        if (typeof data.col2 !== "undefined") return String(data.col2)
+        if (typeof data.col1 !== "undefined") return String(data.col1)
+        return String(data)
+    }
 
     ListView {
         id: listView
@@ -37,36 +51,22 @@ ColumnLayout {
             enabled: checkList.enabled
             checked: {
                 var vals = checkList.selectedValues || []
-                return vals.indexOf(checkDelegate.modelData.col1) >= 0
+                return vals.indexOf(checkList.itemValue(checkDelegate.modelData)) >= 0
             }
 
-            contentItem: RowLayout {
-                spacing: Kirigami.Units.largeSpacing
-                Controls.Label {
-                    text: checkDelegate.modelData.col1 || ""
-                    font.bold: true
-                    Layout.preferredWidth: 150
-                }
-                Controls.Label {
-                    text: checkDelegate.modelData.col2 || ""
-                    font.italic: true
-                    opacity: 0.7
-                    Layout.fillWidth: true
-                }
+            contentItem: Controls.Label {
+                text: checkList.itemLabel(checkDelegate.modelData)
+                font.bold: true
             }
 
             onCheckedChanged: {
                 var vals = (checkList.selectedValues || []).slice()
-                var col1 = checkDelegate.modelData.col1
-                var idx = vals.indexOf(col1)
+                var v = checkList.itemValue(checkDelegate.modelData)
+                var idx = vals.indexOf(v)
                 if (checked) {
-                    if (idx < 0) {
-                        vals.push(col1)
-                    }
+                    if (idx < 0) vals.push(v)
                 } else {
-                    if (idx >= 0) {
-                        vals.splice(idx, 1)
-                    }
+                    if (idx >= 0) vals.splice(idx, 1)
                 }
                 checkList.selectionChanged(vals)
             }

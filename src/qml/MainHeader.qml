@@ -23,7 +23,6 @@ RowLayout {
     property var timerModel: null
     property var timerService: null
 
-    // Espelha o índice da aba atual para bindings de visible/enabled rastrearem corretamente
     property int currentTabIndex: stack ? stack.currentIndex : -1
 
     width: parent ? parent.width : 0

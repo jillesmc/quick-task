@@ -233,6 +233,159 @@ class JiraClient:
                 f"Erro de rede ao fazer requisição {method} {endpoint}: {str(e)}"
             ) from e
 
+    def _request_raw(
+        self,
+        method: str,
+        url: str,
+        json_data: Optional[Dict[str, Any]] = None,
+        params: Optional[Dict[str, Any]] = None,
+        timeout: int = 30,
+    ) -> requests.Response:
+        """
+        Faz requisição HTTP para uma URL absoluta (mesmo auth que REST API).
+        Usado para servicedeskapi e api.atlassian.com.
+        """
+        auth = self._get_auth()
+        headers = {"Accept": "application/json", "Content-Type": "application/json"}
+        response = requests.request(
+            method,
+            url,
+            json=json_data,
+            params=params,
+            auth=auth,
+            headers=headers,
+            timeout=timeout,
+        )
+        if response.status_code >= 400:
+            error_msg = response.text or f"HTTP {response.status_code}"
+            try:
+                err_json = response.json()
+                if "errorMessages" in err_json:
+                    error_msg = "; ".join(err_json["errorMessages"])
+                elif "errors" in err_json and err_json["errors"]:
+                    error_msg = "; ".join(
+                        f"{k}: {v}" for k, v in err_json["errors"].items()
+                    )
+            except (json.JSONDecodeError, TypeError):
+                pass
+            raise RuntimeError(
+                f"Erro na requisição {method} {url} (HTTP {response.status_code}): {error_msg}"
+            )
+        return response
+
+    def get_assets_workspace_id(self) -> Optional[str]:
+        """
+        Obtém o workspaceId do Jira Assets via GET rest/servicedeskapi/assets/workspace.
+        Retorna o ID do primeiro workspace da resposta ou None em caso de erro/404.
+        """
+        if not self._server_url:
+            return None
+        url = f"{self._server_url.rstrip('/')}/rest/servicedeskapi/assets/workspace"
+        try:
+            resp = self._request_raw("GET", url, timeout=15)
+            data = resp.json()
+            # Resposta pode ser lista de workspaces ou objeto com "values"/"id"
+            if isinstance(data, list) and data:
+                w = data[0]
+                return w.get("id") or w.get("workspaceId")
+            if isinstance(data, dict):
+                if "id" in data:
+                    return data["id"]
+                if "workspaceId" in data:
+                    return data["workspaceId"]
+                values = data.get("values") or data.get("workspaces")
+                if isinstance(values, list) and values:
+                    w = values[0]
+                    return w.get("id") or w.get("workspaceId")
+            return None
+        except (RuntimeError, requests.exceptions.RequestException, json.JSONDecodeError):
+            return None
+
+    def get_cloud_id_from_tenant(self) -> Optional[str]:
+        """
+        Obtém o cloudId da instância Jira Cloud via GET /_edge/tenant_info no servidor.
+        Só tenta se a URL do servidor for *.atlassian.net.
+        Retorna o valor de 'cloudId' no JSON ou None em caso de erro.
+        """
+        if not self._server_url or ".atlassian.net" not in self._server_url:
+            return None
+        url = f"{self._server_url.rstrip('/')}/_edge/tenant_info"
+        try:
+            resp = self._request_raw("GET", url, timeout=10)
+            data = resp.json()
+            if isinstance(data, dict):
+                return data.get("cloudId") or None
+            return None
+        except (RuntimeError, requests.exceptions.RequestException, json.JSONDecodeError):
+            return None
+
+    def get_field_id_by_name(self, field_name: str) -> Optional[str]:
+        """
+        Obtém o ID (customfield_XXXXX) de um campo pelo nome ou alias.
+        Chama GET /rest/api/3/field e compara name/clauseNames (normalizado).
+        """
+        if not field_name or not field_name.strip():
+            return None
+        name_clean = field_name.strip().lower().replace(" ", "_")
+        try:
+            response = self._make_request("GET", "field", timeout=15)
+            fields = response.json()
+            if not isinstance(fields, list):
+                return None
+            for f in fields:
+                fid = f.get("id")
+                if not fid:
+                    continue
+                n = (f.get("name") or "").strip().lower().replace(" ", "_")
+                if n == name_clean:
+                    return fid
+                for clause in f.get("clauseNames") or []:
+                    if (clause or "").strip().lower() == name_clean:
+                        return fid
+            return None
+        except (RuntimeError, requests.exceptions.RequestException, json.JSONDecodeError):
+            return None
+
+    def fetch_assets_objects_aql(
+        self,
+        cloud_id: str,
+        workspace_id: str,
+        ql_query: str,
+        start_at: int = 0,
+        max_results: int = 50,
+        include_attributes: bool = True,
+    ) -> Dict[str, Any]:
+        """
+        Lista objetos Asset via POST /object/aql em api.atlassian.com.
+        Requer cloud_id (instância Jira Cloud) e workspace_id (Assets workspace).
+        Retorna dict com 'values' (lista de objetos) e 'objectTypeAttributes'.
+        """
+        if not cloud_id or not workspace_id or not ql_query or not ql_query.strip():
+            return {"values": [], "objectTypeAttributes": []}
+        url = (
+            f"https://api.atlassian.com/ex/jira/{cloud_id}/jsm/assets/workspace/"
+            f"{workspace_id}/v1/object/aql"
+        )
+        params = {
+            "startAt": start_at,
+            "maxResults": max_results,
+            "includeAttributes": str(include_attributes).lower(),
+        }
+        body = {"qlQuery": ql_query.strip()}
+        try:
+            resp = self._request_raw(
+                "POST", url, json_data=body, params=params, timeout=30
+            )
+            data = resp.json()
+            return {
+                "values": data.get("values", []),
+                "objectTypeAttributes": data.get("objectTypeAttributes", []),
+                "total": data.get("total", 0),
+                "isLast": data.get("isLast", True),
+            }
+        except (RuntimeError, requests.exceptions.RequestException, json.JSONDecodeError):
+            return {"values": [], "objectTypeAttributes": [], "total": 0, "isLast": True}
+
     def get_current_user(self) -> Optional[str]:
         """
         Obtém o email do usuário atual autenticado via REST API
@@ -923,8 +1076,9 @@ class JiraClient:
         summary: Optional[str] = None,
         description: Optional[str] = None,
         status: Optional[str] = None,
-        custom_fields: Optional[Dict[str, str]] = None,
+        custom_fields: Optional[Dict[str, Any]] = None,
         parent_issue_key: Optional[str] = None,
+        asset_field_updates: Optional[Dict[str, List[Dict[str, Any]]]] = None,
     ) -> bool:
         """
         Atualiza campos de uma issue existente usando REST API.
@@ -936,6 +1090,8 @@ class JiraClient:
             status: Novo status (opcional) - NÃO use aqui, use transition_issue
             custom_fields: Dicionário com campos customizados (field_id: valor) (opcional)
             parent_issue_key: Nova chave do parent (opcional, use "" para remover parent)
+            asset_field_updates: Campos Asset a atualizar via "update"/"set" (field_id: lista de objetos
+                { workspaceId, id, objectId }). Incluir apenas quando a transição for para In Development.
 
         Returns:
             True se atualizado com sucesso
@@ -989,12 +1145,21 @@ class JiraClient:
                 # Remover parent - usar null diretamente conforme documentação
                 fields["parent"] = None
 
-        # Construir payload completo - apenas fields, sem update vazio
-        if not fields:
-            # Se não houver nada para atualizar, retornar True
-            return True
+        # Payload: fields + update (para campos Asset)
+        payload: Dict[str, Any] = {}
+        if fields:
+            payload["fields"] = fields
+        if asset_field_updates:
+            # Campos Asset exigem "update": { field_id: [ { "set": [ objetos ] } ] }
+            update_part: Dict[str, Any] = {}
+            for field_id, objects in asset_field_updates.items():
+                if objects is not None:
+                    update_part[field_id] = [{"set": objects}]
+            if update_part:
+                payload["update"] = update_part
 
-        payload = {"fields": fields}
+        if not payload:
+            return True
 
         # Log detalhado do payload para debug
         from src.utils.debug import debug_log
@@ -1008,8 +1173,8 @@ class JiraClient:
         debug_log(
             "JiraClient",
             "update_issue",
-            "Campos sendo atualizados: %s",
-            list(fields.keys()),
+            "Campos/update sendo enviados: %s",
+            list(payload.keys()),
         )
 
         try:

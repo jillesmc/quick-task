@@ -174,7 +174,7 @@ ColumnLayout {
             IssueRadioGroup {
                 id: valorEntregueRadioGroup
                 Layout.fillWidth: true
-                model: metadataFieldsRoot.issueModel ? metadataFieldsRoot.issueModel.valorEntregueValues : []
+                model: metadataFieldsRoot.issueModel ? metadataFieldsRoot.issueModel.valorEntregueOptions : []
                 enabled: metadataFieldsRoot.enabled
                 selectedValue: metadataFieldsRoot.issueModel ? metadataFieldsRoot.issueModel.valorEntregue : ""
                 onValueChanged: function(value) {
@@ -201,7 +201,7 @@ ColumnLayout {
         IssueCheckList {
             id: plataformasCheckList
             Layout.fillWidth: true
-            model: metadataFieldsRoot.issueModel ? metadataFieldsRoot.issueModel.plataformasAfetadasValues : []
+            model: metadataFieldsRoot.issueModel ? metadataFieldsRoot.issueModel.plataformasAfetadasOptions : []
             enabled: metadataFieldsRoot.enabled
             selectedValues: metadataFieldsRoot.issueModel ? (metadataFieldsRoot.issueModel.plataformasAfetadas || []) : []
             onSelectionChanged: function(values) {

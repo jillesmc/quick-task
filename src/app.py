@@ -40,8 +40,11 @@ except ImportError as e:
     sys.exit(1)
 
 from PySide6.QtGui import QIcon  # type: ignore[import]
-from PySide6.QtCore import QUrl  # type: ignore[import]
+from PySide6.QtCore import QUrl, QObject, QTimer  # type: ignore[import]
 from PySide6.QtQml import QQmlApplicationEngine, qmlRegisterType  # type: ignore[import]
+from PySide6.QtCore import Slot  # type: ignore[import]
+import json
+import time
 
 # Tentar importar qInstallMessageHandler (disponível no Qt 6)
 try:
@@ -51,6 +54,41 @@ try:
 except ImportError:
     HAS_MESSAGE_HANDLER = False
 
+
+# #region agent log
+def _get_debug_log_path():
+    from src.utils.debug import get_debug_log_path as _g
+    return _g()
+
+
+def _write_debug_ndjson(location, message, data=None, hypothesis_id=None):
+    try:
+        log_path = _get_debug_log_path()
+        payload = {
+            "timestamp": int(time.time() * 1000),
+            "location": location,
+            "message": message,
+            "sessionId": "debug-session",
+            "runId": "run1",
+        }
+        if data is not None:
+            payload["data"] = data
+        if hypothesis_id is not None:
+            payload["hypothesisId"] = hypothesis_id
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(log_path, "a", encoding="utf-8") as f:
+            f.write(json.dumps(payload, ensure_ascii=False) + "\n")
+    except Exception:
+        pass
+
+
+class DebugLogger(QObject):
+    """Exposed to QML for instrumentation."""
+
+    @Slot(str, str)
+    def log(self, location, message):
+        _write_debug_ndjson(location, message, hypothesis_id="C")
+    # #endregion
 
 def qt_message_handler(msg_type, context, message):
     """Filtro de mensagens do Qt para suprimir avisos específicos"""
@@ -63,8 +101,22 @@ def qt_message_handler(msg_type, context, message):
             msg_str = str(message)
         else:
             msg_str = repr(message)
-    except:
+    except Exception:
         msg_str = ""
+
+    # #region agent log
+    try:
+        mt = int(msg_type)
+    except (TypeError, ValueError):
+        mt = 0
+    if mt >= 2 or "binding" in msg_str.lower() or "abort" in msg_str.lower():
+        _write_debug_ndjson(
+            "qt_message_handler",
+            msg_str[:500],
+            data={"msg_type": mt, "file": getattr(context, "file", "")},
+            hypothesis_id="A" if "binding" in msg_str.lower() else "E",
+        )
+    # #endregion
 
     # Suprimir mensagem QSocketNotifier
     if (
@@ -155,6 +207,11 @@ class FilteredStderr:
 
 def main():
     """Função principal da aplicação"""
+    # #region agent log
+    _log_path = _get_debug_log_path()
+    print(f"[DEBUG] debug.log path: {_log_path}", file=sys.stderr)
+    _write_debug_ndjson("app.main:start", "main entered", hypothesis_id="A")
+    # #endregion
     # Redirecionar stderr para filtrar mensagens QSocketNotifier
     filtered_stderr = FilteredStderr(sys.stderr)
     sys.stderr = filtered_stderr
@@ -195,15 +252,16 @@ def main():
     # Configurar para fechar com Ctrl+C
     signal.signal(signal.SIGINT, signal.SIG_DFL)
 
-    # Configurar estilo KDE (necessário para usar tema KDE fora do Plasma)
-    # Para Kirigami 6 (KF6), usar "org.kde.desktop" ou "org.kde.desktopstyle"
-    # O problema: org.kde.desktop tem um bug conhecido com TabButton (TypeError: Cannot read property 'y' of null)
-    # Solução: usar "Material" ou "Basic" como fallback, ou "org.kde.desktopstyle" se disponível
-    # Não definir se já estiver definido (permite override via variável de ambiente)
+    # Configurar estilo Qt Quick Controls (evitar SIGABRT/134 com TabBar no estilo KDE)
+    # org.kde.desktop/desktopstyle podem abortar com TabButton (binding ou null 'y').
+    # Basic evita o crash; override via QT_QUICK_CONTROLS_STYLE se quiser outro estilo.
     if not os.environ.get("QT_QUICK_CONTROLS_STYLE"):
-        # Tentar usar org.kde.desktopstyle primeiro (mais estável)
-        # Se não funcionar, o usuário pode definir QT_QUICK_CONTROLS_STYLE=Material ou Basic
-        os.environ["QT_QUICK_CONTROLS_STYLE"] = "org.kde.desktopstyle"
+        # Flatpak: usar Basic para evitar exit 134 (SIGABRT) ao abrir/alternar abas
+        in_flatpak = os.path.exists("/.flatpak-info") or os.environ.get("FLATPAK_ID")
+        if in_flatpak:
+            os.environ["QT_QUICK_CONTROLS_STYLE"] = "Basic"
+        else:
+            os.environ["QT_QUICK_CONTROLS_STYLE"] = "org.kde.desktopstyle"
 
     # Criar engine QML
     engine = QQmlApplicationEngine()
@@ -271,6 +329,32 @@ def main():
 
         traceback.print_exc(file=sys.stderr)
         raise
+
+    # Conectar cache de Assets aos modelos de issue (Valor entregue / Plataformas afetadas)
+    # #region agent log
+    _write_debug_ndjson("app.main:before_get_assets_cache", "calling get_assets_cache", hypothesis_id="B")
+    # #endregion
+    assets_cache = jira_service.get_assets_cache()
+    if assets_cache:
+        # #region agent log
+        _write_debug_ndjson("app.main:before_set_assets_cache", "calling set_assets_cache", data={"has_cache": True}, hypothesis_id="B")
+        # #endregion
+        issue_model.set_assets_cache(assets_cache)
+        editing_issue_model.set_assets_cache(assets_cache)
+        # #region agent log
+        _write_debug_ndjson("app.main:after_set_assets_cache", "set_assets_cache done", hypothesis_id="B")
+        # #endregion
+
+    def on_assets_cache_loaded(success, message):
+        # Atualizar modelos na próxima volta do event loop para evitar cascata
+        # de sinais síncronos que pode provocar assert/SIGABRT no Qt/QML.
+        def update_models():
+            issue_model.on_assets_cache_loaded()
+            editing_issue_model.on_assets_cache_loaded()
+
+        QTimer.singleShot(0, update_models)
+
+    jira_service.assetsCacheLoaded.connect(on_assets_cache_loaded)
 
     try:
         debug_log("App", "main", "Criando SettingsModel...")
@@ -1031,8 +1115,22 @@ def main():
     url = QUrl.fromLocalFile(str(qml_path.absolute()))
     debug_log("App", "main", "URL QML: %s", url.toString())
 
+    # #region agent log
+    _write_debug_ndjson("app.main:before_engine_load", "about to engine.load", hypothesis_id="A")
+    debug_logger = DebugLogger(app)
+    engine.rootContext().setContextProperty("debugLog", debug_logger)
+    # #endregion
     debug_log("App", "main", "Chamando engine.load()...")
     engine.load(url)
+    # #region agent log
+    _write_debug_ndjson("app.main:after_engine_load", "engine.load returned", hypothesis_id="A")
+    def _log_500ms():
+        _write_debug_ndjson("app.main:500ms", "500ms after load", hypothesis_id="D")
+    def _log_2s():
+        _write_debug_ndjson("app.main:2s", "2s after load", hypothesis_id="D")
+    QTimer.singleShot(500, _log_500ms)
+    QTimer.singleShot(2000, _log_2s)
+    # #endregion
     debug_log("App", "main", "engine.load() concluído")
 
     # Verificar se a janela foi carregada
@@ -1101,9 +1199,11 @@ def main():
         sys.exit(-1)
 
     debug_log("App", "main", "QML carregado com sucesso")
+    _write_debug_ndjson("App.main", "after_qml_loaded", "step1", hypothesis_id="S")
 
     # Obter referência à janela principal
     main_window = root_objects[0]
+    _write_debug_ndjson("App.main", "after_main_window", "step2", hypothesis_id="S")
 
     # Conectar sinais do tray manager
     # As funções restore_window, hide_window e toggle_window já foram definidas acima
@@ -1126,6 +1226,7 @@ def main():
         shortcut_manager.register_with_window(main_window)
     except Exception:
         pass
+    _write_debug_ndjson("App.main", "after_shortcut_register", "step3", hypothesis_id="S")
 
     # Mostrar tray icon
     def show_tray_icon():
@@ -1186,6 +1287,7 @@ def main():
 
     # Tentar mostrar imediatamente (após QApplication estar pronto)
     show_tray_icon()
+    _write_debug_ndjson("App.main", "before_app_exec", "step4", hypothesis_id="S")
 
     # Executar aplicação
     exit_code = app.exec()

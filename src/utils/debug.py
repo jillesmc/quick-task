@@ -2,10 +2,32 @@
 Sistema de debug condicional para Jira Quick Task
 """
 
-import sys
 import os
+import sys
+from pathlib import Path
 
 _DEBUG_ENABLED = None
+_DEBUG_LOG_PATH = None
+
+
+def get_debug_log_path():
+    """
+    Retorna o caminho do arquivo de log de debug (sempre gravável).
+    No Flatpak (/app) usa XDG_CONFIG_HOME/jira-quick-task/debug.log;
+    fora do Flatpak usa <projeto>/.cursor/debug.log.
+    """
+    global _DEBUG_LOG_PATH
+    if _DEBUG_LOG_PATH is not None:
+        return _DEBUG_LOG_PATH
+    this_file = Path(__file__).resolve()
+    # Flatpak instala em /app; projeto local tem src/utils/debug.py
+    if str(this_file).startswith("/app/"):
+        xdg = os.environ.get("XDG_CONFIG_HOME", str(Path.home() / ".config"))
+        _DEBUG_LOG_PATH = Path(xdg) / "jira-quick-task" / "debug.log"
+    else:
+        project_root = this_file.parent.parent.parent  # utils -> src -> project
+        _DEBUG_LOG_PATH = project_root / ".cursor" / "debug.log"
+    return _DEBUG_LOG_PATH
 
 
 def is_debug_enabled():

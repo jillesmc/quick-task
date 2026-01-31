@@ -13,7 +13,7 @@ from PySide6.QtCore import QObject, QTimer, Signal, Slot  # type: ignore[import]
 from config.config_manager import ConfigManager
 from src.database.worklog_db import WorklogDatabase
 from src.models.timer_model import PomodoroSession, TimerModel, TimerState
-from src.utils.debug import debug_log
+from src.utils.debug import debug_log, get_debug_log_path
 
 
 # Helper para escrever logs de debug de forma segura
@@ -22,11 +22,9 @@ def _write_debug_log(data: dict) -> None:
     try:
         import json
 
-        log_path = Path(
-            "/home/jilles/data/projects/personal/jira-quick-task/.cursor/debug.log"
-        )
+        log_path = get_debug_log_path()
         log_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(log_path, "a") as f:
+        with open(log_path, "a", encoding="utf-8") as f:
             f.write(f"{json.dumps(data)}\n")
     except Exception:
         pass  # Ignorar erros de logging para não quebrar a aplicação

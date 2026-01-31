@@ -17,6 +17,7 @@ sys.path.insert(0, str(ROOT_DIR))
 from core.jira_client import JiraClient
 from core.status_transition import transition_sequentially, WorklogConfig
 from config.config_manager import ConfigManager
+from src.services.assets_cache import AssetsCacheService
 
 
 class JiraWorker(QThread):
@@ -46,6 +47,7 @@ class JiraWorker(QThread):
         worklog_timezone: str = "UTC",
         parent_epic_key: str = "",
         worklog_comment: str = "",
+        asset_custom_fields: Optional[Dict[str, Any]] = None,
         parent=None,
     ):
         super().__init__(parent)
@@ -65,6 +67,7 @@ class JiraWorker(QThread):
         self.worklog_timezone = worklog_timezone
         self.parent_epic_key = parent_epic_key.strip() if parent_epic_key else ""
         self.worklog_comment = worklog_comment or ""
+        self.asset_custom_fields = asset_custom_fields or {}
 
     def run(self):
         """Executa a criação da issue e transições em thread separada"""
@@ -90,18 +93,21 @@ class JiraWorker(QThread):
             if uso_ia_alias:
                 custom_fields[uso_ia_alias] = self.uso_ia if self.uso_ia else "Não"
 
-            # Adicionar Valor Entregue (seleção única)
-            valor_entregue_alias = self.config.get_custom_field("valor_entregue")
-            if valor_entregue_alias and self.valor_entregue:
-                custom_fields[valor_entregue_alias] = self.valor_entregue
-
-            # Adicionar Plataformas afetadas (seleção múltipla)
-            # Para campos multi-select no Jira, o formato é uma lista de objetos {"value": "text"}
-            plataformas_alias = self.config.get_custom_field("plataformas_afetadas")
-            if plataformas_alias and self.plataformas_afetadas:
-                custom_fields[plataformas_alias] = [
-                    {"value": plataforma} for plataforma in self.plataformas_afetadas
-                ]
+            # Campos Asset (Valor entregue, Plataformas afetadas): usar objetos resolvidos se fornecidos
+            if self.asset_custom_fields:
+                for field_id, value in self.asset_custom_fields.items():
+                    if value is not None:
+                        custom_fields[field_id] = value
+            else:
+                # Fallback: texto (pode falhar se o campo for Asset no Jira)
+                valor_entregue_alias = self.config.get_custom_field("valor_entregue")
+                if valor_entregue_alias and self.valor_entregue:
+                    custom_fields[valor_entregue_alias] = self.valor_entregue
+                plataformas_alias = self.config.get_custom_field("plataformas_afetadas")
+                if plataformas_alias and self.plataformas_afetadas:
+                    custom_fields[plataformas_alias] = [
+                        {"value": p} for p in self.plataformas_afetadas
+                    ]
 
             # Obter assignee: usar do config ou inferir do usuário atual do jira-cli
             assignee = self.config.get_assignee()
@@ -201,6 +207,7 @@ class UpdateWorker(QThread):
         worklog_duracao: int = 0,
         worklog_timezone: str = "UTC",
         worklog_comment: Optional[str] = None,
+        assets_cache: Any = None,
         parent=None,
     ):
         super().__init__(parent)
@@ -214,21 +221,27 @@ class UpdateWorker(QThread):
         self.doc_anexa = doc_anexa
         self.uso_ia = uso_ia
         self.valor_entregue = valor_entregue
-        self.plataformas_afetadas = plataformas_afetadas
+        self.plataformas_afetadas = plataformas_afetadas or []
         self.parent_epic_key = parent_epic_key.strip() if parent_epic_key else None
         self.registrar_worklog = registrar_worklog
         self.worklog_inicio = worklog_inicio
         self.worklog_duracao = worklog_duracao
         self.worklog_timezone = worklog_timezone
         self.worklog_comment = worklog_comment
+        self.assets_cache = assets_cache
 
     def run(self):
         """Executa a atualização da issue e worklog opcional em thread separada"""
         try:
             self.progressUpdated.emit(10, "Atualizando issue no Jira...")
 
-            # Preparar campos customizados
-            custom_fields = {}
+            # Preparar campos customizados (sem Asset quando transição for In Development e tiver cache)
+            custom_fields: Dict[str, Any] = {}
+            status_normalized = (self.status or "").strip().upper()
+            use_asset_update = (
+                status_normalized == "IN DEVELOPMENT" and self.assets_cache
+            )
+
             if self.tipo_atividade:
                 tipo_atividade_alias = self.config.get_custom_field("tipo_atividade")
                 if tipo_atividade_alias:
@@ -244,27 +257,52 @@ class UpdateWorker(QThread):
                 if uso_ia_alias:
                     custom_fields[uso_ia_alias] = self.uso_ia
 
-            if self.valor_entregue:
-                valor_entregue_alias = self.config.get_custom_field("valor_entregue")
-                if valor_entregue_alias:
-                    custom_fields[valor_entregue_alias] = self.valor_entregue
+            if not use_asset_update:
+                if self.valor_entregue:
+                    valor_entregue_alias = self.config.get_custom_field(
+                        "valor_entregue"
+                    )
+                    if valor_entregue_alias:
+                        custom_fields[valor_entregue_alias] = self.valor_entregue
+                if self.plataformas_afetadas:
+                    plataformas_alias = self.config.get_custom_field(
+                        "plataformas_afetadas"
+                    )
+                    if plataformas_alias:
+                        custom_fields[plataformas_alias] = [
+                            {"value": p} for p in self.plataformas_afetadas
+                        ]
 
-            if self.plataformas_afetadas:
-                plataformas_alias = self.config.get_custom_field("plataformas_afetadas")
-                if plataformas_alias:
-                    custom_fields[plataformas_alias] = [
-                        {"value": plataforma}
-                        for plataforma in self.plataformas_afetadas
-                    ]
+            asset_field_updates: Dict[str, List[Dict[str, Any]]] = {}
+            if use_asset_update and self.assets_cache:
+                valor_field_id = self.config.get_custom_field("valor_entregue")
+                plataformas_field_id = self.config.get_custom_field(
+                    "plataformas_afetadas"
+                )
+                if valor_field_id and self.valor_entregue:
+                    obj = self.assets_cache.resolve_valor_entregue_object(
+                        self.valor_entregue
+                    )
+                    if obj:
+                        asset_field_updates[valor_field_id] = [obj]
+                if plataformas_field_id and self.plataformas_afetadas:
+                    objs = self.assets_cache.resolve_plataformas_objects(
+                        self.plataformas_afetadas
+                    )
+                    if objs:
+                        asset_field_updates[plataformas_field_id] = objs
 
             # Atualizar campos da issue (sem status)
             success = self.jira_client.update_issue(
                 issue_key=self.issue_key,
                 summary=self.summary,
                 description=self.description,
-                status=None,  # Não atualizar status aqui, vamos usar transição sequencial
+                status=None,
                 custom_fields=custom_fields if custom_fields else None,
                 parent_issue_key=self.parent_epic_key,
+                asset_field_updates=(
+                    asset_field_updates if asset_field_updates else None
+                ),
             )
 
             if not success:
@@ -365,6 +403,8 @@ class JiraService(QObject):
     # Signals específicos para carregamento de detalhes de issue (modo assíncrono)
     issueDetailsStarted = Signal(str)  # issueKey
     issueDetailsLoaded = Signal("QVariant")  # dict com detalhes da issue
+    # Cache de opções de Assets (Valor entregue, Plataformas afetadas)
+    assetsCacheLoaded = Signal(bool, str)  # success, message
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -407,10 +447,107 @@ class JiraService(QObject):
                 pass
             self._jira_client = None
 
+        self._assets_cache: Optional[AssetsCacheService] = None
+        if self._jira_client and self._config:
+            try:
+                self._assets_cache = AssetsCacheService(
+                    self._jira_client, self._config
+                )
+                self._assets_cache.load()
+            except Exception:
+                self._assets_cache = None
+
         self._worker: Optional[JiraWorker] = None
         self._update_worker: Optional[UpdateWorker] = None
         self._epic_search_worker: Optional[QThread] = None
         self._issue_details_worker: Optional[QThread] = None
+        self._reload_worker: Optional[QThread] = None  # manter referência para não GC antes do thread terminar
+
+    def get_assets_cache(self) -> Optional[AssetsCacheService]:
+        """Retorna o serviço de cache de Assets (para IssueModel e payloads)."""
+        return self._assets_cache
+
+    @Slot()
+    def reloadAssetsCache(self) -> None:
+        """
+        Recarrega opções de Valor entregue e Plataformas afetadas da API de Assets.
+        Emite assetsCacheLoaded(success, message) ao concluir.
+        Executa em thread para não bloquear a UI.
+        """
+        if not self._assets_cache:
+            self.assetsCacheLoaded.emit(
+                False, "Cache de Assets não disponível (conecte o Jira primeiro)."
+            )
+            return
+
+        class ReloadWorker(QThread):
+            finishedWithResult = Signal(bool, str)
+
+            def __init__(self, cache: AssetsCacheService):
+                super().__init__()
+                self._cache = cache
+
+            def run(self):
+                ok, msg = self._cache.reload()
+                self.finishedWithResult.emit(ok, msg)
+
+        # Manter referência ao worker até terminar; senão o GC pode destruir o QThread
+        # com a thread ainda rodando e causar SIGABRT (ex.: ao clicar "Recarregar opções").
+        if self._reload_worker is not None and self._reload_worker.isRunning():
+            self.assetsCacheLoaded.emit(False, "Recarregamento já em andamento.")
+            return
+        self._reload_worker = ReloadWorker(self._assets_cache)
+
+        def on_reload_done(ok: bool, msg: str):
+            self.assetsCacheLoaded.emit(ok, msg)
+            self._reload_worker = None
+
+        def on_thread_finished():
+            self._reload_worker = None
+
+        self._reload_worker.finishedWithResult.connect(on_reload_done)
+        self._reload_worker.finished.connect(on_thread_finished)
+        self._reload_worker.start()
+
+    def getValorEntregueLabels(self) -> List[str]:
+        """Retorna lista de labels para Valor entregue (para exibição na UI). Nunca levanta."""
+        try:
+            if self._assets_cache:
+                return self._assets_cache.get_valor_entregue_labels()
+            if self._config:
+                return self._config.get_valor_entregue_values() or []
+        except Exception:
+            pass
+        return []
+
+    def getPlataformasAfetadasLabels(self) -> List[str]:
+        """Retorna lista de labels para Plataformas afetadas (para exibição na UI). Nunca levanta."""
+        try:
+            if self._assets_cache:
+                return self._assets_cache.get_plataformas_afetadas_labels()
+            if self._config:
+                return self._config.get_plataformas_afetadas_values() or []
+        except Exception:
+            pass
+        return []
+
+    def getValorEntregueOptions(self) -> List[Dict[str, Any]]:
+        """Retorna lista de opções Valor entregue: [{ objectId, id, workspaceId, label }, ...]. Nunca levanta."""
+        try:
+            if self._assets_cache:
+                return self._assets_cache.get_valor_entregue_options()
+        except Exception:
+            pass
+        return []
+
+    def getPlataformasAfetadasOptions(self) -> List[Dict[str, Any]]:
+        """Retorna lista de opções Plataformas afetadas. Nunca levanta."""
+        try:
+            if self._assets_cache:
+                return self._assets_cache.get_plataformas_afetadas_options()
+        except Exception:
+            pass
+        return []
 
     @Slot()
     def reloadConfiguration(self) -> None:
@@ -452,6 +589,17 @@ class JiraService(QObject):
                     e,
                 )
                 self._jira_client = None
+
+            # Recriar cache de Assets
+            self._assets_cache = None
+            if self._jira_client and self._config:
+                try:
+                    self._assets_cache = AssetsCacheService(
+                        self._jira_client, self._config
+                    )
+                    self._assets_cache.load()
+                except Exception:
+                    self._assets_cache = None
         except Exception as e:
             from src.utils.debug import debug_log
 
@@ -548,6 +696,26 @@ class JiraService(QObject):
             self._config.get_timezone() if self._config else "America/Sao_Paulo"
         )
 
+        # Incluir objetos Asset (Valor entregue, Plataformas afetadas) apenas quando
+        # o status alvo for In Development (regra de negócio).
+        asset_custom_fields: Dict[str, Any] = {}
+        target_normalized = (statusInicial or "").strip().upper()
+        if target_normalized == "IN DEVELOPMENT" and self._assets_cache:
+            valor_field_id = self._config.get_custom_field("valor_entregue")
+            plataformas_field_id = self._config.get_custom_field("plataformas_afetadas")
+            if valor_field_id and valorEntregue:
+                obj = self._assets_cache.resolve_valor_entregue_object(
+                    valorEntregue
+                )
+                if obj:
+                    asset_custom_fields[valor_field_id] = [obj]
+            if plataformas_field_id and plataformasAfetadas:
+                objs = self._assets_cache.resolve_plataformas_objects(
+                    plataformasAfetadas
+                )
+                if objs:
+                    asset_custom_fields[plataformas_field_id] = objs
+
         # Criar novo worker
         self._worker = JiraWorker(
             jira_client=self._jira_client,
@@ -565,9 +733,8 @@ class JiraService(QObject):
             worklog_duracao=worklogDuracao,
             worklog_timezone=worklogTimezone,
             parent_epic_key=parentEpicKey,
-            # Para criação via transições, usamos o comentário do worklog
-            # apenas se registrarWorklog estiver ativo.
             worklog_comment=worklogComment.strip() if worklogComment else "",
+            asset_custom_fields=asset_custom_fields if asset_custom_fields else None,
         )
 
         # Conectar signals do worker
@@ -1152,6 +1319,7 @@ class JiraService(QObject):
             worklog_duracao=worklogDuracao,
             worklog_timezone=worklogTimezone,
             worklog_comment=worklogComment.strip() if worklogComment else None,
+            assets_cache=self._assets_cache,
         )
 
         # Conectar signals do worker
@@ -1278,6 +1446,45 @@ class JiraService(QObject):
 
             return result
 
+        def _asset_object_id(obj: Any) -> Optional[str]:
+            """Extrai objectId (ou id global) de um objeto Asset da API."""
+            if not isinstance(obj, dict):
+                return str(obj) if obj else None
+            oid = obj.get("objectId") or obj.get("id")
+            if oid is not None:
+                return str(oid)
+            return None
+
+        def extract_asset_single(field_id: str) -> str:
+            """Extrai objectId de campo Asset (valor único: objeto ou lista de um)."""
+            if not field_id or field_id not in fields:
+                return ""
+            value = fields[field_id]
+            if value is None:
+                return ""
+            if isinstance(value, list) and value:
+                return _asset_object_id(value[0]) or ""
+            return _asset_object_id(value) or ""
+
+        def extract_asset_multi(field_id: str) -> List[str]:
+            """Extrai objectIds de campo Asset (lista de objetos)."""
+            if not field_id or field_id not in fields:
+                return []
+            value = fields[field_id]
+            if value is None:
+                return []
+            result = []
+            if isinstance(value, list):
+                for item in value:
+                    oid = _asset_object_id(item)
+                    if oid:
+                        result.append(oid)
+            else:
+                oid = _asset_object_id(value)
+                if oid:
+                    result.append(oid)
+            return result
+
         tipo_atividade = extract_custom_field_by_id(CUSTOM_FIELD_IDS["tipo_atividade"])
         documentacao_anexa = extract_custom_field_by_id(
             CUSTOM_FIELD_IDS["documentacao_anexa"]
@@ -1285,14 +1492,35 @@ class JiraService(QObject):
         utilizacao_ia = extract_custom_field_by_id(CUSTOM_FIELD_IDS["utilizacao_ia"])
 
         if CUSTOM_FIELD_IDS["valor_entregue"]:
-            valor_entregue = extract_custom_field_by_id(
-                CUSTOM_FIELD_IDS["valor_entregue"]
-            )
+            raw_ve = fields.get(CUSTOM_FIELD_IDS["valor_entregue"])
+            # Se for objeto/dict com objectId ou id (formato Asset), usar extract_asset_single
+            if isinstance(raw_ve, dict) and (
+                "objectId" in raw_ve or "id" in raw_ve or "workspaceId" in raw_ve
+            ):
+                valor_entregue = extract_asset_single(CUSTOM_FIELD_IDS["valor_entregue"])
+            elif isinstance(raw_ve, list) and raw_ve and isinstance(raw_ve[0], dict):
+                valor_entregue = extract_asset_single(CUSTOM_FIELD_IDS["valor_entregue"])
+            else:
+                valor_entregue = extract_custom_field_by_id(
+                    CUSTOM_FIELD_IDS["valor_entregue"]
+                )
 
         if CUSTOM_FIELD_IDS["plataformas_afetadas"]:
-            plataformas_afetadas = extract_multi_select_field(
-                CUSTOM_FIELD_IDS["plataformas_afetadas"]
-            )
+            raw_pa = fields.get(CUSTOM_FIELD_IDS["plataformas_afetadas"])
+            if isinstance(raw_pa, list) and raw_pa and isinstance(raw_pa[0], dict):
+                plataformas_afetadas = extract_asset_multi(
+                    CUSTOM_FIELD_IDS["plataformas_afetadas"]
+                )
+            elif isinstance(raw_pa, dict) and (
+                "objectId" in raw_pa or "id" in raw_pa
+            ):
+                plataformas_afetadas = extract_asset_multi(
+                    CUSTOM_FIELD_IDS["plataformas_afetadas"]
+                )
+            else:
+                plataformas_afetadas = extract_multi_select_field(
+                    CUSTOM_FIELD_IDS["plataformas_afetadas"]
+                )
 
         # Converter description para string se for objeto (ADF format)
         description = fields.get("description", "")

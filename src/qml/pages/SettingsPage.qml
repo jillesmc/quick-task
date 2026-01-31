@@ -41,9 +41,10 @@ Kirigami.Page {
         // Blocks load their own initial values from settingsModel
     }
 
-    // Conectar sinais do modelo
+    // Conectar sinais do modelo (só quando o modelo existir)
     Connections {
         target: page.settingsModel
+        enabled: page.settingsModel !== null && page.settingsModel !== undefined
 
         function onSaved() {
             // Não desabilitar ainda - aguardar accountId
@@ -114,6 +115,49 @@ Kirigami.Page {
                         id: connectionBlock
                         Layout.fillWidth: true
                         settingsModel: page.settingsModel
+                    }
+
+                    // Recarregar opções de Assets (Valor entregue, Plataformas afetadas)
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: Kirigami.Units.smallSpacing
+                        visible: !!page.jiraService
+
+                        Controls.Label {
+                            text: qsTr("Opções de Valor entregue e Plataformas afetadas")
+                            font.bold: true
+                            Layout.fillWidth: true
+                        }
+                        Controls.Button {
+                            text: qsTr("Recarregar opções de Valor entregue e Plataformas")
+                            Layout.fillWidth: true
+                            onClicked: {
+                                if (page.jiraService) {
+                                    assetsReloadStatus.visible = true;
+                                    assetsReloadStatus.text = qsTr("Recarregando...");
+                                    assetsReloadStatus.color = Kirigami.Theme.textColor;
+                                    page.jiraService.reloadAssetsCache();
+                                }
+                            }
+                        }
+                        Controls.Label {
+                            id: assetsReloadStatus
+                            Layout.fillWidth: true
+                            text: ""
+                            color: Kirigami.Theme.textColor
+                            visible: false
+                            wrapMode: Text.Wrap
+                        }
+                    }
+                    Connections {
+                        target: page.jiraService
+                        function onAssetsCacheLoaded(success, message) {
+                            assetsReloadStatus.visible = true;
+                            assetsReloadStatus.text = message;
+                            assetsReloadStatus.color = success
+                                ? Kirigami.Theme.positiveTextColor
+                                : Kirigami.Theme.negativeTextColor;
+                        }
                     }
 
                     // Espaço flexível
