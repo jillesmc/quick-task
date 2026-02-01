@@ -479,3 +479,123 @@ def test_format_duration_minutes_hours_and_minutes():
     assert JiraClient._format_duration_minutes(90) == "1h 30m"
     assert JiraClient._format_duration_minutes(150) == "2h 30m"
     assert JiraClient._format_duration_minutes(75) == "1h 15m"
+
+
+# --- _adf_to_markdown ---
+
+
+def test_adf_to_markdown_two_paragraphs():
+    """ADF com dois paragraph → markdown com \\n\\n entre os dois."""
+    adf = {
+        "type": "doc",
+        "content": [
+            {"type": "paragraph", "content": [{"type": "text", "text": "First"}]},
+            {"type": "paragraph", "content": [{"type": "text", "text": "Second"}]},
+        ],
+    }
+    result = JiraClient._adf_to_markdown(adf)
+    assert "First" in result and "Second" in result
+    assert "\n\n" in result
+
+
+def test_adf_to_markdown_heading_level_1():
+    """ADF com heading level 1 → linha começando com '# '."""
+    adf = {
+        "type": "heading",
+        "attrs": {"level": 1},
+        "content": [{"type": "text", "text": "Title"}],
+    }
+    result = JiraClient._adf_to_markdown(adf)
+    assert result.startswith("# ")
+    assert "Title" in result
+
+
+def test_adf_to_markdown_bullet_list():
+    """ADF com bulletList de dois itens → duas linhas começando com '- '."""
+    adf = {
+        "type": "bulletList",
+        "content": [
+            {
+                "type": "listItem",
+                "content": [
+                    {"type": "paragraph", "content": [{"type": "text", "text": "One"}]}
+                ],
+            },
+            {
+                "type": "listItem",
+                "content": [
+                    {"type": "paragraph", "content": [{"type": "text", "text": "Two"}]}
+                ],
+            },
+        ],
+    }
+    result = JiraClient._adf_to_markdown(adf)
+    lines = [line for line in result.strip().split("\n") if line]
+    assert len(lines) >= 2
+    assert lines[0].startswith("- ")
+    assert lines[1].startswith("- ")
+    assert "One" in result and "Two" in result
+
+
+def test_adf_to_markdown_ordered_list():
+    """ADF com orderedList de dois itens → '1. ...' e '2. ...'."""
+    adf = {
+        "type": "orderedList",
+        "content": [
+            {
+                "type": "listItem",
+                "content": [
+                    {"type": "paragraph", "content": [{"type": "text", "text": "A"}]}
+                ],
+            },
+            {
+                "type": "listItem",
+                "content": [
+                    {"type": "paragraph", "content": [{"type": "text", "text": "B"}]}
+                ],
+            },
+        ],
+    }
+    result = JiraClient._adf_to_markdown(adf)
+    assert "1. " in result and "2. " in result
+    assert "A" in result and "B" in result
+
+
+def test_adf_to_markdown_code_block():
+    """ADF com codeBlock → bloco entre ```."""
+    adf = {
+        "type": "codeBlock",
+        "attrs": {"language": "py"},
+        "content": [{"type": "text", "text": "print(1)"}],
+    }
+    result = JiraClient._adf_to_markdown(adf)
+    assert result.startswith("```py\n")
+    assert "print(1)" in result
+    assert "```" in result
+
+
+def test_adf_to_markdown_rule():
+    """ADF com rule → '---\\n' (uma quebra; doc junta com \\n\\n)."""
+    adf = {"type": "rule"}
+    result = JiraClient._adf_to_markdown(adf)
+    assert result == "---\n"
+
+
+def test_adf_to_markdown_text_strong():
+    """Nó text com mark strong → '**text**'."""
+    adf = {"type": "text", "text": "bold", "marks": [{"type": "strong"}]}
+    result = JiraClient._adf_to_markdown(adf)
+    assert result == "**bold**"
+
+
+def test_adf_to_markdown_non_dict_input():
+    """Entrada não-dict (string, None) → retorno seguro."""
+    assert JiraClient._adf_to_markdown(None) == ""
+    assert JiraClient._adf_to_markdown("hello") == "hello"
+
+
+def test_adf_to_markdown_doc_empty_content():
+    """doc com content vazio → string vazia (após strip)."""
+    adf = {"type": "doc", "content": []}
+    result = JiraClient._adf_to_markdown(adf)
+    assert result.strip() == ""

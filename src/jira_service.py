@@ -1653,26 +1653,7 @@ class JiraService(QObject):
         if description is None:
             description = ""
         elif isinstance(description, dict):
-
-            def extract_text_from_adf(adf_node):
-                if isinstance(adf_node, dict):
-                    text_parts = []
-                    if "text" in adf_node:
-                        text_parts.append(str(adf_node["text"]))
-                    if "content" in adf_node:
-                        if isinstance(adf_node["content"], list):
-                            for item in adf_node["content"]:
-                                text_parts.append(extract_text_from_adf(item))
-                    return " ".join(text_parts)
-                elif isinstance(adf_node, list):
-                    text_parts = []
-                    for item in adf_node:
-                        text_parts.append(extract_text_from_adf(item))
-                    return " ".join(text_parts)
-                else:
-                    return str(adf_node) if adf_node else ""
-
-            description = extract_text_from_adf(description)
+            description = JiraClient._adf_to_markdown(description)
         else:
             description = str(description) if description else ""
 

@@ -655,8 +655,10 @@ class JiraClient:
                     content.append({"type": "orderedList", "content": list_items})
                 continue
 
-            # Lista não ordenada
-            unordered_list_match = re.match(r"^[-*+]\s+(.+)$", stripped)
+            # Lista não ordenada: - * + ou ├─ └─ (estilo árvore)
+            unordered_list_match = re.match(
+                r"^([-*+]\s+|├─\s*|└─\s*)(.*)$", stripped
+            )
             if unordered_list_match:
                 debug_log(
                     "JiraClient",
@@ -666,10 +668,11 @@ class JiraClient:
                 )
                 list_items = []
                 list_start = i
-                while i < len(lines) and re.match(r"^[-*+]\s+", lines[i].strip()):
-                    item_match = re.match(r"^[-*+]\s+(.+)$", lines[i].strip())
+                _ul_bullet = re.compile(r"^([-*+]\s+|├─\s*|└─\s*)(.*)$")
+                while i < len(lines) and _ul_bullet.match(lines[i].strip()):
+                    item_match = _ul_bullet.match(lines[i].strip())
                     if item_match:
-                        item_text = item_match.group(1)
+                        item_text = (item_match.group(2) or "").strip()
                         list_items.append(
                             {
                                 "type": "listItem",
@@ -712,11 +715,13 @@ class JiraClient:
                         "content": JiraClient._parse_inline_formatting(stripped),
                     }
                 )
+                i += 1
             else:
-                # Linha vazia - parágrafo vazio para espaçamento
+                # Uma ou mais linhas vazias = um único parágrafo vazio (evita inflar no round-trip)
                 content.append({"type": "paragraph", "content": []})
-
-            i += 1
+                i += 1
+                while i < len(lines) and not lines[i].strip():
+                    i += 1
 
         # Se ainda estiver em bloco de código, fechar
         if in_code_block and code_block_lines:
@@ -739,6 +744,138 @@ class JiraClient:
             len(content),
         )
         return {"version": 1, "type": "doc", "content": content}
+
+    @staticmethod
+    def _adf_to_markdown(adf_node: Any) -> str:
+        """
+        Converte nó ADF (Atlassian Document Format) para Markdown (plain markdown).
+        Preserva estrutura: doc, heading, paragraph, listas, codeBlock, blockquote, rule,
+        text com marks (strong, em, code, link), hardBreak. Fallback para outros blocos.
+        """
+        if adf_node is None:
+            return ""
+        if isinstance(adf_node, str):
+            return adf_node
+        if isinstance(adf_node, list):
+            return "\n\n".join(
+                JiraClient._adf_to_markdown(item) for item in adf_node
+            ).strip()
+        if not isinstance(adf_node, dict):
+            return str(adf_node) if adf_node else ""
+
+        node_type = adf_node.get("type", "")
+        content = adf_node.get("content")
+        if not isinstance(content, list):
+            content = []
+
+        if node_type == "doc":
+            # Uma única linha em branco entre blocos; ignora blocos vazios para não inflar quebras
+            parts = [JiraClient._adf_to_markdown(c).strip() for c in content]
+            return "\n\n".join(p for p in parts if p).strip()
+
+        if node_type == "heading":
+            level = min(6, max(1, adf_node.get("attrs", {}).get("level", 1)))
+            prefix = "#" * level + " "
+            inline = "".join(
+                JiraClient._adf_inline_to_markdown(c) for c in content
+            ).strip()
+            return prefix + inline + "\n"
+
+        if node_type == "paragraph":
+            inline = "".join(
+                JiraClient._adf_inline_to_markdown(c) for c in content
+            ).strip()
+            return inline + "\n" if inline else ""
+
+        if node_type == "bulletList":
+            items = [
+                "- " + JiraClient._adf_to_markdown(item).strip().replace("\n\n", "\n")
+                for item in content
+            ]
+            return "\n".join(items) + "\n"
+
+        if node_type == "orderedList":
+            items = []
+            for i, item in enumerate(content, 1):
+                item_md = JiraClient._adf_to_markdown(item).strip().replace(
+                    "\n\n", "\n"
+                )
+                items.append(f"{i}. " + item_md)
+            return "\n".join(items) + "\n"
+
+        if node_type == "listItem":
+            if content:
+                return JiraClient._adf_to_markdown(content[0]).strip()
+            return ""
+
+        if node_type == "codeBlock":
+            lang = (adf_node.get("attrs") or {}).get("language", "")
+            code_parts = []
+            for c in content:
+                if isinstance(c, dict) and c.get("type") == "text":
+                    code_parts.append(c.get("text", ""))
+                else:
+                    code_parts.append(JiraClient._adf_to_markdown(c))
+            code_text = "".join(code_parts)
+            if lang:
+                return "```" + lang + "\n" + code_text + "\n```\n"
+            return "```\n" + code_text + "\n```\n"
+
+        if node_type == "blockquote":
+            parts = []
+            for block in content:
+                block_md = JiraClient._adf_to_markdown(block).strip()
+                for line in block_md.split("\n"):
+                    parts.append("> " + line)
+            return "\n".join(parts) + "\n"
+
+        if node_type == "rule":
+            return "---\n"
+
+        if node_type == "text":
+            return JiraClient._adf_text_node_to_markdown(adf_node)
+
+        if node_type == "hardBreak":
+            return "\n"
+
+        # Fallback: outros blocos (panel, table, etc.)
+        if content:
+            return "\n\n".join(
+                JiraClient._adf_to_markdown(c).strip() for c in content
+            ).strip() + "\n"
+        return ""
+
+    @staticmethod
+    def _adf_inline_to_markdown(inline_node: Any) -> str:
+        """Converte nó inline ADF (text, hardBreak) para markdown."""
+        if inline_node is None:
+            return ""
+        if isinstance(inline_node, dict):
+            if inline_node.get("type") == "hardBreak":
+                return "\n"
+            if inline_node.get("type") == "text":
+                return JiraClient._adf_text_node_to_markdown(inline_node)
+        return ""
+
+    @staticmethod
+    def _adf_text_node_to_markdown(node: Dict[str, Any]) -> str:
+        """Converte nó ADF type=text (com marks opcionais) para markdown."""
+        text = node.get("text", "") or ""
+        marks = node.get("marks") or []
+        for m in marks:
+            if not isinstance(m, dict):
+                continue
+            mark_type = m.get("type", "")
+            if mark_type == "strong":
+                return "**" + text + "**"
+            if mark_type == "em":
+                return "*" + text + "*"
+            if mark_type == "code":
+                return "`" + text + "`"
+            if mark_type == "link":
+                href = (m.get("attrs") or {}).get("href", "")
+                return "[" + text + "](" + href + ")"
+        return text
 
     @staticmethod
     def _parse_inline_formatting(text: str) -> List[Dict[str, Any]]:
