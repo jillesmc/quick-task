@@ -1703,13 +1703,18 @@ class JiraClient:
 
         return self.search_issues(jql, max_results=max_results)
 
-    def get_issue_details(self, issue_key: str) -> Optional[Dict[str, Any]]:
+    def get_issue_details(
+        self,
+        issue_key: str,
+        extra_fields: Optional[List[str]] = None,
+    ) -> Optional[Dict[str, Any]]:
         """
         Busca dados completos de uma issue específica usando REST API.
         Otimizado para buscar apenas os campos necessários.
 
         Args:
             issue_key: Chave da issue (ex: PLATFORM-123)
+            extra_fields: IDs adicionais de campos (ex.: customfield_24569 para Asset)
 
         Returns:
             Dict com dados completos da issue (estrutura fields) ou None se não encontrada
@@ -1718,7 +1723,6 @@ class JiraClient:
             return None
 
         # Campos necessários: summary, description, status, parent (com summary), e campos customizados
-        # Para parent, precisamos solicitar também o summary usando expand
         fields_list = [
             "summary",
             "description",
@@ -1728,12 +1732,16 @@ class JiraClient:
             "customfield_14840",  # documentacao_anexa
             "customfield_14841",  # utilizacao_ia
         ]
+        if extra_fields:
+            seen = set(fields_list)
+            for f in extra_fields:
+                if f and f.strip() and f not in seen:
+                    seen.add(f)
+                    fields_list.append(f)
 
-        # REST API aceita campos separados por vírgula no query param
-        # Usar expand para obter campos do parent (incluindo summary)
         params = {
             "fields": ",".join(fields_list),
-            "expand": "parent.fields.summary",  # Expandir campos do parent para obter summary
+            "expand": "parent.fields.summary",
         }
 
         try:

@@ -24,6 +24,16 @@ Kirigami.Page {
     // Estado do processamento
     property bool isProcessing: false
 
+    // Registrar worklog só permitido quando status inicial é IN DEVELOPMENT ou posterior
+    property bool registrarWorklogEnabled: {
+        if (!issueModel || !issueModel.statusSequence) return false
+        var seq = issueModel.statusSequence
+        var inDevIdx = seq.indexOf("IN DEVELOPMENT")
+        if (inDevIdx < 0) return false
+        var statusIdx = seq.indexOf(issueModel.statusInicial || "")
+        return statusIdx >= inDevIdx
+    }
+
     // Propriedades compartilhadas para sincronizar epic entre abas
     property string sharedEpicKey: ""
     property string sharedEpicSummary: ""
@@ -342,18 +352,24 @@ Kirigami.Page {
                         anchors.leftMargin: 20
                         spacing: Kirigami.Units.largeSpacing
 
-                        // Worklog (Primeiro campo, conforme solicitado)
+                        // Worklog (habilitado só quando status inicial é IN DEVELOPMENT ou posterior)
                         Controls.CheckBox {
                             id: worklogCheckbox
                             text: qsTr("Registrar worklog")
                             Layout.fillWidth: true
-                            enabled: !page.isProcessing
+                            enabled: !page.isProcessing && page.registrarWorklogEnabled
                             checked: page.issueModel ? page.issueModel.registrarWorklog : false
                             onCheckedChanged: {
                                 if (page.issueModel) {
                                     page.issueModel.registrarWorklog = checked;
                                 }
                             }
+                        }
+                        Binding {
+                            target: page.issueModel
+                            property: "registrarWorklog"
+                            value: false
+                            when: page.issueModel && !page.registrarWorklogEnabled
                         }
 
                         // WorklogForm (oculto quando checkbox não está marcado)

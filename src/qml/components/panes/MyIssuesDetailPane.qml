@@ -21,6 +21,16 @@ Item {
     property var issueModel: null
     property string selectedIssueKey: ""
     property bool isProcessing: false
+
+    // Registrar worklog só permitido quando status alvo é IN DEVELOPMENT ou posterior
+    property bool registrarWorklogEnabled: {
+        if (!issueModel || !issueModel.statusSequence) return false
+        var seq = issueModel.statusSequence
+        var inDevIdx = seq.indexOf("IN DEVELOPMENT")
+        if (inDevIdx < 0) return false
+        var statusIdx = seq.indexOf(issueModel.statusInicial || "")
+        return statusIdx >= inDevIdx
+    }
     property bool isDetailsLoading: false
     property var jiraService: null
     property string sharedEpicKey: ""
@@ -52,7 +62,10 @@ Item {
 
     function getWorklogData() {
         if (worklogCheckboxTab2 && worklogCheckboxTab2.checked && worklogForm) {
-            return worklogForm.getWorklogData();
+            var data = worklogForm.getWorklogData();
+            // Com showCheckbox: false o checkbox do form não é visível; o estado vem do painel
+            data.shouldRegister = true;
+            return data;
         }
         return {};
     }
@@ -373,13 +386,19 @@ Item {
                             id: worklogCheckboxTab2
                             text: qsTr("Registrar worklog")
                             Layout.fillWidth: true
-                            enabled: pane.selectedIssueKey !== "" && !pane.isProcessing
+                            enabled: pane.selectedIssueKey !== "" && !pane.isProcessing && pane.registrarWorklogEnabled
                             checked: pane.issueModel ? pane.issueModel.registrarWorklog : false
                             onCheckedChanged: {
                                 if (pane.issueModel) {
                                     pane.issueModel.registrarWorklog = checked;
                                 }
                             }
+                        }
+                        Binding {
+                            target: pane.issueModel
+                            property: "registrarWorklog"
+                            value: false
+                            when: pane.issueModel && !pane.registrarWorklogEnabled
                         }
 
                         WorklogForm {

@@ -20,6 +20,26 @@ from config.config_manager import ConfigManager
 from src.services.assets_cache import AssetsCacheService
 
 
+def _is_status_at_or_after_in_development(
+    target_status: str, status_sequence: List[str]
+) -> bool:
+    """Retorna True se target_status for IN DEVELOPMENT ou posterior na sequência."""
+    if not target_status or not status_sequence:
+        return False
+    target_upper = target_status.strip().upper()
+    in_dev_idx = None
+    status_idx = None
+    for i, s in enumerate(status_sequence):
+        s_upper = (s or "").upper()
+        if s_upper == "IN DEVELOPMENT":
+            in_dev_idx = i
+        if s_upper == target_upper:
+            status_idx = i
+    if in_dev_idx is None or status_idx is None:
+        return False
+    return status_idx >= in_dev_idx
+
+
 class JiraWorker(QThread):
     """Worker thread para operações Jira assíncronas"""
 
@@ -171,28 +191,47 @@ class JiraWorker(QThread):
                     transition_progress = 60 + int((percentage * 40) / 100)
                     self.progressUpdated.emit(transition_progress, message)
 
-                # Criar configuração de worklog se necessário
-                worklog_config = None
-                if self.registrar_worklog:
-                    worklog_config = WorklogConfig(
-                        registrar=self.registrar_worklog,
-                        inicio=self.worklog_inicio,
-                        duracao=self.worklog_duracao,
-                        timezone=self.worklog_timezone,
-                        comment=self.worklog_comment or None,
-                    )
-
-                # Transicionar sequencialmente
-
-                # Transicionar sequencialmente
+                sequence = self.config.get_status_sequence()
                 transition_sequentially(
                     jira_client=self.jira_client,
                     issue_key=issue_key,
                     target_status=self.target_status,
-                    status_sequence=self.config.get_status_sequence(),
+                    status_sequence=sequence,
                     progress_callback=progress_callback,
-                    worklog=worklog_config,
+                    worklog=None,
                 )
+
+                # Registrar worklog uma vez após transições, só se status alvo >= IN DEVELOPMENT
+                if (
+                    self.registrar_worklog
+                    and self.worklog_inicio
+                    and self.worklog_duracao
+                    and _is_status_at_or_after_in_development(
+                        self.target_status, sequence
+                    )
+                ):
+                    self.progressUpdated.emit(85, "Registrando worklog...")
+                    time_spent = self.jira_client._format_duration_minutes(
+                        self.worklog_duracao
+                    )
+                    started_str = self.worklog_inicio.strftime(
+                        "%Y-%m-%d %H:%M:%S"
+                    )
+                    worklog_ok = self.jira_client.register_worklog(
+                        issue_key=issue_key,
+                        time_spent=time_spent,
+                        started=started_str,
+                        timezone=self.worklog_timezone,
+                        comment=self.worklog_comment,
+                    )
+                    if not worklog_ok:
+                        self.errorOccurred.emit(
+                            f"AVISO: Não foi possível registrar worklog para {issue_key}"
+                        )
+                    else:
+                        self.progressUpdated.emit(
+                            90, "Worklog registrado com sucesso!"
+                        )
 
             self.progressUpdated.emit(100, "Concluído!")
 
@@ -290,15 +329,33 @@ class UpdateWorker(QThread):
                         "valor_entregue"
                     )
                     if valor_entregue_alias:
-                        custom_fields[valor_entregue_alias] = self.valor_entregue
+                        if self.assets_cache:
+                            obj = self.assets_cache.resolve_valor_entregue_object(
+                                self.valor_entregue
+                            )
+                            custom_fields[valor_entregue_alias] = (
+                                [obj] if obj else [{"value": self.valor_entregue}]
+                            )
+                        else:
+                            custom_fields[valor_entregue_alias] = [
+                                {"value": self.valor_entregue}
+                            ]
                 if self.plataformas_afetadas:
                     plataformas_alias = self.config.get_custom_field(
                         "plataformas_afetadas"
                     )
                     if plataformas_alias:
-                        custom_fields[plataformas_alias] = [
-                            {"value": p} for p in self.plataformas_afetadas
-                        ]
+                        if self.assets_cache:
+                            objs = self.assets_cache.resolve_plataformas_objects(
+                                self.plataformas_afetadas
+                            )
+                            custom_fields[plataformas_alias] = (
+                                objs if objs else [{"value": p} for p in self.plataformas_afetadas]
+                            )
+                        else:
+                            custom_fields[plataformas_alias] = [
+                                {"value": p} for p in self.plataformas_afetadas
+                            ]
 
             asset_field_updates: Dict[str, List[Dict[str, Any]]] = {}
             if use_asset_update and self.assets_cache:
@@ -353,26 +410,46 @@ class UpdateWorker(QThread):
                     transition_progress = 60 + int((percentage * 40) / 100)
                     self.progressUpdated.emit(transition_progress, message)
 
-                # Criar configuração de worklog se necessário
-                worklog_config = None
-                if self.registrar_worklog:
-                    worklog_config = WorklogConfig(
-                        registrar=self.registrar_worklog,
-                        inicio=self.worklog_inicio,
-                        duracao=self.worklog_duracao,
-                        timezone=self.worklog_timezone,
-                        comment=self.worklog_comment or None,
-                    )
-
-                # Transicionar sequencialmente
+                # Transicionar sem registrar worklog no loop (registro único após)
                 transition_sequentially(
                     jira_client=self.jira_client,
                     issue_key=self.issue_key,
                     target_status=self.status.strip(),
                     status_sequence=self.config.get_status_sequence(),
                     progress_callback=progress_callback,
-                    worklog=worklog_config,
+                    worklog=None,
                 )
+
+                # Registrar worklog uma vez após transições, só se status alvo >= IN DEVELOPMENT
+                sequence = self.config.get_status_sequence()
+                if (
+                    self.registrar_worklog
+                    and self.worklog_inicio
+                    and self.worklog_duracao
+                    and _is_status_at_or_after_in_development(
+                        self.status.strip(), sequence
+                    )
+                ):
+                    self.progressUpdated.emit(85, "Registrando worklog...")
+                    time_spent = self.jira_client._format_duration_minutes(
+                        self.worklog_duracao
+                    )
+                    started_str = self.worklog_inicio.strftime(
+                        "%Y-%m-%d %H:%M:%S"
+                    )
+                    worklog_ok = self.jira_client.register_worklog(
+                        issue_key=self.issue_key,
+                        time_spent=time_spent,
+                        started=started_str,
+                        timezone=self.worklog_timezone,
+                        comment=self.worklog_comment,
+                    )
+                    if not worklog_ok:
+                        self.errorOccurred.emit(
+                            f"Erro ao registrar worklog para {self.issue_key}"
+                        )
+                        return
+                    self.progressUpdated.emit(90, "Worklog registrado com sucesso!")
 
                 self.progressUpdated.emit(100, "Transições concluídas!")
             else:
@@ -1212,6 +1289,24 @@ class JiraService(QObject):
 
         return success
 
+    def _get_assets_extra_fields(self) -> List[str]:
+        """IDs dos campos Asset (Valor entregue, Plataformas) para incluir no GET issue; filtra placeholders."""
+        try:
+            from src.utils.field_utils import is_placeholder_custom_field_id
+        except ImportError:
+            is_placeholder_custom_field_id = lambda fid: fid in (
+                "customfield_XXXXX",
+                "customfield_YYYYY",
+            )
+        if not self._config:
+            return []
+        out = []
+        for key in ("valor_entregue", "plataformas_afetadas"):
+            fid = self._config.get_custom_field(key)
+            if fid and not is_placeholder_custom_field_id(fid):
+                out.append(fid)
+        return out
+
     @Slot(str, result="QVariant")
     def getIssueDetails(self, issueKey: str) -> Dict[str, Any]:  # NOSONAR
         """
@@ -1230,7 +1325,10 @@ class JiraService(QObject):
         if not issueKey or not issueKey.strip():
             return {}
 
-        issue_data = self._jira_client.get_issue_details(issueKey.strip())
+        extra = self._get_assets_extra_fields()
+        issue_data = self._jira_client.get_issue_details(
+            issueKey.strip(), extra_fields=extra if extra else None
+        )
         if not issue_data:
             return {}
 
@@ -1627,14 +1725,24 @@ class JiraService(QObject):
             resultReady = Signal("QVariant")
             errorOccurred = Signal(str)
 
-            def __init__(self, jira_client: JiraClient, key: str, parent=None):
+            def __init__(
+                self,
+                jira_client: JiraClient,
+                key: str,
+                extra_fields: Optional[List[str]] = None,
+                parent=None,
+            ):
                 super().__init__(parent)
                 self._jira_client = jira_client
                 self._key = key
+                self._extra_fields = extra_fields or []
 
             def run(self) -> None:
                 try:
-                    issue_data = self._jira_client.get_issue_details(self._key.strip())
+                    issue_data = self._jira_client.get_issue_details(
+                        self._key.strip(),
+                        extra_fields=self._extra_fields if self._extra_fields else None,
+                    )
                     if not issue_data:
                         self.resultReady.emit({})
                         return
@@ -1643,7 +1751,9 @@ class JiraService(QObject):
                     self.errorOccurred.emit(str(e))
                     self.resultReady.emit({})
 
-        worker = _IssueDetailsWorker(self._jira_client, issueKey)
+        worker = _IssueDetailsWorker(
+            self._jira_client, issueKey, self._get_assets_extra_fields()
+        )
         self._issue_details_worker = worker
 
         def _on_result_ready(issue_data_variant):

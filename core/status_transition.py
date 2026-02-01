@@ -170,15 +170,19 @@ def transition_sequentially(
         return
 
     # Descobrir estado atual da issue
+    # get_issue_details retorna dict achatado (key, id, **data["fields"]), sem chave "fields"
     current_status = None
     try:
         issue_details = jira_client.get_issue_details(issue_key)
         if issue_details:
-            fields = issue_details.get("fields", {})
-            status_obj = fields.get("status", {})
-            current_status = status_obj.get("name", "")
+            fields = (
+                issue_details
+                if "fields" not in issue_details
+                else issue_details["fields"]
+            )
+            status_obj = fields.get("status", {}) if isinstance(fields, dict) else {}
+            current_status = (status_obj.get("name", "") or "") if status_obj else ""
     except Exception:
-        # Se não conseguir obter estado atual, assumir que está em TO DO (índice 0)
         pass
 
     # Encontrar índice do estado atual na sequência
@@ -215,10 +219,7 @@ def transition_sequentially(
             percentage,
         )
 
-        _register_worklog_if_needed(
-            jira_client, issue_key, next_status, worklog, progress_callback, percentage
-        )
-
+        # Worklog é registrado uma vez pelos workers (JiraWorker/UpdateWorker) após as transições
         current_index = next_index
 
     if progress_callback:
