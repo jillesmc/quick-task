@@ -1008,15 +1008,31 @@ class JiraClient:
         # Adicionar campos customizados em fields
         # CREATE pode aceitar string direta, mas vamos usar {"value": "text"} para consistência
         # e garantir compatibilidade com campos select list
+        # Não enviar placeholders (customfield_XXXXX, customfield_YYYYY) — causam HTTP 400
+        try:
+            from src.utils.field_utils import (
+                is_placeholder_custom_field_id,
+                normalize_asset_field_value,
+            )
+        except ImportError:
+            is_placeholder_custom_field_id = lambda fid: fid in ("customfield_XXXXX", "customfield_YYYYY")
+            normalize_asset_field_value = lambda v: v
         if custom_fields:
             for field_id, field_value in custom_fields.items():
+                if is_placeholder_custom_field_id(field_id):
+                    debug_log(
+                        "JiraClient",
+                        "create_issue",
+                        "Campo %s é placeholder; omitindo do payload (use Recarregar opções para descobrir o ID real)",
+                        field_id,
+                    )
+                    continue
                 if field_value is not None:
-                    # Se for uma lista (multi-select), usar diretamente
+                    # Lista: normalizar para formato Assets (id, objectId, workspaceId) quando aplicável
                     if isinstance(field_value, list):
-                        fields[field_id] = field_value
+                        fields[field_id] = normalize_asset_field_value(field_value)
                     elif str(field_value).strip():
                         # Formatar como objeto com "value" para campos select list
-                        # Isso garante compatibilidade tanto para CREATE quanto UPDATE
                         fields[field_id] = {"value": str(field_value).strip()}
 
         # Construir payload completo
@@ -1123,15 +1139,23 @@ class JiraClient:
         # Campos customizados do tipo select list precisam do formato {"value": "text"} ou {"name": "text"}
         # Campos multi-select precisam ser uma lista de objetos [{"value": "text"}, ...]
         # Conforme documentação REST API v3: "Specify a valid 'id' or 'name' for [field]"
+        # Não enviar placeholders; normalizar listas para formato Assets (id, objectId, workspaceId)
+        try:
+            from src.utils.field_utils import (
+                is_placeholder_custom_field_id,
+                normalize_asset_field_value,
+            )
+        except ImportError:
+            is_placeholder_custom_field_id = lambda fid: fid in ("customfield_XXXXX", "customfield_YYYYY")
+            normalize_asset_field_value = lambda v: v
         if custom_fields:
             for field_id, field_value in custom_fields.items():
+                if is_placeholder_custom_field_id(field_id):
+                    continue
                 if field_value is not None:
-                    # Se for uma lista (multi-select), usar diretamente
                     if isinstance(field_value, list):
-                        fields[field_id] = field_value
+                        fields[field_id] = normalize_asset_field_value(field_value)
                     elif str(field_value).strip():
-                        # Formatar como objeto com "value" para campos select list
-                        # A API aceita {"value": "text"} ou {"name": "text"}
                         fields[field_id] = {"value": str(field_value).strip()}
 
         # Tratar parent conforme documentação REST API v3

@@ -48,6 +48,7 @@ class JiraWorker(QThread):
         parent_epic_key: str = "",
         worklog_comment: str = "",
         asset_custom_fields: Optional[Dict[str, Any]] = None,
+        assets_cache: Any = None,
         parent=None,
     ):
         super().__init__(parent)
@@ -68,6 +69,7 @@ class JiraWorker(QThread):
         self.parent_epic_key = parent_epic_key.strip() if parent_epic_key else ""
         self.worklog_comment = worklog_comment or ""
         self.asset_custom_fields = asset_custom_fields or {}
+        self.assets_cache = assets_cache
 
     def run(self):
         """Executa a criação da issue e transições em thread separada"""
@@ -99,15 +101,40 @@ class JiraWorker(QThread):
                     if value is not None:
                         custom_fields[field_id] = value
             else:
-                # Fallback: texto (pode falhar se o campo for Asset no Jira)
+                # Fallback: Assets exigem formato {id, objectId, workspaceId} (ver Atlassian doc)
+                # Resolver via cache quando disponível; senão usar [{"value": ...]} (pode falhar em Asset)
                 valor_entregue_alias = self.config.get_custom_field("valor_entregue")
                 if valor_entregue_alias and self.valor_entregue:
-                    custom_fields[valor_entregue_alias] = self.valor_entregue
+                    if self.assets_cache:
+                        obj = self.assets_cache.resolve_valor_entregue_object(
+                            self.valor_entregue
+                        )
+                        if obj:
+                            custom_fields[valor_entregue_alias] = [obj]
+                        else:
+                            custom_fields[valor_entregue_alias] = [
+                                {"value": self.valor_entregue}
+                            ]
+                    else:
+                        custom_fields[valor_entregue_alias] = [
+                            {"value": self.valor_entregue}
+                        ]
                 plataformas_alias = self.config.get_custom_field("plataformas_afetadas")
                 if plataformas_alias and self.plataformas_afetadas:
-                    custom_fields[plataformas_alias] = [
-                        {"value": p} for p in self.plataformas_afetadas
-                    ]
+                    if self.assets_cache:
+                        objs = self.assets_cache.resolve_plataformas_objects(
+                            self.plataformas_afetadas
+                        )
+                        if objs:
+                            custom_fields[plataformas_alias] = objs
+                        else:
+                            custom_fields[plataformas_alias] = [
+                                {"value": p} for p in self.plataformas_afetadas
+                            ]
+                    else:
+                        custom_fields[plataformas_alias] = [
+                            {"value": p} for p in self.plataformas_afetadas
+                        ]
 
             # Obter assignee: usar do config ou inferir do usuário atual do jira-cli
             assignee = self.config.get_assignee()
@@ -716,7 +743,7 @@ class JiraService(QObject):
                 if objs:
                     asset_custom_fields[plataformas_field_id] = objs
 
-        # Criar novo worker
+        # Criar novo worker (assets_cache para fallback com formato id/objectId/workspaceId)
         self._worker = JiraWorker(
             jira_client=self._jira_client,
             config=self._config,
@@ -735,6 +762,7 @@ class JiraService(QObject):
             parent_epic_key=parentEpicKey,
             worklog_comment=worklogComment.strip() if worklogComment else "",
             asset_custom_fields=asset_custom_fields if asset_custom_fields else None,
+            assets_cache=self._assets_cache,
         )
 
         # Conectar signals do worker

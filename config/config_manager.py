@@ -82,6 +82,8 @@ class ConfigManager:
                 file=sys.stderr,
             )
             self._config = {}
+            # Garantir defaults de assets em memória mesmo sem arquivo (evita ql_ve/ql_pa None no Flatpak)
+            self._ensure_assets_defaults()
             return
 
         debug_log(
@@ -141,6 +143,12 @@ class ConfigManager:
         quando o config do usuário foi criado sem o bloco assets).
         Só preenche em memória; não grava no disco (o usuário pode editar depois).
         """
+        try:
+            from src.utils.debug import debug_log
+        except ImportError:
+            def debug_log(*_args, **_kwargs):
+                pass  # no-op quando src.utils.debug não disponível (ex.: testes/init)
+
         if "assets" not in self._config or not isinstance(self._config["assets"], dict):
             self._config["assets"] = {
                 "cloud_id": None,
@@ -149,6 +157,11 @@ class ConfigManager:
                 "object_type_valor_entregue": None,
                 "object_type_plataformas_afetadas": None,
             }
+            debug_log(
+                "ConfigManager",
+                "_ensure_assets_defaults",
+                "Bloco assets ausente/inválido: definido em memória com object_type_id 434 e 441",
+            )
             return
         assets = self._config["assets"]
         # Valor entregue: se nem ID nem nome estão preenchidos, usar ID padrão
@@ -156,15 +169,29 @@ class ConfigManager:
             "object_type_valor_entregue"
         ):
             assets["object_type_id_valor_entregue"] = 434
+            debug_log(
+                "ConfigManager",
+                "_ensure_assets_defaults",
+                "object_type_id_valor_entregue ausente: definido 434 em memória",
+            )
         # Plataformas: idem
         if assets.get("object_type_id_plataformas_afetadas") is None and not assets.get(
             "object_type_plataformas_afetadas"
         ):
             assets["object_type_id_plataformas_afetadas"] = 441
+            debug_log(
+                "ConfigManager",
+                "_ensure_assets_defaults",
+                "object_type_id_plataformas_afetadas ausente: definido 441 em memória",
+            )
 
     def save_config(self) -> bool:
         """Persiste a configuração atual no arquivo JSON. Retorna True se salvou com sucesso."""
         try:
+            # No Flatpak, config em /app é somente leitura; redirecionar para XDG
+            if str(self.config_path).startswith("/app/"):
+                xdg_config = os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")
+                self.config_path = Path(xdg_config) / "jira-quick-task" / "config.json"
             self.config_path.parent.mkdir(parents=True, exist_ok=True)
             with open(self.config_path, "w", encoding="utf-8") as f:
                 json.dump(self._config, f, indent=2, ensure_ascii=False)

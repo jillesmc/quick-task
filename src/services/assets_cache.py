@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from src.utils.debug import debug_log
+from src.utils.field_utils import is_placeholder_custom_field_id
 
 # Aliases Jira para descoberta de customfield_
 ASSET_FIELD_ALIASES = {
@@ -111,9 +112,10 @@ class AssetsCacheService:
             return False
 
     def _ensure_field_ids_in_config(self) -> None:
-        """Se custom_fields.valor_entregue/plataformas_afetadas estiverem vazios, descobre via API e persiste."""
+        """Se custom_fields.valor_entregue/plataformas_afetadas estiverem vazios ou forem placeholders (customfield_XXXXX/YYYYY), descobre via API e persiste."""
         for key, aliases in ASSET_FIELD_ALIASES.items():
-            if self._config.get_custom_field(key):
+            current = self._config.get_custom_field(key)
+            if current and not is_placeholder_custom_field_id(current):
                 continue
             for alias in aliases:
                 fid = self._client.get_field_id_by_name(alias)
