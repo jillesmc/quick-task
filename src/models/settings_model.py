@@ -52,6 +52,7 @@ class SettingsModel(QObject):
             self._desktop_notifications = True
             self._short_sound_file = "short"  # Nome do arquivo sem extensão
             self._long_sound_file = "long"  # Nome do arquivo sem extensão
+            self._return_from_break_sound_file = ""  # Opcional: som ao voltar da pausa; vazio = não toca
 
             debug_log("SettingsModel", "__init__", "Carregando valores atuais...")
             self._load_current_values()
@@ -140,12 +141,16 @@ class SettingsModel(QObject):
         # Usar setters para garantir que sinais sejam emitidos e valores sejam atualizados corretamente
         self.shortSoundFile = notifications.get("short_sound_file", "short")
         self.longSoundFile = notifications.get("long_sound_file", "long")
+        self.returnFromBreakSoundFile = (
+            notifications.get("return_from_break_sound_file") or ""
+        )
         debug_log(
             "SettingsModel",
             "_load_current_values",
-            "Configurações de Pomodoro carregadas: short_sound_file=%s, long_sound_file=%s",
+            "Configurações de Pomodoro carregadas: short_sound_file=%s, long_sound_file=%s, return_from_break_sound_file=%s",
             self._short_sound_file,
             self._long_sound_file,
+            self._return_from_break_sound_file or "(vazio)",
         )
 
     def is_configured(self) -> bool:
@@ -464,6 +469,8 @@ class SettingsModel(QObject):
                     "desktop_notifications": self._desktop_notifications,
                     "short_sound_file": self._short_sound_file,
                     "long_sound_file": self._long_sound_file,
+                    "return_from_break_sound_file": self._return_from_break_sound_file
+                    or None,
                 },
             }
             self._config_manager.save_pomodoro_config(pomodoro_config)
@@ -504,6 +511,7 @@ class SettingsModel(QObject):
     desktopNotificationsChanged = Signal()
     shortSoundFileChanged = Signal()
     longSoundFileChanged = Signal()
+    returnFromBreakSoundFileChanged = Signal()
 
     # Propriedades QML
     @Property(str, notify=jiraBaseUrlChanged)
@@ -675,3 +683,15 @@ class SettingsModel(QObject):
         if self._long_sound_file != value:
             self._long_sound_file = value
             self.longSoundFileChanged.emit()
+
+    @Property(str, notify=returnFromBreakSoundFileChanged)
+    def returnFromBreakSoundFile(self) -> str:
+        """Arquivo de som ao voltar da pausa (opcional; vazio = não toca)"""
+        return self._return_from_break_sound_file
+
+    @returnFromBreakSoundFile.setter
+    def returnFromBreakSoundFile(self, value: str):
+        val = (value or "").strip()
+        if self._return_from_break_sound_file != val:
+            self._return_from_break_sound_file = val
+            self.returnFromBreakSoundFileChanged.emit()

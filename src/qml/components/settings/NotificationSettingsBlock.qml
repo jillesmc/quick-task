@@ -57,6 +57,7 @@ Rectangle {
                 }
                 shortSoundFileField.enabled = checked && (root.settingsModel ? root.settingsModel.pomodoroEnabled : true);
                 longSoundFileField.enabled = shortSoundFileField.enabled;
+                returnFromBreakSoundFileField.enabled = shortSoundFileField.enabled;
             }
         }
 
@@ -152,6 +153,52 @@ Rectangle {
             }
         }
 
+        Controls.Label {
+            text: qsTr("Arquivo de som - Volta da Pausa (opcional):")
+            font.bold: true
+            Layout.fillWidth: true
+            enabled: soundEnabledCheckbox.checked
+        }
+
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: Kirigami.Units.smallSpacing
+
+            Controls.TextField {
+                id: returnFromBreakSoundFileField
+                Layout.fillWidth: true
+                placeholderText: qsTr("Vazio = não toca")
+                enabled: soundEnabledCheckbox.checked && (root.settingsModel ? root.settingsModel.pomodoroEnabled : true)
+                onTextChanged: {
+                    if (root.settingsModel) {
+                        root.settingsModel.returnFromBreakSoundFile = text;
+                    }
+                }
+            }
+
+            Controls.Button {
+                icon.name: "folder"
+                enabled: returnFromBreakSoundFileField.enabled
+                onClicked: returnFromBreakSoundFileDialog.open()
+            }
+        }
+
+        FileDialog {
+            id: returnFromBreakSoundFileDialog
+            title: qsTr("Escolher arquivo de som - Volta da Pausa")
+            nameFilters: ["Arquivos de áudio (*.ogg *.mp3 *.m4r *.wav)", "Todos os arquivos (*)"]
+            fileMode: FileDialog.ExistingFile
+            onAccepted: {
+                var urlString = selectedFile.toString();
+                var filePath = urlString.replace(/^file:\/{2,3}/, "");
+                filePath = decodeURIComponent(filePath);
+                returnFromBreakSoundFileField.text = filePath;
+                if (root.settingsModel) {
+                    root.settingsModel.returnFromBreakSoundFile = filePath;
+                }
+            }
+        }
+
         Controls.CheckBox {
             id: desktopNotificationsCheckbox
             text: qsTr("Usar Notificações do Sistema")
@@ -173,8 +220,10 @@ Rectangle {
             desktopNotificationsCheckbox.checked = root.settingsModel.desktopNotifications;
             shortSoundFileField.text = root.settingsModel.shortSoundFile || "short";
             longSoundFileField.text = root.settingsModel.longSoundFile || "long";
+            returnFromBreakSoundFileField.text = root.settingsModel.returnFromBreakSoundFile || "";
             shortSoundFileField.enabled = soundEnabledCheckbox.checked;
             longSoundFileField.enabled = soundEnabledCheckbox.checked;
+            returnFromBreakSoundFileField.enabled = soundEnabledCheckbox.checked;
         }
     }
 }

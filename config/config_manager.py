@@ -429,6 +429,7 @@ class ConfigManager:
                 "desktop_notifications": True,
                 "short_sound_file": "short",
                 "long_sound_file": "long",
+                "return_from_break_sound_file": None,
             },
         }
         pomodoro_config = self._config.get("pomodoro", {})

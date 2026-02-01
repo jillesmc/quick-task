@@ -879,11 +879,9 @@ def main():
                             # Atualizar visibilidade (função centralizada decide baseado no estado)
                             _update_window_visibility()
 
-                            # Tocar som com tipo de pausa correto
-                            if notification_service and timer_model:
-                                notification_service.play_pomodoro_sound(
-                                    timer_model.breakType
-                                )
+                            # Tocar som de volta da pausa (opcional; só se configurado)
+                            if notification_service:
+                                notification_service.play_return_from_break_sound()
 
                         # Conectar aos sinais do timerModel
                         if timer_model:

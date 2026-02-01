@@ -52,7 +52,8 @@
       "sound_enabled": false,
       "desktop_notifications": true,
       "short_sound_file": "short",
-      "long_sound_file": "long"
+      "long_sound_file": "long",
+      "return_from_break_sound_file": null
     }
   },
   "epic_filters": {

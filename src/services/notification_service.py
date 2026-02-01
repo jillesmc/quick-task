@@ -268,6 +268,73 @@ class NotificationService(QObject):
         )
         return None
 
+    def _find_sound_file_by_name(
+        self, filename_or_path: Optional[str]
+    ) -> Optional[Path]:
+        """
+        Procura arquivo de som por nome ou caminho (para som opcional, ex.: volta da pausa).
+        Se filename_or_path for None ou vazio, retorna None sem erro.
+        """
+        if not filename_or_path or not str(filename_or_path).strip():
+            return None
+        name = str(filename_or_path).strip()
+        sound_path = Path(name)
+        if sound_path.is_absolute() and sound_path.exists():
+            return sound_path
+        if sound_path.suffix:
+            filename = sound_path.stem
+        else:
+            filename = (
+                sound_path.name
+                if sound_path.name
+                else sound_path.stem if sound_path.stem else name
+            )
+        possible_paths = [
+            Path(__file__).parent.parent.parent.parent / "assets",
+            Path("/app/share/jira-quick-task/assets"),
+            Path("/usr/share/jira-quick-task/assets"),
+        ]
+        for fmt in ["ogg", "mp3", "m4r", "wav"]:
+            for base_path in possible_paths:
+                if base_path.exists():
+                    sound_file = base_path / f"{filename}.{fmt}"
+                    if sound_file.exists():
+                        return sound_file
+        return None
+
+    def play_return_from_break_sound(self) -> None:
+        """
+        Toca som ao voltar da pausa, se configurado.
+        Se return_from_break_sound_file estiver vazio, não toca nada e não gera erro.
+        """
+        if not self._settings_model:
+            return
+        name = (self._settings_model.returnFromBreakSoundFile or "").strip()
+        if not name:
+            return
+        sound_file = self._find_sound_file_by_name(name)
+        if not sound_file or not MEDIA_PLAYER_AVAILABLE or not self._sound_player:
+            return
+        try:
+            sound_url = QUrl.fromLocalFile(str(sound_file.absolute()))
+            self._sound_player.stop()
+            self._sound_player.setSource(QUrl())
+            self._sound_player.setSource(sound_url)
+            self._sound_player.play()
+            debug_log(
+                "NotificationService",
+                "play_return_from_break_sound",
+                "Tocando som volta da pausa: %s",
+                sound_file,
+            )
+        except Exception as e:
+            debug_log(
+                "NotificationService",
+                "play_return_from_break_sound",
+                "Erro ao tocar som: %s",
+                e,
+            )
+
     def play_pomodoro_sound(self, break_type: Optional[str] = None) -> None:
         """
         Toca som quando pomodoro completa ou pausa termina
