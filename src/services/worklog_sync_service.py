@@ -278,12 +278,9 @@ class WorklogSyncService(QObject):
         """Callback quando a sincronização termina"""
         # Contar quantos foram sincronizados
         pending = self._worklog_db.get_pending_worklogs()
-        total_pending_before = len(pending) + (
-            self._sync_worker._session_ids if self._sync_worker else []
+        synced_count = (
+            len(self._sync_worker._session_ids) if self._sync_worker else 0
         )
-        # Estimativa: assumir que todos foram sincronizados se não houver erros
-        # Na prática, isso seria calculado durante a sincronização
-        synced_count = len(self._sync_worker._session_ids) if self._sync_worker else 0
         self.syncCompleted.emit(synced_count)
         debug_log(
             "WorklogSyncService",
