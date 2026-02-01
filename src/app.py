@@ -763,11 +763,12 @@ def main():
                     class TimerWindowHelper(QObject):
                         """Helper QObject para expor funções da janela do timer ao QML"""
 
-                        def __init__(self, window_ref, timer_model_ref, parent=None):
+                        def __init__(self, window_ref, timer_model_ref, timer_service_ref, parent=None):
                             super().__init__(parent)
                             # Manter referência forte à janela para evitar garbage collection
                             self._window_ref = window_ref
                             self._timer_model_ref = timer_model_ref
+                            self._timer_service_ref = timer_service_ref
 
                         @Slot()
                         def hide(self):
@@ -784,10 +785,19 @@ def main():
                             if timer_floating_window:
                                 _update_window_visibility()
 
+                        @Slot()
+                        def stopTimer(self):
+                            """Para o timer (fallback quando timerService não está disponível no QML)"""
+                            if self._timer_service_ref:
+                                self._timer_service_ref.stop()
+
                     # Criar instância do helper COM A JANELA COMO PARENT
                     # Isso garante que o helper não seja garbage collected enquanto a janela existir
                     timer_window_helper = TimerWindowHelper(
-                        timer_floating_window, timer_model, parent=timer_floating_window
+                        timer_floating_window,
+                        timer_model,
+                        timer_service,
+                        parent=timer_floating_window,
                     )
 
                     # Expor modelos e serviços ao contexto da janela ANTES de carregar QML

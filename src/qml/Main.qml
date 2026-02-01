@@ -28,8 +28,8 @@ Kirigami.ApplicationWindow {
     // Inicializar Kirigami (ajuda a reduzir warnings)
     Component.onCompleted: {
         // #region agent log
-        if (typeof debugLog !== "undefined" && debugLog && typeof debugLog.log === "function") {
-            debugLog.log("Main.qml:onCompleted", "start")
+        if (typeof root._ctxDebugLog !== "undefined" && root._ctxDebugLog && typeof root._ctxDebugLog.log === "function") {
+            root._ctxDebugLog.log("Main.qml:onCompleted", "start")
         }
         // #endregion
         Kirigami.Theme.inherit = true
@@ -48,24 +48,24 @@ Kirigami.ApplicationWindow {
         // Verificar se precisa configurar antes de abrir
         Qt.callLater(function() {
             // #region agent log
-            if (typeof debugLog !== "undefined" && debugLog && typeof debugLog.log === "function") {
-                debugLog.log("Main.qml:callLater2", "before set tab index")
+            if (typeof root._ctxDebugLog !== "undefined" && root._ctxDebugLog && typeof root._ctxDebugLog.log === "function") {
+                root._ctxDebugLog.log("Main.qml:callLater2", "before set tab index")
             }
             // #endregion
             if (root.stack && root.tabBar && root._ctxSettingsModel) {
                 if (root._ctxSettingsModel.needsConfiguration || !root._ctxSettingsModel.isConfigured) {
                     root.stack.currentIndex = 3
                     root.tabBar.currentIndex = 3
-                    if (typeof debugLog !== "undefined" && debugLog && typeof debugLog.log === "function") {
-                        debugLog.log("Main.qml:callLater2", "set index 3")
+                    if (typeof root._ctxDebugLog !== "undefined" && root._ctxDebugLog && typeof root._ctxDebugLog.log === "function") {
+                        root._ctxDebugLog.log("Main.qml:callLater2", "set index 3")
                     }
                 } else {
                     // Só alterar índice se não for já 0 (evitar setar stack+tabBar em sequência que pode disparar SIGABRT no Flatpak/Kirigami)
                     if (root.tabBar.currentIndex !== 0) {
                         root.tabBar.currentIndex = 0
                     }
-                    if (typeof debugLog !== "undefined" && debugLog && typeof debugLog.log === "function") {
-                        debugLog.log("Main.qml:callLater2", "set index 0 or skip")
+                    if (typeof root._ctxDebugLog !== "undefined" && root._ctxDebugLog && typeof root._ctxDebugLog.log === "function") {
+                        root._ctxDebugLog.log("Main.qml:callLater2", "set index 0 or skip")
                     }
                 }
             } else if (root.stack && root.tabBar && root.tabBar.currentIndex !== 0) {
@@ -84,6 +84,7 @@ Kirigami.ApplicationWindow {
     property var _ctxMyIssuesModel: myIssuesModel // qmllint disable unqualified
     property var _ctxWorklogSyncService: worklogSyncService // qmllint disable unqualified
     property var hideWindowFn: hideWindow // qmllint disable unqualified
+    property var _ctxDebugLog: debugLog // qmllint disable unqualified
 
     header: MainHeader {
         id: mainHeader

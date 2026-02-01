@@ -56,16 +56,6 @@ Rectangle {
             font.bold: true
             Layout.fillWidth: true
             horizontalAlignment: Text.AlignHCenter
-
-            Connections {
-                enabled: root.timerModel !== null && root.timerModel !== undefined
-                target: root.timerModel
-                function onTimeUpdated() {
-                    if (root.timerModel) {
-                        timeDisplay.text = root.formatTime(root.timerModel.elapsedSeconds);
-                    }
-                }
-            }
         }
 
         Controls.Label {

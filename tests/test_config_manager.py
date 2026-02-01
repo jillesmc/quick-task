@@ -20,9 +20,12 @@ def test_load_config_success(temp_config_file: Path, sample_config: dict):
 
 def test_load_config_file_not_found():
     """Testa comportamento quando arquivo não existe (não lança exceção, apenas loga)"""
-    # ConfigManager não lança exceção, apenas cria config vazio e loga erro
+    # ConfigManager não lança exceção; cria config com defaults de assets em memória
     manager = ConfigManager(config_path=Path("/nonexistent/config.json"))
-    assert manager._config == {}
+    assert "assets" in manager._config
+    assert manager._config["assets"]["object_type_id_valor_entregue"] == 434
+    assert manager._config["assets"]["object_type_id_plataformas_afetadas"] == 441
+    assert len(manager._config) == 1
 
 
 def test_load_config_invalid_json():
@@ -54,7 +57,8 @@ def test_validate_config_missing_required_keys():
     try:
         # ConfigManager não lança exceção, apenas loga aviso e continua com config parcial
         manager = ConfigManager(config_path=temp_path)
-        assert manager._config == incomplete_config
+        assert manager._config["project"] == incomplete_config["project"]
+        assert "assets" in manager._config
         # Verificar que get() retorna None para chaves faltantes
         assert manager.get("issue_type") is None
     finally:
@@ -83,7 +87,9 @@ def test_validate_config_missing_custom_fields():
     try:
         # ConfigManager não lança exceção, apenas loga aviso e continua com config parcial
         manager = ConfigManager(config_path=temp_path)
-        assert manager._config == config_missing_fields
+        for key, value in config_missing_fields.items():
+            assert manager._config.get(key) == value
+        assert "assets" in manager._config
         # Verificar que get_custom_field() retorna string vazia para campos faltantes
         assert manager.get_custom_field("documentacao_anexa") == ""
     finally:

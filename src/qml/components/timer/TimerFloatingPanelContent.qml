@@ -12,10 +12,11 @@ import org.kde.kirigami as Kirigami
 Item {
     id: root
 
-    property var timerModel: timerModel // qmllint disable unqualified
-    property var timerService: timerService // qmllint disable unqualified
-    property var hideWindow: hideWindow // qmllint disable unqualified
-    property var settingsModel: settingsModel // qmllint disable unqualified
+    // Nomes diferentes do contexto para evitar binding loop (property var x: x no mesmo root)
+    property var _ctxTimerModel: timerModel // qmllint disable unqualified
+    property var _ctxTimerService: timerService // qmllint disable unqualified
+    property var _ctxHideWindow: hideWindow // qmllint disable unqualified
+    property var _ctxSettingsModel: settingsModel // qmllint disable unqualified
 
     // Habilitar foco para capturar eventos de mouse/teclado
     // Necessário para que a janela seja clicável (Hipótese 1 do diagnóstico)
@@ -70,8 +71,8 @@ Item {
                     icon.name: "window-minimize"
                     onClicked: {
                         try {
-                            if (root.hideWindow) {
-                                root.hideWindow.hide()
+                            if (root._ctxHideWindow) {
+                                root._ctxHideWindow.hide()
                             }
                         } catch (e) {
                             console.error("TimerFloatingPanel: Erro ao minimizar janela:", e)
@@ -82,7 +83,7 @@ Item {
             
             // Issue Key
             Controls.Label {
-                text: root.timerModel ? root.timerModel.issueKey : ""
+                text: root._ctxTimerModel ? root._ctxTimerModel.issueKey : ""
                 font.pointSize: Kirigami.Theme.defaultFont.pointSize + 1
                 Layout.fillWidth: true
                 horizontalAlignment: Text.AlignHCenter
@@ -91,35 +92,25 @@ Item {
             // Tempo decorrido
             Controls.Label {
                 id: timeDisplay
-                text: root.formatTime(root.timerModel ? root.timerModel.elapsedSeconds : 0)
+                text: root.formatTime(root._ctxTimerModel ? root._ctxTimerModel.elapsedSeconds : 0)
                 font.pointSize: Kirigami.Theme.defaultFont.pointSize + 4
                 font.bold: true
                 Layout.fillWidth: true
                 horizontalAlignment: Text.AlignHCenter
-                
-                // Atualizar a cada segundo
-                Connections {
-                    target: root.timerModel || null
-        function onTimeUpdated() {
-            if (root.timerModel) {
-                timeDisplay.text = root.formatTime(root.timerModel.elapsedSeconds)
-                        }
-                    }
-                }
             }
             
             // Pomodoro (se habilitado)
             Controls.Label {
                 id: pomodoroLabel
-                text: qsTr("Pomodoro %1").arg(root.timerModel ? root.timerModel.currentPomodoro : 0)
+                text: qsTr("Pomodoro %1").arg(root._ctxTimerModel ? root._ctxTimerModel.currentPomodoro : 0)
                 Layout.fillWidth: true
                 horizontalAlignment: Text.AlignHCenter
-                visible: root.settingsModel && root.settingsModel.pomodoroEnabled
+                visible: !!(root._ctxSettingsModel && root._ctxSettingsModel.pomodoroEnabled)
                 font.pointSize: Kirigami.Theme.smallFont.pointSize
                 
                 // Garantir atualização quando signal for emitido
                 Connections {
-                    target: root.timerModel || null
+                    target: root._ctxTimerModel || null
                     function onPomodoroCompleted(pomodoroNum) {
                         pomodoroLabel.text = qsTr("Pomodoro %1").arg(pomodoroNum)
                     }
@@ -135,13 +126,13 @@ Item {
                     text: qsTr("Pausar")
                     icon.name: "media-playback-pause"
                     Layout.fillWidth: true
-                    enabled: root.timerModel && root.timerModel.state === "running" && !root.timerModel.isOnBreak && !root.timerModel.isWaitingBreakDecision
-                    visible: root.timerModel && root.timerModel.state === "running" && !root.timerModel.isOnBreak && !root.timerModel.isWaitingBreakDecision && !root.timerModel.isWaitingBreakEndDecision
+                    enabled: !!(root._ctxTimerModel && root._ctxTimerModel.state === "running" && !root._ctxTimerModel.isOnBreak && !root._ctxTimerModel.isWaitingBreakDecision)
+                    visible: !!(root._ctxTimerModel && root._ctxTimerModel.state === "running" && !root._ctxTimerModel.isOnBreak && !root._ctxTimerModel.isWaitingBreakDecision && !root._ctxTimerModel.isWaitingBreakEndDecision)
                     onClicked: {
                         console.log("TimerFloatingPanel: Botão Pausar clicado")
-                        if (root.timerService && root.timerModel && root.timerModel.state === "running") {
+                        if (root._ctxTimerService && root._ctxTimerModel && root._ctxTimerModel.state === "running") {
                             console.log("TimerFloatingPanel: Chamando pause()")
-                            root.timerService.pause()
+                            root._ctxTimerService.pause()
                         }
                     }
                 }
@@ -150,17 +141,17 @@ Item {
                     text: qsTr("Parar")
                     icon.name: "media-playback-stop"
                     Layout.fillWidth: true
-                    enabled: root.timerModel && root.timerModel.state !== "idle" && !root.timerModel.isOnBreak && !root.timerModel.isWaitingBreakEndDecision
-                    visible: root.timerModel && root.timerModel.state !== "idle" && !root.timerModel.isOnBreak && !root.timerModel.isWaitingBreakEndDecision
+                    enabled: !!(root._ctxTimerModel && root._ctxTimerModel.state !== "idle" && !root._ctxTimerModel.isOnBreak && !root._ctxTimerModel.isWaitingBreakEndDecision
+                        && (root._ctxTimerService || (root._ctxHideWindow && typeof root._ctxHideWindow.stopTimer === "function")))
+                    visible: !!(root._ctxTimerModel && root._ctxTimerModel.state !== "idle" && !root._ctxTimerModel.isOnBreak && !root._ctxTimerModel.isWaitingBreakEndDecision)
                     onClicked: {
-                        console.log("TimerFloatingPanel: Botão Parar clicado")
-                        if (root.timerService) {
-                            console.log("TimerFloatingPanel: Chamando stop()")
-                            root.timerService.stop()
+                        if (root._ctxTimerService) {
+                            root._ctxTimerService.stop()
+                        } else if (root._ctxHideWindow && typeof root._ctxHideWindow.stopTimer === "function") {
+                            root._ctxHideWindow.stopTimer()
                         }
-                        // Fechar janela após parar (será gerenciado pelo Python)
-                        if (root.hideWindow && typeof root.hideWindow.hide === "function") {
-                            root.hideWindow.hide()
+                        if (root._ctxHideWindow && typeof root._ctxHideWindow.hide === "function") {
+                            root._ctxHideWindow.hide()
                         }
                     }
                 }
@@ -171,25 +162,25 @@ Item {
         // Alerta de pomodoro completo
         PomodoroBreakPrompt {
             id: breakPrompt
-            timerModel: root.timerModel
-            timerService: root.timerService
-            hideWindow: root.hideWindow
-            settingsModel: root.settingsModel
+            timerModel: root._ctxTimerModel
+            timerService: root._ctxTimerService
+            hideWindow: root._ctxHideWindow
+            settingsModel: root._ctxSettingsModel
         }
         
         // Contagem regressiva da pausa
         BreakCountdown {
             id: breakCountdown
-            timerModel: root.timerModel
-            timerService: root.timerService
-            hideWindow: root.hideWindow
+            timerModel: root._ctxTimerModel
+            timerService: root._ctxTimerService
+            hideWindow: root._ctxHideWindow
         }
 
         // Questionamento após pausa terminar
         BreakEndPrompt {
             id: breakEndPrompt
-            timerService: root.timerService
-            hideWindow: root.hideWindow
+            timerService: root._ctxTimerService
+            hideWindow: root._ctxHideWindow
         }
     }
     
@@ -197,28 +188,28 @@ Item {
     states: [
         State {
             name: "normal"
-            when: !root.timerModel || (!root.timerModel.isWaitingBreakDecision && !root.timerModel.isOnBreak && !root.timerModel.isWaitingBreakEndDecision)
+            when: !!(!root._ctxTimerModel || (!root._ctxTimerModel.isWaitingBreakDecision && !root._ctxTimerModel.isOnBreak && !root._ctxTimerModel.isWaitingBreakEndDecision))
             PropertyChanges {
                 contentStack.currentIndex: 0
             }
         },
         State {
             name: "breakDecision"
-            when: root.timerModel && root.timerModel.isWaitingBreakDecision
+            when: !!(root._ctxTimerModel && root._ctxTimerModel.isWaitingBreakDecision)
             PropertyChanges {
                 contentStack.currentIndex: 1
             }
         },
         State {
             name: "onBreak"
-            when: root.timerModel && root.timerModel.isOnBreak
+            when: !!(root._ctxTimerModel && root._ctxTimerModel.isOnBreak)
             PropertyChanges {
                 contentStack.currentIndex: 2
             }
         },
         State {
             name: "breakEnd"
-            when: root.timerModel && root.timerModel.isWaitingBreakEndDecision
+            when: !!(root._ctxTimerModel && root._ctxTimerModel.isWaitingBreakEndDecision)
             PropertyChanges {
                 contentStack.currentIndex: 3
             }
