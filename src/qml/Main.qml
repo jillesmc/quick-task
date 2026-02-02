@@ -144,6 +144,7 @@ Kirigami.ApplicationWindow {
         // Índice 1: Minhas Issues
         MyIssuesPage {
             id: issuesPage
+            applicationWindow: root
             issueModel: root._ctxEditingIssueModel
             jiraService: root._ctxJiraService
             myIssuesModel: root._ctxMyIssuesModel

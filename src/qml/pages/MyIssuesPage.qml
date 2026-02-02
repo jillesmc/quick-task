@@ -24,6 +24,7 @@ Kirigami.Page {
     // Habilitar foco para capturar atalhos de teclado
     focus: true
 
+    property var applicationWindow: null
     // Issue selecionada atualmente
     property string selectedIssueKey: ""
 
@@ -329,6 +330,7 @@ Kirigami.Page {
         // Coluna Direita (60% - Detail)
         MyIssuesDetailPane {
             id: detailPane
+            applicationWindow: page.applicationWindow
             issueModel: page.issueModel
             selectedIssueKey: page.selectedIssueKey
             isProcessing: page.isProcessing

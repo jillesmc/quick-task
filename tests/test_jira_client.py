@@ -599,3 +599,136 @@ def test_adf_to_markdown_doc_empty_content():
     adf = {"type": "doc", "content": []}
     result = JiraClient._adf_to_markdown(adf)
     assert result.strip() == ""
+
+
+# --- get_issue_comments, add_comment, update_comment, delete_comment ---
+
+
+@patch("core.jira_client.requests.request")
+def test_get_issue_comments_success(mock_request, mock_config_file, mock_env_token):
+    """get_issue_comments retorna lista normalizada com body em markdown."""
+    mock_response = Mock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = {
+        "comments": [
+            {
+                "id": "10000",
+                "author": {
+                    "accountId": "user-1",
+                    "displayName": "João",
+                },
+                "body": {
+                    "type": "doc",
+                    "content": [
+                        {
+                            "type": "paragraph",
+                            "content": [{"type": "text", "text": "Comentário teste"}],
+                        }
+                    ],
+                },
+                "created": "2025-01-20T10:30:00.000+0000",
+                "updated": "2025-01-20T10:30:00.000+0000",
+            }
+        ],
+        "total": 1,
+        "startAt": 0,
+        "maxResults": 50,
+    }
+    mock_request.return_value = mock_response
+
+    client = JiraClient(jira_cli_config_path=mock_config_file)
+    result = client.get_issue_comments("TEST-123")
+
+    assert len(result) == 1
+    assert result[0]["id"] == "10000"
+    assert result[0]["author"]["accountId"] == "user-1"
+    assert result[0]["author"]["displayName"] == "João"
+    assert "Comentário teste" in result[0]["body"]
+    assert result[0]["created"] == "2025-01-20T10:30:00.000+0000"
+    mock_request.assert_called_once()
+    call_args = mock_request.call_args
+    assert call_args[0][0] == "GET"
+    assert "TEST-123" in call_args[0][1]
+    assert "comment" in call_args[0][1]
+
+
+@patch("core.jira_client.requests.request")
+def test_get_issue_comments_empty(mock_request, mock_config_file, mock_env_token):
+    """get_issue_comments retorna lista vazia quando não há comentários."""
+    mock_response = Mock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = {"comments": [], "total": 0, "startAt": 0, "maxResults": 50}
+    mock_request.return_value = mock_response
+
+    client = JiraClient(jira_cli_config_path=mock_config_file)
+    result = client.get_issue_comments("TEST-123")
+
+    assert result == []
+
+
+@patch("core.jira_client.requests.request")
+def test_add_comment_success(mock_request, mock_config_file, mock_env_token):
+    """add_comment envia body em ADF e retorna comentário normalizado."""
+    mock_response = Mock()
+    mock_response.status_code = 201
+    mock_response.json.return_value = {
+        "id": "10001",
+        "author": {"accountId": "me", "displayName": "Eu"},
+        "body": {"type": "doc", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "Novo comentário"}]}]},
+        "created": "2025-01-21T09:00:00.000+0000",
+        "updated": "2025-01-21T09:00:00.000+0000",
+    }
+    mock_request.return_value = mock_response
+
+    client = JiraClient(jira_cli_config_path=mock_config_file)
+    result = client.add_comment("TEST-123", "Novo comentário")
+
+    assert result is not None
+    assert result["id"] == "10001"
+    assert "Novo comentário" in result["body"]
+    call_args = mock_request.call_args
+    assert call_args[0][0] == "POST"
+    payload = call_args[1]["json"]
+    assert "body" in payload
+    assert payload["body"].get("type") == "doc"
+
+
+@patch("core.jira_client.requests.request")
+def test_update_comment_success(mock_request, mock_config_file, mock_env_token):
+    """update_comment envia body em ADF e retorna comentário atualizado."""
+    mock_response = Mock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = {
+        "id": "10000",
+        "author": {"accountId": "user-1", "displayName": "João"},
+        "body": {"type": "doc", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "Texto editado"}]}]},
+        "created": "2025-01-20T10:30:00.000+0000",
+        "updated": "2025-01-21T11:00:00.000+0000",
+    }
+    mock_request.return_value = mock_response
+
+    client = JiraClient(jira_cli_config_path=mock_config_file)
+    result = client.update_comment("TEST-123", "10000", "Texto editado")
+
+    assert result is not None
+    assert result["id"] == "10000"
+    assert "Texto editado" in result["body"]
+    call_args = mock_request.call_args
+    assert call_args[0][0] == "PUT"
+    assert "10000" in call_args[0][1]
+
+
+@patch("core.jira_client.requests.request")
+def test_delete_comment_success(mock_request, mock_config_file, mock_env_token):
+    """delete_comment retorna True em 204."""
+    mock_response = Mock()
+    mock_response.status_code = 204
+    mock_request.return_value = mock_response
+
+    client = JiraClient(jira_cli_config_path=mock_config_file)
+    result = client.delete_comment("TEST-123", "10000")
+
+    assert result is True
+    call_args = mock_request.call_args
+    assert call_args[0][0] == "DELETE"
+    assert "10000" in call_args[0][1]

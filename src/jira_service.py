@@ -509,6 +509,11 @@ class JiraService(QObject):
     issueDetailsLoaded = Signal("QVariant")  # dict com detalhes da issue
     # Cache de opções de Assets (Valor entregue, Plataformas afetadas)
     assetsCacheLoaded = Signal(bool, str)  # success, message
+    # Comentários de issues
+    commentsLoaded = Signal("QVariantList")  # list of comment dicts
+    commentAdded = Signal(str, "QVariant")  # issueKey, commentDict
+    commentUpdated = Signal(str, str, "QVariant")  # issueKey, commentId, commentDict
+    commentDeleted = Signal(str, str)  # issueKey, commentId
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -566,6 +571,7 @@ class JiraService(QObject):
         self._epic_search_worker: Optional[QThread] = None
         self._issue_details_worker: Optional[QThread] = None
         self._reload_worker: Optional[QThread] = None  # manter referência para não GC antes do thread terminar
+        self._comments_worker: Optional[QThread] = None
 
     def get_assets_cache(self) -> Optional[AssetsCacheService]:
         """Retorna o serviço de cache de Assets (para IssueModel e payloads)."""
@@ -1793,3 +1799,134 @@ class JiraService(QObject):
             return f"https://{project.lower()}.atlassian.net/browse/{issueKey.strip()}"
 
         return ""
+
+    @Slot(result=str)
+    def getAccountId(self) -> str:
+        """
+        Retorna o accountId do usuário atual (para comparar com author dos comentários).
+        Lê do config; retorna string vazia se não configurado.
+        """
+        if not self._config:
+            return ""
+        try:
+            aid = self._config.get_account_id()
+            return aid if aid is not None else ""
+        except Exception:
+            return ""
+
+    @Slot(str)
+    def getCommentsAsync(self, issueKey: str) -> None:
+        """
+        Carrega comentários da issue em thread. Emite commentsLoaded(list) ou errorOccurred(str).
+        """
+        if not self._jira_client:
+            self.errorOccurred.emit("Cliente Jira não inicializado")
+            return
+        if not issueKey or not issueKey.strip():
+            self.errorOccurred.emit("Chave da issue é obrigatória")
+            return
+        if self._comments_worker and self._comments_worker.isRunning():
+            return
+        key = issueKey.strip()
+
+        class _CommentsLoadWorker(QThread):
+            resultReady = Signal("QVariantList")
+            errorOccurred = Signal(str)
+
+            def __init__(self, jira_client: JiraClient, issue_key: str):
+                super().__init__()
+                self._client = jira_client
+                self._key = issue_key
+
+            def run(self) -> None:
+                try:
+                    comments = self._client.get_issue_comments(self._key)
+                    self.resultReady.emit(comments)
+                except Exception as e:
+                    self.errorOccurred.emit(str(e))
+
+        worker = _CommentsLoadWorker(self._jira_client, key)
+
+        def _on_result(comments: list):
+            self.commentsLoaded.emit(comments)
+            self._comments_worker = None
+
+        def _on_error(msg: str):
+            self.errorOccurred.emit(msg)
+            self._comments_worker = None
+
+        def _cleanup():
+            if self._comments_worker is worker:
+                self._comments_worker = None
+
+        worker.resultReady.connect(_on_result)
+        worker.errorOccurred.connect(_on_error)
+        worker.finished.connect(_cleanup)
+        self._comments_worker = worker
+        worker.start()
+
+    @Slot(str, str, result=bool)
+    def addComment(self, issueKey: str, body: str) -> bool:
+        """
+        Adiciona comentário à issue (síncrono). Emite commentAdded(issueKey, commentDict) em sucesso.
+        Retorna True se iniciado com sucesso (operação é síncrona).
+        """
+        if not self._jira_client:
+            self.errorOccurred.emit("Cliente Jira não inicializado")
+            return False
+        if not issueKey or not issueKey.strip():
+            return False
+        try:
+            comment = self._jira_client.add_comment(issueKey.strip(), body or "")
+            if comment:
+                self.commentAdded.emit(issueKey.strip(), comment)
+                return True
+            self.errorOccurred.emit("Falha ao adicionar comentário")
+            return False
+        except Exception as e:
+            self.errorOccurred.emit(str(e))
+            return False
+
+    @Slot(str, str, str, result=bool)
+    def updateComment(self, issueKey: str, commentId: str, body: str) -> bool:
+        """
+        Atualiza comentário. Emite commentUpdated(issueKey, commentId, commentDict) em sucesso.
+        """
+        if not self._jira_client:
+            self.errorOccurred.emit("Cliente Jira não inicializado")
+            return False
+        if not issueKey or not commentId:
+            return False
+        try:
+            comment = self._jira_client.update_comment(
+                issueKey.strip(), commentId, body or ""
+            )
+            if comment:
+                self.commentUpdated.emit(issueKey.strip(), commentId, comment)
+                return True
+            self.errorOccurred.emit("Falha ao atualizar comentário")
+            return False
+        except Exception as e:
+            self.errorOccurred.emit(str(e))
+            return False
+
+    @Slot(str, str, result=bool)
+    def deleteComment(self, issueKey: str, commentId: str) -> bool:
+        """
+        Remove comentário. Emite commentDeleted(issueKey, commentId) em sucesso.
+        """
+        if not self._jira_client:
+            self.errorOccurred.emit("Cliente Jira não inicializado")
+            return False
+        if not issueKey or not commentId:
+            return False
+        try:
+            ok = self._jira_client.delete_comment(issueKey.strip(), commentId)
+            if ok:
+                self.commentDeleted.emit(issueKey.strip(), commentId)
+                return True
+            self.errorOccurred.emit("Falha ao excluir comentário")
+            return False
+        except Exception as e:
+            self.errorOccurred.emit(str(e))
+            return False

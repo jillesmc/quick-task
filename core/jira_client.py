@@ -1918,3 +1918,185 @@ class JiraClient:
                 file=sys.stderr,
             )
             return None
+
+    def get_issue_comments(
+        self, issue_key: str, start_at: int = 0, max_results: int = 100
+    ) -> List[Dict[str, Any]]:
+        """
+        Busca todos os comentários de uma issue (GET /rest/api/3/issue/{key}/comment).
+        Trata paginação e converte body ADF para markdown.
+
+        Args:
+            issue_key: Chave da issue (ex: PLATFORM-123)
+            start_at: Índice inicial para paginação
+            max_results: Máximo de comentários por página
+
+        Returns:
+            Lista de dicts normalizados: id, author (accountId, displayName),
+            body (markdown), created, updated. Lista vazia em erro.
+        """
+        if not issue_key:
+            return []
+        all_comments: List[Dict[str, Any]] = []
+        start = start_at
+        while True:
+            params = {"startAt": start, "maxResults": max_results}
+            try:
+                response = self._make_request(
+                    "GET",
+                    f"issue/{issue_key}/comment",
+                    params=params,
+                    timeout=30,
+                )
+                data = response.json()
+            except RuntimeError as e:
+                print(
+                    f"Erro ao buscar comentários da issue '{issue_key}': {e}",
+                    file=sys.stderr,
+                )
+                return all_comments if all_comments else []
+            except json.JSONDecodeError as e:
+                print(
+                    f"Erro ao decodificar JSON de comentários: {e}",
+                    file=sys.stderr,
+                )
+                return all_comments if all_comments else []
+            comments = data.get("comments") or []
+            total = data.get("total", 0)
+            for c in comments:
+                author = c.get("author") or {}
+                body_raw = c.get("body")
+                if isinstance(body_raw, dict):
+                    body_md = JiraClient._adf_to_markdown(body_raw)
+                else:
+                    body_md = str(body_raw) if body_raw else ""
+                all_comments.append({
+                    "id": str(c.get("id", "")),
+                    "author": {
+                        "accountId": author.get("accountId", ""),
+                        "displayName": author.get("displayName", ""),
+                    },
+                    "body": body_md,
+                    "created": c.get("created", ""),
+                    "updated": c.get("updated", ""),
+                })
+            if start + len(comments) >= total:
+                break
+            start += len(comments)
+            if not comments:
+                break
+        return all_comments
+
+    def add_comment(self, issue_key: str, body_markdown: str) -> Optional[Dict[str, Any]]:
+        """
+        Adiciona um comentário à issue (POST .../comment). Body em ADF.
+
+        Args:
+            issue_key: Chave da issue
+            body_markdown: Conteúdo em markdown (convertido para ADF)
+
+        Returns:
+            Comentário criado normalizado (id, author, body markdown, created, updated)
+            ou None em erro.
+        """
+        if not issue_key:
+            return None
+        adf = self._text_to_adf(body_markdown.strip() if body_markdown else "")
+        payload = {"body": adf}
+        try:
+            response = self._make_request(
+                "POST",
+                f"issue/{issue_key}/comment",
+                json_data=payload,
+                timeout=30,
+            )
+            data = response.json()
+        except (RuntimeError, json.JSONDecodeError) as e:
+            print(
+                f"Erro ao adicionar comentário em '{issue_key}': {e}",
+                file=sys.stderr,
+            )
+            return None
+        author = data.get("author") or {}
+        body_raw = data.get("body")
+        if isinstance(body_raw, dict):
+            body_md = JiraClient._adf_to_markdown(body_raw)
+        else:
+            body_md = str(body_raw) if body_raw else ""
+        return {
+            "id": str(data.get("id", "")),
+            "author": {
+                "accountId": author.get("accountId", ""),
+                "displayName": author.get("displayName", ""),
+            },
+            "body": body_md,
+            "created": data.get("created", ""),
+            "updated": data.get("updated", ""),
+        }
+
+    def update_comment(
+        self, issue_key: str, comment_id: str, body_markdown: str
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Atualiza um comentário (PUT .../comment/{id}). Body em ADF.
+
+        Returns:
+            Comentário atualizado normalizado ou None em erro.
+        """
+        if not issue_key or not comment_id:
+            return None
+        adf = self._text_to_adf(body_markdown.strip() if body_markdown else "")
+        payload = {"body": adf}
+        try:
+            response = self._make_request(
+                "PUT",
+                f"issue/{issue_key}/comment/{comment_id}",
+                json_data=payload,
+                timeout=30,
+            )
+            data = response.json()
+        except (RuntimeError, json.JSONDecodeError) as e:
+            print(
+                f"Erro ao atualizar comentário {comment_id}: {e}",
+                file=sys.stderr,
+            )
+            return None
+        author = data.get("author") or {}
+        body_raw = data.get("body")
+        if isinstance(body_raw, dict):
+            body_md = JiraClient._adf_to_markdown(body_raw)
+        else:
+            body_md = str(body_raw) if body_raw else ""
+        return {
+            "id": str(data.get("id", "")),
+            "author": {
+                "accountId": author.get("accountId", ""),
+                "displayName": author.get("displayName", ""),
+            },
+            "body": body_md,
+            "created": data.get("created", ""),
+            "updated": data.get("updated", ""),
+        }
+
+    def delete_comment(self, issue_key: str, comment_id: str) -> bool:
+        """
+        Remove um comentário (DELETE .../comment/{id}). Resposta 204.
+
+        Returns:
+            True se sucesso, False em erro.
+        """
+        if not issue_key or not comment_id:
+            return False
+        try:
+            self._make_request(
+                "DELETE",
+                f"issue/{issue_key}/comment/{comment_id}",
+                timeout=30,
+            )
+            return True
+        except RuntimeError as e:
+            print(
+                f"Erro ao excluir comentário {comment_id}: {e}",
+                file=sys.stderr,
+            )
+            return False

@@ -11,6 +11,7 @@ import QtQuick.Controls as Controls
 import org.kde.kirigami as Kirigami
 import "../forms"
 import "../controls"
+import "../../utils/DialogHelpers.js" as DialogHelpers
 
 Item {
     id: pane
@@ -18,6 +19,7 @@ Item {
     Controls.SplitView.fillWidth: true
     Controls.SplitView.minimumWidth: 400
 
+    property var applicationWindow: null
     property var issueModel: null
     property string selectedIssueKey: ""
     property bool isProcessing: false
@@ -450,6 +452,17 @@ Item {
                         Layout.fillWidth: true
                         issueModel: pane.issueModel
                         enabled: pane.selectedIssueKey !== "" && !pane.isProcessing
+                    }
+
+                    CommentsSection {
+                        id: commentsSection
+                        Layout.fillWidth: true
+                        applicationWindow: pane.applicationWindow
+                        jiraService: pane.jiraService
+                        selectedIssueKey: pane.selectedIssueKey
+                        onErrorOccurred: function (message) {
+                            DialogHelpers.showError(pane, "../dialogs/ErrorDialog.qml", message)
+                        }
                     }
 
                     Item {
