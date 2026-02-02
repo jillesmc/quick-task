@@ -61,5 +61,10 @@
     "assigned_to_me": false,
     "project_platform": true,
     "exclude_done": true
+  },
+  "attachments": {
+    "max_file_size_mb": 10,
+    "allowed_image_extensions": ["png", "jpg", "jpeg", "gif", "webp"],
+    "allowed_document_extensions": ["pdf", "txt", "md", "json", "yaml", "xml", "log"]
   }
 }

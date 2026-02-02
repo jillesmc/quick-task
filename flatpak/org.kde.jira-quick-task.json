@@ -16,6 +16,7 @@
     "--socket=session-bus",
     "--filesystem=xdg-config/jira-quick-task:create",
     "--filesystem=xdg-data/jira-quick-task:create",
+    "--filesystem=home:ro",
     "--filesystem=host-etc:ro",
     "--talk-name=org.freedesktop.portal.*",
     "--talk-name=org.kde.StatusNotifierWatcher",

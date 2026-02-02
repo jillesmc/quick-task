@@ -69,6 +69,7 @@ class JiraWorker(QThread):
         worklog_comment: str = "",
         asset_custom_fields: Optional[Dict[str, Any]] = None,
         assets_cache: Any = None,
+        pending_attachments: Optional[List[Dict[str, Any]]] = None,
         parent=None,
     ):
         super().__init__(parent)
@@ -90,6 +91,7 @@ class JiraWorker(QThread):
         self.worklog_comment = worklog_comment or ""
         self.asset_custom_fields = asset_custom_fields or {}
         self.assets_cache = assets_cache
+        self.pending_attachments = pending_attachments or []
 
     def run(self):
         """Executa a criação da issue e transições em thread separada"""
@@ -177,8 +179,39 @@ class JiraWorker(QThread):
             issue_url = result["issue_url"]
             self.progressUpdated.emit(50, "Issue criada com sucesso!")
 
-            # Os campos customizados já foram passados na criação da issue
-            # Não precisamos atualizá-los novamente
+            # Anexos pendentes: upload e substituir placeholders na descrição
+            description_final = self.description
+            if self.pending_attachments:
+                self.progressUpdated.emit(52, "Enviando anexos...")
+                placeholder_to_url: Dict[str, str] = {}
+                for i, item in enumerate(self.pending_attachments):
+                    path = (item.get("path") or "").strip()
+                    placeholder_id = (item.get("placeholderId") or "").strip()
+                    if not path or not placeholder_id:
+                        continue
+                    try:
+                        att_result = self.jira_client.add_attachment(
+                            issue_key, path
+                        )
+                        if att_result and len(att_result) > 0:
+                            content_url = att_result[0].get("content", "")
+                            if content_url:
+                                placeholder_to_url[placeholder_id] = content_url
+                    except Exception as e:
+                        self.errorOccurred.emit(
+                            f"Erro ao anexar arquivo: {str(e)}"
+                        )
+                # Substituir placeholders na descrição
+                for pid, content_url in placeholder_to_url.items():
+                    description_final = description_final.replace(
+                        f"pending:{pid}", content_url
+                    )
+                if placeholder_to_url:
+                    self.jira_client.update_issue(
+                        issue_key=issue_key,
+                        description=description_final,
+                    )
+                self.progressUpdated.emit(55, "Anexos enviados!")
 
             # Transicionar status se necessário
             if self.target_status != "TO DO":
@@ -488,6 +521,46 @@ class UpdateWorker(QThread):
             self.finished.emit()
 
 
+class AttachmentUploadWorker(QThread):
+    """Worker para upload de um anexo em thread separada."""
+
+    uploadSucceeded = Signal(str, str, str)  # issueKey, contentUrl, filename
+    uploadFailed = Signal(str, str)  # issueKey, errorMessage
+    finished = Signal()
+
+    def __init__(
+        self,
+        jira_client: JiraClient,
+        issue_key: str,
+        file_path: str,
+        parent=None,
+    ):
+        super().__init__(parent)
+        self._jira_client = jira_client
+        self._issue_key = issue_key
+        self._file_path = file_path
+
+    def run(self) -> None:
+        try:
+            result = self._jira_client.add_attachment(
+                self._issue_key, self._file_path
+            )
+            if result and len(result) > 0:
+                content_url = result[0].get("content", "")
+                filename = result[0].get("filename", "")
+                self.uploadSucceeded.emit(
+                    self._issue_key, content_url, filename
+                )
+            else:
+                self.uploadFailed.emit(
+                    self._issue_key, "Resposta vazia ao anexar arquivo"
+                )
+        except Exception as e:
+            self.uploadFailed.emit(self._issue_key, str(e))
+        finally:
+            self.finished.emit()
+
+
 class JiraService(QObject):
     """Serviço para criação de issues Jira via QML"""
 
@@ -514,6 +587,9 @@ class JiraService(QObject):
     commentAdded = Signal(str, "QVariant")  # issueKey, commentDict
     commentUpdated = Signal(str, str, "QVariant")  # issueKey, commentId, commentDict
     commentDeleted = Signal(str, str)  # issueKey, commentId
+    # Anexos: upload imediato (comentário / edição de task)
+    attachmentUploaded = Signal(str, str, str)  # issueKey, contentUrl, filename
+    uploadFailed = Signal(str, str)  # issueKey, errorMessage
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -572,6 +648,7 @@ class JiraService(QObject):
         self._issue_details_worker: Optional[QThread] = None
         self._reload_worker: Optional[QThread] = None  # manter referência para não GC antes do thread terminar
         self._comments_worker: Optional[QThread] = None
+        self._attachment_worker: Optional[QThread] = None
 
     def get_assets_cache(self) -> Optional[AssetsCacheService]:
         """Retorna o serviço de cache de Assets (para IssueModel e payloads)."""
@@ -731,6 +808,7 @@ class JiraService(QObject):
         str,
         str,
         str,
+        "QVariantList",
         result=bool,
     )
     def createIssue(  # NOSONAR - camelCase necessário para compatibilidade com QML
@@ -749,6 +827,7 @@ class JiraService(QObject):
         worklogTimezone: str,  # NOSONAR
         parentEpicKey: str,  # NOSONAR - pode ser vazio
         worklogComment: str = "",  # NOSONAR - comentário opcional do worklog
+        pendingAttachments: Optional[List[Any]] = None,  # NOSONAR
     ) -> bool:
         """
         Cria uma issue no Jira de forma assíncrona
@@ -826,6 +905,33 @@ class JiraService(QObject):
                 if objs:
                     asset_custom_fields[plataformas_field_id] = objs
 
+        # Normalizar pendingAttachments: QML envia lista de mapas { path, filename, placeholderId }
+        pending_list: List[Dict[str, Any]] = []
+        if pendingAttachments:
+            for item in pendingAttachments:
+                if isinstance(item, dict):
+                    pending_list.append(
+                        {
+                            "path": str(item.get("path", "")).strip(),
+                            "filename": str(item.get("filename", "")).strip(),
+                            "placeholderId": str(
+                                item.get("placeholderId", "")
+                            ).strip(),
+                        }
+                    )
+                elif hasattr(item, "get"):
+                    pending_list.append(
+                        {
+                            "path": str(getattr(item, "path", "")).strip(),
+                            "filename": str(
+                                getattr(item, "filename", "")
+                            ).strip(),
+                            "placeholderId": str(
+                                getattr(item, "placeholderId", "")
+                            ).strip(),
+                        }
+                    )
+
         # Criar novo worker (assets_cache para fallback com formato id/objectId/workspaceId)
         self._worker = JiraWorker(
             jira_client=self._jira_client,
@@ -846,6 +952,7 @@ class JiraService(QObject):
             worklog_comment=worklogComment.strip() if worklogComment else "",
             asset_custom_fields=asset_custom_fields if asset_custom_fields else None,
             assets_cache=self._assets_cache,
+            pending_attachments=pending_list if pending_list else None,
         )
 
         # Conectar signals do worker
@@ -1294,6 +1401,84 @@ class JiraService(QObject):
             )
 
         return success
+
+    @Slot(str, str, result=bool)
+    def uploadAttachment(  # NOSONAR - camelCase para QML
+        self, issueKey: str, filePath: str
+    ) -> bool:
+        """
+        Envia um anexo para a issue em thread separada.
+        Emite attachmentUploaded(issueKey, contentUrl, filename) ou
+        uploadFailed(issueKey, errorMessage) ao concluir.
+        Valida tamanho e extensão antes do upload (config + limite do Jira quando disponível).
+        """
+        if not self._jira_client:
+            self.errorOccurred.emit("Cliente Jira não inicializado")
+            return False
+        if not issueKey or not filePath:
+            return False
+        path = Path(filePath.strip())
+        if not path.exists() or not path.is_file():
+            self.uploadFailed.emit(issueKey.strip(), "Arquivo não encontrado.")
+            return False
+        max_mb = 10
+        allowed_extensions: List[str] = []
+        if self._config:
+            max_mb = self._config.get_attachment_max_size_mb()
+            allowed_extensions = self._config.get_allowed_attachment_extensions()
+        max_bytes = max_mb * 1024 * 1024
+        try:
+            file_size = path.stat().st_size
+        except OSError:
+            self.uploadFailed.emit(issueKey.strip(), "Não foi possível ler o tamanho do arquivo.")
+            return False
+        if file_size > max_bytes:
+            self.uploadFailed.emit(
+                issueKey.strip(),
+                f"Arquivo muito grande (máx. {max_mb} MB).",
+            )
+            return False
+        try:
+            jira_settings = self._jira_client.get_attachment_settings()
+            upload_limit = jira_settings.get("uploadLimit")
+            if upload_limit is not None and file_size > int(upload_limit):
+                self.uploadFailed.emit(
+                    issueKey.strip(),
+                    "Arquivo excede o limite de anexos do Jira.",
+                )
+                return False
+        except Exception:
+            pass
+        ext = (path.suffix or "").lstrip(".").lower()
+        if ext and allowed_extensions and ext not in allowed_extensions:
+            self.uploadFailed.emit(
+                issueKey.strip(),
+                "Tipo de arquivo não permitido.",
+            )
+            return False
+        if self._attachment_worker and self._attachment_worker.isRunning():
+            return False
+        worker = AttachmentUploadWorker(
+            self._jira_client, issueKey.strip(), filePath.strip()
+        )
+        self._attachment_worker = worker
+
+        def on_success(ik: str, content_url: str, filename: str):
+            self.attachmentUploaded.emit(ik, content_url, filename)
+
+        def on_fail(ik: str, msg: str):
+            self.uploadFailed.emit(ik, msg)
+            self.errorOccurred.emit(msg)
+
+        def cleanup():
+            if self._attachment_worker is worker:
+                self._attachment_worker = None
+
+        worker.uploadSucceeded.connect(on_success)
+        worker.uploadFailed.connect(on_fail)
+        worker.finished.connect(cleanup)
+        worker.start()
+        return True
 
     def _get_assets_extra_fields(self) -> List[str]:
         """IDs dos campos Asset (Valor entregue, Plataformas) para incluir no GET issue; filtra placeholders."""

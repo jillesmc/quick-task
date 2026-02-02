@@ -3,6 +3,7 @@ Cliente Jira - Wrapper para REST API v3 do Jira
 """
 
 import json
+import mimetypes
 import os
 import re
 import sys
@@ -272,6 +273,185 @@ class JiraClient:
                 f"Erro na requisição {method} {url} (HTTP {response.status_code}): {error_msg}"
             )
         return response
+
+    def get_attachment_settings(self) -> Dict[str, Any]:
+        """
+        Obtém configurações de anexos do Jira (GET /rest/api/3/attachment/meta).
+        Retorna { "enabled": bool, "uploadLimit": int } (uploadLimit em bytes).
+        """
+        if not self._server_url:
+            raise RuntimeError("URL do servidor Jira não configurada")
+        try:
+            response = self._make_request("GET", "attachment/meta", timeout=15)
+            data = response.json()
+            return {
+                "enabled": data.get("enabled", True),
+                "uploadLimit": data.get("uploadLimit", 10485760),
+            }
+        except RuntimeError:
+            raise
+        except Exception as e:
+            raise RuntimeError(
+                f"Erro ao obter configurações de anexos: {str(e)}"
+            ) from e
+
+    def add_attachment(
+        self, issue_key: str, file_path: str
+    ) -> List[Dict[str, Any]]:
+        """
+        Adiciona um anexo a uma issue (POST multipart/form-data).
+        Requer header X-Atlassian-Token: no-check e parâmetro "file".
+
+        Args:
+            issue_key: Chave da issue (ex: PROJECT-123)
+            file_path: Caminho local do arquivo
+
+        Returns:
+            Lista de dicts com id, filename, content (URL), mimeType, size
+            para cada anexo retornado pela API (normalmente um item).
+
+        Raises:
+            RuntimeError: Se arquivo não existir, ou API retornar 403/404/413
+        """
+        path = Path(file_path)
+        if not path.exists() or not path.is_file():
+            raise RuntimeError(f"Arquivo não encontrado: {file_path}")
+
+        url = f"{self._server_url}/rest/api/3/issue/{issue_key}/attachments"
+        auth = self._get_auth()
+        headers = {
+            "Accept": "application/json",
+            "X-Atlassian-Token": "no-check",
+        }
+        # Não definir Content-Type; requests define multipart/form-data com boundary
+        filename = path.name
+        mime_type, _ = mimetypes.guess_type(str(path))
+        if not mime_type:
+            mime_type = "application/octet-stream"
+
+        try:
+            with open(path, "rb") as f:
+                files = {"file": (filename, f, mime_type)}
+                response = requests.post(
+                    url,
+                    auth=auth,
+                    headers=headers,
+                    files=files,
+                    timeout=60,
+                )
+            if response.status_code >= 400:
+                error_msg = response.text or f"HTTP {response.status_code}"
+                try:
+                    err_json = response.json()
+                    if "errorMessages" in err_json:
+                        error_msg = "; ".join(err_json["errorMessages"])
+                    elif "errors" in err_json and err_json["errors"]:
+                        error_msg = "; ".join(
+                            f"{k}: {v}"
+                            for k, v in err_json["errors"].items()
+                        )
+                except (json.JSONDecodeError, TypeError, ValueError):
+                    pass
+                if response.status_code == 413:
+                    error_msg = (
+                        "Arquivo muito grande. Reduza o tamanho ou use o limite do Jira."
+                    )
+                raise RuntimeError(
+                    f"Erro ao anexar arquivo (HTTP {response.status_code}): {error_msg}"
+                )
+            data = response.json()
+            if not isinstance(data, list):
+                return []
+            return [
+                {
+                    "id": str(a.get("id", "")),
+                    "filename": a.get("filename", ""),
+                    "content": a.get("content", ""),
+                    "mimeType": a.get("mimeType", ""),
+                    "size": a.get("size", 0),
+                }
+                for a in data
+            ]
+        except requests.exceptions.RequestException as e:
+            raise RuntimeError(
+                f"Erro de rede ao anexar arquivo: {str(e)}"
+            ) from e
+
+    def add_attachment_from_bytes(
+        self,
+        issue_key: str,
+        data: bytes,
+        filename: str,
+    ) -> List[Dict[str, Any]]:
+        """
+        Adiciona um anexo a uma issue a partir de bytes (ex.: imagem da área de transferência).
+
+        Args:
+            issue_key: Chave da issue
+            data: Conteúdo binário do arquivo
+            filename: Nome do arquivo (ex.: paste.png)
+
+        Returns:
+            Lista de dicts com id, filename, content (URL), mimeType, size
+        """
+        import io
+
+        url = f"{self._server_url}/rest/api/3/issue/{issue_key}/attachments"
+        auth = self._get_auth()
+        headers = {
+            "Accept": "application/json",
+            "X-Atlassian-Token": "no-check",
+        }
+        mime_type, _ = mimetypes.guess_type(filename)
+        if not mime_type:
+            mime_type = "application/octet-stream"
+
+        try:
+            files = {"file": (filename, io.BytesIO(data), mime_type)}
+            response = requests.post(
+                url,
+                auth=auth,
+                headers=headers,
+                files=files,
+                timeout=60,
+            )
+            if response.status_code >= 400:
+                error_msg = response.text or f"HTTP {response.status_code}"
+                try:
+                    err_json = response.json()
+                    if "errorMessages" in err_json:
+                        error_msg = "; ".join(err_json["errorMessages"])
+                    elif "errors" in err_json and err_json["errors"]:
+                        error_msg = "; ".join(
+                            f"{k}: {v}"
+                            for k, v in err_json["errors"].items()
+                        )
+                except (json.JSONDecodeError, TypeError, ValueError):
+                    pass
+                if response.status_code == 413:
+                    error_msg = (
+                        "Arquivo muito grande. Reduza o tamanho ou use o limite do Jira."
+                    )
+                raise RuntimeError(
+                    f"Erro ao anexar arquivo (HTTP {response.status_code}): {error_msg}"
+                )
+            resp_data = response.json()
+            if not isinstance(resp_data, list):
+                return []
+            return [
+                {
+                    "id": str(a.get("id", "")),
+                    "filename": a.get("filename", ""),
+                    "content": a.get("content", ""),
+                    "mimeType": a.get("mimeType", ""),
+                    "size": a.get("size", 0),
+                }
+                for a in resp_data
+            ]
+        except requests.exceptions.RequestException as e:
+            raise RuntimeError(
+                f"Erro de rede ao anexar arquivo: {str(e)}"
+            ) from e
 
     def get_assets_workspace_id(self) -> Optional[str]:
         """

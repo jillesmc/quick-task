@@ -15,9 +15,11 @@ ColumnLayout {
 
     property var applicationWindow: null
     property var jiraService: null
+    property var clipboardHelper: null
     property string selectedIssueKey: ""
     property var comments: []
     property bool commentsLoading: false
+    property bool _editCommentDialogOpen: false
 
     signal errorOccurred(string message)
 
@@ -153,16 +155,50 @@ ColumnLayout {
                 font.bold: true
             }
             Controls.ScrollView {
+                id: newCommentScrollView
                 Layout.fillWidth: true
                 Layout.preferredHeight: 80
                 clip: true
                 contentWidth: availableWidth
 
-                Controls.TextArea {
-                    id: newCommentField
-                    width: parent ? parent.availableWidth : 0
-                    wrapMode: Controls.TextArea.Wrap
-                    placeholderText: qsTr("Digite seu comentário (Markdown suportado)...")
+                Item {
+                    width: newCommentScrollView.availableWidth
+                    height: newCommentField.implicitHeight
+
+                    DropArea {
+                        anchors.fill: parent
+                        onDropped: function(drop) {
+                            if (!commentsSectionRoot.jiraService || !commentsSectionRoot.selectedIssueKey || !drop.urls || drop.urls.length === 0) return
+                            var extList = ["png", "jpg", "jpeg", "gif", "webp"]
+                            for (var i = 0; i < drop.urls.length; i++) {
+                                var urlStr = drop.urls[i].toString()
+                                var path = urlStr.replace(/^file:\/\//, "")
+                                var filename = path.split("/").pop() || path.split("\\").pop() || "file"
+                                var ext = filename.indexOf(".") >= 0 ? filename.split(".").pop().toLowerCase() : ""
+                                if (extList.indexOf(ext) < 0) continue
+                                commentsSectionRoot.jiraService.uploadAttachment(commentsSectionRoot.selectedIssueKey, path)
+                            }
+                        }
+                    }
+
+                    Controls.TextArea {
+                        id: newCommentField
+                        width: parent.width
+                        wrapMode: Controls.TextArea.Wrap
+                        placeholderText: qsTr("Digite seu comentário (Markdown suportado). Arraste imagens ou use Ctrl+V para colar.")
+
+                        Keys.onPressed: function(event) {
+                            if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_V) {
+                                if (commentsSectionRoot.clipboardHelper && commentsSectionRoot.clipboardHelper.hasClipboardImage() && commentsSectionRoot.jiraService && commentsSectionRoot.selectedIssueKey) {
+                                    var tempPath = commentsSectionRoot.clipboardHelper.getClipboardImageAsTempFile()
+                                    if (tempPath) {
+                                        commentsSectionRoot.jiraService.uploadAttachment(commentsSectionRoot.selectedIssueKey, tempPath)
+                                        event.accepted = true
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
             Controls.Button {
@@ -194,12 +230,19 @@ ColumnLayout {
         var win = commentsSectionRoot.applicationWindow || commentsSectionRoot.parent || commentsSectionRoot
         var dlg = comp.createObject(win)
         if (!dlg) return
+        commentsSectionRoot._editCommentDialogOpen = true
+        dlg.issueKey = commentsSectionRoot.selectedIssueKey
+        dlg.jiraService = commentsSectionRoot.jiraService
+        dlg.clipboardHelper = commentsSectionRoot.clipboardHelper
         dlg.accepted.connect(function (cid, newBody) {
             if (commentsSectionRoot.jiraService && commentsSectionRoot.selectedIssueKey) {
                 commentsSectionRoot.jiraService.updateComment(commentsSectionRoot.selectedIssueKey, cid, newBody)
             }
         })
-        dlg.closed.connect(function () { dlg.destroy() })
+        dlg.closed.connect(function () {
+            commentsSectionRoot._editCommentDialogOpen = false
+            dlg.destroy()
+        })
         dlg.openWith(commentId, body)
         dlg.open()
     }
@@ -265,6 +308,12 @@ ColumnLayout {
         function onErrorOccurred(message) {
             commentsSectionRoot.commentsLoading = false
             commentsSectionRoot.errorOccurred(message)
+        }
+        function onAttachmentUploaded(issueKey, contentUrl, filename) {
+            if (issueKey === commentsSectionRoot.selectedIssueKey && contentUrl && filename && !commentsSectionRoot._editCommentDialogOpen) {
+                var markdown = "![" + filename + "](" + contentUrl + ")"
+                newCommentField.insert(newCommentField.cursorPosition, markdown)
+            }
         }
     }
 

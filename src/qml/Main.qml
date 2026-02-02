@@ -33,6 +33,9 @@ Kirigami.ApplicationWindow {
         }
         // #endregion
         Kirigami.Theme.inherit = true
+        // Não usar root.clipboardHelper: em QML "clipboardHelper" no onCompleted
+        // resolve para root.clipboardHelper (null), não para a context property.
+        // As páginas recebem a context property diretamente via binding.
 
         // Garantir que o header receba referências ao stack e às páginas após eles existirem
         // (no ApplicationWindow o header é criado antes do conteúdo, então stack/createPage/etc.
@@ -83,6 +86,7 @@ Kirigami.ApplicationWindow {
     property var _ctxSettingsModel: settingsModel // qmllint disable unqualified
     property var _ctxMyIssuesModel: myIssuesModel // qmllint disable unqualified
     property var _ctxWorklogSyncService: worklogSyncService // qmllint disable unqualified
+    property var _ctxClipboardHelper: clipboardHelper // qmllint disable unqualified
     property var hideWindowFn: hideWindow // qmllint disable unqualified
     property var _ctxDebugLog: debugLog // qmllint disable unqualified
 
@@ -119,6 +123,7 @@ Kirigami.ApplicationWindow {
             id: createPage
             issueModel: root._ctxIssueModel
             jiraService: root._ctxJiraService
+            clipboardHelper: root._ctxClipboardHelper
             hideWindowFn: root.hideWindowFn
             timerService: root._ctxTimerService
             timerModel: root._ctxTimerModel
@@ -147,6 +152,7 @@ Kirigami.ApplicationWindow {
             applicationWindow: root
             issueModel: root._ctxEditingIssueModel
             jiraService: root._ctxJiraService
+            clipboardHelper: root._ctxClipboardHelper
             myIssuesModel: root._ctxMyIssuesModel
             timerService: root._ctxTimerService
             timerModel: root._ctxTimerModel

@@ -44,7 +44,14 @@ ColumnLayout {
     property var statusSequence: []
     property var valorEntregueValues: []
     property var plataformasAfetadasValues: []
-    
+    /// Lista de anexos pendentes para nova issue: [{ path, filename, placeholderId }]
+    property var pendingAttachments: []
+    /// Extensões permitidas para anexos (imagens)
+    property var allowedAttachmentExtensions: ["png", "jpg", "jpeg", "gif", "webp"]
+    /// Helper de clipboard (passado pelo parent quando disponível)
+    property var clipboardHelper: null
+    property int _placeholderCounter: 0
+
     signal fieldChanged(string fieldName, var value)
     
     spacing: Kirigami.Units.largeSpacing
@@ -57,7 +64,7 @@ ColumnLayout {
         Layout.alignment: Qt.AlignLeft | Qt.AlignTop
     }
     
-    // Scroll vertical para descrições longas
+    // Scroll vertical para descrições longas + DropArea para anexos
     Controls.ScrollView {
         id: descriptionScrollView
         Layout.fillWidth: true
@@ -67,33 +74,86 @@ ColumnLayout {
         Layout.alignment: Qt.AlignLeft | Qt.AlignTop
         clip: true
 
-        Controls.TextArea {
-            id: descriptionField
+        Item {
             width: descriptionScrollView.availableWidth
-            wrapMode: Controls.TextArea.Wrap
-            enabled: root.enabled
-            focus: true
-            
-            // Interceptar Tab para avançar para o próximo campo
-            Keys.onTabPressed: function(event) {
-                event.accepted = true
-                var nextItem = nextItemInFocusChain(true)
-                if (nextItem) {
-                    nextItem.forceActiveFocus()
+            height: descriptionField.implicitHeight
+
+            DropArea {
+                anchors.fill: parent
+                enabled: root.enabled
+                onDropped: function(drop) {
+                    if (!drop.urls || drop.urls.length === 0) return
+                    var extList = root.allowedAttachmentExtensions || []
+                    for (var i = 0; i < drop.urls.length; i++) {
+                        var urlStr = drop.urls[i].toString()
+                        var path = urlStr.replace(/^file:\/\//, "")
+                        var filename = path.split("/").pop() || path.split("\\").pop() || "file"
+                        var ext = filename.indexOf(".") >= 0 ? filename.split(".").pop().toLowerCase() : ""
+                        if (extList.indexOf(ext) < 0) continue
+                        var pathToUse = ""
+                        if (root.clipboardHelper && typeof root.clipboardHelper.copyFileToTemp === "function") {
+                            pathToUse = root.clipboardHelper.copyFileToTemp(path)
+                        }
+                        if (!pathToUse) continue
+                        root._placeholderCounter += 1
+                        var placeholderId = "p" + root._placeholderCounter
+                        root.pendingAttachments = root.pendingAttachments.concat([{
+                            path: pathToUse,
+                            filename: filename,
+                            placeholderId: placeholderId
+                        }])
+                        var markdown = "![" + filename + "](pending:" + placeholderId + ")"
+                        descriptionField.insert(descriptionField.cursorPosition, markdown)
+                        root.fieldChanged("description", descriptionField.text)
+                    }
                 }
             }
-            
-            // Interceptar Shift+Tab para voltar ao campo anterior
-            Keys.onBacktabPressed: function(event) {
-                event.accepted = true
-                var prevItem = nextItemInFocusChain(false)
-                if (prevItem) {
-                    prevItem.forceActiveFocus()
+
+            Controls.TextArea {
+                id: descriptionField
+                width: parent.width
+                wrapMode: Controls.TextArea.Wrap
+                enabled: root.enabled
+                focus: true
+                placeholderText: qsTr("Arraste imagens ou use Ctrl+V para colar; o link será inserido em markdown.")
+
+                Keys.onTabPressed: function(event) {
+                    event.accepted = true
+                    var nextItem = nextItemInFocusChain(true)
+                    if (nextItem) {
+                        nextItem.forceActiveFocus()
+                    }
                 }
-            }
-            
-            onTextChanged: {
-                root.fieldChanged("description", text)
+
+                Keys.onBacktabPressed: function(event) {
+                    event.accepted = true
+                    var prevItem = nextItemInFocusChain(false)
+                    if (prevItem) {
+                        prevItem.forceActiveFocus()
+                    }
+                }
+
+                Keys.onPressed: function(event) {
+                    if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_V) {
+                        if (root.clipboardHelper && root.clipboardHelper.hasClipboardImage()) {
+                            var tempPath = root.clipboardHelper.getClipboardImageAsTempFile()
+                            if (tempPath) {
+                                root._placeholderCounter += 1
+                                var pid = "p" + root._placeholderCounter
+                                var list = root.pendingAttachments
+                                list.push({ path: tempPath, filename: "paste.png", placeholderId: pid })
+                                root.pendingAttachments = list
+                                descriptionField.insert(descriptionField.cursorPosition, "![paste.png](pending:" + pid + ")")
+                                root.fieldChanged("description", descriptionField.text)
+                                event.accepted = true
+                            }
+                        }
+                    }
+                }
+
+                onTextChanged: {
+                    root.fieldChanged("description", text)
+                }
             }
         }
     }
@@ -256,6 +316,8 @@ ColumnLayout {
      */
     function reset() {
         descriptionField.text = ""
+        pendingAttachments = []
+        _placeholderCounter = 0
         if (tipoAtividadeValues && tipoAtividadeValues.length > 0) {
             tipoAtividade = tipoAtividadeValues[0]
         } else {

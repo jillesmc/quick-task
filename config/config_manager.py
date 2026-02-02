@@ -409,6 +409,34 @@ class ConfigManager:
         worklog_config = self._config.get("worklog", {})
         return worklog_config.get("default_durations", [30, 60, 120, 240, 480])
 
+    def get_attachment_max_size_mb(self) -> int:
+        """Retorna tamanho máximo de anexo em MB (default: 10)."""
+        attachments = self._config.get("attachments", {})
+        return attachments.get("max_file_size_mb", 10)
+
+    def get_allowed_attachment_extensions(self) -> List[str]:
+        """
+        Retorna lista de extensões permitidas para anexos (imagens + documentos).
+        Valores default: png, jpg, jpeg, gif, webp, pdf, txt, md, json, yaml, xml, log.
+        """
+        attachments = self._config.get("attachments", {})
+        images = attachments.get(
+            "allowed_image_extensions",
+            ["png", "jpg", "jpeg", "gif", "webp"],
+        )
+        documents = attachments.get(
+            "allowed_document_extensions",
+            ["pdf", "txt", "md", "json", "yaml", "xml", "log"],
+        )
+        seen = set()
+        result = []
+        for ext in images + documents:
+            e = (ext or "").lower().lstrip(".")
+            if e and e not in seen:
+                seen.add(e)
+                result.append(e)
+        return result if result else ["png", "jpg", "jpeg", "gif", "webp"]
+
     def get_pomodoro_config(self) -> Dict[str, Any]:
         """
         Retorna configuração completa de Pomodoro

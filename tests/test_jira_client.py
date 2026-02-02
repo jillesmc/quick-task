@@ -732,3 +732,97 @@ def test_delete_comment_success(mock_request, mock_config_file, mock_env_token):
     call_args = mock_request.call_args
     assert call_args[0][0] == "DELETE"
     assert "10000" in call_args[0][1]
+
+
+# --- Attachment API ---
+
+
+@patch("core.jira_client.requests.request")
+def test_get_attachment_settings_success(mock_request, mock_config_file, mock_env_token):
+    """get_attachment_settings retorna enabled e uploadLimit."""
+    mock_response = Mock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = {"enabled": True, "uploadLimit": 10485760}
+    mock_request.return_value = mock_response
+
+    client = JiraClient(jira_cli_config_path=mock_config_file)
+    result = client.get_attachment_settings()
+
+    assert result["enabled"] is True
+    assert result["uploadLimit"] == 10485760
+    call_args = mock_request.call_args
+    assert call_args[0][0] == "GET"
+    assert "attachment/meta" in call_args[0][1]
+
+
+@patch("core.jira_client.requests.post")
+def test_add_attachment_success(mock_post, mock_config_file, mock_env_token, tmp_path):
+    """add_attachment envia multipart e retorna lista de anexos."""
+    f = tmp_path / "test.txt"
+    f.write_text("hello")
+    mock_response = Mock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = [
+        {
+            "id": "10001",
+            "filename": "test.txt",
+            "content": "https://test.atlassian.net/rest/api/3/attachment/content/10001",
+            "mimeType": "text/plain",
+            "size": 5,
+        }
+    ]
+    mock_post.return_value = mock_response
+
+    client = JiraClient(jira_cli_config_path=mock_config_file)
+    result = client.add_attachment("TEST-123", str(f))
+
+    assert len(result) == 1
+    assert result[0]["id"] == "10001"
+    assert result[0]["filename"] == "test.txt"
+    assert "attachment/content/10001" in result[0]["content"]
+    call_args = mock_post.call_args
+    assert call_args[1]["headers"].get("X-Atlassian-Token") == "no-check"
+    assert "file" in call_args[1]["files"]
+
+
+@patch("core.jira_client.requests.post")
+def test_add_attachment_413(mock_post, mock_config_file, mock_env_token, tmp_path):
+    """add_attachment levanta RuntimeError em 413."""
+    f = tmp_path / "big.bin"
+    f.write_bytes(b"x" * 100)
+    mock_response = Mock()
+    mock_response.status_code = 413
+    mock_response.text = "Request Entity Too Large"
+    mock_response.json.side_effect = ValueError("not json")
+    mock_post.return_value = mock_response
+
+    client = JiraClient(jira_cli_config_path=mock_config_file)
+    with pytest.raises(RuntimeError) as exc_info:
+        client.add_attachment("TEST-123", str(f))
+    assert "413" in str(exc_info.value) or "muito grande" in str(exc_info.value).lower()
+
+
+@patch("core.jira_client.requests.post")
+def test_add_attachment_from_bytes_success(mock_post, mock_config_file, mock_env_token):
+    """add_attachment_from_bytes envia bytes e retorna lista de anexos."""
+    mock_response = Mock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = [
+        {
+            "id": "10002",
+            "filename": "paste.png",
+            "content": "https://test.atlassian.net/rest/api/3/attachment/content/10002",
+            "mimeType": "image/png",
+            "size": 1024,
+        }
+    ]
+    mock_post.return_value = mock_response
+
+    client = JiraClient(jira_cli_config_path=mock_config_file)
+    result = client.add_attachment_from_bytes(
+        "TEST-123", b"\x89PNG\r\n\x1a\n", "paste.png"
+    )
+
+    assert len(result) == 1
+    assert result[0]["filename"] == "paste.png"
+    assert "attachment/content/10002" in result[0]["content"]

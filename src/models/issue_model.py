@@ -38,6 +38,7 @@ class IssueModel(QObject):
     plataformasAfetadasValuesChanged = Signal()
     epicParentKeyChanged = Signal(str)
     epicParentSummaryChanged = Signal(str)
+    pendingAttachmentsChanged = Signal()
 
     def __init__(self, parent=None):
         """Inicializa o modelo com valores padrão"""
@@ -96,6 +97,8 @@ class IssueModel(QObject):
         # Epic parent (opcional)
         self._epicParentKey: str = ""
         self._epicParentSummary: str = ""
+        # Anexos pendentes para nova issue: [{ path, filename, placeholderId }]
+        self._pending_attachments: List[Dict[str, Any]] = []
 
     def get_worklog_inicio_datetime(self) -> Optional[datetime]:
         """Retorna worklogInicio como datetime Python para uso interno"""
@@ -289,6 +292,10 @@ class IssueModel(QObject):
         self.epicParentKey = ""
         self.epicParentSummary = ""
 
+        # Resetar anexos pendentes
+        self._pending_attachments = []
+        self.pendingAttachmentsChanged.emit()
+
     # Propriedades: Epic parent (opcionais)
 
     @Property(str, notify=epicParentKeyChanged)
@@ -312,6 +319,37 @@ class IssueModel(QObject):
         if self._epicParentSummary != value:
             self._epicParentSummary = value
             self.epicParentSummaryChanged.emit(value)
+
+    # Propriedade: pendingAttachments — lista de { path, filename, placeholderId } para nova issue
+    @Property(list, notify=pendingAttachmentsChanged)
+    def pendingAttachments(self) -> List[Dict[str, Any]]:
+        return list(self._pending_attachments)
+
+    @pendingAttachments.setter
+    def pendingAttachments(self, value: List[Any]) -> None:
+        if value is None:
+            value = []
+        normalized: List[Dict[str, Any]] = []
+        for item in value:
+            if isinstance(item, dict):
+                normalized.append(
+                    {
+                        "path": str(item.get("path", "")).strip(),
+                        "filename": str(item.get("filename", "")).strip(),
+                        "placeholderId": str(item.get("placeholderId", "")).strip(),
+                    }
+                )
+            elif hasattr(item, "get"):
+                normalized.append(
+                    {
+                        "path": str(getattr(item, "path", "")).strip(),
+                        "filename": str(getattr(item, "filename", "")).strip(),
+                        "placeholderId": str(getattr(item, "placeholderId", "")).strip(),
+                    }
+                )
+        if normalized != self._pending_attachments:
+            self._pending_attachments = normalized
+            self.pendingAttachmentsChanged.emit()
 
     # Propriedade: valorEntregue
     @Property(str, notify=valorEntregueChanged)

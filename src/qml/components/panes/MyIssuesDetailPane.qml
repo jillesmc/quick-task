@@ -35,6 +35,7 @@ Item {
     }
     property bool isDetailsLoading: false
     property var jiraService: null
+    property var clipboardHelper: null
     property string sharedEpicKey: ""
     property string sharedEpicSummary: ""
 
@@ -242,20 +243,82 @@ Item {
                             Layout.fillWidth: true
                         }
 
-                        Controls.ScrollView {
-                            id: descriptionScrollView
+                        Item {
+                            id: descriptionContainerTab2
                             Layout.fillWidth: true
                             Layout.fillHeight: true
-                            clip: true
 
-                            Controls.TextArea {
-                                id: descriptionFieldTab2
-                                width: descriptionScrollView.availableWidth
-                                wrapMode: Controls.TextArea.Wrap
-                                enabled: pane.selectedIssueKey !== "" && !pane.isProcessing
-                                text: pane.issueModel ? pane.issueModel.description : ""
-                                onTextChanged: if (pane.issueModel)
-                                    pane.issueModel.description = text
+                            DropArea {
+                                anchors.fill: parent
+                                enabled: pane.selectedIssueKey !== "" && !pane.isProcessing && pane.jiraService
+                                onEntered: function(drag) {
+                                    console.log("[DEBUG] MyIssuesDetailPane DropArea onEntered, urls:", drag.urls ? drag.urls.length : 0)
+                                }
+                                onExited: {
+                                    console.log("[DEBUG] MyIssuesDetailPane DropArea onExited")
+                                }
+                                onDropped: function(drop) {
+                                    console.log("[DEBUG] MyIssuesDetailPane DropArea onDropped, urls:", drop.urls ? drop.urls.length : 0, "clipboardHelper:", !!pane.clipboardHelper)
+                                    if (!pane.jiraService || !pane.selectedIssueKey || !drop.urls || drop.urls.length === 0) return
+                                    var extList = ["png", "jpg", "jpeg", "gif", "webp"]
+                                    for (var i = 0; i < drop.urls.length; i++) {
+                                        var urlStr = drop.urls[i].toString()
+                                        var path = urlStr.replace(/^file:\/\//, "")
+                                        var filename = path.split("/").pop() || path.split("\\").pop() || "file"
+                                        var ext = filename.indexOf(".") >= 0 ? filename.split(".").pop().toLowerCase() : ""
+                                        var pathToUse = (pane.clipboardHelper && typeof pane.clipboardHelper.copyFileToTemp === "function")
+                                            ? pane.clipboardHelper.copyFileToTemp(path) : path
+                                        console.log("[DEBUG] MyIssuesDetailPane onDropped file:", filename, "copyFileToTemp result:", pathToUse ? "ok" : "vazio")
+                                        if (!pathToUse) pathToUse = path
+                                        pane.jiraService.uploadAttachment(pane.selectedIssueKey, pathToUse)
+                                    }
+                                }
+
+                                Controls.ScrollView {
+                                    id: descriptionScrollView
+                                    anchors.fill: parent
+                                    clip: true
+                                    contentWidth: descriptionFieldTab2.implicitWidth
+
+                                    Controls.TextArea {
+                                        id: descriptionFieldTab2
+                                        width: descriptionContainerTab2.width
+                                        wrapMode: Controls.TextArea.Wrap
+                                        enabled: pane.selectedIssueKey !== "" && !pane.isProcessing
+                                        placeholderText: qsTr("Arraste imagens ou use Ctrl+V para colar; o link será inserido em markdown.")
+                                        text: pane.issueModel ? pane.issueModel.description : ""
+                                        onTextChanged: if (pane.issueModel)
+                                            pane.issueModel.description = text
+
+                                        Keys.onPressed: function(event) {
+                                            if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_V) {
+                                                console.log("[DEBUG] MyIssuesDetailPane Ctrl+V, clipboardHelper:", !!pane.clipboardHelper, "jiraService:", !!pane.jiraService, "selectedIssueKey:", pane.selectedIssueKey)
+                                                if (!pane.clipboardHelper || !pane.jiraService || !pane.selectedIssueKey) return
+                                                var hasImage = pane.clipboardHelper.hasClipboardImage()
+                                                console.log("[DEBUG] MyIssuesDetailPane hasClipboardImage:", hasImage)
+                                                if (hasImage) {
+                                                    var tempPath = pane.clipboardHelper.getClipboardImageAsTempFile()
+                                                    console.log("[DEBUG] MyIssuesDetailPane getClipboardImageAsTempFile result:", tempPath ? "ok" : "vazio")
+                                                    if (tempPath) {
+                                                        pane.jiraService.uploadAttachment(pane.selectedIssueKey, tempPath)
+                                                        event.accepted = true
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        Connections {
+                            target: pane.jiraService || null
+                            function onAttachmentUploaded(issueKey, contentUrl, filename) {
+                                if (issueKey === pane.selectedIssueKey && contentUrl && filename) {
+                                    var markdown = "![" + filename + "](" + contentUrl + ")"
+                                    descriptionFieldTab2.insert(descriptionFieldTab2.cursorPosition, markdown)
+                                    if (pane.issueModel) pane.issueModel.description = descriptionFieldTab2.text
+                                }
                             }
                         }
                     }
@@ -459,6 +522,7 @@ Item {
                         Layout.fillWidth: true
                         applicationWindow: pane.applicationWindow
                         jiraService: pane.jiraService
+                        clipboardHelper: pane.clipboardHelper
                         selectedIssueKey: pane.selectedIssueKey
                         onErrorOccurred: function (message) {
                             DialogHelpers.showError(pane, "../dialogs/ErrorDialog.qml", message)

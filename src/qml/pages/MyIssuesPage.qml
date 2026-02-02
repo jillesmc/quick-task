@@ -48,6 +48,7 @@ Kirigami.Page {
     // Recebidos do Main (passados explicitamente)
     property var issueModel: null
     property var jiraService: null
+    property var clipboardHelper: null
     property var myIssuesModel: null
     property var timerService: null
     property var timerModel: null
@@ -336,6 +337,7 @@ Kirigami.Page {
             isProcessing: page.isProcessing
             isDetailsLoading: page.isDetailsLoading
             jiraService: page.jiraService
+            clipboardHelper: page.clipboardHelper
             sharedEpicKey: page.sharedEpicKey
             sharedEpicSummary: page.sharedEpicSummary
 

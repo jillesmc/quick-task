@@ -254,6 +254,7 @@ def main():
 
     # Configurar estilo Qt Quick Controls (evitar SIGABRT/134 com TabBar no estilo KDE)
     # org.kde.desktop/desktopstyle podem abortar com TabButton (binding ou null 'y').
+    # TextArea no estilo KDE pode emitir "Binding loop detected for property width"; Basic não.
     # Basic evita o crash; override via QT_QUICK_CONTROLS_STYLE se quiser outro estilo.
     if not os.environ.get("QT_QUICK_CONTROLS_STYLE"):
         # Flatpak: usar Basic para evitar exit 134 (SIGABRT) ao abrir/alternar abas
@@ -515,6 +516,16 @@ def main():
         traceback.print_exc(file=sys.stderr)
         # Não falhar completamente - timer é feature opcional
 
+    # ClipboardHelper para colar imagens em descrição/comentários
+    try:
+        from src.utils.clipboard_helper import ClipboardHelper
+
+        clipboard_helper = ClipboardHelper(app)
+        debug_log("App", "main", "ClipboardHelper criado com sucesso")
+    except Exception as e:
+        print(f"⚠ Aviso: Erro ao criar ClipboardHelper: {e}", file=sys.stderr)
+        clipboard_helper = None
+
     # Expor ao contexto QML
     debug_log("App", "main", "Expondo modelos ao contexto QML...")
     try:
@@ -551,6 +562,15 @@ def main():
     except Exception as e:
         print(f"✗ Erro ao expor settingsModel: {e}", file=sys.stderr)
         raise
+
+    try:
+        engine.rootContext().setContextProperty(
+            "clipboardHelper", clipboard_helper if clipboard_helper else None
+        )
+        if clipboard_helper:
+            debug_log("App", "main", "clipboardHelper exposto ao contexto QML")
+    except Exception as e:
+        print(f"⚠ Aviso: Erro ao expor clipboardHelper: {e}", file=sys.stderr)
 
     try:
         engine.rootContext().setContextProperty("trayManager", tray_manager)
