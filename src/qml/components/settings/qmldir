@@ -1,3 +1,4 @@
 ConnectionSettingsBlock ConnectionSettingsBlock.qml
 PomodoroSettingsBlock PomodoroSettingsBlock.qml
 NotificationSettingsBlock NotificationSettingsBlock.qml
+VoiceInputSettingsBlock VoiceInputSettingsBlock.qml

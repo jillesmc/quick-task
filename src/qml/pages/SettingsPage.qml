@@ -25,6 +25,10 @@ Kirigami.Page {
     property bool isSaving: false
     property bool isValid: connectionBlock ? connectionBlock.valid : false
 
+    // Entrada por voz: context property (pode ser null se dependências não instaladas)
+    property var _ctxVoiceInputService: (typeof voiceInputService !== "undefined" ? voiceInputService : null) // qmllint disable unqualified
+    property bool voiceInputAvailable: _ctxVoiceInputService ? _ctxVoiceInputService.isAvailable() : false
+
     // Função pública para integração com Main.qml (botão global no header)
     function saveSettingsFromToolbar() {
         if (page.settingsModel && page.isValid && !page.isSaving) {
@@ -96,11 +100,13 @@ Kirigami.Page {
             id: leftScrollView
             Controls.SplitView.preferredWidth: parent.width * 0.5
             Controls.SplitView.minimumWidth: 400
+            Controls.SplitView.fillHeight: true
             clip: true
+            contentWidth: availableWidth
 
             Item {
-                width: leftScrollView.availableWidth
-                height: leftColumn.implicitHeight + 2 * Kirigami.Units.largeSpacing
+                width: leftScrollView.width
+                implicitHeight: leftColumn.implicitHeight + 2 * Kirigami.Units.largeSpacing
 
                 ColumnLayout {
                     id: leftColumn
@@ -159,25 +165,22 @@ Kirigami.Page {
                                 : Kirigami.Theme.negativeTextColor;
                         }
                     }
-
-                    // Espaço flexível
-                    Item {
-                        Layout.fillHeight: true
-                    }
                 }
             }
         }
 
-        // Coluna Direita (50%): Pomodoro e Notificações
+        // Coluna Direita (50%): Pomodoro, Notificações e Entrada por voz
         Controls.ScrollView {
             id: rightScrollView
             Controls.SplitView.fillWidth: true
             Controls.SplitView.minimumWidth: 400
+            Controls.SplitView.fillHeight: true
             clip: true
+            contentWidth: availableWidth
 
             Item {
                 width: rightScrollView.availableWidth
-                height: rightColumn.implicitHeight + 2 * Kirigami.Units.largeSpacing
+                implicitHeight: rightColumn.implicitHeight + 2 * Kirigami.Units.largeSpacing
 
                 ColumnLayout {
                     id: rightColumn
@@ -196,6 +199,12 @@ Kirigami.Page {
                     NotificationSettingsBlock {
                         Layout.fillWidth: true
                         settingsModel: page.settingsModel
+                    }
+
+                    VoiceInputSettingsBlock {
+                        Layout.fillWidth: true
+                        settingsModel: page.settingsModel
+                        voiceInputAvailable: page.voiceInputAvailable
                     }
 
                     // Mensagens de feedback
@@ -227,11 +236,6 @@ Kirigami.Page {
                         color: Kirigami.Theme.textColor
                         visible: false
                         wrapMode: Text.Wrap
-                    }
-
-                    // Espaço flexível
-                    Item {
-                        Layout.fillHeight: true
                     }
                 }
             }

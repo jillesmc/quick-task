@@ -74,6 +74,16 @@ Item {
     }
 
     Shortcut {
+        id: shortcutVoiceInput
+        sequence: "Ctrl+Shift+V"
+        onActivated: {
+            if (root.stack && root.stack.currentIndex === 0 && root.createPage && root.createPage.openVoiceDialog) {
+                root.createPage.openVoiceDialog();
+            }
+        }
+    }
+
+    Shortcut {
         id: shortcutSwitchTabBack
         sequence: "Ctrl+Shift+Tab"
         onActivated: {

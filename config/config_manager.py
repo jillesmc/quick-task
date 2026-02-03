@@ -437,6 +437,121 @@ class ConfigManager:
                 result.append(e)
         return result if result else ["png", "jpg", "jpeg", "gif", "webp"]
 
+    def get_voice_input_config(self) -> Dict[str, Any]:
+        """
+        Retorna configuração completa de entrada por voz.
+        Defaults quando a chave voice_input não existir.
+        Se existir ollama_* e não existir localai_*, preenche localai_* a partir de ollama_* (migração).
+        """
+        default_task_prompt = (
+            "Você extrai dados estruturados de texto para tarefas Jira. "
+            "A description da task deve seguir uma estrutura simples em Markdown: "
+            "Contexto (breve), Passos ou Critérios de aceite (lista), quando fizer sentido. Seja conciso."
+        )
+        default_comment_prompt = (
+            "Você apenas melhora o texto do utilizador: expanda ligeiramente as ideias e "
+            "estruture em parágrafos ou listas quando apropriado. Mantenha o tom e não invente informações. "
+            "Responda somente com o texto melhorado, sem explicações nem metatexto."
+        )
+        default_config = {
+            "enabled": False,
+            "localai_base_url": "http://localhost:8080",
+            "localai_whisper_model": "whisper-1",
+            "localai_llm_model": "qwen2.5:3b",
+            "localai_task_system_prompt": default_task_prompt,
+            "localai_comment_improvement_prompt": default_comment_prompt,
+            "language": "pt",
+            "max_recording_seconds": 120,
+            "keyboard_shortcut": "Ctrl+Shift+V",
+            "auto_process_after_stop": False,
+            "microphone_device": "default",
+        }
+        voice_config = self._config.get("voice_input", {})
+        if not isinstance(voice_config, dict):
+            return default_config
+        result = default_config.copy()
+        result.update({k: v for k, v in voice_config.items() if k != "whisper_model"})
+        # Migração: se config antiga tem ollama_* e não tem localai_*, preencher localai_* a partir de ollama_*
+        if "localai_base_url" not in voice_config and voice_config.get("ollama_base_url"):
+            result["localai_base_url"] = voice_config["ollama_base_url"]
+            result["localai_whisper_model"] = voice_config.get("ollama_whisper_model") or default_config["localai_whisper_model"]
+            result["localai_llm_model"] = voice_config.get("ollama_llm_model") or default_config["localai_llm_model"]
+        return result
+
+    def get_voice_input_enabled(self) -> bool:
+        """Retorna se a entrada por voz está habilitada."""
+        return self.get_voice_input_config().get("enabled", False)
+
+    def get_localai_base_url(self) -> str:
+        """Retorna a URL base do LocalAI (ex.: http://localhost:8080)."""
+        return self.get_voice_input_config().get("localai_base_url", "http://localhost:8080")
+
+    def get_localai_whisper_model(self) -> str:
+        """Retorna o modelo Whisper do LocalAI (ex.: whisper-1)."""
+        return self.get_voice_input_config().get("localai_whisper_model", "whisper-1")
+
+    def get_localai_llm_model(self) -> str:
+        """Retorna o modelo LLM do LocalAI (ex.: qwen2.5:3b)."""
+        return self.get_voice_input_config().get("localai_llm_model", "qwen2.5:3b")
+
+    def get_localai_task_system_prompt(self) -> str:
+        """Retorna o pré-prompt de sistema para extração de task (summary, description, tipo_atividade)."""
+        default = (
+            "Você extrai dados estruturados de texto para tarefas Jira. "
+            "A description da task deve seguir uma estrutura simples em Markdown: "
+            "Contexto (breve), Passos ou Critérios de aceite (lista), quando fizer sentido. Seja conciso."
+        )
+        return self.get_voice_input_config().get("localai_task_system_prompt", default)
+
+    def get_localai_comment_improvement_prompt(self) -> str:
+        """Retorna o pré-prompt para melhoria de texto de comentários."""
+        default = (
+            "Você apenas melhora o texto do utilizador: expanda ligeiramente as ideias e "
+            "estruture em parágrafos ou listas quando apropriado. Mantenha o tom e não invente informações. "
+            "Responda somente com o texto melhorado, sem explicações nem metatexto."
+        )
+        return self.get_voice_input_config().get("localai_comment_improvement_prompt", default)
+
+    def get_voice_input_language(self) -> str:
+        """Retorna o idioma para transcrição (ex.: pt)."""
+        return self.get_voice_input_config().get("language", "pt")
+
+    def get_voice_input_max_recording_seconds(self) -> int:
+        """Retorna duração máxima de gravação em segundos."""
+        return int(self.get_voice_input_config().get("max_recording_seconds", 120))
+
+    def get_voice_input_keyboard_shortcut(self) -> str:
+        """Retorna o atalho de teclado (ex.: Ctrl+Shift+V)."""
+        return self.get_voice_input_config().get("keyboard_shortcut", "Ctrl+Shift+V")
+
+    def get_voice_input_auto_process_after_stop(self) -> bool:
+        """Retorna se deve processar transcrição automaticamente ao parar gravação."""
+        return self.get_voice_input_config().get("auto_process_after_stop", False)
+
+    def get_voice_input_microphone_device(self) -> Optional[str]:
+        """Retorna o dispositivo de microfone (default ou ID). None usa default."""
+        dev = self.get_voice_input_config().get("microphone_device", "default")
+        return dev if dev else "default"
+
+    def save_voice_input_config(self, voice_config: Dict[str, Any]) -> None:
+        """
+        Salva configurações de entrada por voz no arquivo de configuração.
+
+        Args:
+            voice_config: Dict com as configurações de voice_input a salvar
+        """
+        self._config["voice_input"] = voice_config
+        if str(self.config_path).startswith("/app/"):
+            xdg_config = os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")
+            self.config_path = Path(xdg_config) / "jira-quick-task" / "config.json"
+        self.config_path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            with open(self.config_path, "w", encoding="utf-8") as f:
+                json.dump(self._config, f, indent=2, ensure_ascii=False)
+            self.load_config()
+        except Exception as e:
+            raise RuntimeError(f"Erro ao salvar configuração de voice_input: {e}") from e
+
     def get_pomodoro_config(self) -> Dict[str, Any]:
         """
         Retorna configuração completa de Pomodoro
@@ -496,9 +611,7 @@ class ConfigManager:
         try:
             with open(self.config_path, "w", encoding="utf-8") as f:
                 json.dump(self._config, f, indent=2, ensure_ascii=False)
-                # Forçar sincronização do sistema de arquivos
-                import os
-
+                # Forçar sincronização do sistema de arquivos (os já importado no topo do módulo)
                 if hasattr(f, "fileno"):
                     try:
                         os.fsync(f.fileno())

@@ -100,9 +100,9 @@ pip-cache/
 # Flatpak
 .flatpak-builder/
 build-dir/
-
 # Bundle
 *.flatpak
 
 # Dev tools exportadas do Docker
 /dev-tools/
+.localai-models/

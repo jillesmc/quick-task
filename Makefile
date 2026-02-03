@@ -63,6 +63,7 @@ help:
 	@echo "  $(YELLOW)make run-debug$(RESET)      - Executa a aplicação com saída de debug"
 	@echo "  $(YELLOW)make dev$(RESET)            - Build + Run (útil durante desenvolvimento)"
 	@echo "  $(YELLOW)make bundle$(RESET)         - Cria arquivo .flatpak para distribuição"
+	@echo "  $(YELLOW)make flatpak-audio-deps$(RESET) - Gera flatpak/python3-audio.json (flatpak-pip-generator: sounddevice, scipy, numpy)"
 	@echo "  $(YELLOW)make clean-build$(RESET)   - Remove build e aplicação Flatpak instalada"
 	@echo ""
 	@echo "$(GREEN)Utilitários:$(RESET)"
@@ -160,6 +161,29 @@ check-flatpak:
 		exit 1; \
 	fi
 	@echo "$(GREEN)✓ Manifest encontrado: $(MANIFEST)$(RESET)"
+
+# Gera flatpak/python3-audio.json (opcional; o arquivo já está no repositório).
+# Requer: flatpak-pip-generator (pip install flatpak-pip-generator).
+.PHONY: flatpak-audio-deps
+flatpak-audio-deps:
+	@(command -v flatpak-pip-generator >/dev/null 2>&1 || python3 -m flatpak_pip_generator --help >/dev/null 2>&1) || { \
+		echo "$(RED)✗ flatpak-pip-generator não encontrado$(RESET)"; \
+		echo "$(YELLOW)Instale com: pip install --user flatpak-pip-generator$(RESET)"; \
+		exit 1; \
+	}
+	@echo "$(CYAN)Gerando flatpak/python3-audio.json (sounddevice, scipy, numpy)...$(RESET)"
+	@python3 -m flatpak_pip_generator sounddevice scipy numpy --output flatpak/python3-audio
+	@if [ -f flatpak/python3-audio.json ]; then \
+		sed -i 's|https://files.pythonhosted.org/packages/eb/56/b1ba7935a17738ae8453301356628e8147c79dbb825bcbc73dc7401f9846/cffi-2.0.0.tar.gz|https://files.pythonhosted.org/packages/d7/91/500d892b2bf36529a75b77958edfcd5ad8e2ce4064ce2ecfeab2125d72d1/cffi-2.0.0-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.whl|' flatpak/python3-audio.json; \
+		sed -i 's/44d1b5909021139fe36001ae048dbdde8214afa20200eda0f64c068cac5d5529/8941aaadaf67246224cee8c3803777eed332a19d909b47e29c9842ef1e79ac26/' flatpak/python3-audio.json; \
+		sed -i 's|https://files.pythonhosted.org/packages/57/fd/0005efbd0af48e55eb3c7208af93f2862d4b1a56cd78e84309a2d959208d/numpy-2.4.2.tar.gz|https://files.pythonhosted.org/packages/1b/46/6fa4ea94f1ddf969b2ee941290cca6f1bfac92b53c76ae5f44afe17ceb69/numpy-2.4.2-cp311-cp311-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl|' flatpak/python3-audio.json; \
+		sed -i 's/659a6107e31a83c4e33f763942275fd278b21d095094044eb35569e86a21ddae/c02ef4401a506fb60b411467ad501e1429a3487abca4664871d9ae0b46c8ba32/' flatpak/python3-audio.json; \
+		sed -i 's|https://files.pythonhosted.org/packages/56/3e/9cca699f3486ce6bc12ff46dc2031f1ec8eb9ccc9a320fdaf925f1417426/scipy-1.17.0.tar.gz|https://files.pythonhosted.org/packages/ef/df/df1457c4df3826e908879fe3d76bc5b6e60aae45f4ee42539512438cfd5d/scipy-1.17.0-cp311-cp311-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl|' flatpak/python3-audio.json; \
+		sed -i 's/2591060c8e648d8b96439e111ac41fd8342fdeff1876be2e19dea3fe8930454e/dac97a27520d66c12a34fd90a4fe65f43766c18c0d6e1c0a80f114d2260080e4/' flatpak/python3-audio.json; \
+		echo "$(GREEN)✓ flatpak/python3-audio.json criado (cffi, numpy, scipy como wheels cp311)$(RESET)"; \
+	else \
+		echo "$(YELLOW)Verifique a saída do gerador$(RESET)"; \
+	fi
 
 .PHONY: install-deps
 install-deps: check-flatpak

@@ -1,0 +1,22 @@
+# LocalAI para entrada por voz (transcrição Whisper + LLM).
+# Uso: docker compose -f docker-compose.localai.yml up -d
+# Crie o diretório .localai-models para persistência (opcional):
+#   mkdir -p .localai-models
+# Para CPU apenas, use image: localai/localai:latest e remova o bloco deploy.
+services:
+  localai:
+    image: localai/localai:latest-gpu-nvidia-cuda-12
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./.localai-models:/models
+    environment:
+      MODELS_PATH: /models
+      DEBUG: "true"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]

@@ -54,6 +54,18 @@ class SettingsModel(QObject):
             self._long_sound_file = "long"  # Nome do arquivo sem extensão
             self._return_from_break_sound_file = ""  # Opcional: som ao voltar da pausa; vazio = não toca
 
+            # Propriedades de entrada por voz (voice_input)
+            self._voice_enabled = False
+            self._localai_base_url = "http://localhost:8080"
+            self._localai_whisper_model = "whisper-1"
+            self._localai_llm_model = "qwen2.5:3b"
+            self._localai_task_system_prompt = ""
+            self._localai_comment_improvement_prompt = ""
+            self._voice_language = "pt"
+            self._voice_max_recording_seconds = 120
+            self._voice_keyboard_shortcut = "Ctrl+Shift+V"
+            self._voice_auto_process_after_stop = False
+
             debug_log("SettingsModel", "__init__", "Carregando valores atuais...")
             self._load_current_values()
             debug_log("SettingsModel", "__init__", "Concluído")
@@ -144,6 +156,31 @@ class SettingsModel(QObject):
         self.returnFromBreakSoundFile = (
             notifications.get("return_from_break_sound_file") or ""
         )
+        # Carregar configurações de voice_input do config.json (localai_*; migração de ollama_* em get_voice_input_config)
+        voice_config = self._config_manager.get_voice_input_config()
+        self._voice_enabled = voice_config.get("enabled", False)
+        self._localai_base_url = voice_config.get("localai_base_url", "http://localhost:8080")
+        self._localai_whisper_model = voice_config.get("localai_whisper_model", "whisper-1")
+        self._localai_llm_model = voice_config.get("localai_llm_model", "qwen2.5:3b")
+        self._localai_task_system_prompt = voice_config.get(
+            "localai_task_system_prompt",
+            self._config_manager.get_localai_task_system_prompt(),
+        )
+        self._localai_comment_improvement_prompt = voice_config.get(
+            "localai_comment_improvement_prompt",
+            self._config_manager.get_localai_comment_improvement_prompt(),
+        )
+        self._voice_language = voice_config.get("language", "pt")
+        self._voice_max_recording_seconds = int(
+            voice_config.get("max_recording_seconds", 120)
+        )
+        self._voice_keyboard_shortcut = voice_config.get(
+            "keyboard_shortcut", "Ctrl+Shift+V"
+        )
+        self._voice_auto_process_after_stop = voice_config.get(
+            "auto_process_after_stop", False
+        )
+
         debug_log(
             "SettingsModel",
             "_load_current_values",
@@ -372,13 +409,19 @@ class SettingsModel(QObject):
             email,
         )
 
-        # Cancelar worker anterior se existir
-        if self._account_id_worker and self._account_id_worker.isRunning():
-            debug_log(
-                "SettingsModel", "_start_fetch_account_id", "Cancelando worker anterior"
-            )
-            self._account_id_worker.terminate()
-            self._account_id_worker.wait()
+        # Cancelar worker anterior se existir (pode estar já deletado após deleteLater)
+        try:
+            if self._account_id_worker and self._account_id_worker.isRunning():
+                debug_log(
+                    "SettingsModel",
+                    "_start_fetch_account_id",
+                    "Cancelando worker anterior",
+                )
+                self._account_id_worker.terminate()
+                self._account_id_worker.wait()
+        except RuntimeError:
+            # Objeto C++ já deletado (ex.: após deleteLater)
+            self._account_id_worker = None
 
         # Criar novo worker
         debug_log("SettingsModel", "_start_fetch_account_id", "Criando novo worker")
@@ -387,9 +430,16 @@ class SettingsModel(QObject):
         )
         self._account_id_worker.accountIdFetched.connect(self._on_account_id_fetched)
         self._account_id_worker.errorOccurred.connect(self._on_account_id_error)
-        self._account_id_worker.finished.connect(self._account_id_worker.deleteLater)
+        self._account_id_worker.finished.connect(self._on_account_id_worker_finished)
         debug_log("SettingsModel", "_start_fetch_account_id", "Iniciando thread")
         self._account_id_worker.start()
+
+    def _on_account_id_worker_finished(self):
+        """Limpa referência ao worker após término (evita RuntimeError em save posterior)."""
+        w = self._account_id_worker
+        self._account_id_worker = None
+        if w:
+            w.deleteLater()
 
     def _on_account_id_fetched(self, account_id: str):
         """Callback quando accountId é obtido com sucesso"""
@@ -476,6 +526,27 @@ class SettingsModel(QObject):
             self._config_manager.save_pomodoro_config(pomodoro_config)
             debug_log(
                 "SettingsModel", "save", "Configurações de Pomodoro salvas no arquivo"
+            )
+
+            # 4b. Salvar configurações de entrada por voz
+            voice_config = {
+                "enabled": self._voice_enabled,
+                "localai_base_url": self._localai_base_url,
+                "localai_whisper_model": self._localai_whisper_model,
+                "localai_llm_model": self._localai_llm_model,
+                "localai_task_system_prompt": self._localai_task_system_prompt,
+                "localai_comment_improvement_prompt": self._localai_comment_improvement_prompt,
+                "language": self._voice_language,
+                "max_recording_seconds": self._voice_max_recording_seconds,
+                "keyboard_shortcut": self._voice_keyboard_shortcut,
+                "auto_process_after_stop": self._voice_auto_process_after_stop,
+                "microphone_device": "default",
+            }
+            self._config_manager.save_voice_input_config(voice_config)
+            debug_log(
+                "SettingsModel",
+                "save",
+                "Configurações de voice_input salvas no arquivo",
             )
 
             # 5. Recarregar valores após salvar
@@ -695,3 +766,121 @@ class SettingsModel(QObject):
         if self._return_from_break_sound_file != val:
             self._return_from_break_sound_file = val
             self.returnFromBreakSoundFileChanged.emit()
+
+    # Sinais para configurações de entrada por voz
+    voiceInputEnabledChanged = Signal()
+    localaiBaseUrlChanged = Signal()
+    localaiWhisperModelChanged = Signal()
+    localaiLlmModelChanged = Signal()
+    localaiTaskSystemPromptChanged = Signal()
+    localaiCommentImprovementPromptChanged = Signal()
+    voiceInputLanguageChanged = Signal()
+    voiceInputMaxRecordingSecondsChanged = Signal()
+    voiceInputKeyboardShortcutChanged = Signal()
+    voiceInputAutoProcessAfterStopChanged = Signal()
+
+    @Property(bool, notify=voiceInputEnabledChanged)
+    def voiceInputEnabled(self) -> bool:
+        return self._voice_enabled
+
+    @voiceInputEnabled.setter
+    def voiceInputEnabled(self, value: bool):
+        if self._voice_enabled != value:
+            self._voice_enabled = value
+            self.voiceInputEnabledChanged.emit()
+
+    @Property(str, notify=localaiBaseUrlChanged)
+    def localaiBaseUrl(self) -> str:
+        return self._localai_base_url
+
+    @localaiBaseUrl.setter
+    def localaiBaseUrl(self, value: str):
+        v = (value or "http://localhost:8080").strip()
+        if self._localai_base_url != v:
+            self._localai_base_url = v
+            self.localaiBaseUrlChanged.emit()
+
+    @Property(str, notify=localaiWhisperModelChanged)
+    def localaiWhisperModel(self) -> str:
+        return self._localai_whisper_model
+
+    @localaiWhisperModel.setter
+    def localaiWhisperModel(self, value: str):
+        v = value or "whisper-1"
+        if self._localai_whisper_model != v:
+            self._localai_whisper_model = v
+            self.localaiWhisperModelChanged.emit()
+
+    @Property(str, notify=localaiLlmModelChanged)
+    def localaiLlmModel(self) -> str:
+        return self._localai_llm_model
+
+    @localaiLlmModel.setter
+    def localaiLlmModel(self, value: str):
+        v = value or "qwen2.5:3b"
+        if self._localai_llm_model != v:
+            self._localai_llm_model = v
+            self.localaiLlmModelChanged.emit()
+
+    @Property(str, notify=localaiTaskSystemPromptChanged)
+    def localaiTaskSystemPrompt(self) -> str:
+        return self._localai_task_system_prompt
+
+    @localaiTaskSystemPrompt.setter
+    def localaiTaskSystemPrompt(self, value: str):
+        v = value or ""
+        if self._localai_task_system_prompt != v:
+            self._localai_task_system_prompt = v
+            self.localaiTaskSystemPromptChanged.emit()
+
+    @Property(str, notify=localaiCommentImprovementPromptChanged)
+    def localaiCommentImprovementPrompt(self) -> str:
+        return self._localai_comment_improvement_prompt
+
+    @localaiCommentImprovementPrompt.setter
+    def localaiCommentImprovementPrompt(self, value: str):
+        v = value or ""
+        if self._localai_comment_improvement_prompt != v:
+            self._localai_comment_improvement_prompt = v
+            self.localaiCommentImprovementPromptChanged.emit()
+
+    @Property(str, notify=voiceInputLanguageChanged)
+    def voiceInputLanguage(self) -> str:
+        return self._voice_language
+
+    @voiceInputLanguage.setter
+    def voiceInputLanguage(self, value: str):
+        if self._voice_language != (value or "pt"):
+            self._voice_language = value or "pt"
+            self.voiceInputLanguageChanged.emit()
+
+    @Property(int, notify=voiceInputMaxRecordingSecondsChanged)
+    def voiceInputMaxRecordingSeconds(self) -> int:
+        return self._voice_max_recording_seconds
+
+    @voiceInputMaxRecordingSeconds.setter
+    def voiceInputMaxRecordingSeconds(self, value: int):
+        if self._voice_max_recording_seconds != value:
+            self._voice_max_recording_seconds = max(30, min(300, value))
+            self.voiceInputMaxRecordingSecondsChanged.emit()
+
+    @Property(str, notify=voiceInputKeyboardShortcutChanged)
+    def voiceInputKeyboardShortcut(self) -> str:
+        return self._voice_keyboard_shortcut
+
+    @voiceInputKeyboardShortcut.setter
+    def voiceInputKeyboardShortcut(self, value: str):
+        v = (value or "Ctrl+Shift+V").strip()
+        if self._voice_keyboard_shortcut != v:
+            self._voice_keyboard_shortcut = v
+            self.voiceInputKeyboardShortcutChanged.emit()
+
+    @Property(bool, notify=voiceInputAutoProcessAfterStopChanged)
+    def voiceInputAutoProcessAfterStop(self) -> bool:
+        return self._voice_auto_process_after_stop
+
+    @voiceInputAutoProcessAfterStop.setter
+    def voiceInputAutoProcessAfterStop(self, value: bool):
+        if self._voice_auto_process_after_stop != value:
+            self._voice_auto_process_after_stop = value
+            self.voiceInputAutoProcessAfterStopChanged.emit()

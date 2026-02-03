@@ -74,6 +74,16 @@ check_requirements() {
     print_success "Manifest encontrado: $MANIFEST"
 }
 
+# Verificar módulo de áudio quando for construir/testar/bundle (não em install-deps)
+check_audio_module() {
+    if grep -q '"python3-audio.json"' "$MANIFEST" 2>/dev/null && [ ! -f "flatpak/python3-audio.json" ]; then
+        print_error "flatpak/python3-audio.json não encontrado (módulo de áudio no manifest)"
+        echo "Instale o SDK: make install-deps"
+        echo "O arquivo deve existir no repositório (gerado com: make flatpak-audio-deps)"
+        exit 1
+    fi
+}
+
 # Instalar dependências
 install_deps() {
     print_header "Instalando Dependências do Flatpak"
@@ -125,6 +135,7 @@ install_deps() {
 # Construir Flatpak
 build() {
     print_header "Construindo Flatpak"
+    check_audio_module
     
     # Tentar desinstalar versão anterior (ignora erro se não estiver instalada)
     print_info "Desinstalando versão anterior (se instalada)..."

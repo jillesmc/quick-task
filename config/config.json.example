@@ -26,8 +26,6 @@
     "READY FOR DEPLOY",
     "DONE"
   ],
-  "valor_entregue_values": ["Alto", "Médio", "Baixo"],
-  "plataformas_afetadas_values": ["Web", "Mobile", "API", "Backend"],
   "assets": {
     "cloud_id": null,
     "object_type_id_valor_entregue": 434,
@@ -66,5 +64,18 @@
     "max_file_size_mb": 10,
     "allowed_image_extensions": ["png", "jpg", "jpeg", "gif", "webp"],
     "allowed_document_extensions": ["pdf", "txt", "md", "json", "yaml", "xml", "log"]
+  },
+  "voice_input": {
+    "enabled": false,
+    "localai_base_url": "http://localhost:8080",
+    "localai_whisper_model": "whisper-1",
+    "localai_llm_model": "qwen2.5:3b",
+    "localai_task_system_prompt": "Você extrai dados estruturados de texto para tarefas Jira. A description da task deve seguir uma estrutura simples em Markdown: Contexto (breve), Passos ou Critérios de aceite (lista), quando fizer sentido. Seja conciso.",
+    "localai_comment_improvement_prompt": "Você apenas melhora o texto do utilizador: expanda ligeiramente as ideias e estruture em parágrafos ou listas quando apropriado. Mantenha o tom e não invente informações. Responda somente com o texto melhorado, sem explicações nem metatexto.",
+    "language": "pt",
+    "max_recording_seconds": 120,
+    "keyboard_shortcut": "Ctrl+Shift+V",
+    "auto_process_after_stop": false,
+    "microphone_device": "default"
   }
 }

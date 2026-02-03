@@ -57,6 +57,7 @@ Kirigami.Page {
     property var hideWindowFn: null
     property var timerService: null
     property var timerModel: null
+    property var _ctxVoiceInputService: typeof voiceInputService !== "undefined" ? voiceInputService : null // qmllint disable unqualified
 
     // ------------------------------------------------------------------
     // Funções públicas para integração com Main.qml (botão global)
@@ -67,6 +68,12 @@ Kirigami.Page {
         // - Valida antes de chamar o serviço
         if (!page.isProcessing && page.controller && page.controller.validate()) {
             page.controller.createIssue();
+        }
+    }
+
+    function openVoiceDialog() {
+        if (voiceDialogLoader.item && page._ctxVoiceInputService !== null && page._ctxVoiceInputService.isAvailable()) {
+            voiceDialogLoader.item.open(); // qmllint disable missing-property
         }
     }
 
@@ -194,10 +201,26 @@ Kirigami.Page {
                             // Layout.bottomMargin: 10
                             spacing: Kirigami.Units.smallSpacing
 
-                            Controls.Label {
-                                text: qsTr("Summary:")
-                                font.bold: true
+                            RowLayout {
                                 Layout.fillWidth: true
+                                spacing: Kirigami.Units.smallSpacing
+
+                                Controls.Label {
+                                    text: qsTr("Summary:")
+                                    font.bold: true
+                                    Layout.fillWidth: true
+                                }
+
+                                Controls.ToolButton {
+                                    visible: page._ctxVoiceInputService !== null && page._ctxVoiceInputService.isAvailable()
+                                    icon.name: "audio-input-microphone"
+                                    text: qsTr("Criar por voz")
+                                    onClicked: {
+                                        if (voiceDialogLoader.item) {
+                                            voiceDialogLoader.item.open() // qmllint disable missing-property
+                                        }
+                                    }
+                                }
                             }
 
                             Controls.TextField {
@@ -565,6 +588,22 @@ Kirigami.Page {
                 onReleased: {
                     resizeOverlay.activeDivider = 0;
                 }
+            }
+        }
+    }
+
+    Loader {
+        id: voiceDialogLoader
+        active: page._ctxVoiceInputService !== null && page._ctxVoiceInputService.isAvailable()
+        source: "../components/dialogs/VoiceInputDialog.qml"
+        onLoaded: {
+            if (item) {
+                // qmllint disable missing-property
+                item.fieldsFilled.connect(function() { item.close(); })
+                item.errorMessage.connect(function(msg) {
+                    DialogHelpers.showError(page, "../components/dialogs/ErrorDialog.qml", msg);
+                })
+                // qmllint enable missing-property
             }
         }
     }

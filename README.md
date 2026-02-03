@@ -9,6 +9,7 @@ Aplicação desktop moderna para criar issues no Jira com interface gráfica usa
 - Visualização de issues do usuário
 - Transição sequencial de status
 - Registro automático de worklog após transição para "IN DEVELOPMENT"
+- **Criar tarefa por voz** (opcional): gravação de áudio no app e envio para **LocalAI no host** (transcrição Whisper + LLM para preencher campos). Requer LocalAI rodando no host; veja [Configurar entrada por voz (LocalAI)](docs/voice-input-setup.md).
 - Configuração via interface gráfica (não requer edição manual de arquivos)
 - Integração direta com **Jira REST API v3** para todas as operações
 - Sistema de debug condicional (ativado com `--debug` ou `JIRA_QUICK_TASK_DEBUG=1`)

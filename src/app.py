@@ -526,6 +526,22 @@ def main():
         print(f"⚠ Aviso: Erro ao criar ClipboardHelper: {e}", file=sys.stderr)
         clipboard_helper = None
 
+    # VoiceInputService (entrada por voz): opcional; gravação local (sounddevice), transcrição/LLM via LocalAI no host
+    voice_input_service = None
+    try:
+        from config.config_manager import ConfigManager as VoiceConfigManager
+        from src.services.voice_input_service import VoiceInputService
+
+        _voice_config = VoiceConfigManager()
+        voice_input_service = VoiceInputService(issue_model, _voice_config)
+        if voice_input_service.isAvailable():
+            debug_log("App", "main", "VoiceInputService criado com sucesso")
+        else:
+            debug_log("App", "main", "VoiceInputService criado (deps de voz não instaladas)")
+    except Exception as e:
+        print(f"⚠ Aviso: Erro ao criar VoiceInputService: {e}", file=sys.stderr)
+        voice_input_service = None
+
     # Expor ao contexto QML
     debug_log("App", "main", "Expondo modelos ao contexto QML...")
     try:
@@ -571,6 +587,16 @@ def main():
             debug_log("App", "main", "clipboardHelper exposto ao contexto QML")
     except Exception as e:
         print(f"⚠ Aviso: Erro ao expor clipboardHelper: {e}", file=sys.stderr)
+
+    try:
+        engine.rootContext().setContextProperty(
+            "voiceInputService",
+            voice_input_service if voice_input_service else None,
+        )
+        if voice_input_service:
+            debug_log("App", "main", "voiceInputService exposto ao contexto QML")
+    except Exception as e:
+        print(f"⚠ Aviso: Erro ao expor voiceInputService: {e}", file=sys.stderr)
 
     try:
         engine.rootContext().setContextProperty("trayManager", tray_manager)

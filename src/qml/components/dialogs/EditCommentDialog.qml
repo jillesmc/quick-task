@@ -20,6 +20,9 @@ Controls.Dialog {
     property string issueKey: ""
     property var jiraService: null
     property var clipboardHelper: null
+    property var voiceInputService: null
+    property bool voiceInputAvailable: false
+    property bool improvingComment: false
 
     signal accepted(string commentId, string newBody)
 
@@ -115,6 +118,18 @@ Controls.Dialog {
             spacing: Kirigami.Units.mediumSpacing
 
             Controls.Button {
+                text: dialog.improvingComment ? qsTr("A melhorar…") : qsTr("Melhorar com IA")
+                visible: dialog.voiceInputAvailable
+                enabled: !dialog.improvingComment && (commentTextArea.text || "").trim() !== ""
+                onClicked: {
+                    if (dialog.voiceInputService && (commentTextArea.text || "").trim() !== "") {
+                        dialog.improvingComment = true
+                        dialog.voiceInputService.improveCommentText(commentTextArea.text)
+                    }
+                }
+            }
+            Item { Layout.fillWidth: true }
+            Controls.Button {
                 text: qsTr("Cancelar")
                 onClicked: dialog.close()
             }
@@ -125,6 +140,19 @@ Controls.Dialog {
                     dialog.close()
                 }
             }
+        }
+    }
+
+    Connections {
+        target: dialog.voiceInputService || null
+        enabled: dialog.voiceInputService !== null
+        function onCommentTextImproved(text) {
+            dialog.improvingComment = false
+            if (text)
+                commentTextArea.text = text
+        }
+        function onError(message) {
+            dialog.improvingComment = false
         }
     }
 }

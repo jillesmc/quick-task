@@ -17,6 +17,11 @@ requests>=2.31.0
 pytz>=2023.3
 pyyaml>=6.0
 
+# Entrada por voz (gravação de áudio; transcrição/LLM via Ollama no host)
+sounddevice>=0.4.6
+scipy>=1.11.0
+numpy>=1.24.0
+
 # Apenas para desenvolvimento/testes:
 pytest>=7.0.0
 pytest-mock>=3.10.0

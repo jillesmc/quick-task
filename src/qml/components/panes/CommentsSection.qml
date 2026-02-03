@@ -20,6 +20,9 @@ ColumnLayout {
     property var comments: []
     property bool commentsLoading: false
     property bool _editCommentDialogOpen: false
+    property var _voiceInputService: (typeof voiceInputService !== "undefined" ? voiceInputService : null)
+    property bool voiceInputAvailable: _voiceInputService ? _voiceInputService.isAvailable() : false
+    property bool improvingNewComment: false
 
     signal errorOccurred(string message)
 
@@ -201,16 +204,46 @@ ColumnLayout {
                     }
                 }
             }
-            Controls.Button {
-                text: qsTr("Publicar")
-                enabled: commentsSectionRoot.jiraService && commentsSectionRoot.selectedIssueKey !== "" && newCommentField.text.trim() !== ""
-                onClicked: {
-                    if (commentsSectionRoot.jiraService && commentsSectionRoot.selectedIssueKey) {
-                        commentsSectionRoot.jiraService.addComment(commentsSectionRoot.selectedIssueKey, newCommentField.text.trim())
-                        newCommentField.text = ""
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: Kirigami.Units.mediumSpacing
+                Controls.Button {
+                    text: commentsSectionRoot.improvingNewComment ? qsTr("A melhorar…") : qsTr("Melhorar com IA")
+                    visible: commentsSectionRoot.voiceInputAvailable
+                    enabled: !commentsSectionRoot.improvingNewComment && newCommentField.text.trim() !== ""
+                    onClicked: {
+                        if (commentsSectionRoot._voiceInputService && newCommentField.text.trim() !== "") {
+                            commentsSectionRoot.improvingNewComment = true
+                            commentsSectionRoot._voiceInputService.improveCommentText(newCommentField.text)
+                        }
+                    }
+                }
+                Item { Layout.fillWidth: true }
+                Controls.Button {
+                    text: qsTr("Publicar")
+                    enabled: commentsSectionRoot.jiraService && commentsSectionRoot.selectedIssueKey !== "" && newCommentField.text.trim() !== ""
+                    onClicked: {
+                        if (commentsSectionRoot.jiraService && commentsSectionRoot.selectedIssueKey) {
+                            commentsSectionRoot.jiraService.addComment(commentsSectionRoot.selectedIssueKey, newCommentField.text.trim())
+                            newCommentField.text = ""
+                        }
                     }
                 }
             }
+        }
+    }
+
+    Connections {
+        target: commentsSectionRoot._voiceInputService || null
+        enabled: commentsSectionRoot._voiceInputService !== null
+        function onCommentTextImproved(text) {
+            commentsSectionRoot.improvingNewComment = false
+            if (text)
+                newCommentField.text = text
+        }
+        function onError(message) {
+            commentsSectionRoot.improvingNewComment = false
+            commentsSectionRoot.errorOccurred(message)
         }
     }
 
@@ -234,6 +267,8 @@ ColumnLayout {
         dlg.issueKey = commentsSectionRoot.selectedIssueKey
         dlg.jiraService = commentsSectionRoot.jiraService
         dlg.clipboardHelper = commentsSectionRoot.clipboardHelper
+        dlg.voiceInputService = commentsSectionRoot._voiceInputService
+        dlg.voiceInputAvailable = commentsSectionRoot.voiceInputAvailable
         dlg.accepted.connect(function (cid, newBody) {
             if (commentsSectionRoot.jiraService && commentsSectionRoot.selectedIssueKey) {
                 commentsSectionRoot.jiraService.updateComment(commentsSectionRoot.selectedIssueKey, cid, newBody)

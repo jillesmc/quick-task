@@ -55,6 +55,7 @@ RUN zypper refresh && \
       libpng16-16 \
       libjpeg-turbo \
       # Bibliotecas OpenGL/EGL (necessárias para Qt GUI)
+      libportaudio2 \
       Mesa \
       # Utilitários
       curl \

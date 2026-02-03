@@ -1,0 +1,17 @@
+{
+  "name": "portaudio",
+  "buildsystem": "simple",
+  "build-commands": [
+    "autoreconf -fi",
+    "./configure --prefix=/app --disable-static",
+    "make",
+    "make install"
+  ],
+  "sources": [
+    {
+      "type": "git",
+      "url": "https://github.com/PortAudio/portaudio.git",
+      "tag": "v19.7.0"
+    }
+  ]
+}
