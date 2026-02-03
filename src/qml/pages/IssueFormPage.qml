@@ -221,6 +221,21 @@ Kirigami.Page {
                                         }
                                     }
                                 }
+                                Controls.ToolButton {
+                                    visible: page._ctxVoiceInputService !== null && page._ctxVoiceInputService.isAvailable()
+                                    icon.name: "edit-find"
+                                    text: qsTr("Expandir com IA")
+                                    enabled: !page.isProcessing && page.issueModel && (page.issueModel.summary || page.issueModel.description)
+                                    onClicked: {
+                                        if (page._ctxVoiceInputService && page.issueModel) {
+                                            page._ctxVoiceInputService.expandFromSummaryAndDescription(
+                                                page.issueModel.summary || "",
+                                                page.issueModel.description || "",
+                                                false
+                                            );
+                                        }
+                                    }
+                                }
                             }
 
                             Controls.TextField {

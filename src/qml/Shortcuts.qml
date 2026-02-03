@@ -2,6 +2,7 @@
  * Shortcuts.qml
  *
  * Atalhos globais: Ctrl+Enter (ação da aba), Esc (esconder), Ctrl+Tab, Ctrl+Shift+Tab.
+ * Atalho de voz: lido das configurações (voice_input.keyboard_shortcut).
  */
 import QtQuick
 
@@ -14,6 +15,7 @@ Item {
     property var issuesPage: null
     property var settingsPage: null
     property var pendingWorklogsPage: null
+    property var settingsModel: null
 
     signal hideRequested()
 
@@ -75,7 +77,9 @@ Item {
 
     Shortcut {
         id: shortcutVoiceInput
-        sequence: "Ctrl+Shift+V"
+        sequence: (root.settingsModel && root.settingsModel.voiceInputKeyboardShortcut)
+            ? root.settingsModel.voiceInputKeyboardShortcut
+            : "Meta+F"
         onActivated: {
             if (root.stack && root.stack.currentIndex === 0 && root.createPage && root.createPage.openVoiceDialog) {
                 root.createPage.openVoiceDialog();

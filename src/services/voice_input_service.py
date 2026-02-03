@@ -36,11 +36,14 @@ class VoiceInputService(QObject):
         self,
         issue_model: Any,
         config_manager: Any,
+        editing_issue_model: Optional[Any] = None,
         parent=None,
     ):
         super().__init__(parent)
         self._issue_model = issue_model
+        self._editing_issue_model = editing_issue_model
         self._config = config_manager
+        self._last_expand_for_editing = False
         AudioRecorderCls, ClientCls, audio_ok = _load_voice_components()
         self._AudioRecorderCls = AudioRecorderCls
         self._ClientCls = ClientCls
@@ -91,21 +94,26 @@ class VoiceInputService(QObject):
             self.processTranscription(text or "")
 
     def _on_processing_complete(self, result: dict) -> None:
-        if not self._issue_model:
+        target = (
+            self._editing_issue_model
+            if (self._last_expand_for_editing and self._editing_issue_model)
+            else self._issue_model
+        )
+        if not target:
             return
         tipo_values = []
         if self._config:
             tipo_values = self._config.get_tipo_atividade_values()
         if not tipo_values:
-            tipo_values = getattr(self._issue_model, "tipoAtividadeValues", []) or []
+            tipo_values = getattr(target, "tipoAtividadeValues", []) or []
         if not tipo_values:
             tipo_values = ["Suporte Dúvidas/Suporte uso incorreto"]
-        self._issue_model.summary = result.get("summary", "")
-        self._issue_model.description = result.get("description", "")
-        self._issue_model.tipoAtividade = result.get(
+        target.summary = result.get("summary", "")
+        target.description = result.get("description", "")
+        target.tipoAtividade = result.get(
             "tipo_atividade", tipo_values[0] if tipo_values else ""
         )
-        self._issue_model.utilizacaoIA = result.get("utilizacaoIA", "Sim")
+        target.utilizacaoIA = result.get("utilizacaoIA", "Sim")
         self.fieldsFilled.emit()
 
     @Slot(result=bool)
@@ -142,6 +150,7 @@ class VoiceInputService(QObject):
         if not self._issue_model or not self._client:
             self.error.emit("Serviço não inicializado")
             return
+        self._last_expand_for_editing = False
         tipo_values = []
         if self._config:
             tipo_values = self._config.get_tipo_atividade_values()
@@ -154,6 +163,43 @@ class VoiceInputService(QObject):
             task_prompt = self._config.get_localai_task_system_prompt()
         self._client.process_task_from_voice(
             (text or "").strip(), tipo_values, task_system_prompt=task_prompt
+        )
+
+    @Slot(str, str, bool)
+    def expandFromSummaryAndDescription(
+        self, summary: str, description: str, for_editing: bool
+    ) -> None:
+        """
+        Expande summary (e opcionalmente description) com IA e preenche o modelo
+        de criação (for_editing=False) ou o de edição (for_editing=True).
+        Emite error(str) se o texto for vazio; fieldsFilled() ao terminar.
+        """
+        text = (summary or "").strip()
+        if (description or "").strip():
+            text = f"{text}\n\n{(description or '').strip()}" if text else (description or "").strip()
+        if not text:
+            self.error.emit("Resumo ou descrição são necessários para expandir")
+            return
+        if not self._client:
+            self.error.emit("Serviço não inicializado")
+            return
+        target = self._editing_issue_model if for_editing else self._issue_model
+        if not target:
+            self.error.emit("Modelo de issue não disponível")
+            return
+        self._last_expand_for_editing = for_editing
+        tipo_values = []
+        if self._config:
+            tipo_values = self._config.get_tipo_atividade_values()
+        if not tipo_values:
+            tipo_values = getattr(target, "tipoAtividadeValues", []) or []
+        if not tipo_values:
+            tipo_values = ["Suporte Dúvidas/Suporte uso incorreto"]
+        task_prompt = None
+        if self._config:
+            task_prompt = self._config.get_localai_task_system_prompt()
+        self._client.process_task_from_voice(
+            text, tipo_values, task_system_prompt=task_prompt
         )
 
     @Slot(str)

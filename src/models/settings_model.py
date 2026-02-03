@@ -63,7 +63,7 @@ class SettingsModel(QObject):
             self._localai_comment_improvement_prompt = ""
             self._voice_language = "pt"
             self._voice_max_recording_seconds = 120
-            self._voice_keyboard_shortcut = "Ctrl+Shift+V"
+            self._voice_keyboard_shortcut = "Meta+F"
             self._voice_auto_process_after_stop = False
 
             debug_log("SettingsModel", "__init__", "Carregando valores atuais...")
@@ -175,7 +175,7 @@ class SettingsModel(QObject):
             voice_config.get("max_recording_seconds", 120)
         )
         self._voice_keyboard_shortcut = voice_config.get(
-            "keyboard_shortcut", "Ctrl+Shift+V"
+            "keyboard_shortcut", "Meta+F"
         )
         self._voice_auto_process_after_stop = voice_config.get(
             "auto_process_after_stop", False
@@ -870,7 +870,7 @@ class SettingsModel(QObject):
 
     @voiceInputKeyboardShortcut.setter
     def voiceInputKeyboardShortcut(self, value: str):
-        v = (value or "Ctrl+Shift+V").strip()
+        v = (value or "Meta+F").strip()
         if self._voice_keyboard_shortcut != v:
             self._voice_keyboard_shortcut = v
             self.voiceInputKeyboardShortcutChanged.emit()

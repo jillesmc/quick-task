@@ -74,7 +74,7 @@
     "localai_comment_improvement_prompt": "Você apenas melhora o texto do utilizador: expanda ligeiramente as ideias e estruture em parágrafos ou listas quando apropriado. Mantenha o tom e não invente informações. Responda somente com o texto melhorado, sem explicações nem metatexto.",
     "language": "pt",
     "max_recording_seconds": 120,
-    "keyboard_shortcut": "Ctrl+Shift+V",
+    "keyboard_shortcut": "Meta+F",
     "auto_process_after_stop": false,
     "microphone_device": "default"
   }

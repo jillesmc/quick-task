@@ -533,7 +533,9 @@ def main():
         from src.services.voice_input_service import VoiceInputService
 
         _voice_config = VoiceConfigManager()
-        voice_input_service = VoiceInputService(issue_model, _voice_config)
+        voice_input_service = VoiceInputService(
+            issue_model, _voice_config, editing_issue_model=editing_issue_model
+        )
         if voice_input_service.isAvailable():
             debug_log("App", "main", "VoiceInputService criado com sucesso")
         else:

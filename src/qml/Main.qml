@@ -199,6 +199,7 @@ Kirigami.ApplicationWindow {
         issuesPage: issuesPage
         settingsPage: settingsPage
         pendingWorklogsPage: pendingWorklogsPage
+        settingsModel: root._ctxSettingsModel
         onHideRequested: {
             if (root.hideWindowFn && typeof root.hideWindowFn === "function")
                 root.hideWindowFn() // qmllint disable use-proper-function

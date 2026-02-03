@@ -462,7 +462,7 @@ class ConfigManager:
             "localai_comment_improvement_prompt": default_comment_prompt,
             "language": "pt",
             "max_recording_seconds": 120,
-            "keyboard_shortcut": "Ctrl+Shift+V",
+            "keyboard_shortcut": "Meta+F",
             "auto_process_after_stop": False,
             "microphone_device": "default",
         }
@@ -522,7 +522,7 @@ class ConfigManager:
 
     def get_voice_input_keyboard_shortcut(self) -> str:
         """Retorna o atalho de teclado (ex.: Ctrl+Shift+V)."""
-        return self.get_voice_input_config().get("keyboard_shortcut", "Ctrl+Shift+V")
+        return self.get_voice_input_config().get("keyboard_shortcut", "Meta+F")
 
     def get_voice_input_auto_process_after_stop(self) -> bool:
         """Retorna se deve processar transcrição automaticamente ao parar gravação."""

@@ -53,6 +53,7 @@ Kirigami.Page {
     property var timerService: null
     property var timerModel: null
     property var hideWindowFn: null
+    property var _ctxVoiceInputService: typeof voiceInputService !== "undefined" ? voiceInputService : null // qmllint disable unqualified
 
     // Diálogos (progressDialog e searchProgressDialog gerenciados via DialogHelpers)
     property var progressDialog: null
@@ -338,6 +339,7 @@ Kirigami.Page {
             isDetailsLoading: page.isDetailsLoading
             jiraService: page.jiraService
             clipboardHelper: page.clipboardHelper
+            voiceInputService: page._ctxVoiceInputService
             sharedEpicKey: page.sharedEpicKey
             sharedEpicSummary: page.sharedEpicSummary
 

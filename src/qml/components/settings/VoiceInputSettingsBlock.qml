@@ -225,7 +225,7 @@ Rectangle {
             id: shortcutField
             Layout.fillWidth: true
             enabled: root.voiceInputAvailable && voiceEnabledCheckbox.checked
-            placeholderText: "Ctrl+Shift+V"
+            placeholderText: "Meta+F"
             onTextChanged: {
                 if (root.settingsModel && text.length > 0) {
                     root.settingsModel.voiceInputKeyboardShortcut = text.trim();
@@ -257,7 +257,7 @@ Rectangle {
             commentPromptArea.text = root.settingsModel.localaiCommentImprovementPrompt || "";
             voiceLanguageField.text = root.settingsModel.voiceInputLanguage || "pt";
             maxRecordingSpinBox.value = root.settingsModel.voiceInputMaxRecordingSeconds;
-            shortcutField.text = root.settingsModel.voiceInputKeyboardShortcut || "Ctrl+Shift+V";
+            shortcutField.text = root.settingsModel.voiceInputKeyboardShortcut || "Meta+F";
             autoProcessCheckbox.checked = root.settingsModel.voiceInputAutoProcessAfterStop;
         }
         localaiBaseUrlField.enabled = root.voiceInputAvailable && voiceEnabledCheckbox.checked;
@@ -316,7 +316,7 @@ Rectangle {
         }
         function onVoiceInputKeyboardShortcutChanged() {
             if (root.settingsModel) {
-                shortcutField.text = root.settingsModel.voiceInputKeyboardShortcut || "Ctrl+Shift+V";
+                shortcutField.text = root.settingsModel.voiceInputKeyboardShortcut || "Meta+F";
             }
         }
         function onVoiceInputAutoProcessAfterStopChanged() {

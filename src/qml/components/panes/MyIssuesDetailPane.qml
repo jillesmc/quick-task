@@ -36,6 +36,8 @@ Item {
     property bool isDetailsLoading: false
     property var jiraService: null
     property var clipboardHelper: null
+    property var voiceInputService: null
+    property bool voiceInputAvailable: voiceInputService ? voiceInputService.isAvailable() : false
     property string sharedEpicKey: ""
     property string sharedEpicSummary: ""
 
@@ -78,13 +80,9 @@ Item {
     }
 
     function resetFields() {
-        if (summaryFieldTab2) {
-            summaryFieldTab2.text = "";
-        }
-        if (descriptionFieldTab2) {
-            descriptionFieldTab2.text = "";
-        }
         if (issueModel) {
+            issueModel.summary = "";
+            issueModel.description = "";
             if (issueModel.tipoAtividadeValues && issueModel.tipoAtividadeValues.length > 0) {
                 issueModel.tipoAtividade = issueModel.tipoAtividadeValues[0];
             } else {
@@ -113,13 +111,9 @@ Item {
         if (!details || !details.key) {
             return;
         }
-        if (summaryFieldTab2) {
-            summaryFieldTab2.text = String(details.summary || "");
-        }
-        if (descriptionFieldTab2) {
-            descriptionFieldTab2.text = String(details.description || "");
-        }
         if (issueModel) {
+            issueModel.summary = String(details.summary || "");
+            issueModel.description = String(details.description || "");
             issueModel.tipoAtividade = String(details.tipoAtividade || "");
             issueModel.statusInicial = String(details.status || "");
             issueModel.valorEntregue = String(details.valorEntregue || "");
@@ -214,10 +208,31 @@ Item {
                         // Layout.bottomMargin: 10
                         spacing: Kirigami.Units.smallSpacing
 
-                        Controls.Label {
-                            text: qsTr("Summary:")
-                            font.bold: true
+                        RowLayout {
                             Layout.fillWidth: true
+                            spacing: Kirigami.Units.smallSpacing
+
+                            Controls.Label {
+                                text: qsTr("Summary:")
+                                font.bold: true
+                                Layout.fillWidth: true
+                            }
+
+                            Controls.ToolButton {
+                                visible: pane.voiceInputAvailable && pane.selectedIssueKey !== ""
+                                icon.name: "edit-find"
+                                text: qsTr("Expandir com IA")
+                                enabled: !pane.isProcessing && (summaryFieldTab2.text || descriptionFieldTab2.text)
+                                onClicked: {
+                                    if (pane.voiceInputService && summaryFieldTab2 && descriptionFieldTab2) {
+                                        pane.voiceInputService.expandFromSummaryAndDescription(
+                                            summaryFieldTab2.text || "",
+                                            descriptionFieldTab2.text || "",
+                                            true
+                                        );
+                                    }
+                                }
+                            }
                         }
 
                         Controls.TextField {
