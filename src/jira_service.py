@@ -18,6 +18,7 @@ from core.jira_client import JiraClient
 from core.status_transition import transition_sequentially, WorklogConfig
 from config.config_manager import ConfigManager
 from src.services.assets_cache import AssetsCacheService
+from src.utils.field_utils import is_placeholder_custom_field_id
 
 
 def _is_status_at_or_after_in_development(
@@ -96,6 +97,10 @@ class JiraWorker(QThread):
     def run(self):
         """Executa a criação da issue e transições em thread separada"""
         try:
+            # Descobrir IDs reais dos campos Asset se forem placeholders (para incluir no create)
+            if (self.valor_entregue or self.plataformas_afetadas) and self.assets_cache:
+                self.assets_cache.ensure_field_ids()
+
             # Progresso: Criando issue (0-50%)
             self.progressUpdated.emit(10, "Criando issue no Jira...")
 
@@ -332,6 +337,10 @@ class UpdateWorker(QThread):
     def run(self):
         """Executa a atualização da issue e worklog opcional em thread separada"""
         try:
+            # Descobrir IDs reais dos campos Asset se forem placeholders (para incluir no update)
+            if (self.valor_entregue or self.plataformas_afetadas) and self.assets_cache:
+                self.assets_cache.ensure_field_ids()
+
             self.progressUpdated.emit(10, "Atualizando issue no Jira...")
 
             # Preparar campos customizados (sem Asset quando transição for In Development e tiver cache)
@@ -396,18 +405,31 @@ class UpdateWorker(QThread):
                 plataformas_field_id = self.config.get_custom_field(
                     "plataformas_afetadas"
                 )
-                if valor_field_id and self.valor_entregue:
+                if (
+                    valor_field_id
+                    and not is_placeholder_custom_field_id(valor_field_id)
+                    and self.valor_entregue
+                ):
                     obj = self.assets_cache.resolve_valor_entregue_object(
                         self.valor_entregue
                     )
                     if obj:
                         asset_field_updates[valor_field_id] = [obj]
-                if plataformas_field_id and self.plataformas_afetadas:
+                if (
+                    plataformas_field_id
+                    and not is_placeholder_custom_field_id(plataformas_field_id)
+                    and self.plataformas_afetadas
+                ):
                     objs = self.assets_cache.resolve_plataformas_objects(
                         self.plataformas_afetadas
                     )
                     if objs:
                         asset_field_updates[plataformas_field_id] = objs
+
+            # Não enviar "fields" no POST da transição: o ecrã de cada transição no Jira
+            # define quais campos podem ser definidos; enviar campos que não estão no ecrã
+            # causa "Field cannot be set. It is not on the appropriate screen".
+            # Os campos são definidos no PUT (update_issue) antes de transicionar.
 
             # Atualizar campos da issue (sem status)
             success = self.jira_client.update_issue(
@@ -516,6 +538,12 @@ class UpdateWorker(QThread):
 
         except Exception as e:
             error_msg = str(e)
+            # Dica quando o Jira exige campos obrigatórios na transição
+            if "preencher" in error_msg.lower() or "tipo de atividade" in error_msg.lower():
+                error_msg += (
+                    "\n\nPreencha no formulário: Tipo de atividade, Utilização de IA, "
+                    "Documentação Anexa, Plataformas Afetadas e Valor entregue; depois tente novamente."
+                )
             self.errorOccurred.emit(error_msg)
         finally:
             self.finished.emit()
@@ -886,19 +914,28 @@ class JiraService(QObject):
         )
 
         # Incluir objetos Asset (Valor entregue, Plataformas afetadas) apenas quando
-        # o status alvo for In Development (regra de negócio).
+        # o status alvo for In Development (regra de negócio). Não usar placeholders:
+        # se os IDs forem placeholders, o worker fará ensure_field_ids() e construirá a partir do config.
         asset_custom_fields: Dict[str, Any] = {}
         target_normalized = (statusInicial or "").strip().upper()
         if target_normalized == "IN DEVELOPMENT" and self._assets_cache:
             valor_field_id = self._config.get_custom_field("valor_entregue")
             plataformas_field_id = self._config.get_custom_field("plataformas_afetadas")
-            if valor_field_id and valorEntregue:
+            if (
+                valor_field_id
+                and not is_placeholder_custom_field_id(valor_field_id)
+                and valorEntregue
+            ):
                 obj = self._assets_cache.resolve_valor_entregue_object(
                     valorEntregue
                 )
                 if obj:
                     asset_custom_fields[valor_field_id] = [obj]
-            if plataformas_field_id and plataformasAfetadas:
+            if (
+                plataformas_field_id
+                and not is_placeholder_custom_field_id(plataformas_field_id)
+                and plataformasAfetadas
+            ):
                 objs = self._assets_cache.resolve_plataformas_objects(
                     plataformasAfetadas
                 )

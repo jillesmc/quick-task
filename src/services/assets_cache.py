@@ -124,6 +124,17 @@ class AssetsCacheService:
                     self._config.save_config()
                     break
 
+    def ensure_field_ids(self) -> None:
+        """
+        Descobre e persiste os IDs reais dos campos Asset (valor_entregue, plataformas_afetadas)
+        quando estiverem como placeholders no config. Não levanta exceção.
+        Chamado antes de create/update para que o payload use os IDs corretos.
+        """
+        try:
+            self._ensure_field_ids_in_config()
+        except Exception:
+            pass
+
     def reload(self) -> Tuple[bool, str]:
         """
         Recarrega opções da API de Assets e atualiza o cache em disco.

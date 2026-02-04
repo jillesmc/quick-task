@@ -607,6 +607,37 @@ Kirigami.Page {
         }
     }
 
+    // Overlay de loading durante "Expandir com IA" (bloqueia a página)
+    Item {
+        anchors.fill: parent
+        visible: page._ctxVoiceInputService !== null && page._ctxVoiceInputService.isExpanding
+        z: 100
+
+        Rectangle {
+            anchors.fill: parent
+            color: Kirigami.Theme.backgroundColor
+            opacity: 0.85
+        }
+        MouseArea {
+            anchors.fill: parent
+            onPressed: function (event) { event.accepted = true }
+            onReleased: function (event) { event.accepted = true }
+        }
+        ColumnLayout {
+            anchors.centerIn: parent
+            spacing: Kirigami.Units.largeSpacing
+
+            Controls.BusyIndicator {
+                Layout.alignment: Qt.AlignHCenter
+                running: parent.parent.visible
+            }
+            Controls.Label {
+                text: qsTr("A processar com IA…")
+                Layout.alignment: Qt.AlignHCenter
+            }
+        }
+    }
+
     Loader {
         id: voiceDialogLoader
         active: page._ctxVoiceInputService !== null && page._ctxVoiceInputService.isAvailable()

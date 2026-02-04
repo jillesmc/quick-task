@@ -1557,15 +1557,21 @@ class JiraClient:
         status: str,
         max_retries: int = 3,
         retry_delay: float = 1.0,
+        fields: Optional[Dict[str, Any]] = None,
     ) -> bool:
         """
-        Transiciona uma issue para um novo status usando REST API
+        Transiciona uma issue para um novo status usando REST API.
+
+        Alguns workflows do Jira exigem que campos obrigatórios sejam enviados
+        no corpo da transição (ex.: Tipo de atividade, Utilização de IA, etc.).
+        Use o parâmetro fields para enviar esses campos no POST da transição.
 
         Args:
             issue_key: Chave da issue
             status: Nome do status de destino
             max_retries: Número máximo de tentativas
             retry_delay: Delay entre tentativas (segundos)
+            fields: Campos a enviar no corpo da transição (field_id -> valor no formato REST API)
 
         Returns:
             True se transicionado com sucesso
@@ -1599,8 +1605,10 @@ class JiraClient:
                 )
                 return False
 
-            # Fazer a transição
-            payload = {"transition": {"id": transition_id}}
+            # Fazer a transição (incluir fields se o workflow exigir)
+            payload: Dict[str, Any] = {"transition": {"id": transition_id}}
+            if fields:
+                payload["fields"] = fields
 
         except RuntimeError as e:
             print(
@@ -1628,16 +1636,17 @@ class JiraClient:
                     f"Erro ao transicionar para '{status}': {error_msg}",
                     file=sys.stderr,
                 )
-                return False
+                raise RuntimeError(error_msg) from e
             except Exception as e:
                 if attempt < max_retries - 1:
                     time.sleep(retry_delay)
                     continue
+                err_str = str(e)
                 print(
-                    f"Erro ao transicionar para '{status}': {str(e)}",
+                    f"Erro ao transicionar para '{status}': {err_str}",
                     file=sys.stderr,
                 )
-                return False
+                raise RuntimeError(err_str) from e
 
         return False
 

@@ -222,7 +222,7 @@ Item {
                                 visible: pane.voiceInputAvailable && pane.selectedIssueKey !== ""
                                 icon.name: "edit-find"
                                 text: qsTr("Expandir com IA")
-                                enabled: !pane.isProcessing && (summaryFieldTab2.text || descriptionFieldTab2.text)
+                                enabled: !pane.isProcessing && !(pane.voiceInputService && pane.voiceInputService.isExpanding) && (summaryFieldTab2.text || descriptionFieldTab2.text)
                                 onClicked: {
                                     if (pane.voiceInputService && summaryFieldTab2 && descriptionFieldTab2) {
                                         pane.voiceInputService.expandFromSummaryAndDescription(
@@ -608,6 +608,37 @@ Item {
             anchors.centerIn: parent
             running: pane.isDetailsLoading
             visible: pane.isDetailsLoading
+        }
+    }
+
+    // Overlay de loading durante "Expandir com IA" (bloqueia o painel)
+    Item {
+        anchors.fill: parent
+        visible: pane.voiceInputService !== null && pane.voiceInputService.isExpanding
+        z: 101
+
+        Rectangle {
+            anchors.fill: parent
+            color: Kirigami.Theme.backgroundColor
+            opacity: 0.85
+        }
+        MouseArea {
+            anchors.fill: parent
+            onPressed: function (event) { event.accepted = true }
+            onReleased: function (event) { event.accepted = true }
+        }
+        ColumnLayout {
+            anchors.centerIn: parent
+            spacing: Kirigami.Units.largeSpacing
+
+            Controls.BusyIndicator {
+                Layout.alignment: Qt.AlignHCenter
+                running: parent.parent.visible
+            }
+            Controls.Label {
+                text: qsTr("A processar com IA…")
+                Layout.alignment: Qt.AlignHCenter
+            }
         }
     }
 }

@@ -65,7 +65,7 @@ def test_transition_sequentially_single_transition(mock_jira_client):
     sequence = ["TO DO", "WAITING", "DONE"]
     transition_sequentially(mock_jira_client, "TEST-123", "WAITING", sequence)
     mock_jira_client.transition_issue.assert_called_once_with(
-        "TEST-123", "WAITING", max_retries=3, retry_delay=1.5
+        "TEST-123", "WAITING", max_retries=3, retry_delay=1.5, fields=None
     )
 
 

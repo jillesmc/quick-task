@@ -6,7 +6,7 @@ Dependências opcionais: sounddevice, scipy (áudio); requests (já em base).
 
 from typing import Any, Optional
 
-from PySide6.QtCore import QObject, Signal, Slot  # type: ignore[import]
+from PySide6.QtCore import QObject, Property, Signal, Slot  # type: ignore[import]
 
 
 def _load_voice_components():
@@ -31,6 +31,7 @@ class VoiceInputService(QObject):
     fieldsFilled = Signal()
     commentTextImproved = Signal(str)
     error = Signal(str)
+    expandingChanged = Signal()
 
     def __init__(
         self,
@@ -44,6 +45,7 @@ class VoiceInputService(QObject):
         self._editing_issue_model = editing_issue_model
         self._config = config_manager
         self._last_expand_for_editing = False
+        self._expanding = False
         AudioRecorderCls, ClientCls, audio_ok = _load_voice_components()
         self._AudioRecorderCls = AudioRecorderCls
         self._ClientCls = ClientCls
@@ -79,7 +81,13 @@ class VoiceInputService(QObject):
             self._client.transcriptionComplete.connect(self._on_transcription_complete)
             self._client.processingComplete.connect(self._on_processing_complete)
             self._client.commentTextImproved.connect(self.commentTextImproved.emit)
-            self._client.error.connect(self.error.emit)
+            self._client.error.connect(self._on_client_error)
+
+    def _on_client_error(self, message: str) -> None:
+        if self._expanding:
+            self._expanding = False
+            self.expandingChanged.emit()
+        self.error.emit(message)
 
     def _on_recording_stopped(self, path: str) -> None:
         self.recordingStopped.emit()
@@ -114,6 +122,9 @@ class VoiceInputService(QObject):
             "tipo_atividade", tipo_values[0] if tipo_values else ""
         )
         target.utilizacaoIA = result.get("utilizacaoIA", "Sim")
+        if self._expanding:
+            self._expanding = False
+            self.expandingChanged.emit()
         self.fieldsFilled.emit()
 
     @Slot(result=bool)
@@ -187,6 +198,8 @@ class VoiceInputService(QObject):
         if not target:
             self.error.emit("Modelo de issue não disponível")
             return
+        self._expanding = True
+        self.expandingChanged.emit()
         self._last_expand_for_editing = for_editing
         tipo_values = []
         if self._config:
@@ -201,6 +214,11 @@ class VoiceInputService(QObject):
         self._client.process_task_from_voice(
             text, tipo_values, task_system_prompt=task_prompt
         )
+
+    @Property(bool, notify=expandingChanged)
+    def isExpanding(self) -> bool:
+        """True enquanto uma operação Expandir com IA está em curso."""
+        return self._expanding
 
     @Slot(str)
     def improveCommentText(self, text: str) -> None:

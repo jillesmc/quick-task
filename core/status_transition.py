@@ -4,7 +4,7 @@ Máquina de estado para transições sequenciais de status
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Callable, List, Optional, Dict
+from typing import Any, Callable, Dict, List, Optional
 
 from core.jira_client import JiraClient
 
@@ -115,15 +115,20 @@ def _transition_to_next_status(
     status_sequence: List[str],
     progress_callback: Optional[Callable[[str, int, str], None]],
     percentage: int,
+    transition_fields: Optional[Dict[str, Any]] = None,
 ) -> None:
-    """Transiciona para o próximo status"""
+    """Transiciona para o próximo status (opcionalmente com campos no corpo da transição)."""
     if progress_callback:
         progress_callback(
             next_status, percentage, f"Transicionando para: {next_status}"
         )
 
     success = jira_client.transition_issue(
-        issue_key, next_status, max_retries=3, retry_delay=1.5
+        issue_key,
+        next_status,
+        max_retries=3,
+        retry_delay=1.5,
+        fields=transition_fields,
     )
 
     if not success:
@@ -142,6 +147,7 @@ def transition_sequentially(
     status_sequence: List[str],
     progress_callback: Optional[Callable[[str, int, str], None]] = None,
     worklog: Optional[WorklogConfig] = None,
+    transition_fields: Optional[Dict[str, Any]] = None,
 ) -> None:
     """
     Transiciona uma issue sequencialmente pelos status até o status desejado.
@@ -155,6 +161,7 @@ def transition_sequentially(
         status_sequence: Lista sequencial de status
         progress_callback: Função callback(status_atual, porcentagem, mensagem)
         worklog: Configuração para registro de worklog (opcional)
+        transition_fields: Campos a enviar em cada POST de transição (opcional)
 
     Raises:
         ValueError: Se parâmetros inválidos ou status não encontrado
@@ -217,6 +224,7 @@ def transition_sequentially(
             status_sequence,
             progress_callback,
             percentage,
+            transition_fields=transition_fields,
         )
 
         # Worklog é registrado uma vez pelos workers (JiraWorker/UpdateWorker) após as transições
