@@ -12,6 +12,9 @@ import org.kde.kirigami as Kirigami
 Controls.Dialog {
     id: root
 
+    parent: Controls.Overlay.overlay
+    anchors.centerIn: parent
+
     title: qsTr("Criar tarefa por voz")
     modal: true
     standardButtons: Controls.Dialog.Cancel

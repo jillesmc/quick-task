@@ -106,3 +106,4 @@ build-dir/
 # Dev tools exportadas do Docker
 /dev-tools/
 .localai-models/
+.localai-backends/

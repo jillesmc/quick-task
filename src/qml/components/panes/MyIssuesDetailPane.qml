@@ -535,18 +535,14 @@ Item {
                     CommentsSection {
                         id: commentsSection
                         Layout.fillWidth: true
+                        Layout.fillHeight: true
                         applicationWindow: pane.applicationWindow
                         jiraService: pane.jiraService
                         clipboardHelper: pane.clipboardHelper
                         selectedIssueKey: pane.selectedIssueKey
                         onErrorOccurred: function (message) {
-                            DialogHelpers.showError(pane, "../dialogs/ErrorDialog.qml", message)
+                            DialogHelpers.showError(pane, "../components/dialogs/ErrorDialog.qml", message)
                         }
-                    }
-
-                    Item {
-                        Layout.fillHeight: true
-                        Layout.fillWidth: true
                     }
                 }
             }

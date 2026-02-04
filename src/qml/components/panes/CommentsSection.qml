@@ -19,8 +19,10 @@ ColumnLayout {
     property string selectedIssueKey: ""
     property var comments: []
     property bool commentsLoading: false
+    /** True após o utilizador clicar em "Carregar comentários"; mantém a secção (e o campo novo comentário) visível mesmo com 0 comentários. */
+    property bool commentsRequested: false
     property bool _editCommentDialogOpen: false
-    property var _voiceInputService: (typeof voiceInputService !== "undefined" ? voiceInputService : null)
+    property var _voiceInputService: (typeof voiceInputService !== "undefined" ? voiceInputService : null) // qmllint disable unqualified
     property bool voiceInputAvailable: _voiceInputService ? _voiceInputService.isAvailable() : false
     property bool improvingNewComment: false
 
@@ -28,6 +30,7 @@ ColumnLayout {
 
     onSelectedIssueKeyChanged: {
         comments = []
+        commentsRequested = false
     }
 
     spacing: Kirigami.Units.smallSpacing
@@ -36,29 +39,31 @@ ColumnLayout {
         text: qsTr("Comentários")
         font.bold: true
         Layout.fillWidth: true
+        visible: !commentsSectionRoot.commentsRequested
     }
 
-    // Estado: não carregado — mostrar botão
+    // Estado: não carregado — mostrar botão até o utilizador clicar
     Controls.Button {
         id: loadCommentsButton
         text: commentsSectionRoot.commentsLoading ? qsTr("Carregando…") : qsTr("Carregar comentários")
         enabled: !commentsSectionRoot.commentsLoading && commentsSectionRoot.selectedIssueKey !== "" && commentsSectionRoot.jiraService
-        visible: commentsSectionRoot.comments.length === 0 && !commentsSectionRoot.commentsLoading
+        visible: !commentsSectionRoot.commentsRequested
         Layout.fillWidth: true
         onClicked: commentsSectionRoot.loadComments()
     }
 
     Controls.BusyIndicator {
-        running: commentsSectionRoot.commentsLoading && commentsSectionRoot.comments.length === 0
-        visible: running
+        running: commentsSectionRoot.commentsLoading
+        visible: commentsSectionRoot.commentsRequested && commentsSectionRoot.commentsLoading
         Layout.alignment: Qt.AlignHCenter
     }
 
-    // Estado: carregado — título com contagem, ListView e adicionar
+    // Estado: carregado — título com contagem, ListView e campo para adicionar (visível após clicar em Carregar)
     ColumnLayout {
         id: commentsLoadedColumn
         Layout.fillWidth: true
-        visible: commentsSectionRoot.comments.length > 0 || commentsSectionRoot.commentsLoading
+        Layout.fillHeight: true
+        visible: commentsSectionRoot.commentsRequested
         spacing: Kirigami.Units.smallSpacing
 
         RowLayout {
@@ -151,6 +156,7 @@ ColumnLayout {
 
         ColumnLayout {
             Layout.fillWidth: true
+            Layout.fillHeight: true
             spacing: Kirigami.Units.smallSpacing
 
             Controls.Label {
@@ -160,13 +166,14 @@ ColumnLayout {
             Controls.ScrollView {
                 id: newCommentScrollView
                 Layout.fillWidth: true
-                Layout.preferredHeight: 80
+                Layout.fillHeight: true
+                Layout.minimumHeight: 160
                 clip: true
                 contentWidth: availableWidth
 
                 Item {
                     width: newCommentScrollView.availableWidth
-                    height: newCommentField.implicitHeight
+                    height: Math.max(newCommentScrollView.availableHeight, newCommentField.implicitHeight)
 
                     DropArea {
                         anchors.fill: parent
@@ -187,6 +194,7 @@ ColumnLayout {
                     Controls.TextArea {
                         id: newCommentField
                         width: parent.width
+                        height: parent.height
                         wrapMode: Controls.TextArea.Wrap
                         placeholderText: qsTr("Digite seu comentário (Markdown suportado). Arraste imagens ou use Ctrl+V para colar.")
 
@@ -251,6 +259,7 @@ ColumnLayout {
         if (!commentsSectionRoot.jiraService || !commentsSectionRoot.selectedIssueKey) {
             return
         }
+        commentsSectionRoot.commentsRequested = true
         commentsSectionRoot.commentsLoading = true
         commentsSectionRoot.jiraService.getCommentsAsync(commentsSectionRoot.selectedIssueKey)
     }

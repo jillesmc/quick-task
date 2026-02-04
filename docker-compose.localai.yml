@@ -5,11 +5,13 @@
 # Para CPU apenas, use image: localai/localai:latest e remova o bloco deploy.
 services:
   localai:
+    restart: unless-stopped
     image: localai/localai:latest-gpu-nvidia-cuda-12
     ports:
       - "8080:8080"
     volumes:
       - ./.localai-models:/models
+      - ./.localai-backends:/backends
     environment:
       MODELS_PATH: /models
       DEBUG: "true"

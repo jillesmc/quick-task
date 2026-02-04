@@ -56,6 +56,29 @@ class ConfigManager:
         module_dir = Path(__file__).parent
         return module_dir / "config.json"
 
+    def _get_example_config_path(self) -> Optional[Path]:
+        """Retorna o path do config.json.example (template); None se não existir."""
+        flatpak_example = Path("/app/share/jira-quick-task/config/config.json.example")
+        if flatpak_example.exists():
+            return flatpak_example
+        module_example = Path(__file__).parent / "config.json.example"
+        if module_example.exists():
+            return module_example
+        return None
+
+    def _load_voice_input_from_example(self) -> Dict[str, Any]:
+        """Carrega a secção voice_input do config.json.example. Retorna {} se falhar."""
+        path = self._get_example_config_path()
+        if not path:
+            return {}
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            voice = data.get("voice_input")
+            return dict(voice) if isinstance(voice, dict) else {}
+        except Exception:
+            return {}
+
     def load_config(self) -> None:
         """Carrega a configuração do arquivo JSON"""
         # Importar debug_log aqui para evitar dependência circular
@@ -440,98 +463,66 @@ class ConfigManager:
     def get_voice_input_config(self) -> Dict[str, Any]:
         """
         Retorna configuração completa de entrada por voz.
-        Defaults quando a chave voice_input não existir.
+        Valores padrão vêm de config.json.example; o config.json do utilizador sobrepõe.
         Se existir ollama_* e não existir localai_*, preenche localai_* a partir de ollama_* (migração).
         """
-        default_task_prompt = (
-            "Você extrai dados estruturados de texto para tarefas Jira. "
-            "A description da task deve seguir uma estrutura simples em Markdown: "
-            "Contexto (breve), Passos ou Critérios de aceite (lista), quando fizer sentido. Seja conciso."
-        )
-        default_comment_prompt = (
-            "Você apenas melhora o texto do utilizador: expanda ligeiramente as ideias e "
-            "estruture em parágrafos ou listas quando apropriado. Mantenha o tom e não invente informações. "
-            "Responda somente com o texto melhorado, sem explicações nem metatexto."
-        )
-        default_config = {
-            "enabled": False,
-            "localai_base_url": "http://localhost:8080",
-            "localai_whisper_model": "whisper-1",
-            "localai_llm_model": "qwen2.5:3b",
-            "localai_task_system_prompt": default_task_prompt,
-            "localai_comment_improvement_prompt": default_comment_prompt,
-            "language": "pt",
-            "max_recording_seconds": 120,
-            "keyboard_shortcut": "Meta+F",
-            "auto_process_after_stop": False,
-            "microphone_device": "default",
-        }
-        voice_config = self._config.get("voice_input", {})
+        defaults = self._load_voice_input_from_example()
+        voice_config = self._config.get("voice_input")
         if not isinstance(voice_config, dict):
-            return default_config
-        result = default_config.copy()
+            return dict(defaults)
+        result = dict(defaults)
         result.update({k: v for k, v in voice_config.items() if k != "whisper_model"})
         # Migração: se config antiga tem ollama_* e não tem localai_*, preencher localai_* a partir de ollama_*
         if "localai_base_url" not in voice_config and voice_config.get("ollama_base_url"):
             result["localai_base_url"] = voice_config["ollama_base_url"]
-            result["localai_whisper_model"] = voice_config.get("ollama_whisper_model") or default_config["localai_whisper_model"]
-            result["localai_llm_model"] = voice_config.get("ollama_llm_model") or default_config["localai_llm_model"]
+            result["localai_whisper_model"] = voice_config.get("ollama_whisper_model") or defaults.get("localai_whisper_model", "")
+            result["localai_llm_model"] = voice_config.get("ollama_llm_model") or defaults.get("localai_llm_model", "")
         return result
 
     def get_voice_input_enabled(self) -> bool:
-        """Retorna se a entrada por voz está habilitada."""
-        return self.get_voice_input_config().get("enabled", False)
+        """Retorna se a entrada por voz está habilitada (valor do arquivo)."""
+        return bool(self.get_voice_input_config().get("enabled", False))
 
     def get_localai_base_url(self) -> str:
-        """Retorna a URL base do LocalAI (ex.: http://localhost:8080)."""
-        return self.get_voice_input_config().get("localai_base_url", "http://localhost:8080")
+        """Retorna a URL base do LocalAI (valor do arquivo)."""
+        return str(self.get_voice_input_config().get("localai_base_url") or "")
 
     def get_localai_whisper_model(self) -> str:
-        """Retorna o modelo Whisper do LocalAI (ex.: whisper-1)."""
-        return self.get_voice_input_config().get("localai_whisper_model", "whisper-1")
+        """Retorna o modelo Whisper do LocalAI (valor do arquivo)."""
+        return str(self.get_voice_input_config().get("localai_whisper_model") or "")
 
     def get_localai_llm_model(self) -> str:
-        """Retorna o modelo LLM do LocalAI (ex.: qwen2.5:3b)."""
-        return self.get_voice_input_config().get("localai_llm_model", "qwen2.5:3b")
+        """Retorna o modelo LLM do LocalAI (valor do arquivo)."""
+        return str(self.get_voice_input_config().get("localai_llm_model") or "")
 
     def get_localai_task_system_prompt(self) -> str:
-        """Retorna o pré-prompt de sistema para extração de task (summary, description, tipo_atividade)."""
-        default = (
-            "Você extrai dados estruturados de texto para tarefas Jira. "
-            "A description da task deve seguir uma estrutura simples em Markdown: "
-            "Contexto (breve), Passos ou Critérios de aceite (lista), quando fizer sentido. Seja conciso."
-        )
-        return self.get_voice_input_config().get("localai_task_system_prompt", default)
+        """Retorna o pré-prompt de sistema para extração de task (valor do arquivo)."""
+        return str(self.get_voice_input_config().get("localai_task_system_prompt") or "")
 
     def get_localai_comment_improvement_prompt(self) -> str:
-        """Retorna o pré-prompt para melhoria de texto de comentários."""
-        default = (
-            "Você apenas melhora o texto do utilizador: expanda ligeiramente as ideias e "
-            "estruture em parágrafos ou listas quando apropriado. Mantenha o tom e não invente informações. "
-            "Responda somente com o texto melhorado, sem explicações nem metatexto."
-        )
-        return self.get_voice_input_config().get("localai_comment_improvement_prompt", default)
+        """Retorna o pré-prompt para melhoria de texto de comentários (valor do arquivo)."""
+        return str(self.get_voice_input_config().get("localai_comment_improvement_prompt") or "")
 
     def get_voice_input_language(self) -> str:
-        """Retorna o idioma para transcrição (ex.: pt)."""
-        return self.get_voice_input_config().get("language", "pt")
+        """Retorna o idioma para transcrição (valor do arquivo)."""
+        return str(self.get_voice_input_config().get("language") or "")
 
     def get_voice_input_max_recording_seconds(self) -> int:
-        """Retorna duração máxima de gravação em segundos."""
-        return int(self.get_voice_input_config().get("max_recording_seconds", 120))
+        """Retorna duração máxima de gravação em segundos (valor do arquivo)."""
+        return int(self.get_voice_input_config().get("max_recording_seconds") or 0)
 
     def get_voice_input_keyboard_shortcut(self) -> str:
-        """Retorna o atalho de teclado (ex.: Ctrl+Shift+V)."""
-        return self.get_voice_input_config().get("keyboard_shortcut", "Meta+F")
+        """Retorna o atalho de teclado (valor do arquivo)."""
+        return str(self.get_voice_input_config().get("keyboard_shortcut") or "")
 
     def get_voice_input_auto_process_after_stop(self) -> bool:
-        """Retorna se deve processar transcrição automaticamente ao parar gravação."""
-        return self.get_voice_input_config().get("auto_process_after_stop", False)
+        """Retorna se deve processar transcrição automaticamente ao parar gravação (valor do arquivo)."""
+        return bool(self.get_voice_input_config().get("auto_process_after_stop", False))
 
     def get_voice_input_microphone_device(self) -> Optional[str]:
-        """Retorna o dispositivo de microfone (default ou ID). None usa default."""
-        dev = self.get_voice_input_config().get("microphone_device", "default")
-        return dev if dev else "default"
+        """Retorna o dispositivo de microfone (valor do arquivo)."""
+        dev = self.get_voice_input_config().get("microphone_device")
+        return str(dev) if dev else None
 
     def save_voice_input_config(self, voice_config: Dict[str, Any]) -> None:
         """
