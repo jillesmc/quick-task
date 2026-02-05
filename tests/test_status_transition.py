@@ -119,7 +119,7 @@ def test_transition_sequentially_transition_fails(mock_jira_client):
 
 
 def test_transition_sequentially_with_worklog(mock_jira_client):
-    """Worklog não é mais registrado por transition_sequentially; os workers (JiraWorker/UpdateWorker) registram uma vez após as transições."""
+    """Worklog é registrado ao atingir IN DEVELOPMENT durante a sequência."""
     sequence = ["TO DO", "WAITING", "IN DEVELOPMENT", "DONE"]
     worklog = WorklogConfig(
         registrar=True,
@@ -128,12 +128,12 @@ def test_transition_sequentially_with_worklog(mock_jira_client):
         timezone="UTC",
     )
 
-    transition_sequentially(
+    result = transition_sequentially(
         mock_jira_client, "TEST-123", "IN DEVELOPMENT", sequence, worklog=worklog
     )
 
-    # transition_sequentially não chama register_worklog (registro único fica nos workers)
-    mock_jira_client.register_worklog.assert_not_called()
+    assert result is True
+    mock_jira_client.register_worklog.assert_called_once()
 
 
 def test_transition_sequentially_worklog_not_in_development(mock_jira_client):

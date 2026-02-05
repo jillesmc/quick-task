@@ -239,8 +239,9 @@ def test_jira_worker_run_with_transitions(
 def test_jira_worker_run_with_worklog(
     mock_jira_client, mock_config_manager, sample_config
 ):
-    """Testa worker registrando worklog após transições (worklog não é mais passado para transition_sequentially)"""
+    """Testa worker registrando worklog: transition_sequentially recebe WorklogConfig; se retornar False, worker registra no fim."""
     with patch("src.jira_service.transition_sequentially") as mock_transition:
+        mock_transition.return_value = False  # simula que não registrou ao atingir IN DEVELOPMENT
         worker = JiraWorker(
             jira_client=mock_jira_client,
             config=mock_config_manager,
@@ -258,10 +259,10 @@ def test_jira_worker_run_with_worklog(
 
         worker.run()
 
-        # transition_sequentially é chamado com worklog=None; worklog é registrado depois pelo worker
         call_args = mock_transition.call_args
-        assert call_args[1]["worklog"] is None
-        # Worklog é registrado após as transições via jira_client.register_worklog
+        from core.status_transition import WorklogConfig
+
+        assert isinstance(call_args[1]["worklog"], WorklogConfig)
         mock_jira_client.register_worklog.assert_called_once()
 
 

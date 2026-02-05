@@ -218,30 +218,46 @@ class JiraWorker(QThread):
                     )
                 self.progressUpdated.emit(55, "Anexos enviados!")
 
-            # Transicionar status se necessário
+            # Transicionar status se necessário (worklog é registrado ao atingir IN DEVELOPMENT)
             if self.target_status != "TO DO":
                 self.progressUpdated.emit(60, "Iniciando transições de status...")
 
                 # Callback para progresso de transições
                 def progress_callback(status, percentage, message):
-                    # Converter porcentagem de transição (0-100) para range 60-100
-                    # Assumindo que transições ocupam 40% do progresso total (60-100)
                     transition_progress = 60 + int((percentage * 40) / 100)
                     self.progressUpdated.emit(transition_progress, message)
 
                 sequence = self.config.get_status_sequence()
-                transition_sequentially(
+                worklog_config = None
+                if (
+                    self.registrar_worklog
+                    and self.worklog_inicio
+                    and self.worklog_duracao
+                    and _is_status_at_or_after_in_development(
+                        self.target_status, sequence
+                    )
+                ):
+                    worklog_config = WorklogConfig(
+                        registrar=True,
+                        inicio=self.worklog_inicio,
+                        duracao=self.worklog_duracao,
+                        timezone=self.worklog_timezone,
+                        comment=self.worklog_comment,
+                    )
+                worklog_registered = transition_sequentially(
                     jira_client=self.jira_client,
                     issue_key=issue_key,
                     target_status=self.target_status,
                     status_sequence=sequence,
                     progress_callback=progress_callback,
-                    worklog=None,
+                    worklog=worklog_config,
                 )
 
-                # Registrar worklog uma vez após transições, só se status alvo >= IN DEVELOPMENT
+                # Registrar worklog no fim só se não foi registrado ao atingir IN DEVELOPMENT
+                # (ex.: issue já estava em ou após IN DEVELOPMENT e transitou para status posterior)
                 if (
-                    self.registrar_worklog
+                    not worklog_registered
+                    and self.registrar_worklog
                     and self.worklog_inicio
                     and self.worklog_duracao
                     and _is_status_at_or_after_in_development(
@@ -461,24 +477,41 @@ class UpdateWorker(QThread):
 
                 # Callback para progresso de transições
                 def progress_callback(status, percentage, message):
-                    # Converter porcentagem de transição (0-100) para range 60-100
                     transition_progress = 60 + int((percentage * 40) / 100)
                     self.progressUpdated.emit(transition_progress, message)
 
-                # Transicionar sem registrar worklog no loop (registro único após)
-                transition_sequentially(
+                sequence = self.config.get_status_sequence()
+                worklog_config = None
+                if (
+                    self.registrar_worklog
+                    and self.worklog_inicio
+                    and self.worklog_duracao
+                    and _is_status_at_or_after_in_development(
+                        self.status.strip(), sequence
+                    )
+                ):
+                    worklog_config = WorklogConfig(
+                        registrar=True,
+                        inicio=self.worklog_inicio,
+                        duracao=self.worklog_duracao,
+                        timezone=self.worklog_timezone,
+                        comment=self.worklog_comment,
+                    )
+
+                # Transicionar (worklog é registrado ao atingir IN DEVELOPMENT)
+                worklog_registered = transition_sequentially(
                     jira_client=self.jira_client,
                     issue_key=self.issue_key,
                     target_status=self.status.strip(),
-                    status_sequence=self.config.get_status_sequence(),
+                    status_sequence=sequence,
                     progress_callback=progress_callback,
-                    worklog=None,
+                    worklog=worklog_config,
                 )
 
-                # Registrar worklog uma vez após transições, só se status alvo >= IN DEVELOPMENT
-                sequence = self.config.get_status_sequence()
+                # Registrar worklog no fim só se não foi registrado ao atingir IN DEVELOPMENT
                 if (
-                    self.registrar_worklog
+                    not worklog_registered
+                    and self.registrar_worklog
                     and self.worklog_inicio
                     and self.worklog_duracao
                     and _is_status_at_or_after_in_development(

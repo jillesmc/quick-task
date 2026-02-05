@@ -148,9 +148,10 @@ def transition_sequentially(
     progress_callback: Optional[Callable[[str, int, str], None]] = None,
     worklog: Optional[WorklogConfig] = None,
     transition_fields: Optional[Dict[str, Any]] = None,
-) -> None:
+) -> bool:
     """
     Transiciona uma issue sequencialmente pelos status até o status desejado.
+    Ao atingir IN DEVELOPMENT, registra worklog imediatamente se worklog estiver configurado.
     Descobre o estado atual da issue antes de começar as transições.
     Lança exceções em caso de erro.
 
@@ -160,8 +161,11 @@ def transition_sequentially(
         target_status: Status alvo desejado
         status_sequence: Lista sequencial de status
         progress_callback: Função callback(status_atual, porcentagem, mensagem)
-        worklog: Configuração para registro de worklog (opcional)
+        worklog: Configuração para registro de worklog (opcional); registrado ao atingir IN DEVELOPMENT
         transition_fields: Campos a enviar em cada POST de transição (opcional)
+
+    Returns:
+        True se o worklog foi registrado ao atingir IN DEVELOPMENT; False caso contrário.
 
     Raises:
         ValueError: Se parâmetros inválidos ou status não encontrado
@@ -170,11 +174,11 @@ def transition_sequentially(
     _validate_parameters(issue_key, target_status)
 
     if target_status == "TO DO":
-        return
+        return False
 
     target_index = _get_target_index(target_status, status_sequence)
     if target_index == 0:
-        return
+        return False
 
     # Descobrir estado atual da issue
     # get_issue_details retorna dict achatado (key, id, **data["fields"]), sem chave "fields"
@@ -209,9 +213,11 @@ def transition_sequentially(
             progress_callback(
                 "", 100, f"Issue já está em {target_status} ou estado posterior"
             )
-        return
+        return False
 
-    # Transicionar sequencialmente do estado atual até o estado alvo
+    # Transicionar sequencialmente do estado atual até o estado alvo.
+    # Ao atingir IN DEVELOPMENT, registra worklog imediatamente (se worklog configurado) e segue.
+    worklog_registered = False
     while current_index < target_index:
         next_index = current_index + 1
         next_status = status_sequence[next_index]
@@ -227,8 +233,27 @@ def transition_sequentially(
             transition_fields=transition_fields,
         )
 
-        # Worklog é registrado uma vez pelos workers (JiraWorker/UpdateWorker) após as transições
+        # Registrar worklog logo após transicionar para IN DEVELOPMENT (primeira opção de uso)
+        if (
+            worklog
+            and (next_status or "").upper() == "IN DEVELOPMENT"
+            and worklog.registrar
+            and worklog.inicio
+            and worklog.duracao > 0
+        ):
+            _register_worklog_if_needed(
+                jira_client,
+                issue_key,
+                next_status,
+                worklog,
+                progress_callback,
+                percentage,
+            )
+            worklog_registered = True
+
         current_index = next_index
 
     if progress_callback:
         progress_callback("", 100, "Transições concluídas!")
+
+    return worklog_registered
