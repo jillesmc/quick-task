@@ -12,11 +12,12 @@ import org.kde.kirigami as Kirigami
 import "../components/forms"
 import "../components/controls"
 import "../utils/DialogHelpers.js" as DialogHelpers
-
 Kirigami.Page {
     id: page
 
     title: "Preencha os dados da issue abaixo:"
+
+    property var applicationWindow: null
 
     // Habilitar foco para capturar atalhos de teclado
     focus: true
@@ -102,6 +103,9 @@ Kirigami.Page {
     Component.onCompleted: {
         summaryField.forceActiveFocus();
 
+        // Pré-carregar ProgressDialog para que createComponent em showProgress esteja em cache quando o utilizador clicar
+        Qt.createComponent("../components/dialogs/ProgressDialog.qml");
+
         // Inicializar worklog com data/hora atual se não estiver definido
         if (page.issueModel && (!page.issueModel.worklogInicio || page.issueModel.worklogInicio === "")) {
             var now = new Date();
@@ -119,17 +123,18 @@ Kirigami.Page {
                 enabled: true
             });
 
-            // Conectar signals do controller
             page.controller.createStarted.connect(function () {
                 page.isProcessing = true;
-                page.progressDialog = DialogHelpers.showProgress(page, "../components/dialogs/ProgressDialog.qml");
+                page.progressDialog = DialogHelpers.showProgress(page, "../components/dialogs/ProgressDialog.qml", function (dlg) {
+                    page.progressDialog = dlg;
+                });
             });
 
             page.controller.createCompleted.connect(function (issueKey, issueUrl) {
                 page.isProcessing = false;
                 DialogHelpers.hideProgress(page.progressDialog);
                 page.progressDialog = null;
-                DialogHelpers.showSuccess(page, "../components/dialogs/SuccessDialog.qml", issueKey, issueUrl || "", false, page.timerService, page.timerModel);
+                DialogHelpers.showSuccess(page, "../components/dialogs/SuccessDialog.qml", issueKey, issueUrl || "", false, page.timerService, page.timerModel, page.jiraService, page.applicationWindow);
                 page.resetForm();
                 page.issueCreated(issueKey);
             });
@@ -138,7 +143,7 @@ Kirigami.Page {
                 page.isProcessing = false;
                 DialogHelpers.hideProgress(page.progressDialog);
                 page.progressDialog = null;
-                DialogHelpers.showError(page, "../components/dialogs/ErrorDialog.qml", errorMessage);
+                DialogHelpers.showError(page, "../components/dialogs/ErrorDialog.qml", errorMessage, "IssueFormPage.jiraService");
             });
         }
     }
@@ -542,6 +547,7 @@ Kirigami.Page {
                             Layout.fillWidth: true
                             issueModel: page.issueModel
                             enabled: !page.isProcessing
+                            restrictStatusBySequence: false
                         }
 
                         // Espaço extra no final para não "comer" o último campo
@@ -647,7 +653,7 @@ Kirigami.Page {
                 // qmllint disable missing-property
                 item.fieldsFilled.connect(function() { item.close(); })
                 item.errorMessage.connect(function(msg) {
-                    DialogHelpers.showError(page, "../components/dialogs/ErrorDialog.qml", msg);
+                    DialogHelpers.showError(page, "../components/dialogs/ErrorDialog.qml", msg, "IssueFormPage.voiceOrOther");
                 })
                 // qmllint enable missing-property
             }

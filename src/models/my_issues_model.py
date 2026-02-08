@@ -258,7 +258,11 @@ class MyIssuesModel(QObject):
             )
             return
 
-        # Cancelar worker anterior se existir
+        # Evitar terminar worker em execução (terminate() em thread ativa pode causar SIGABRT)
+        if self._is_loading and self._search_worker and self._search_worker.isRunning():
+            return
+
+        # Cancelar worker anterior se existir (ex.: busca anterior já terminou mas callback ainda não)
         if self._search_worker and self._search_worker.isRunning():
             self._search_worker.terminate()
             self._search_worker.wait()

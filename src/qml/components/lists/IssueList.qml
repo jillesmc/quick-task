@@ -35,8 +35,15 @@ Controls.Frame {
     property var timerModel: null
     property var timerService: null
     clip: true   // garante que o conteúdo da lista não extrapole visualmente o frame
-    
+
     signal issueSelected(string issueKey, var issueData)
+    /** Emitido quando o utilizador pede para iniciar o timer numa issue; conectar para lógica custom (ex.: transição para IN DEVELOPMENT). */
+    signal startTimerRequested(string issueKey)
+
+    function requestStartTimer(issueKey) {
+        if (issueKey && typeof issueKey === "string" && issueKey.length > 0)
+            issueListRoot.startTimerRequested(issueKey)
+    }
 
     ListModel {
         id: issueListModel
@@ -182,6 +189,9 @@ Controls.Frame {
                 id: delegateItem
                 timerModel: issueListRoot.timerModel
                 timerService: issueListRoot.timerService
+                onStartTimerRequested: function(issueKey) {
+                    issueListRoot.requestStartTimer(issueKey)
+                }
                 onClicked: {
                     issueListRoot.selectedIssueKey = delegateItem.key
                     issuesListView.currentIndex = delegateItem.index

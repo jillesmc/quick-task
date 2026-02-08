@@ -198,6 +198,62 @@ class WorklogDatabase:
         )
         return sessions
 
+    def get_pending_worklogs_for_issue(
+        self, issue_key: str
+    ) -> List[Dict[str, Any]]:
+        """
+        Obtém sessões de worklog não sincronizadas para uma issue específica.
+
+        Returns:
+            Lista de dicionários com dados das sessões (mesmo formato que get_pending_worklogs).
+        """
+        if not issue_key or not issue_key.strip():
+            return []
+        debug_log(
+            "WorklogDatabase",
+            "get_pending_worklogs_for_issue",
+            "Buscando worklogs pendentes para %s",
+            issue_key,
+        )
+        conn = sqlite3.connect(str(self.db_path))
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT * FROM worklog_sessions
+            WHERE is_synced = 0 AND issue_key = ?
+            ORDER BY start_time DESC
+        """,
+            (issue_key.strip(),),
+        )
+        rows = cursor.fetchall()
+        conn.close()
+        sessions = []
+        for row in rows:
+            session = {
+                "id": row["id"],
+                "issue_key": row["issue_key"],
+                "start_time": row["start_time"],
+                "end_time": row["end_time"],
+                "duration_seconds": row["duration_seconds"],
+                "pomodoros": (
+                    json.loads(row["pomodoros_json"]) if row["pomodoros_json"] else []
+                ),
+                "is_synced": bool(row["is_synced"]),
+                "jira_worklog_id": row["jira_worklog_id"],
+                "description": row["description"] or "",
+                "created_at": row["created_at"],
+            }
+            sessions.append(session)
+        debug_log(
+            "WorklogDatabase",
+            "get_pending_worklogs_for_issue",
+            "Encontrados %d worklogs pendentes para %s",
+            len(sessions),
+            issue_key,
+        )
+        return sessions
+
     def get_session(self, session_id: str) -> Optional[Dict[str, Any]]:
         """
         Obtém uma sessão específica por ID

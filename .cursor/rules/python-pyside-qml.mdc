@@ -1,0 +1,33 @@
+---
+description: Convenções Python, PySide6 e integração com QML no jira-quick-task
+globs: "**/*.py"
+alwaysApply: false
+---
+
+# Python / PySide6 / QML
+
+## Estrutura do projeto
+
+- **config/**: `ConfigManager`, exemplos em `config.json.example` e `.jira-config.yml.example`.
+- **core/**: `JiraClient` (REST API v3), `status_transition`. Sem PySide6.
+- **src/**: app PySide6, serviços (QObject), models (Property/Signal para QML), `src/qml/` (QML).
+
+## Models expostos ao QML
+
+- Usar `PySide6.QtCore`: `QObject`, `Property`, `Signal`, `Slot`.
+- Propriedade: `nomeChanged = Signal(tipo)` e `@Property(tipo, notify=nomeChanged)`; setter em Python com `_nome` e `nomeChanged.emit()`.
+- Nomes em camelCase nas propriedades QML (ex: `tipoAtividade`, `statusInicial`).
+
+## Configuração e paths
+
+- Config: `ConfigManager()` usa `config.json` e `.jira-config.yml` (paths por ambiente; Flatpak: `~/.var/app/org.kde.jira-quick-task/config/jira-quick-task/`).
+- Não depender de variáveis de ambiente para Jira; configuração via UI.
+
+## Debug
+
+- `src.utils.debug.debug_log(module, function, message)`; ativar com `--debug` ou `JIRA_QUICK_TASK_DEBUG=1`. Formato: `[DEBUG] Module.function: message`.
+
+## Testes e execução
+
+- Testes: `make dev-test` (Docker). Fixtures em `tests/conftest.py`: `sample_config`, `temp_config_file`, `config_manager`, `mock_jira_client`, `mock_config_manager`.
+- Formatar: `make dev-format` (black em src/, core/, config/, tests/).

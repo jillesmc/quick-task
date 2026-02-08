@@ -19,6 +19,9 @@ Item {
     Controls.SplitView.fillWidth: true
     Controls.SplitView.minimumWidth: 400
 
+    /** Referência à página (MyIssuesPage) para evitar ErrorDialog duplicado quando o erro já foi mostrado no ProcessDialog (ex.: iniciar timer). */
+    property var myIssuesPage: null
+
     property var applicationWindow: null
     property var issueModel: null
     property string selectedIssueKey: ""
@@ -40,6 +43,8 @@ Item {
     property bool voiceInputAvailable: voiceInputService ? voiceInputService.isAvailable() : false
     property string sharedEpicKey: ""
     property string sharedEpicSummary: ""
+    /** Status persistido no Jira; usado para desabilitar só status anteriores ao salvo (não ao escolhido no form). */
+    property string savedStatus: ""
 
     property real topSectionHeight: 300
     property real epicSectionHeight: 250
@@ -530,6 +535,8 @@ Item {
                         Layout.fillWidth: true
                         issueModel: pane.issueModel
                         enabled: pane.selectedIssueKey !== "" && !pane.isProcessing
+                        restrictStatusBySequence: true
+                        statusForRestriction: pane.savedStatus
                     }
 
                     CommentsSection {
@@ -541,7 +548,25 @@ Item {
                         clipboardHelper: pane.clipboardHelper
                         selectedIssueKey: pane.selectedIssueKey
                         onErrorOccurred: function (message) {
-                            DialogHelpers.showError(pane, "../components/dialogs/ErrorDialog.qml", message)
+                            if (typeof console !== "undefined" && console.log) {
+                                console.log("[MyIssuesDetailPane] CommentsSection.onErrorOccurred. _jiraErrorShownInProcessDialog=", (pane.myIssuesPage && pane.myIssuesPage._jiraErrorShownInProcessDialog) || false, "_jiraErrorShownInCreateFlow=", (pane.myIssuesPage && pane.myIssuesPage.applicationWindow && pane.myIssuesPage.applicationWindow._jiraErrorShownInCreateFlow) || false);
+                            }
+                            if (pane.myIssuesPage && pane.myIssuesPage._jiraErrorShownInProcessDialog) {
+                                if (typeof console !== "undefined" && console.log) {
+                                    console.log("[MyIssuesDetailPane] CommentsSection.onErrorOccurred -> SKIP (erro já no ProcessDialog)");
+                                }
+                                return;
+                            }
+                            if (pane.myIssuesPage && pane.myIssuesPage.applicationWindow && pane.myIssuesPage.applicationWindow._jiraErrorShownInCreateFlow) {
+                                if (typeof console !== "undefined" && console.log) {
+                                    console.log("[MyIssuesDetailPane] CommentsSection.onErrorOccurred -> SKIP (erro já no SuccessDialog/ fluxo criar issue)");
+                                }
+                                return;
+                            }
+                            if (typeof console !== "undefined" && console.log) {
+                                console.log("[MyIssuesDetailPane] CommentsSection.onErrorOccurred -> DialogHelpers.showError (ErrorDialog com OK)");
+                            }
+                            DialogHelpers.showError(pane, "../components/dialogs/ErrorDialog.qml", message, "MyIssuesDetailPane.CommentsSection");
                         }
                     }
                 }

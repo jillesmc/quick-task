@@ -1,0 +1,26 @@
+---
+description: Padrão de testes pytest e fixtures do jira-quick-task
+globs: "tests/**/*.py"
+alwaysApply: false
+---
+
+# Testes (pytest)
+
+## Execução
+
+- Sempre rodar testes via **Docker**: `make dev-test`. Não assumir PySide6/pytest no host.
+- Opções pytest em `pyproject.toml`: testpaths = ["tests"], addopts com -q, tb=short, filterwarnings para DeprecationWarning.
+
+## Fixtures (conftest.py)
+
+- **sample_config**: dict com project, issue_type, assignee, custom_fields, tipo_atividade_values, status_sequence, worklog_timezone.
+- **temp_config_file(sample_config)**: arquivo JSON temporário; limpa após o teste.
+- **config_manager(temp_config_file)**: `ConfigManager` com arquivo temporário.
+- **mock_jira_client**: MagicMock de `JiraClient` com create_issue, transition_issue, register_worklog; spec=JiraClient.
+- **mock_config_manager(sample_config)**: MagicMock de ConfigManager com get_project, get_issue_type, get_assignee, get_custom_field, get_tipo_atividade_values, get_status_sequence, get_timezone.
+
+## Boas práticas
+
+- Usar as fixtures existentes em vez de montar mocks manualmente quando cobrirem o caso.
+- Para testes que precisam de Qt: pytest-qt é opcional; conftest define QtBot mock se não disponível.
+- Nomear: `test_*.py`, classes `Test*`, funções `test_*`.

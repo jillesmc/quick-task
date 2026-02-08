@@ -66,6 +66,11 @@ class SettingsModel(QObject):
             self._voice_keyboard_shortcut = "Meta+F"
             self._voice_auto_process_after_stop = False
 
+            # Propriedades de status_transitions.worklog_check
+            self._worklog_check_enabled = True
+            self._worklog_check_show_dialog = True
+            self._worklog_check_block_if_pending = False
+
             debug_log("SettingsModel", "__init__", "Carregando valores atuais...")
             self._load_current_values()
             debug_log("SettingsModel", "__init__", "Concluído")
@@ -179,6 +184,15 @@ class SettingsModel(QObject):
         )
         self._voice_auto_process_after_stop = voice_config.get(
             "auto_process_after_stop", False
+        )
+        # Carregar configurações de status_transitions.worklog_check
+        worklog_check_config = self._config_manager.get_worklog_check_config()
+        self._worklog_check_enabled = worklog_check_config.get("enabled", True)
+        self._worklog_check_show_dialog = worklog_check_config.get(
+            "show_confirmation_dialog", True
+        )
+        self._worklog_check_block_if_pending = worklog_check_config.get(
+            "block_transition_if_pending", False
         )
 
         debug_log(
@@ -549,6 +563,19 @@ class SettingsModel(QObject):
                 "Configurações de voice_input salvas no arquivo",
             )
 
+            # 4c. Salvar configurações de worklog_check (status_transitions)
+            worklog_check_config = {
+                "enabled": self._worklog_check_enabled,
+                "show_confirmation_dialog": self._worklog_check_show_dialog,
+                "block_transition_if_pending": self._worklog_check_block_if_pending,
+            }
+            self._config_manager.save_worklog_check_config(worklog_check_config)
+            debug_log(
+                "SettingsModel",
+                "save",
+                "Configurações de worklog_check salvas no arquivo",
+            )
+
             # 5. Recarregar valores após salvar
             debug_log("SettingsModel", "save", "Recarregando valores após salvar")
             self._load_current_values()
@@ -583,6 +610,11 @@ class SettingsModel(QObject):
     shortSoundFileChanged = Signal()
     longSoundFileChanged = Signal()
     returnFromBreakSoundFileChanged = Signal()
+
+    # Sinais para worklog_check (status_transitions)
+    worklogCheckEnabledChanged = Signal()
+    worklogCheckShowDialogChanged = Signal()
+    worklogCheckBlockIfPendingChanged = Signal()
 
     # Propriedades QML
     @Property(str, notify=jiraBaseUrlChanged)
@@ -884,3 +916,37 @@ class SettingsModel(QObject):
         if self._voice_auto_process_after_stop != value:
             self._voice_auto_process_after_stop = value
             self.voiceInputAutoProcessAfterStopChanged.emit()
+
+    # Propriedades QML para status_transitions.worklog_check
+    @Property(bool, notify=worklogCheckEnabledChanged)
+    def worklogCheckEnabled(self) -> bool:
+        """Verificar worklogs pendentes antes de transitar status"""
+        return self._worklog_check_enabled
+
+    @worklogCheckEnabled.setter
+    def worklogCheckEnabled(self, value: bool):
+        if self._worklog_check_enabled != value:
+            self._worklog_check_enabled = value
+            self.worklogCheckEnabledChanged.emit()
+
+    @Property(bool, notify=worklogCheckShowDialogChanged)
+    def worklogCheckShowDialog(self) -> bool:
+        """Mostrar diálogo de confirmação quando houver pendentes"""
+        return self._worklog_check_show_dialog
+
+    @worklogCheckShowDialog.setter
+    def worklogCheckShowDialog(self, value: bool):
+        if self._worklog_check_show_dialog != value:
+            self._worklog_check_show_dialog = value
+            self.worklogCheckShowDialogChanged.emit()
+
+    @Property(bool, notify=worklogCheckBlockIfPendingChanged)
+    def worklogCheckBlockIfPending(self) -> bool:
+        """Bloquear transição se houver pendentes (apenas Sincronizar ou Cancelar)"""
+        return self._worklog_check_block_if_pending
+
+    @worklogCheckBlockIfPending.setter
+    def worklogCheckBlockIfPending(self, value: bool):
+        if self._worklog_check_block_if_pending != value:
+            self._worklog_check_block_if_pending = value
+            self.worklogCheckBlockIfPendingChanged.emit()

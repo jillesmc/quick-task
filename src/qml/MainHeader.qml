@@ -39,12 +39,8 @@ RowLayout {
 
         Controls.TabButton {
             text: "Minhas Issues"
-            onClicked: {
-                if (root.issuesPage && root.issuesPage.initialSearchDone === false) {
-                    root.issuesPage.refreshIssues("");
-                    root.issuesPage.initialSearchDone = true;
-                }
-            }
+            // Busca ao abrir a aba é feita em Main.qml (Connections onCurrentIndexChanged)
+            // para evitar refreshIssues() duplicado e terminação do worker em execução (crash)
         }
 
         Controls.TabButton {

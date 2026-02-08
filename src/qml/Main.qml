@@ -90,6 +90,9 @@ Kirigami.ApplicationWindow {
     property var hideWindowFn: hideWindow // qmllint disable unqualified
     property var _ctxDebugLog: debugLog // qmllint disable unqualified
 
+    // Quando true, o erro de transição (ex.: ao clicar "Iniciar Timer" no SuccessDialog) já está a ser mostrado no diálogo de criação; evita ErrorDialog/ProcessDialog duplicados
+    property bool _jiraErrorShownInCreateFlow: false
+
     header: MainHeader {
         id: mainHeader
         createPage: createPage
@@ -112,6 +115,8 @@ Kirigami.ApplicationWindow {
 
     // -----------------------------------------------------------------
     // Conteúdo principal: abas empilhadas
+    // Evolução opcional: um único ProcessDialog como filho da janela (dialog host)
+    // que as páginas pedem para mostrar progress/success/error, em vez de cada página ter o seu.
     // -----------------------------------------------------------------
     StackLayout {
         id: stackLayout
@@ -121,6 +126,7 @@ Kirigami.ApplicationWindow {
         // Índice 0: Criar Issue
         IssueFormPage {
             id: createPage
+            applicationWindow: root
             issueModel: root._ctxIssueModel
             jiraService: root._ctxJiraService
             clipboardHelper: root._ctxClipboardHelper
@@ -134,14 +140,13 @@ Kirigami.ApplicationWindow {
                 root.sharedEpicSummary = summary
             }
             onIssueCreated: function(issueKey) {
-                // Quando uma issue é criada, atualizar a lista de MyIssues
+                // Atualizar lista de MyIssues em background (sem mostrar diálogo de busca)
                 if (issuesPage) {
-                    // Obter a query atual da página de MyIssues (se houver)
                     var query = ""
                     if (issuesPage.issueSearchForm) {
                         query = issuesPage.issueSearchForm.getQuery()
                     }
-                    issuesPage.refreshIssues(query)
+                    issuesPage.refreshIssues(query, false)
                 }
             }
         }
@@ -156,6 +161,7 @@ Kirigami.ApplicationWindow {
             myIssuesModel: root._ctxMyIssuesModel
             timerService: root._ctxTimerService
             timerModel: root._ctxTimerModel
+            worklogSyncService: root._ctxWorklogSyncService
             hideWindowFn: root.hideWindowFn
             sharedEpicKey: root.sharedEpicKey
             sharedEpicSummary: root.sharedEpicSummary
@@ -187,6 +193,13 @@ Kirigami.ApplicationWindow {
             root.stack.currentIndex = root.tabBar.currentIndex
             if (root.tabBar.currentIndex === 2 && pendingWorklogsPage) {
                 pendingWorklogsPage.reloadWorklogs()
+            }
+            if (root.tabBar.currentIndex === 1 && issuesPage) {
+                if (!issuesPage.initialSearchDone) {
+                    issuesPage.initialSearchDone = true
+                }
+                var query = issuesPage.issueSearchForm ? issuesPage.issueSearchForm.getQuery() : ""
+                issuesPage.refreshIssues(query)
             }
         }
     }

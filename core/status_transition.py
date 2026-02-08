@@ -69,6 +69,67 @@ def _get_target_index(target_status: str, status_sequence: List[str]) -> int:
         )
 
 
+def _get_status_index(status: str, status_sequence: List[str]) -> Optional[int]:
+    """Retorna o índice do status na sequência (comparação case-insensitive). None se não encontrado."""
+    if not status or not status_sequence:
+        return None
+    status_upper = (status or "").strip().upper()
+    for i, s in enumerate(status_sequence):
+        if (s or "").upper() == status_upper:
+            return i
+    return None
+
+
+def _get_in_development_index(status_sequence: List[str]) -> Optional[int]:
+    """Retorna o índice do status 'IN DEVELOPMENT' na sequência (case-insensitive). None se não existir."""
+    return _get_status_index("IN DEVELOPMENT", status_sequence)
+
+
+def needs_two_phase_transition(
+    current_status: str,
+    target_status: str,
+    status_sequence: List[str],
+) -> bool:
+    """
+    Retorna True quando a transição deve ser feita em duas fases (parar em IN DEVELOPMENT).
+
+    Ou seja: current < IN DEVELOPMENT e target > IN DEVELOPMENT na sequência.
+    """
+    in_dev_idx = _get_in_development_index(status_sequence)
+    if in_dev_idx is None:
+        return False
+    current_idx = _get_status_index(current_status, status_sequence)
+    target_idx = _get_status_index(target_status, status_sequence)
+    if current_idx is None or target_idx is None:
+        return False
+    return current_idx < in_dev_idx and target_idx > in_dev_idx
+
+
+def requires_worklog_check_before_transition(
+    current_status: str,
+    target_status: str,
+    status_sequence: List[str],
+) -> bool:
+    """
+    Retorna True se a transição exige verificação de worklogs pendentes (mostrar diálogo ou sync).
+
+    True quando: current >= IN DEVELOPMENT ou target > IN DEVELOPMENT.
+    Retorna False quando não há mudança de status (current == target).
+    """
+    if not current_status or not target_status:
+        return False
+    if (current_status or "").strip().upper() == (target_status or "").strip().upper():
+        return False
+    in_dev_idx = _get_in_development_index(status_sequence)
+    if in_dev_idx is None:
+        return False
+    current_idx = _get_status_index(current_status, status_sequence)
+    target_idx = _get_status_index(target_status, status_sequence)
+    if current_idx is None or target_idx is None:
+        return False
+    return current_idx >= in_dev_idx or target_idx > in_dev_idx
+
+
 def _register_worklog_if_needed(
     jira_client: JiraClient,
     issue_key: str,

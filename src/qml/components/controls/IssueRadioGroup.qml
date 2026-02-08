@@ -17,6 +17,8 @@ ColumnLayout {
     property var model: []
     property bool enabled: true
     property string selectedValue: ""
+    /** Se >= 0, apenas itens com index >= minEnabledIndex ficam habilitados (ex.: status não pode voltar atrás). -1 = todos habilitados. */
+    property int minEnabledIndex: -1
 
     signal valueChanged(string value)
 
@@ -44,8 +46,9 @@ ColumnLayout {
             Controls.RadioButton {
                 id: radioButton
                 required property var modelData
+                required property int index
                 text: group.itemLabel(radioButton.modelData)
-                enabled: group.enabled
+                enabled: group.enabled && (group.minEnabledIndex < 0 || radioButton.index >= group.minEnabledIndex)
                 checked: group.selectedValue === group.itemValue(radioButton.modelData)
                 onCheckedChanged: {
                     if (checked) {

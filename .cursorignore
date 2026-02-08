@@ -1,0 +1,7 @@
+.flatpack-builder
+.localai-backends
+.localai-models
+build-dir
+dev-tools
+jira-quick-task-flatpak
+assets

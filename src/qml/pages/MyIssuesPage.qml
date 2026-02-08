@@ -14,6 +14,7 @@ import "../components/lists"
 import "../components/controls"
 import "../components/panes"
 import "../utils/DialogHelpers.js" as DialogHelpers
+import "../utils/FormatUtils.js" as FormatUtils
 import "../utils/MyIssuesPageLogic.js" as MyIssuesPageLogic
 
 Kirigami.Page {
@@ -52,11 +53,28 @@ Kirigami.Page {
     property var myIssuesModel: null
     property var timerService: null
     property var timerModel: null
+    property var worklogSyncService: null
     property var hideWindowFn: null
+
+    // Estado para fluxo de transição em duas fases (TO DO → … → IN DEVELOPMENT → diálogo → target)
+    property string _pendingTwoPhaseTarget: ""
+    // Estado para "sync depois update" (uma fase ou duas): { issueKey, fieldData?, worklogData?, epicKey?, originalStatus?, isTwoPhase, targetStatus? }
+    property var _pendingUpdateAfterSync: null
+    // Lista de worklogs pendentes usada ao clicar Sincronizar (para obter sessionIds)
+    property var _pendingWorklogsList: []
+    // Flag para indicar que estamos em uma transição de duas fases
+    property bool _isTwoPhaseTransition: false
+    // Issue key para iniciar timer após transição automática para IN DEVELOPMENT
+    property string _pendingTimerStartIssueKey: ""
+    // Quando true, o erro do jiraService já foi mostrado no ProcessDialog; evita abrir ErrorDialog por cima
+    property bool _jiraErrorShownInProcessDialog: false
     property var _ctxVoiceInputService: typeof voiceInputService !== "undefined" ? voiceInputService : null // qmllint disable unqualified
 
-    // Diálogos (progressDialog e searchProgressDialog gerenciados via DialogHelpers)
-    property var progressDialog: null
+    // Diálogo unificado de processo (update: confirm/progress/success/error)
+    property var _processDialog: null
+    property var _processDialogComponent: null
+    property var _pendingProcessDialogAction: null  // function(dlg) chamada quando o diálogo estiver pronto (estratégia IssueFormPage: criar na ação)
+    // Diálogo de progresso da busca (separado para não conflitar com update)
     property var searchProgressDialog: null
 
     // Controller para lógica de negócio
@@ -99,6 +117,36 @@ Kirigami.Page {
         }
     }
 
+    // Inicia timer para issueKey; só tenta transição para IN DEVELOPMENT se o status atual for *anterior* a IN DEVELOPMENT.
+    // Se já estiver em IN DEVELOPMENT ou posterior (ex.: WAITING FOR HOMOLOG), inicia o timer diretamente.
+    function _startTimerAfterInDevelopment(issueKey) {
+        if (!page.timerService || !issueKey) return;
+
+        // Quando temos o status da issue (ex.: issue selecionada e detalhes carregados), evitar transição se já for IN DEVELOPMENT ou depois
+        if (page.selectedIssueKey === issueKey && page.issueModel && page.issueModel.statusSequence && page.originalStatus) {
+            var seq = page.issueModel.statusSequence;
+            var inDevIdx = seq.indexOf("IN DEVELOPMENT");
+            if (inDevIdx >= 0) {
+                var currentIdx = seq.indexOf(page.originalStatus);
+                if (currentIdx >= inDevIdx) {
+                    page.timerService.start(issueKey);
+                    return;
+                }
+            }
+        }
+
+        if (!page.jiraService || !page.jiraService.transitionToInDevelopmentIfNeeded(issueKey)) {
+            page.timerService.start(issueKey);
+            return;
+        }
+        page._pendingTimerStartIssueKey = issueKey;
+        page._jiraErrorShownInProcessDialog = true;  // Erros deste fluxo só no ProcessDialog; evita ErrorDialog duplicado
+        page._ensureProcessDialogThen(function (dlg) {
+            if (!dlg.opened) dlg.openInProgress(qsTr("Transicionando para IN DEVELOPMENT..."));
+            else dlg.updateProgress(0, qsTr("Transicionando para IN DEVELOPMENT..."));
+        });
+    }
+
     // Função pública para iniciar timer do header (Main.qml)
     function startTimerFromToolbar() {
         if (!page.timerService || !page.timerModel || !page.selectedIssueKey) {
@@ -110,7 +158,7 @@ Kirigami.Page {
             page.timerService.cancelBreak();
             Qt.callLater(function () {
                 if (page.timerService && page.selectedIssueKey) {
-                    page.timerService.start(page.selectedIssueKey);
+                    page._startTimerAfterInDevelopment(page.selectedIssueKey);
                 }
             });
             return;
@@ -124,18 +172,16 @@ Kirigami.Page {
         } else
         // Se há timer ativo para outra issue, parar e iniciar novo
         if (page.timerModel.state !== "idle" && page.timerModel.issueKey !== page.selectedIssueKey) {
-            // Parar timer atual e iniciar novo
             page.timerService.stop();
-            // Usar callLater para garantir que o stop termine antes de iniciar
             Qt.callLater(function () {
                 if (page.timerService && page.selectedIssueKey) {
-                    page.timerService.start(page.selectedIssueKey);
+                    page._startTimerAfterInDevelopment(page.selectedIssueKey);
                 }
             });
         } else
         // Iniciar novo timer
         {
-            page.timerService.start(page.selectedIssueKey);
+            page._startTimerAfterInDevelopment(page.selectedIssueKey);
         }
     }
 
@@ -155,39 +201,78 @@ Kirigami.Page {
         }
     }
 
-    function refreshIssues(query) {
+    /** @param {string} query - Query de busca
+        @param {boolean} showProgress - Se true, mostra "Buscando issues...". Se ProcessDialog já estiver aberto, usa-o (sem sobrepor); senão usa ProgressDialog. Use false para actualizar em background. */
+    function refreshIssues(query, showProgress) {
         if (!page.myIssuesModel) {
             return;
         }
 
+        var showProgressDialog = showProgress !== false;
+
         DialogHelpers.hideProgress(page.searchProgressDialog);
         page.searchProgressDialog = null;
 
-        page.searchProgressDialog = DialogHelpers.showProgress(page, "../components/dialogs/ProgressDialog.qml");
+        var finishAndSelectFirst = function () {
+            Qt.callLater(function () {
+                if (page.myIssuesModel && page.myIssuesModel.issues && page.myIssuesModel.issues.length > 0) {
+                    var firstIssue = page.myIssuesModel.issues[0];
+                    if (firstIssue && firstIssue.key && page.issueList) {
+                        page.issueList.selectIssue(firstIssue.key);
+                    }
+                }
+            });
+        };
+
+        if (showProgressDialog && page._processDialog && page._processDialog.opened) {
+            // Recarregamento dentro do mesmo ProcessDialog (ex.: após transição de status)
+            page._processDialog.transitionToProgress(qsTr("Buscando issues..."));
+            page._processDialog.updateProgress(0, qsTr("Buscando issues..."));
+
+            var loadingConnection = function (isLoading) {
+                if (isLoading) {
+                    if (page._processDialog) {
+                        page._processDialog.updateProgress(50, qsTr("Buscando issues..."));
+                    }
+                } else {
+                    Qt.callLater(function () {
+                        if (page._processDialog) {
+                            page._processDialog.updateProgress(100, qsTr("Busca concluída!"));
+                            Qt.callLater(function () {
+                                page._processDialog.close();
+                                finishAndSelectFirst();
+                            });
+                        }
+                        if (page.myIssuesModel) {
+                            page.myIssuesModel.loadingChanged.disconnect(loadingConnection);
+                        }
+                    });
+                }
+            };
+
+            if (page.myIssuesModel) {
+                page.myIssuesModel.loadingChanged.connect(loadingConnection);
+            }
+        } else if (showProgressDialog) {
+            page.searchProgressDialog = DialogHelpers.showProgress(page, "../components/dialogs/ProgressDialog.qml");
+        }
+
         if (page.searchProgressDialog) {
-            page.searchProgressDialog.updateProgress(0, "Buscando issues...");
+            page.searchProgressDialog.updateProgress(0, qsTr("Buscando issues..."));
 
             var loadingConnection = function (isLoading) {
                 if (isLoading) {
                     if (page.searchProgressDialog) {
-                        page.searchProgressDialog.updateProgress(50, "Buscando issues...");
+                        page.searchProgressDialog.updateProgress(50, qsTr("Buscando issues..."));
                     }
                 } else {
                     Qt.callLater(function () {
                         if (page.searchProgressDialog) {
-                            page.searchProgressDialog.updateProgress(100, "Busca concluída!");
+                            page.searchProgressDialog.updateProgress(100, qsTr("Busca concluída!"));
                             Qt.callLater(function () {
                                 DialogHelpers.hideProgress(page.searchProgressDialog);
                                 page.searchProgressDialog = null;
-
-                                Qt.callLater(function () {
-                                    if (page.myIssuesModel && page.myIssuesModel.issues && page.myIssuesModel.issues.length > 0) {
-                                        var firstIssue = page.myIssuesModel.issues[0];
-                                        if (firstIssue && firstIssue.key && page.issueList) {
-                                            page.issueList.selectIssue(firstIssue.key);
-                                        }
-                                    }
-                                });
+                                finishAndSelectFirst();
                             });
                         }
                         if (page.myIssuesModel) {
@@ -210,8 +295,63 @@ Kirigami.Page {
         }
     }
 
-    // Criar controller
+    // Criar controller; ProcessDialog é criado quando necessário via _ensureProcessDialogThen (como IssueFormPage + DialogHelpers)
     Component.onCompleted: {
+        var dialogComp = Qt.createComponent("../components/dialogs/ProcessDialog.qml");
+        if (typeof console !== "undefined" && console.log) {
+            console.log("[MyIssuesPage] ProcessDialog createComponent status:", dialogComp.status, "error:", dialogComp.status === Component.Error ? dialogComp.errorString() : "");
+        }
+        function onProcessDialogComponentReady() {
+            if (dialogComp.status !== Component.Ready) return;
+            if (typeof console !== "undefined" && console.log) {
+                console.log("[MyIssuesPage] ProcessDialog component Ready, creating instance");
+            }
+            page._processDialogComponent = dialogComp;
+            if (page._processDialog) {
+                if (typeof console !== "undefined" && console.log) {
+                    console.log("[MyIssuesPage] ProcessDialog already exists, running pending if any");
+                }
+                page._runPendingProcessDialogAction();
+                return;
+            }
+            var parent = page.parent || page;
+            if (typeof console !== "undefined" && console.log) {
+                console.log("[MyIssuesPage] createObject parent:", parent ? "set" : "null", "page.parent:", page.parent ? "set" : "null");
+            }
+            var dlg = dialogComp.createObject(parent, { applicationWindow: page.applicationWindow });
+            if (dlg) {
+                dlg.applicationWindow = Qt.binding(function () { return page.applicationWindow });
+                dlg.cancelClicked.connect(page._onPendingWorklogsDialogCancel);
+                dlg.skipSyncClicked.connect(page._onPendingWorklogsDialogSkip);
+                dlg.syncClicked.connect(page._onPendingWorklogsDialogSync);
+                dlg.closed.connect(function () {
+                    page._jiraErrorShownInProcessDialog = false;
+                });
+                page._processDialog = dlg;
+                if (typeof console !== "undefined" && console.log) {
+                    console.log("[MyIssuesPage] ProcessDialog instance created, running pending action");
+                }
+                page._runPendingProcessDialogAction();
+            } else {
+                if (typeof console !== "undefined" && console.warn) {
+                    console.warn("[MyIssuesPage] ProcessDialog createObject returned null");
+                }
+            }
+        }
+        if (dialogComp.status === Component.Ready) {
+            onProcessDialogComponentReady();
+        } else {
+            if (typeof console !== "undefined" && console.log) {
+                console.log("[MyIssuesPage] ProcessDialog component not Ready, connecting statusChanged");
+            }
+            dialogComp.statusChanged.connect(function () {
+                if (typeof console !== "undefined" && console.log) {
+                    console.log("[MyIssuesPage] ProcessDialog statusChanged:", dialogComp.status);
+                }
+                if (dialogComp.status === Component.Ready) onProcessDialogComponentReady();
+            });
+        }
+
         var component = Qt.createComponent("../controllers/MyIssuesController.qml");
         if (component.status === Component.Ready) {
             page.controller = component.createObject(page, {
@@ -224,14 +364,20 @@ Kirigami.Page {
             if (page.controller) {
                 page.controller.updateStarted.connect(function () {
                     page.isProcessing = true;
-                    page.progressDialog = DialogHelpers.showProgress(page, "../components/dialogs/ProgressDialog.qml");
+                    page._ensureProcessDialogThen(function (dlg) {
+                        if (dlg.opened) {
+                            dlg.transitionToProgress(qsTr("Atualizando issue..."));
+                        } else {
+                            dlg.openInProgress(qsTr("Atualizando issue..."));
+                        }
+                    });
                 });
 
                 page.controller.updateCompleted.connect(function (issueKey) {
                     page.isProcessing = false;
-                    DialogHelpers.hideProgress(page.progressDialog);
-                    page.progressDialog = null;
-                    DialogHelpers.showSuccess(page, "../components/dialogs/SuccessDialog.qml", issueKey, "", true);
+                    if (page._processDialog) {
+                        page._processDialog.transitionToSuccess(issueKey, "", true);
+                    }
                     if (page.issueSearchForm) {
                         var query = page.issueSearchForm.getQuery();
                         page.refreshIssues(query);
@@ -239,10 +385,16 @@ Kirigami.Page {
                 });
 
                 page.controller.updateFailed.connect(function (errorMessage) {
+                    if (page.applicationWindow && page.applicationWindow._jiraErrorShownInCreateFlow) {
+                        return;
+                    }
+                    if (typeof console !== "undefined" && console.log) {
+                        console.log("[MyIssuesPage] controller.updateFailed -> ProcessDialog.transitionToError");
+                    }
                     page.isProcessing = false;
-                    DialogHelpers.hideProgress(page.progressDialog);
-                    page.progressDialog = null;
-                    DialogHelpers.showError(page, "../components/dialogs/ErrorDialog.qml", errorMessage);
+                    if (page._processDialog) {
+                        page._processDialog.transitionToError(errorMessage);
+                    }
                 });
 
                 page.controller.issueSelected.connect(function (issueKey, issueData) {
@@ -319,6 +471,10 @@ Kirigami.Page {
                             timerModel: page.timerModel
                             timerService: page.timerService
 
+                            onStartTimerRequested: function (issueKey) {
+                                if (issueKey && page && page.timerService)
+                                    page._startTimerAfterInDevelopment(issueKey)
+                            }
                             onIssueSelected: function (issueKey, issueData) {
                                 page.selectedIssueKey = issueKey;
                                 page.loadIssueDetails(issueKey);
@@ -332,6 +488,7 @@ Kirigami.Page {
         // Coluna Direita (60% - Detail)
         MyIssuesDetailPane {
             id: detailPane
+            myIssuesPage: page
             applicationWindow: page.applicationWindow
             issueModel: page.issueModel
             selectedIssueKey: page.selectedIssueKey
@@ -342,6 +499,7 @@ Kirigami.Page {
             voiceInputService: page._ctxVoiceInputService
             sharedEpicKey: page.sharedEpicKey
             sharedEpicSummary: page.sharedEpicSummary
+            savedStatus: page.originalStatus
 
             onEpicSelected: function (key, summary) {
                 page.epicSelected(key, summary);
@@ -354,8 +512,107 @@ Kirigami.Page {
         target: page.jiraService
 
         function onProgressUpdated(percentage, message) {
-            if (page.progressDialog) {
-                page.progressDialog.updateProgress(percentage, message);
+            if (page._processDialog) {
+                page._processDialog.updateProgress(percentage, message);
+            }
+        }
+
+        function onIssueUpdated(issueKey) {
+            // Quando transitionFromInDevelopmentToTarget completa (fase 2 de duas fases),
+            // mostrar sucesso no mesmo ProcessDialog.
+            // qmllint disable missing-property
+            if (page._processDialog && page.isProcessing && page._isTwoPhaseTransition) {
+            // qmllint enable missing-property
+                page.isProcessing = false;
+                page._isTwoPhaseTransition = false;
+                page._processDialog.transitionToSuccess(issueKey, "", true);
+                if (page.issueSearchForm) {
+                    var query = page.issueSearchForm.getQuery();
+                    page.refreshIssues(query);
+                }
+            }
+        }
+
+        function onInDevelopmentReady(issueKey) {
+            if (page._pendingTimerStartIssueKey && page._pendingTimerStartIssueKey === issueKey) {
+                page._pendingTimerStartIssueKey = "";
+                if (page._processDialog) page._processDialog.close();
+                if (page.timerService) page.timerService.start(issueKey);
+                // Recarregar dados da issue e a lista para refletir o novo status (IN DEVELOPMENT)
+                if (page.selectedIssueKey === issueKey && page.loadIssueDetails) {
+                    page.loadIssueDetails(issueKey);
+                }
+                if (page.issueSearchForm) {
+                    var query = page.issueSearchForm.getQuery();
+                    page.refreshIssues(query);
+                }
+            }
+        }
+
+        function onErrorOccurred(errorMessage) {
+            if (typeof console !== "undefined" && console.log) {
+                console.log("[MyIssuesPage] jiraService.onErrorOccurred. _pendingTimerStartIssueKey=", page._pendingTimerStartIssueKey || "");
+            }
+            if (page._pendingTimerStartIssueKey) {
+                page._pendingTimerStartIssueKey = "";
+                if (typeof console !== "undefined" && console.log) {
+                    console.log("[MyIssuesPage] jiraService.onErrorOccurred -> ProcessDialog.transitionToError");
+                }
+                if (page._processDialog) {
+                    page._processDialog.transitionToError(errorMessage || qsTr("Erro ao transicionar"));
+                } else {
+                    page._ensureProcessDialogThen(function (dlg) {
+                        dlg.transitionToError(errorMessage || qsTr("Erro ao transicionar"));
+                    });
+                }
+            }
+        }
+
+        function onReachedInDevelopment(issueKey) {
+            if (!issueKey || issueKey !== page.selectedIssueKey) return;
+            var checkEnabled = page.jiraService.worklogCheckEnabled && page.jiraService.worklogCheckEnabled();
+            var pending = (page.worklogSyncService && page.worklogSyncService.get_pending_worklogs_for_issue(issueKey)) || [];
+            if (pending.length > 0 && checkEnabled) {
+                var showDialog = page.jiraService.worklogCheckShowDialog && page.jiraService.worklogCheckShowDialog();
+                if (showDialog) {
+                    var totalFormatted = page._formatTotalFromPending(pending);
+                    var targetStatus = page._pendingTwoPhaseTarget;
+                    var blockIfPending = page.jiraService.worklogCheckBlockIfPending && page.jiraService.worklogCheckBlockIfPending();
+                    page._pendingUpdateAfterSync = { issueKey: issueKey, isTwoPhase: true, targetStatus: targetStatus };
+                    page._pendingWorklogsList = pending;
+                    page._ensureProcessDialogThen(function (dlg) {
+                        dlg.transitionToConfirm(pending, totalFormatted, targetStatus, blockIfPending);
+                    });
+                    return;
+                }
+                page._pendingUpdateAfterSync = { issueKey: issueKey, isTwoPhase: true, targetStatus: page._pendingTwoPhaseTarget };
+                var sessionIds = pending.map(function(p) { return p.id; });
+                page.worklogSyncService.sync_pending_worklogs(sessionIds);
+            } else {
+                // Sem pendentes: continuar para fase 2
+                var targetStatus = page._pendingTwoPhaseTarget;
+                page._pendingTwoPhaseTarget = "";
+                if (page._processDialog) page._processDialog.updateProgress(0, qsTr("Transicionando para %1...").arg(targetStatus));
+                page.jiraService.transitionFromInDevelopmentToTarget(issueKey, targetStatus);
+            }
+        }
+    }
+
+    Connections {
+        target: page.worklogSyncService || null
+        function onSyncCompleted() {
+            page._finishPendingUpdateAfterSync();
+        }
+        function onSyncError(sessionId, errorMessage) {
+            page._pendingWorklogsList = [];
+            if (page._pendingUpdateAfterSync && page._pendingUpdateAfterSync.isTwoPhase) {
+                page._pendingTwoPhaseTarget = "";
+                page._isTwoPhaseTransition = false;
+            }
+            page._pendingUpdateAfterSync = null;
+            page.isProcessing = false;
+            if (page._processDialog) {
+                page._processDialog.transitionToError(errorMessage || qsTr("Erro ao sincronizar worklog"));
             }
         }
     }
@@ -365,9 +622,21 @@ Kirigami.Page {
         target: page.myIssuesModel
 
         function onErrorOccurred(errorMessage) {
+            if (typeof console !== "undefined" && console.log) {
+                console.log("[MyIssuesPage] myIssuesModel.onErrorOccurred. _jiraErrorShownInProcessDialog=", page._jiraErrorShownInProcessDialog);
+            }
+            if (page._jiraErrorShownInProcessDialog) {
+                if (typeof console !== "undefined" && console.log) {
+                    console.log("[MyIssuesPage] myIssuesModel.onErrorOccurred -> SKIP (erro já no ProcessDialog)");
+                }
+                return;
+            }
+            if (typeof console !== "undefined" && console.log) {
+                console.log("[MyIssuesPage] myIssuesModel.onErrorOccurred -> DialogHelpers.showError (erro na busca de issues)");
+            }
             DialogHelpers.hideProgress(page.searchProgressDialog);
             page.searchProgressDialog = null;
-            DialogHelpers.showError(page, "../components/dialogs/ErrorDialog.qml", errorMessage);
+            DialogHelpers.showError(page, "../components/dialogs/ErrorDialog.qml", errorMessage, "MyIssuesPage.myIssuesModel");
         }
     }
 
@@ -384,20 +653,223 @@ Kirigami.Page {
 
     // Função pública para atualizar issue (chamada pelo botão global / atalho)
     function updateIssue() {
+        if (typeof console !== "undefined" && console.log) {
+            console.log("[MyIssuesPage] updateIssue called, selectedIssueKey=", page.selectedIssueKey || "");
+        }
         if (!page.selectedIssueKey || page.selectedIssueKey === "") {
-            DialogHelpers.showError(page, "../components/dialogs/ErrorDialog.qml", "Por favor, selecione uma task para atualizar");
+            page._ensureProcessDialogThen(function (dlg) {
+                dlg.transitionToError(qsTr("Por favor, selecione uma task para atualizar"));
+            });
             return;
         }
-
         if (!page.controller) {
-            DialogHelpers.showError(page, "../components/dialogs/ErrorDialog.qml", "Controller não disponível");
+            page._ensureProcessDialogThen(function (dlg) {
+                dlg.transitionToError(qsTr("Controller não disponível"));
+            });
             return;
         }
 
+        var issueKey = page.selectedIssueKey;
         var fieldData = page.detailPane.getFieldData();
         var worklogData = page.detailPane.getWorklogData();
         var epicKey = page.detailPane.getEpicKey();
-        page.controller.updateIssue(page.selectedIssueKey, fieldData, worklogData, epicKey, page.originalStatus);
+        var originalStatus = page.originalStatus;
+        var targetStatus = (fieldData && fieldData.status) ? fieldData.status : "";
+        if (typeof console !== "undefined" && console.log) {
+            console.log("[MyIssuesPage] updateIssue: originalStatus=", originalStatus, "targetStatus=", targetStatus);
+        }
+
+        // Sem mudança de status: atualização direta
+        if (!targetStatus || targetStatus === originalStatus) {
+            if (typeof console !== "undefined" && console.log) {
+                console.log("[MyIssuesPage] updateIssue: no status change, calling controller.updateIssue");
+            }
+            page.controller.updateIssue(issueKey, fieldData, worklogData, epicKey, originalStatus);
+            return;
+        }
+
+        // Transição em duas fases (current < IN DEVELOPMENT e target > IN DEVELOPMENT)
+        if (page.jiraService.needsTwoPhaseTransition(originalStatus, targetStatus)) {
+            page._pendingTwoPhaseTarget = targetStatus;
+            page._isTwoPhaseTransition = true;
+            page._ensureProcessDialogThen(function (dlg) {
+                dlg.openInProgress(qsTr("Transicionando para IN DEVELOPMENT..."));
+            });
+            page.controller.startTwoPhaseUpdate(issueKey, fieldData, worklogData, epicKey, originalStatus);
+            return;
+        }
+
+        // Uma fase: verificar worklogs pendentes se config ativo
+        var checkEnabled = page.jiraService.worklogCheckEnabled && page.jiraService.worklogCheckEnabled();
+        var requiresCheck = page.jiraService.requiresWorklogCheckBeforeTransition && page.jiraService.requiresWorklogCheckBeforeTransition(originalStatus, targetStatus);
+        if (typeof console !== "undefined" && console.log) {
+            console.log("[MyIssuesPage] updateIssue: checkEnabled=", checkEnabled, "requiresCheck=", requiresCheck, "worklogSyncService=", !!page.worklogSyncService);
+        }
+        if (checkEnabled && requiresCheck && page.worklogSyncService) {
+            var pending = page.worklogSyncService.get_pending_worklogs_for_issue(issueKey) || [];
+            if (typeof console !== "undefined" && console.log) {
+                console.log("[MyIssuesPage] updateIssue: pending worklogs count=", pending.length);
+            }
+            if (pending.length > 0) {
+                var showDialog = page.jiraService.worklogCheckShowDialog && page.jiraService.worklogCheckShowDialog();
+                if (typeof console !== "undefined" && console.log) {
+                    console.log("[MyIssuesPage] updateIssue: showDialog=", showDialog, "calling _ensureProcessDialogThen(openInConfirm)");
+                }
+                if (showDialog) {
+                    var totalFormatted = page._formatTotalFromPending(pending);
+                    var blockIfPending = page.jiraService.worklogCheckBlockIfPending && page.jiraService.worklogCheckBlockIfPending();
+                    page._pendingUpdateAfterSync = { issueKey: issueKey, fieldData: fieldData, worklogData: worklogData, epicKey: epicKey, originalStatus: originalStatus, isTwoPhase: false };
+                    page._pendingWorklogsList = pending;
+                    page._ensureProcessDialogThen(function (dlg) {
+                        if (typeof console !== "undefined" && console.log) {
+                            console.log("[MyIssuesPage] updateIssue: callback running, calling dlg.openInConfirm");
+                        }
+                        dlg.openInConfirm(pending, totalFormatted, targetStatus, blockIfPending);
+                    });
+                    return;
+                }
+                // Auto-sync: sincronizar e depois chamar updateIssue
+                page._pendingUpdateAfterSync = { issueKey: issueKey, fieldData: fieldData, worklogData: worklogData, epicKey: epicKey, originalStatus: originalStatus, isTwoPhase: false };
+                page.isProcessing = true;
+                page._ensureProcessDialogThen(function (dlg) {
+                    dlg.openInProgress(qsTr("Sincronizando worklogs..."));
+                });
+                var sessionIds = pending.map(function(p) { return p.id; });
+                page.worklogSyncService.sync_pending_worklogs(sessionIds);
+                return;
+            }
+        }
+
+        page.controller.updateIssue(issueKey, fieldData, worklogData, epicKey, originalStatus);
+    }
+
+    function _formatTotalFromPending(pending) {
+        if (!pending || pending.length === 0) return "";
+        var totalSec = 0;
+        for (var i = 0; i < pending.length; i++) totalSec += (pending[i].duration_seconds || 0);
+        return FormatUtils.formatDuration(Math.floor(totalSec / 60));
+    }
+
+    // Garantir ProcessDialog antes de usar (como IssueFormPage: diálogo na ação; se componente ainda Loading, enfileira callback)
+    function _ensureProcessDialogThen(callback) {
+        if (typeof callback !== "function") return;
+        if (typeof console !== "undefined" && console.log) {
+            console.log("[MyIssuesPage] _ensureProcessDialogThen: _processDialog=", !!page._processDialog, "_processDialogComponent=", !!page._processDialogComponent, "componentStatus=", page._processDialogComponent ? page._processDialogComponent.status : "n/a");
+        }
+        if (page._processDialog) {
+            if (typeof console !== "undefined" && console.log) {
+                console.log("[MyIssuesPage] _ensureProcessDialogThen: using existing dialog");
+            }
+            callback(page._processDialog);
+            return;
+        }
+        if (page._processDialogComponent && page._processDialogComponent.status === Component.Ready) {
+            if (typeof console !== "undefined" && console.log) {
+                console.log("[MyIssuesPage] _ensureProcessDialogThen: creating dialog from component, parent=", page.parent ? "set" : "null");
+            }
+            var parent = page.parent || page;
+            var dlg = page._processDialogComponent.createObject(parent, { applicationWindow: page.applicationWindow });
+            if (dlg) {
+                dlg.applicationWindow = Qt.binding(function () { return page.applicationWindow });
+                dlg.cancelClicked.connect(page._onPendingWorklogsDialogCancel);
+                dlg.skipSyncClicked.connect(page._onPendingWorklogsDialogSkip);
+                dlg.syncClicked.connect(page._onPendingWorklogsDialogSync);
+                dlg.closed.connect(function () {
+                    page._jiraErrorShownInProcessDialog = false;
+                });
+                page._processDialog = dlg;
+                if (typeof console !== "undefined" && console.log) {
+                    console.log("[MyIssuesPage] _ensureProcessDialogThen: dialog created, calling callback");
+                }
+                callback(dlg);
+            } else {
+                if (typeof console !== "undefined" && console.warn) {
+                    console.warn("[MyIssuesPage] _ensureProcessDialogThen: createObject returned null");
+                }
+            }
+            return;
+        }
+        if (typeof console !== "undefined" && console.log) {
+            console.log("[MyIssuesPage] _ensureProcessDialogThen: queuing callback (component not ready)");
+        }
+        page._pendingProcessDialogAction = callback;
+    }
+
+    function _runPendingProcessDialogAction() {
+        if (typeof console !== "undefined" && console.log) {
+            console.log("[MyIssuesPage] _runPendingProcessDialogAction: _processDialog=", !!page._processDialog, "pending=", !!page._pendingProcessDialogAction);
+        }
+        if (!page._processDialog || !page._pendingProcessDialogAction) return;
+        var fn = page._pendingProcessDialogAction;
+        page._pendingProcessDialogAction = null;
+        fn(page._processDialog);
+    }
+
+    function _onPendingWorklogsDialogSync() {
+        var sessionIds = (page._pendingWorklogsList || []).map(function(p) { return p.id; });
+        page._pendingWorklogsList = [];
+        if (!sessionIds || sessionIds.length === 0) {
+            page._finishPendingUpdateAfterSync();
+            return;
+        }
+        page.isProcessing = true;
+        if (page.worklogSyncService) page.worklogSyncService.sync_pending_worklogs(sessionIds);
+    }
+
+    function _onPendingWorklogsDialogSkip() {
+        page._pendingWorklogsList = [];
+        if (page._pendingTwoPhaseTarget && page._pendingUpdateAfterSync && page._pendingUpdateAfterSync.isTwoPhase) {
+            page.isProcessing = true;
+            var targetStatus = page._pendingUpdateAfterSync.targetStatus;
+            if (page._processDialog) {
+                if (page._processDialog.opened) {
+                    page._processDialog.transitionToProgress(qsTr("Transicionando para %1...").arg(targetStatus));
+                } else {
+                    page._processDialog.openInProgress(qsTr("Transicionando para %1...").arg(targetStatus));
+                }
+            }
+            var issueKey = page._pendingUpdateAfterSync.issueKey;
+            page._pendingUpdateAfterSync = null;
+            page._pendingTwoPhaseTarget = "";
+            page.jiraService.transitionFromInDevelopmentToTarget(issueKey, targetStatus);
+        } else {
+            page._finishPendingUpdateAfterSync();
+        }
+    }
+
+    function _onPendingWorklogsDialogCancel() {
+        page._pendingWorklogsList = [];
+        page._pendingUpdateAfterSync = null;
+        if (page._pendingTwoPhaseTarget) {
+            page._pendingTwoPhaseTarget = "";
+            page._isTwoPhaseTransition = false;
+            page.isProcessing = false;
+            if (page._processDialog) page._processDialog.close();
+        }
+    }
+
+    function _finishPendingUpdateAfterSync() {
+        if (!page._pendingUpdateAfterSync) return;
+        var p = page._pendingUpdateAfterSync;
+        page._pendingUpdateAfterSync = null;
+        if (p.isTwoPhase && p.targetStatus) {
+            if (page._processDialog) {
+                if (!page._processDialog.opened) {
+                    page.isProcessing = true;
+                    page._processDialog.openInProgress(qsTr("Transicionando para %1...").arg(p.targetStatus));
+                } else {
+                    page._processDialog.updateProgress(0, qsTr("Transicionando para %1...").arg(p.targetStatus));
+                }
+            }
+            page._pendingTwoPhaseTarget = "";
+            page.jiraService.transitionFromInDevelopmentToTarget(p.issueKey, p.targetStatus);
+        } else {
+            // Fluxo único: sync já terminou; mostrar "Atualizando issue..." no mesmo dialog e depois "Task atualizada com sucesso"
+            if (page._processDialog && page._processDialog.opened) {
+                page._processDialog.transitionToProgress(qsTr("Atualizando issue..."));
+            }
+            page.controller.updateIssue(p.issueKey, p.fieldData, p.worklogData, p.epicKey, p.originalStatus);
+        }
     }
 
     function resetFields() {

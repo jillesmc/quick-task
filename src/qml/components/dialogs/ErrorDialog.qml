@@ -9,7 +9,8 @@ Controls.Dialog {
     
     title: "Erro"
     modal: true
-    
+    closePolicy: Controls.Popup.CloseOnEscape
+
     property string errorMessage: ""
     
     standardButtons: Controls.Dialog.Ok

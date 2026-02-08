@@ -1,0 +1,30 @@
+---
+description: Padrões QML e Kirigami 6 no jira-quick-task
+globs: "**/*.qml"
+alwaysApply: false
+---
+
+# QML / Kirigami 6
+
+## Imports padrão
+
+- `QtQuick`, `QtQuick.Layouts`, `QtQuick.Controls as Controls`, `org.kde.kirigami as Kirigami`.
+- Componentes internos: `import "./pages"`, `import "./components/..."` conforme estrutura em `src/qml/`.
+
+## Estrutura de pastas
+
+- **pages/**: páginas principais (IssueFormPage, MyIssuesPage, SettingsPage, TimerPage, PendingWorklogsPage).
+- **components/**: `controls/`, `dialogs/`, `forms/`, `lists/`, `panes/`, `settings/`, `timer/`.
+- **controllers/**: lógica QML (ex: IssueFormController, MyIssuesController).
+- **utils/**: DialogHelpers.js, FormatUtils.js, Validators.js, etc.
+- Cada pasta com componentes tem `qmldir`.
+
+## Kirigami
+
+- Janela principal: `Kirigami.ApplicationWindow` em Main.qml.
+- Usar componentes Kirigami para navegação, cards, formulários; manter `Kirigami.Theme.inherit = true` onde aplicável.
+- Evitar drawers se não forem usados: `globalDrawer: null`, `contextDrawer: null`.
+
+## Lint
+
+- Rodar `make qml-lint` (usa qmllint dentro do Docker com QML_IMPORT_PATH correto). Não assumir qmllint no host.

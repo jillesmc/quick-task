@@ -88,49 +88,20 @@ Item {
     }
     
     /**
-     * Atualiza issue
-     * @param {string} issueKey - Chave da issue
-     * @param {object} fieldData - Dados dos campos (description, tipoAtividade, status, etc)
-     * @param {object} worklogData - Dados do worklog (shouldRegister, date, time, duration, comment)
-     * @param {string} epicKey - Chave do Epic parent
-     * @param {string} originalStatus - Status original (para comparar)
+     * Chama o serviço updateIssue (uma fase). Usado pela página após decisão de fluxo ou quando não há mudança de status.
      */
-    function updateIssue(issueKey, fieldData, worklogData, epicKey, originalStatus) {
-        if (!enabled) {
-            return
-        }
-        
-        // Validar issue key
-        var keyValidation = Validators.validateIssueKey(issueKey)
-        if (!keyValidation.isValid) {
-            updateFailed(keyValidation.error)
-            return
-        }
-        
-        if (!jiraService || !jiraService.isAvailable()) {
-            updateFailed(jiraService ? jiraService.getErrorMessage() : "Serviço Jira não disponível")
-            return
-        }
-        
-        updateRequested(issueKey)
-        updateStarted()
-        
-        // Preparar data/hora de worklog
+    function _callUpdateIssue(issueKey, fieldData, worklogData, epicKey, originalStatus) {
         var worklogInicioStr = ""
         if (worklogData && worklogData.shouldRegister && worklogData.date && worklogData.time) {
             worklogInicioStr = worklogData.date + " " + worklogData.time
         }
-        
-        // Determinar se deve atualizar o status (só se for diferente do original)
         var statusToUpdate = ""
         if (fieldData && fieldData.status && fieldData.status !== originalStatus) {
             statusToUpdate = fieldData.status
         }
-        
-        // Chamar serviço (ordem dos parâmetros conforme jira_service.py)
-        var result = jiraService.updateIssue(
+        jiraService.updateIssue(
             issueKey,
-            fieldData ? fieldData.summary || "" : "", // summary atualizado
+            fieldData ? fieldData.summary || "" : "",
             fieldData ? fieldData.description || "" : "",
             fieldData ? fieldData.tipoAtividade || "" : "",
             statusToUpdate,
@@ -142,14 +113,69 @@ Item {
             worklogData ? worklogData.shouldRegister || false : false,
             worklogInicioStr,
             worklogData ? Math.round(worklogData.duration || 0) : 0,
-            "", // timezone vazio - será usado o do config.json automaticamente
+            "",
             worklogData ? worklogData.comment || "" : ""
         )
-        
-        if (!result) {
-            // Se retornar false, pode ser que já tenha emitido erro
-            // O signal onErrorOccurred será tratado pelos Connections
+    }
+
+    /**
+     * Inicia transição em duas fases: emite updateStarted e chama transitionToInDevelopment.
+     * A página deve tratar reachedInDevelopment e depois transitionFromInDevelopmentToTarget.
+     */
+    function startTwoPhaseUpdate(issueKey, fieldData, worklogData, epicKey, originalStatus) {
+        if (!enabled || !jiraService || !jiraService.isAvailable()) {
+            if (jiraService) updateFailed(jiraService.getErrorMessage())
+            return
         }
+        var worklogInicioStr = ""
+        if (worklogData && worklogData.shouldRegister && worklogData.date && worklogData.time) {
+            worklogInicioStr = worklogData.date + " " + worklogData.time
+        }
+        updateRequested(issueKey)
+        updateStarted()
+        jiraService.transitionToInDevelopment(
+            issueKey,
+            fieldData ? fieldData.summary || "" : "",
+            fieldData ? fieldData.description || "" : "",
+            fieldData ? fieldData.tipoAtividade || "" : "",
+            fieldData ? fieldData.status || "" : "",
+            fieldData ? fieldData.documentacaoAnexa || "Não" : "Não",
+            fieldData ? fieldData.utilizacaoIA || "Não" : "Não",
+            fieldData ? fieldData.valorEntregue || "" : "",
+            fieldData ? (fieldData.plataformasAfetadas || []) : [],
+            epicKey || "",
+            worklogData ? worklogData.shouldRegister || false : false,
+            worklogInicioStr,
+            worklogData ? Math.round(worklogData.duration || 0) : 0,
+            "",
+            worklogData ? worklogData.comment || "" : ""
+        )
+    }
+
+    /**
+     * Atualiza issue (pode ser chamado diretamente quando não há mudança de status ou após diálogo/sync em fluxo de uma fase).
+     * @param {string} issueKey - Chave da issue
+     * @param {object} fieldData - Dados dos campos
+     * @param {object} worklogData - Dados do worklog
+     * @param {string} epicKey - Chave do Epic parent
+     * @param {string} originalStatus - Status original (para comparar)
+     */
+    function updateIssue(issueKey, fieldData, worklogData, epicKey, originalStatus) {
+        if (!enabled) {
+            return
+        }
+        var keyValidation = Validators.validateIssueKey(issueKey)
+        if (!keyValidation.isValid) {
+            updateFailed(keyValidation.error)
+            return
+        }
+        if (!jiraService || !jiraService.isAvailable()) {
+            updateFailed(jiraService ? jiraService.getErrorMessage() : "Serviço Jira não disponível")
+            return
+        }
+        updateRequested(issueKey)
+        updateStarted()
+        _callUpdateIssue(issueKey, fieldData, worklogData, epicKey, originalStatus)
     }
     
     /**
@@ -193,7 +219,10 @@ Item {
         }
         
         function onErrorOccurred(errorMessage) {
-            root.updateFailed(errorMessage)
+            if (typeof console !== "undefined" && console.log) {
+                console.log("[MyIssuesController] jiraService.onErrorOccurred -> emit updateFailed");
+            }
+            root.updateFailed(errorMessage);
         }
     }
     

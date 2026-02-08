@@ -15,7 +15,14 @@ ROOT_DIR = Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT_DIR))
 
 from core.jira_client import JiraClient
-from core.status_transition import transition_sequentially, WorklogConfig
+from core.status_transition import (
+    transition_sequentially,
+    WorklogConfig,
+    needs_two_phase_transition,
+    requires_worklog_check_before_transition,
+    _get_in_development_index,
+    _get_status_index,
+)
 from config.config_manager import ConfigManager
 from src.services.assets_cache import AssetsCacheService
 from src.utils.field_utils import is_placeholder_custom_field_id
@@ -305,6 +312,7 @@ class UpdateWorker(QThread):
     # Signals para comunicação com a thread principal
     progressUpdated = Signal(int, str)  # percentage, message
     issueUpdated = Signal(str)  # issue_key
+    reachedInDevelopment = Signal(str)  # issue_key (Fase 1 completa; usado em transição em duas fases)
     errorOccurred = Signal(str)  # error_message
     finished = Signal()
 
@@ -328,6 +336,7 @@ class UpdateWorker(QThread):
         worklog_timezone: str = "UTC",
         worklog_comment: Optional[str] = None,
         assets_cache: Any = None,
+        target_status_override: Optional[str] = None,
         parent=None,
     ):
         super().__init__(parent)
@@ -349,6 +358,7 @@ class UpdateWorker(QThread):
         self.worklog_timezone = worklog_timezone
         self.worklog_comment = worklog_comment
         self.assets_cache = assets_cache
+        self.target_status_override = target_status_override
 
     def run(self):
         """Executa a atualização da issue e worklog opcional em thread separada"""
@@ -466,13 +476,13 @@ class UpdateWorker(QThread):
 
             self.progressUpdated.emit(50, "Issue atualizada com sucesso!")
 
-            # Transicionar status sequencialmente se fornecido
-            if self.status and self.status.strip():
-                from core.status_transition import (
-                    transition_sequentially,
-                    WorklogConfig,
-                )
-
+            # Transicionar status sequencialmente se fornecido (ou target_status_override para Fase 1)
+            transition_target = (
+                self.target_status_override.strip()
+                if self.target_status_override and self.target_status_override.strip()
+                else (self.status.strip() if self.status and self.status.strip() else None)
+            )
+            if transition_target:
                 self.progressUpdated.emit(60, "Iniciando transições de status...")
 
                 # Callback para progresso de transições
@@ -487,7 +497,7 @@ class UpdateWorker(QThread):
                     and self.worklog_inicio
                     and self.worklog_duracao
                     and _is_status_at_or_after_in_development(
-                        self.status.strip(), sequence
+                        transition_target, sequence
                     )
                 ):
                     worklog_config = WorklogConfig(
@@ -502,7 +512,7 @@ class UpdateWorker(QThread):
                 worklog_registered = transition_sequentially(
                     jira_client=self.jira_client,
                     issue_key=self.issue_key,
-                    target_status=self.status.strip(),
+                    target_status=transition_target,
                     status_sequence=sequence,
                     progress_callback=progress_callback,
                     worklog=worklog_config,
@@ -515,7 +525,7 @@ class UpdateWorker(QThread):
                     and self.worklog_inicio
                     and self.worklog_duracao
                     and _is_status_at_or_after_in_development(
-                        self.status.strip(), sequence
+                        transition_target, sequence
                     )
                 ):
                     self.progressUpdated.emit(85, "Registrando worklog...")
@@ -567,7 +577,10 @@ class UpdateWorker(QThread):
                     self.progressUpdated.emit(90, "Worklog registrado com sucesso!")
 
             self.progressUpdated.emit(100, "Concluído!")
-            self.issueUpdated.emit(self.issue_key)
+            if self.target_status_override:
+                self.reachedInDevelopment.emit(self.issue_key)
+            else:
+                self.issueUpdated.emit(self.issue_key)
 
         except Exception as e:
             error_msg = str(e)
@@ -578,6 +591,121 @@ class UpdateWorker(QThread):
                     "Documentação Anexa, Plataformas Afetadas e Valor entregue; depois tente novamente."
                 )
             self.errorOccurred.emit(error_msg)
+        finally:
+            self.finished.emit()
+
+
+class TransitionFromInDevelopmentWorker(QThread):
+    """Worker que apenas transiciona a issue de IN DEVELOPMENT até o status alvo (Fase 2)."""
+
+    progressUpdated = Signal(int, str)
+    issueUpdated = Signal(str)
+    errorOccurred = Signal(str)
+    finished = Signal()
+
+    def __init__(
+        self,
+        jira_client: JiraClient,
+        config: ConfigManager,
+        issue_key: str,
+        target_status: str,
+        parent=None,
+    ):
+        super().__init__(parent)
+        self._jira_client = jira_client
+        self._config = config
+        self._issue_key = issue_key
+        self._target_status = target_status.strip() if target_status else ""
+
+    def run(self):
+        try:
+            if not self._target_status:
+                self.errorOccurred.emit("Status alvo não fornecido")
+                return
+            sequence = self._config.get_status_sequence()
+            self.progressUpdated.emit(10, "Transicionando para " + self._target_status + "...")
+
+            def progress_cb(_status, percentage, message):
+                self.progressUpdated.emit(10 + int((percentage * 90) / 100), message)
+
+            transition_sequentially(
+                jira_client=self._jira_client,
+                issue_key=self._issue_key,
+                target_status=self._target_status,
+                status_sequence=sequence,
+                progress_callback=progress_cb,
+                worklog=None,
+            )
+            self.progressUpdated.emit(100, "Transições concluídas!")
+            self.issueUpdated.emit(self._issue_key)
+        except Exception as e:
+            self.errorOccurred.emit(str(e))
+        finally:
+            self.finished.emit()
+
+
+class EnsureInDevelopmentWorker(QThread):
+    """Worker que transita a issue para IN DEVELOPMENT se estiver antes na sequência (para iniciar timer)."""
+
+    inDevelopmentReady = Signal(str)  # issue_key quando pronto para timer
+    progressUpdated = Signal(int, str)
+    errorOccurred = Signal(str)
+    finished = Signal()
+
+    def __init__(
+        self,
+        jira_client: JiraClient,
+        config: ConfigManager,
+        issue_key: str,
+        parent=None,
+    ):
+        super().__init__(parent)
+        self._jira_client = jira_client
+        self._config = config
+        self._issue_key = issue_key.strip() if issue_key else ""
+
+    def run(self):
+        try:
+            if not self._issue_key:
+                self.errorOccurred.emit("Issue key não fornecido")
+                return
+            sequence = self._config.get_status_sequence()
+            in_dev_idx = _get_in_development_index(sequence)
+            if in_dev_idx is None:
+                self.inDevelopmentReady.emit(self._issue_key)
+                return
+            issue_data = self._jira_client.get_issue_details(self._issue_key)
+            if not issue_data:
+                self.errorOccurred.emit("Não foi possível obter dados da issue")
+                return
+            status_obj = issue_data.get("status")
+            if isinstance(status_obj, dict):
+                current_status = status_obj.get("name", "") or ""
+            else:
+                current_status = str(status_obj) if status_obj else ""
+            current_idx = _get_status_index(current_status, sequence)
+            # Só transicionar quando o status está antes de IN DEVELOPMENT na sequência.
+            # Se o status não estiver na sequência (current_idx is None), tratar como já OK (não transitar).
+            if current_idx is None or current_idx >= in_dev_idx:
+                self.inDevelopmentReady.emit(self._issue_key)
+                return
+            self.progressUpdated.emit(10, "Transicionando para IN DEVELOPMENT...")
+
+            def progress_cb(_status, percentage, message):
+                self.progressUpdated.emit(10 + int((percentage * 90) / 100), message)
+
+            transition_sequentially(
+                jira_client=self._jira_client,
+                issue_key=self._issue_key,
+                target_status="IN DEVELOPMENT",
+                status_sequence=sequence,
+                progress_callback=progress_cb,
+                worklog=None,
+            )
+            self.progressUpdated.emit(100, "Pronto para iniciar timer.")
+            self.inDevelopmentReady.emit(self._issue_key)
+        except Exception as e:
+            self.errorOccurred.emit(str(e))
         finally:
             self.finished.emit()
 
@@ -651,6 +779,9 @@ class JiraService(QObject):
     # Anexos: upload imediato (comentário / edição de task)
     attachmentUploaded = Signal(str, str, str)  # issueKey, contentUrl, filename
     uploadFailed = Signal(str, str)  # issueKey, errorMessage
+    # Transição em duas fases: ao atingir IN DEVELOPMENT (para sync worklogs pendentes)
+    reachedInDevelopment = Signal(str)  # issueKey
+    inDevelopmentReady = Signal(str)  # issueKey (para iniciar timer após transição automática)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -705,6 +836,10 @@ class JiraService(QObject):
 
         self._worker: Optional[JiraWorker] = None
         self._update_worker: Optional[UpdateWorker] = None
+        self._transition_from_in_dev_worker: Optional[
+            TransitionFromInDevelopmentWorker
+        ] = None
+        self._ensure_in_dev_worker: Optional[EnsureInDevelopmentWorker] = None
         self._epic_search_worker: Optional[QThread] = None
         self._issue_details_worker: Optional[QThread] = None
         self._reload_worker: Optional[QThread] = None  # manter referência para não GC antes do thread terminar
@@ -1594,6 +1729,188 @@ class JiraService(QObject):
             return {}
 
         return self._build_issue_details_dict(issue_data)
+
+    @Slot(
+        str,
+        str,
+        str,
+        str,
+        str,
+        str,
+        str,
+        str,
+        list,
+        str,
+        bool,
+        str,
+        int,
+        str,
+        str,
+        result=bool,
+    )
+    @Slot(str, str, result=bool)
+    def needsTwoPhaseTransition(  # NOSONAR
+        self, currentStatus: str, targetStatus: str  # NOSONAR
+    ) -> bool:
+        """Retorna True se a transição deve ser em duas fases (parar em IN DEVELOPMENT)."""
+        if not self._config:
+            return False
+        sequence = self._config.get_status_sequence()
+        return needs_two_phase_transition(
+            currentStatus or "", targetStatus or "", sequence
+        )
+
+    @Slot(str, str, result=bool)
+    def requiresWorklogCheckBeforeTransition(  # NOSONAR
+        self, currentStatus: str, targetStatus: str  # NOSONAR
+    ) -> bool:
+        """Retorna True se deve verificar worklogs pendentes (mostrar diálogo ou sync)."""
+        if not self._config:
+            return False
+        sequence = self._config.get_status_sequence()
+        return requires_worklog_check_before_transition(
+            currentStatus or "", targetStatus or "", sequence
+        )
+
+    @Slot(result=bool)
+    def worklogCheckEnabled(self) -> bool:
+        """Retorna se a verificação de worklogs pendentes está habilitada (config)."""
+        return bool(self._config and self._config.worklog_check_enabled())
+
+    @Slot(result=bool)
+    def worklogCheckShowDialog(self) -> bool:
+        """Retorna se deve mostrar diálogo de confirmação quando houver pendentes (config)."""
+        return bool(self._config and self._config.worklog_check_show_dialog())
+
+    @Slot(result=bool)
+    def worklogCheckBlockIfPending(self) -> bool:
+        """Retorna se deve bloquear transição se houver pendentes (config)."""
+        return bool(self._config and self._config.worklog_check_block_if_pending())
+
+    @Slot(str, str, str, str, str, str, str, str, list, str, bool, str, int, str, str, result=bool)
+    def transitionToInDevelopment(  # NOSONAR - Fase 1: atualizar campos e transitar até IN DEVELOPMENT
+        self,
+        issueKey: str,  # NOSONAR
+        summary: str,
+        description: str,
+        tipoAtividade: str,  # NOSONAR
+        status: str,
+        documentacaoAnexa: str,  # NOSONAR
+        utilizacaoIA: str,  # NOSONAR
+        valorEntregue: str,  # NOSONAR
+        plataformasAfetadas: List[str],  # NOSONAR
+        parentEpicKey: str,  # NOSONAR
+        registrarWorklog: bool,  # NOSONAR
+        worklogInicio: str,  # NOSONAR
+        worklogDuracao: int,  # NOSONAR
+        worklogTimezone: str,  # NOSONAR
+        worklogComment: str,  # NOSONAR
+    ) -> bool:
+        """Fase 1: atualiza campos da issue e transiciona até IN DEVELOPMENT; emite reachedInDevelopment(issueKey)."""
+        if not self._jira_client or not self._config or not issueKey or not issueKey.strip():
+            if not issueKey or not issueKey.strip():
+                self.errorOccurred.emit("Issue key é obrigatório")
+            return False
+        if self._update_worker and self._update_worker.isRunning():
+            self._update_worker.terminate()
+            self._update_worker.wait()
+        worklog_inicio_dt = None
+        if registrarWorklog and worklogInicio:
+            try:
+                worklog_inicio_dt = datetime.strptime(
+                    worklogInicio.strip(), "%Y-%m-%d %H:%M:%S"
+                )
+            except (ValueError, AttributeError):
+                self.errorOccurred.emit(f"Formato de data/hora inválido: {worklogInicio}")
+                return False
+        worklogTimezone = self._config.get_timezone() if self._config else "America/Sao_Paulo"
+        self._update_worker = UpdateWorker(
+            jira_client=self._jira_client,
+            config=self._config,
+            issue_key=issueKey.strip(),
+            summary=summary.strip() if summary else None,
+            description=description.strip() if description else None,
+            tipo_atividade=tipoAtividade if tipoAtividade else None,
+            status=status if status else None,
+            doc_anexa=documentacaoAnexa if documentacaoAnexa else None,
+            uso_ia=utilizacaoIA if utilizacaoIA else None,
+            valor_entregue=valorEntregue if valorEntregue else None,
+            plataformas_afetadas=plataformasAfetadas if plataformasAfetadas else None,
+            parent_epic_key=parentEpicKey.strip() if parentEpicKey else None,
+            registrar_worklog=registrarWorklog,
+            worklog_inicio=worklog_inicio_dt,
+            worklog_duracao=worklogDuracao,
+            worklog_timezone=worklogTimezone,
+            worklog_comment=worklogComment.strip() if worklogComment else None,
+            assets_cache=self._assets_cache,
+            target_status_override="IN DEVELOPMENT",
+        )
+        self._update_worker.progressUpdated.connect(self.progressUpdated.emit)
+        self._update_worker.reachedInDevelopment.connect(self.reachedInDevelopment.emit)
+        self._update_worker.errorOccurred.connect(self.errorOccurred.emit)
+        self._update_worker.start()
+        return True
+
+    @Slot(str, str, result=bool)
+    def transitionFromInDevelopmentToTarget(  # NOSONAR
+        self, issueKey: str, targetStatus: str  # NOSONAR
+    ) -> bool:
+        """Fase 2: transiciona de IN DEVELOPMENT até o status alvo (sem worklog)."""
+        if not self._jira_client or not self._config or not issueKey or not issueKey.strip():
+            return False
+        if self._transition_from_in_dev_worker and self._transition_from_in_dev_worker.isRunning():
+            self._transition_from_in_dev_worker.terminate()
+            self._transition_from_in_dev_worker.wait()
+        self._transition_from_in_dev_worker = TransitionFromInDevelopmentWorker(
+            jira_client=self._jira_client,
+            config=self._config,
+            issue_key=issueKey.strip(),
+            target_status=targetStatus or "",
+            parent=self,
+        )
+        self._transition_from_in_dev_worker.progressUpdated.connect(
+            self.progressUpdated.emit
+        )
+        self._transition_from_in_dev_worker.issueUpdated.connect(
+            self.issueUpdated.emit
+        )
+        self._transition_from_in_dev_worker.errorOccurred.connect(
+            self.errorOccurred.emit
+        )
+        self._transition_from_in_dev_worker.start()
+        return True
+
+    @Slot(str, result=bool)
+    def transitionToInDevelopmentIfNeeded(  # NOSONAR
+        self, issueKey: str  # NOSONAR
+    ) -> bool:
+        """
+        Se a issue estiver em status anterior a IN DEVELOPMENT, transita para IN DEVELOPMENT.
+        Emite inDevelopmentReady(issueKey) quando a issue estiver pronta (para iniciar timer).
+        """
+        if not self._jira_client or not self._config or not issueKey or not issueKey.strip():
+            if issueKey and issueKey.strip():
+                self.inDevelopmentReady.emit(issueKey.strip())
+            return False
+        if self._ensure_in_dev_worker and self._ensure_in_dev_worker.isRunning():
+            return True
+        self._ensure_in_dev_worker = EnsureInDevelopmentWorker(
+            jira_client=self._jira_client,
+            config=self._config,
+            issue_key=issueKey.strip(),
+            parent=self,
+        )
+        self._ensure_in_dev_worker.inDevelopmentReady.connect(
+            self.inDevelopmentReady.emit
+        )
+        self._ensure_in_dev_worker.progressUpdated.connect(
+            self.progressUpdated.emit
+        )
+        self._ensure_in_dev_worker.errorOccurred.connect(
+            self.errorOccurred.emit
+        )
+        self._ensure_in_dev_worker.start()
+        return True
 
     @Slot(
         str,

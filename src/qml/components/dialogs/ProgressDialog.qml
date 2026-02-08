@@ -9,7 +9,8 @@ Controls.Dialog {
     
     title: "Progresso"
     modal: true
-    
+    closePolicy: Controls.Popup.CloseOnEscape
+
     property int progressValue: 0
     property string progressMessage: "Processando..."
     

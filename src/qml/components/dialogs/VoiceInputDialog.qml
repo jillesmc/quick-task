@@ -17,6 +17,7 @@ Controls.Dialog {
 
     title: qsTr("Criar tarefa por voz")
     modal: true
+    closePolicy: Controls.Popup.CloseOnEscape
     standardButtons: Controls.Dialog.Cancel
 
     property real recordingSeconds: 0

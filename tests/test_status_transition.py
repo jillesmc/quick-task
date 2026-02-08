@@ -14,6 +14,8 @@ from core.status_transition import (
     _get_target_index,
     _register_worklog_if_needed,
     _transition_to_next_status,
+    needs_two_phase_transition,
+    requires_worklog_check_before_transition,
 )
 
 
@@ -205,3 +207,62 @@ def test_register_worklog_if_needed_failure(mock_jira_client, capsys):
     # Deve imprimir aviso
     captured = capsys.readouterr()
     assert "AVISO" in captured.err
+
+
+# --- needs_two_phase_transition ---
+
+SEQUENCE = ["TO DO", "WAITING DEVELOPMENT", "IN DEVELOPMENT", "CODE REVIEW", "DONE"]
+
+
+def test_needs_two_phase_transition_to_do_to_code_review():
+    """To Do → Code Review: deve ser duas fases (passa por IN DEVELOPMENT)."""
+    assert needs_two_phase_transition("TO DO", "CODE REVIEW", SEQUENCE) is True
+
+
+def test_needs_two_phase_transition_to_do_to_in_development():
+    """To Do → IN DEVELOPMENT: uma fase apenas."""
+    assert needs_two_phase_transition("TO DO", "IN DEVELOPMENT", SEQUENCE) is False
+
+
+def test_needs_two_phase_transition_in_development_to_code_review():
+    """IN DEVELOPMENT → Code Review: uma fase (já está em IN DEVELOPMENT)."""
+    assert needs_two_phase_transition("IN DEVELOPMENT", "CODE REVIEW", SEQUENCE) is False
+
+
+def test_needs_two_phase_transition_done_to_done():
+    """Done → Done: não é duas fases."""
+    assert needs_two_phase_transition("DONE", "DONE", SEQUENCE) is False
+
+
+def test_needs_two_phase_transition_case_insensitive():
+    """Comparação case-insensitive para IN DEVELOPMENT."""
+    assert needs_two_phase_transition("To Do", "Code Review", SEQUENCE) is True
+
+
+# --- requires_worklog_check_before_transition ---
+
+
+def test_requires_worklog_check_in_dev_to_code_review():
+    """IN DEVELOPMENT → Code Review: deve verificar worklogs."""
+    assert requires_worklog_check_before_transition(
+        "IN DEVELOPMENT", "CODE REVIEW", SEQUENCE
+    ) is True
+
+
+def test_requires_worklog_check_to_do_to_code_review():
+    """To Do → Code Review: deve verificar worklogs (target > IN DEVELOPMENT)."""
+    assert requires_worklog_check_before_transition(
+        "TO DO", "CODE REVIEW", SEQUENCE
+    ) is True
+
+
+def test_requires_worklog_check_to_do_to_in_development():
+    """To Do → IN DEVELOPMENT: não exige verificação (target = IN DEVELOPMENT)."""
+    assert requires_worklog_check_before_transition(
+        "TO DO", "IN DEVELOPMENT", SEQUENCE
+    ) is False
+
+
+def test_requires_worklog_check_done_to_done():
+    """Done → Done: não exige verificação."""
+    assert requires_worklog_check_before_transition("DONE", "DONE", SEQUENCE) is False

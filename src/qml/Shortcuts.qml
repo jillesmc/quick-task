@@ -61,10 +61,7 @@ Item {
             } else if (currentIdx === 0) {
                 root.stack.currentIndex = 1;
                 root.tabBar.currentIndex = 1;
-                if (root.issuesPage && !root.issuesPage.initialSearchDone) {
-                    root.issuesPage.refreshIssues("");
-                    root.issuesPage.initialSearchDone = true;
-                }
+                // refreshIssues é disparado por Main.qml (Connections onCurrentIndexChanged)
             } else if (currentIdx === 1) {
                 root.stack.currentIndex = 0;
                 root.tabBar.currentIndex = 0;
@@ -96,10 +93,7 @@ Item {
             if (currentIdx === 3 || currentIdx === 2) {
                 root.stack.currentIndex = 1;
                 root.tabBar.currentIndex = 1;
-                if (root.issuesPage && !root.issuesPage.initialSearchDone) {
-                    root.issuesPage.refreshIssues("");
-                    root.issuesPage.initialSearchDone = true;
-                }
+                // refreshIssues é disparado por Main.qml (Connections onCurrentIndexChanged)
             } else if (currentIdx === 1) {
                 root.stack.currentIndex = 2;
                 root.tabBar.currentIndex = 2;

@@ -33,7 +33,10 @@ Item {
     property var issueModel: null
     property bool enabled: true
     property bool isValid: false
-    
+
+    // Só reportar createFailed para erros que ocorrem durante a nossa própria operação de criação
+    property bool _createInProgress: false
+
     signal createRequested()
     signal validationChanged(bool isValid)
     signal createStarted()
@@ -114,9 +117,11 @@ Item {
         
         createRequested()
         createStarted()
-        
+        _createInProgress = true
+
         var data = prepareCreateData()
         if (!data) {
+            _createInProgress = false
             createFailed("Erro ao preparar dados para criação")
             return
         }
@@ -152,12 +157,16 @@ Item {
     // Conectar signals do jiraService
     Connections {
         target: root.jiraService
-        
+
         function onIssueCreated(issueKey, issueUrl) {
+            root._createInProgress = false
             root.createCompleted(issueKey, issueUrl)
         }
-        
+
         function onErrorOccurred(errorMessage) {
+            // Só reportar como createFailed se o erro ocorreu durante a nossa criação de issue
+            if (!root._createInProgress) return
+            root._createInProgress = false
             root.createFailed(errorMessage)
         }
     }

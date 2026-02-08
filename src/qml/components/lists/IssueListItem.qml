@@ -20,6 +20,8 @@ Controls.ItemDelegate {
     property var timerModel: null
     property var timerService: null
 
+    signal startTimerRequested(string issueKey)
+
     property string issueKey: root.key
     property string parentDisplay: root.parentKey
 
@@ -104,31 +106,26 @@ Controls.ItemDelegate {
                 enabled: root.timerService && root.timerModel
 
                 onClicked: {
-                    if (!root.timerService || !root.timerModel || !root.issueKey) {
+                    if (!root.timerModel || !root.issueKey) {
                         return
                     }
-                    if (root.timerModel && root.timerModel.isOnBreak) {
+                    function doStart() {
+                        root.startTimerRequested(root.issueKey)
+                    }
+                    if (root.timerService && root.timerModel && root.timerModel.isOnBreak) {
                         root.timerService.cancelBreak()
-                        Qt.callLater(function() {
-                            if (root.timerService && root.issueKey) {
-                                root.timerService.start(root.issueKey)
-                            }
-                        })
+                        Qt.callLater(doStart)
                         return
                     }
                     if (root.timerModel.issueKey === root.issueKey && root.timerModel.state !== "idle") {
-                        if (root.timerModel.state === "running") {
+                        if (root.timerModel.state === "running" && root.timerService) {
                             root.timerService.stop()
                         }
-                    } else if (root.timerModel.state !== "idle" && root.timerModel.issueKey !== root.issueKey) {
+                    } else if (root.timerModel.state !== "idle" && root.timerModel.issueKey !== root.issueKey && root.timerService) {
                         root.timerService.stop()
-                        Qt.callLater(function() {
-                            if (root.timerService && root.issueKey) {
-                                root.timerService.start(root.issueKey)
-                            }
-                        })
+                        Qt.callLater(doStart)
                     } else {
-                        root.timerService.start(root.issueKey)
+                        doStart()
                     }
                 }
             }

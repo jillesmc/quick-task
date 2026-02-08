@@ -13,6 +13,7 @@ Controls.Dialog {
 
     title: qsTr("Excluir comentário")
     modal: true
+    closePolicy: Controls.Popup.CloseOnEscape
     standardButtons: Controls.Dialog.NoButton
 
     implicitWidth: 380

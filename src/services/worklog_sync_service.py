@@ -183,6 +183,26 @@ class WorklogSyncService(QObject):
         )
         return pending
 
+    @Slot(str, result="QVariantList")
+    def get_pending_worklogs_for_issue(self, issue_key: str):
+        """
+        Obtém worklogs pendentes para uma issue específica.
+
+        Returns:
+            Lista de dicionários com id, issue_key, start_time, duration_seconds, description, etc.
+        """
+        if not issue_key or not str(issue_key).strip():
+            return []
+        pending = self._worklog_db.get_pending_worklogs_for_issue(str(issue_key).strip())
+        debug_log(
+            "WorklogSyncService",
+            "get_pending_worklogs_for_issue",
+            "Retornando %d worklogs pendentes para %s",
+            len(pending),
+            issue_key,
+        )
+        return pending
+
     @Slot("QVariantList", result=bool)
     def sync_pending_worklogs(self, session_ids=None) -> bool:
         """

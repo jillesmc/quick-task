@@ -613,6 +613,62 @@ class ConfigManager:
         except Exception as e:
             raise RuntimeError(f"Erro ao salvar configuração de Pomodoro: {e}") from e
 
+    def get_worklog_check_config(self) -> Dict[str, Any]:
+        """
+        Retorna configuração de verificação de worklogs ao transitar status.
+
+        Returns:
+            Dict com enabled, show_confirmation_dialog, block_transition_if_pending
+        """
+        default_config = {
+            "enabled": True,
+            "show_confirmation_dialog": True,
+            "block_transition_if_pending": False,
+        }
+        status_transitions = self._config.get("status_transitions") or {}
+        worklog_check = status_transitions.get("worklog_check") or {}
+        if not isinstance(worklog_check, dict):
+            return default_config
+        result = dict(default_config)
+        result.update({k: v for k, v in worklog_check.items() if k in result})
+        return result
+
+    def save_worklog_check_config(self, worklog_check_config: Dict[str, Any]) -> None:
+        """
+        Salva configurações de worklog_check no arquivo de configuração.
+        """
+        if "status_transitions" not in self._config:
+            self._config["status_transitions"] = {}
+        self._config["status_transitions"]["worklog_check"] = worklog_check_config
+        if str(self.config_path).startswith("/app/"):
+            xdg_config = os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")
+            self.config_path = Path(xdg_config) / "jira-quick-task" / "config.json"
+        self.config_path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            with open(self.config_path, "w", encoding="utf-8") as f:
+                json.dump(self._config, f, indent=2, ensure_ascii=False)
+            self.load_config()
+        except Exception as e:
+            raise RuntimeError(
+                f"Erro ao salvar configuração de worklog_check: {e}"
+            ) from e
+
+    def worklog_check_enabled(self) -> bool:
+        """Retorna se a verificação de worklogs pendentes está habilitada."""
+        return bool(self.get_worklog_check_config().get("enabled", True))
+
+    def worklog_check_show_dialog(self) -> bool:
+        """Retorna se deve mostrar diálogo de confirmação quando houver pendentes."""
+        return bool(
+            self.get_worklog_check_config().get("show_confirmation_dialog", True)
+        )
+
+    def worklog_check_block_if_pending(self) -> bool:
+        """Retorna se deve bloquear transição (apenas Sincronizar ou Cancelar)."""
+        return bool(
+            self.get_worklog_check_config().get("block_transition_if_pending", False)
+        )
+
     def get_jira_cli_config_path(self) -> Optional[Path]:
         """
         Retorna o caminho do arquivo de configuração do Jira (.jira-config.yml)

@@ -207,6 +207,11 @@ Kirigami.Page {
                         voiceInputAvailable: page.voiceInputAvailable
                     }
 
+                    StatusTransitionsSettingsBlock {
+                        Layout.fillWidth: true
+                        settingsModel: page.settingsModel
+                    }
+
                     // Mensagens de feedback
                     Controls.Label {
                         id: successMessage

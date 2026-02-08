@@ -15,6 +15,36 @@ ColumnLayout {
 
     property var issueModel: null
     property bool enabled: true
+    /** Se true, desabilita status anteriores ao atual na sequência (regra de não voltar atrás). Use false na tela de criar issue. */
+    property bool restrictStatusBySequence: true
+    /** Status persistido (ex.: do Jira); quando definido, a desativação usa só este valor, não o escolhido no formulário. Use na Minhas Issues. */
+    property string statusForRestriction: ""
+
+    /** Índice do status atual no formulário (statusInicial). */
+    property int statusCurrentIndex: {
+        if (!metadataFieldsRoot.issueModel || !metadataFieldsRoot.issueModel.statusSequence) return -1
+        var seq = metadataFieldsRoot.issueModel.statusSequence
+        var current = String(metadataFieldsRoot.issueModel.statusInicial || "").trim().toUpperCase()
+        for (var i = 0; i < seq.length; i++) {
+            if (String(seq[i] || "").trim().toUpperCase() === current) return i
+        }
+        return -1
+    }
+    /** Índice do status persistido (statusForRestriction) na sequência; usado para minEnabledIndex quando definido. */
+    property int statusRestrictionIndex: {
+        if (!metadataFieldsRoot.issueModel || !metadataFieldsRoot.issueModel.statusSequence || !metadataFieldsRoot.statusForRestriction) return -1
+        var seq = metadataFieldsRoot.issueModel.statusSequence
+        var saved = String(metadataFieldsRoot.statusForRestriction || "").trim().toUpperCase()
+        for (var i = 0; i < seq.length; i++) {
+            if (String(seq[i] || "").trim().toUpperCase() === saved) return i
+        }
+        return -1
+    }
+    property int _statusMinEnabledIndex: {
+        if (!metadataFieldsRoot.restrictStatusBySequence) return -1
+        var idx = metadataFieldsRoot.statusForRestriction ? metadataFieldsRoot.statusRestrictionIndex : metadataFieldsRoot.statusCurrentIndex
+        return idx >= 0 ? idx : -1
+    }
 
     spacing: 0
 
@@ -44,6 +74,7 @@ ColumnLayout {
                 model: metadataFieldsRoot.issueModel ? metadataFieldsRoot.issueModel.statusSequence : []
                 enabled: metadataFieldsRoot.enabled
                 selectedValue: metadataFieldsRoot.issueModel ? metadataFieldsRoot.issueModel.statusInicial : ""
+                minEnabledIndex: metadataFieldsRoot._statusMinEnabledIndex
                 onValueChanged: function(value) {
                     if (metadataFieldsRoot.issueModel) {
                         metadataFieldsRoot.issueModel.statusInicial = value

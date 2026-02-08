@@ -13,6 +13,7 @@ Controls.Dialog {
 
     title: qsTr("Editar comentário")
     modal: true
+    closePolicy: Controls.Popup.CloseOnEscape
     standardButtons: Controls.Dialog.NoButton
 
     property string commentId: ""

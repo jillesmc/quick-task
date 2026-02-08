@@ -188,3 +188,86 @@ def test_get_key_with_default(config_manager: ConfigManager):
     """Testa retorno de default quando chave não existe"""
     assert config_manager.get("chave_inexistente", "default_value") == "default_value"
     assert config_manager.get("custom_fields.inexistente", "default") == "default"
+
+
+def test_get_worklog_check_config_defaults(config_manager: ConfigManager):
+    """Sem status_transitions no config, retorna defaults."""
+    cfg = config_manager.get_worklog_check_config()
+    assert cfg["enabled"] is True
+    assert cfg["show_confirmation_dialog"] is True
+    assert cfg["block_transition_if_pending"] is False
+
+
+def test_worklog_check_getters_default(config_manager: ConfigManager):
+    """Getters worklog_check retornam defaults quando secção ausente."""
+    assert config_manager.worklog_check_enabled() is True
+    assert config_manager.worklog_check_show_dialog() is True
+    assert config_manager.worklog_check_block_if_pending() is False
+
+
+def test_get_worklog_check_config_with_section():
+    """Com status_transitions.worklog_check no config, retorna valores do arquivo."""
+    config_with_worklog = {
+        "project": "TEST",
+        "issue_type": "Task",
+        "assignee": "test@example.com",
+        "custom_fields": {
+            "tipo_atividade": "x",
+            "documentacao_anexa": "y",
+            "utilizacao_ia": "z",
+        },
+        "tipo_atividade_values": ["A"],
+        "status_sequence": ["TO DO", "DONE"],
+        "status_transitions": {
+            "worklog_check": {
+                "enabled": False,
+                "show_confirmation_dialog": False,
+                "block_transition_if_pending": True,
+            }
+        },
+    }
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+        json.dump(config_with_worklog, f)
+        temp_path = Path(f.name)
+    try:
+        manager = ConfigManager(config_path=temp_path)
+        cfg = manager.get_worklog_check_config()
+        assert cfg["enabled"] is False
+        assert cfg["show_confirmation_dialog"] is False
+        assert cfg["block_transition_if_pending"] is True
+    finally:
+        if temp_path.exists():
+            temp_path.unlink()
+
+
+def test_save_worklog_check_config():
+    """save_worklog_check_config persiste e recarrega."""
+    config_base = {
+        "project": "TEST",
+        "issue_type": "Task",
+        "assignee": "test@example.com",
+        "custom_fields": {
+            "tipo_atividade": "x",
+            "documentacao_anexa": "y",
+            "utilizacao_ia": "z",
+        },
+        "tipo_atividade_values": ["A"],
+        "status_sequence": ["TO DO", "DONE"],
+    }
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+        json.dump(config_base, f)
+        temp_path = Path(f.name)
+    try:
+        manager = ConfigManager(config_path=temp_path)
+        manager.save_worklog_check_config(
+            {
+                "enabled": False,
+                "show_confirmation_dialog": False,
+                "block_transition_if_pending": True,
+            }
+        )
+        assert manager.get_worklog_check_config()["enabled"] is False
+        assert manager.worklog_check_block_if_pending() is True
+    finally:
+        if temp_path.exists():
+            temp_path.unlink()
