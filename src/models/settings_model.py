@@ -71,6 +71,10 @@ class SettingsModel(QObject):
             self._worklog_check_show_dialog = True
             self._worklog_check_block_if_pending = False
 
+            # Propriedades GitHub
+            self._github_token = ""
+            self._github_username = ""
+
             debug_log("SettingsModel", "__init__", "Carregando valores atuais...")
             self._load_current_values()
             debug_log("SettingsModel", "__init__", "Concluído")
@@ -194,6 +198,9 @@ class SettingsModel(QObject):
         self._worklog_check_block_if_pending = worklog_check_config.get(
             "block_transition_if_pending", False
         )
+        # Carregar configurações GitHub do config.json
+        self._github_token = self._config_manager.get_github_token_from_config()
+        self._github_username = self._config_manager.get_github_username()
 
         debug_log(
             "SettingsModel",
@@ -576,6 +583,16 @@ class SettingsModel(QObject):
                 "Configurações de worklog_check salvas no arquivo",
             )
 
+            # 4d. Salvar configurações GitHub
+            self._config_manager.save_github_config(
+                self._github_token, self._github_username
+            )
+            debug_log(
+                "SettingsModel",
+                "save",
+                "Configurações GitHub salvas no arquivo",
+            )
+
             # 5. Recarregar valores após salvar
             debug_log("SettingsModel", "save", "Recarregando valores após salvar")
             self._load_current_values()
@@ -615,6 +632,10 @@ class SettingsModel(QObject):
     worklogCheckEnabledChanged = Signal()
     worklogCheckShowDialogChanged = Signal()
     worklogCheckBlockIfPendingChanged = Signal()
+
+    # Sinais para GitHub
+    githubTokenChanged = Signal()
+    githubUsernameChanged = Signal()
 
     # Propriedades QML
     @Property(str, notify=jiraBaseUrlChanged)
@@ -950,3 +971,25 @@ class SettingsModel(QObject):
         if self._worklog_check_block_if_pending != value:
             self._worklog_check_block_if_pending = value
             self.worklogCheckBlockIfPendingChanged.emit()
+
+    @Property(str, notify=githubTokenChanged)
+    def githubToken(self) -> str:
+        """Token de API do GitHub (armazenado em config.json)"""
+        return self._github_token
+
+    @githubToken.setter
+    def githubToken(self, value: str):
+        if self._github_token != value:
+            self._github_token = value or ""
+            self.githubTokenChanged.emit()
+
+    @Property(str, notify=githubUsernameChanged)
+    def githubUsername(self) -> str:
+        """Username do GitHub"""
+        return self._github_username
+
+    @githubUsername.setter
+    def githubUsername(self, value: str):
+        if self._github_username != value:
+            self._github_username = (value or "").strip()
+            self.githubUsernameChanged.emit()

@@ -271,3 +271,60 @@ def test_save_worklog_check_config():
     finally:
         if temp_path.exists():
             temp_path.unlink()
+
+
+def test_get_github_token_from_config():
+    """get_github_token returns token from config when no env."""
+    config_with_github = {
+        "project": "TEST",
+        "github": {"token": "my-token", "username": "myuser"},
+    }
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+        json.dump(config_with_github, f)
+        temp_path = Path(f.name)
+    try:
+        manager = ConfigManager(config_path=temp_path)
+        assert manager.get_github_token_from_config() == "my-token"
+        assert manager.get_github_username() == "myuser"
+        assert manager.get_github_token() == "my-token"
+    finally:
+        if temp_path.exists():
+            temp_path.unlink()
+
+
+def test_get_github_token_env_override(monkeypatch):
+    """get_github_token prefers GITHUB_API_TOKEN env over config."""
+    config_with_github = {
+        "project": "TEST",
+        "github": {"token": "config-token", "username": "u"},
+    }
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+        json.dump(config_with_github, f)
+        temp_path = Path(f.name)
+    try:
+        monkeypatch.setenv("GITHUB_API_TOKEN", "env-token")
+        manager = ConfigManager(config_path=temp_path)
+        assert manager.get_github_token() == "env-token"
+        assert manager.get_github_token_from_config() == "config-token"
+    finally:
+        if temp_path.exists():
+            temp_path.unlink()
+
+
+def test_save_github_config():
+    """save_github_config persists token and username and reloads."""
+    config_base = {
+        "project": "TEST",
+        "github": {"token": "", "username": ""},
+    }
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+        json.dump(config_base, f)
+        temp_path = Path(f.name)
+    try:
+        manager = ConfigManager(config_path=temp_path)
+        manager.save_github_config("new-token", "newuser")
+        assert manager.get_github_token_from_config() == "new-token"
+        assert manager.get_github_username() == "newuser"
+    finally:
+        if temp_path.exists():
+            temp_path.unlink()

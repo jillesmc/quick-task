@@ -177,6 +177,7 @@ from src.models.issue_model import IssueModel
 from src.models.my_issues_model import MyIssuesModel
 from src.models.settings_model import SettingsModel
 from src.jira_service import JiraService
+from src.github_service import GitHubService
 from src.single_instance_manager import SingleInstanceManager
 from src.system_tray_manager import SystemTrayManager
 from src.global_shortcut_manager import GlobalShortcutManager
@@ -356,6 +357,14 @@ def main():
         QTimer.singleShot(0, update_models)
 
     jira_service.assetsCacheLoaded.connect(on_assets_cache_loaded)
+
+    try:
+        debug_log("App", "main", "Criando GitHubService...")
+        github_service = GitHubService()
+        debug_log("App", "main", "GitHubService criado com sucesso")
+    except Exception as e:
+        print(f"⚠ Aviso: Erro ao criar GitHubService: {e}", file=sys.stderr)
+        github_service = None
 
     try:
         debug_log("App", "main", "Criando SettingsModel...")
@@ -573,6 +582,15 @@ def main():
     except Exception as e:
         print(f"✗ Erro ao expor jiraService: {e}", file=sys.stderr)
         raise
+
+    try:
+        engine.rootContext().setContextProperty(
+            "githubService", github_service if github_service else None
+        )
+        if github_service:
+            debug_log("App", "main", "githubService exposto ao contexto QML")
+    except Exception as e:
+        print(f"⚠ Aviso: Erro ao expor githubService: {e}", file=sys.stderr)
 
     try:
         engine.rootContext().setContextProperty("settingsModel", settings_model)

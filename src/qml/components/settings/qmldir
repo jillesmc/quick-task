@@ -3,3 +3,4 @@ PomodoroSettingsBlock PomodoroSettingsBlock.qml
 NotificationSettingsBlock NotificationSettingsBlock.qml
 VoiceInputSettingsBlock VoiceInputSettingsBlock.qml
 StatusTransitionsSettingsBlock StatusTransitionsSettingsBlock.qml
+GitHubSettingsBlock GitHubSettingsBlock.qml

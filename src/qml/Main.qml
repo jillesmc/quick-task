@@ -46,6 +46,7 @@ Kirigami.ApplicationWindow {
             mainHeader.issuesPage = issuesPage
             mainHeader.settingsPage = settingsPage
             mainHeader.pendingWorklogsPage = pendingWorklogsPage
+            mainHeader.githubPage = githubPage
         })
 
         // Verificar se precisa configurar antes de abrir
@@ -86,6 +87,7 @@ Kirigami.ApplicationWindow {
     property var _ctxSettingsModel: settingsModel // qmllint disable unqualified
     property var _ctxMyIssuesModel: myIssuesModel // qmllint disable unqualified
     property var _ctxWorklogSyncService: worklogSyncService // qmllint disable unqualified
+    property var _ctxGitHubService: githubService // qmllint disable unqualified
     property var _ctxClipboardHelper: clipboardHelper // qmllint disable unqualified
     property var hideWindowFn: hideWindow // qmllint disable unqualified
     property var _ctxDebugLog: debugLog // qmllint disable unqualified
@@ -99,6 +101,7 @@ Kirigami.ApplicationWindow {
         issuesPage: issuesPage
         settingsPage: settingsPage
         pendingWorklogsPage: pendingWorklogsPage
+        githubPage: githubPage
         issueModel: root._ctxIssueModel
         jiraService: root._ctxJiraService
         timerModel: root._ctxTimerModel
@@ -185,6 +188,14 @@ Kirigami.ApplicationWindow {
             jiraService: root._ctxJiraService
             myIssuesModel: root._ctxMyIssuesModel
         }
+
+        // Índice 4: GitHub (PRs review required, Issues atribuídas)
+        GitHubPage {
+            id: githubPage
+            githubService: root._ctxGitHubService
+            issueModel: root._ctxIssueModel
+            tabBar: root.tabBar
+        }
     }
 
     Connections {
@@ -201,6 +212,9 @@ Kirigami.ApplicationWindow {
                 var query = issuesPage.issueSearchForm ? issuesPage.issueSearchForm.getQuery() : ""
                 issuesPage.refreshIssues(query)
             }
+            if (root.tabBar.currentIndex === 4 && githubPage) {
+                githubPage.reload()
+            }
         }
     }
 
@@ -212,6 +226,7 @@ Kirigami.ApplicationWindow {
         issuesPage: issuesPage
         settingsPage: settingsPage
         pendingWorklogsPage: pendingWorklogsPage
+        githubPage: githubPage
         settingsModel: root._ctxSettingsModel
         onHideRequested: {
             if (root.hideWindowFn && typeof root.hideWindowFn === "function")

@@ -123,6 +123,11 @@ Kirigami.Page {
                         settingsModel: page.settingsModel
                     }
 
+                    GitHubSettingsBlock {
+                        Layout.fillWidth: true
+                        settingsModel: page.settingsModel
+                    }
+
                     // Recarregar opções de Assets (Valor entregue, Plataformas afetadas)
                     ColumnLayout {
                         Layout.fillWidth: true

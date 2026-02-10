@@ -15,6 +15,7 @@ Item {
     property var issuesPage: null
     property var settingsPage: null
     property var pendingWorklogsPage: null
+    property var githubPage: null
     property var settingsModel: null
 
     signal hideRequested()
@@ -24,7 +25,7 @@ Item {
         sequences: [ "Ctrl+Return", "Ctrl+Enter" ]
         onActivated: {
             if (!root.stack) return;
-            if (root.stack.currentIndex === 2) return;
+            if (root.stack.currentIndex === 2 || root.stack.currentIndex === 4) return;
             if (root.stack.currentIndex === 3) {
                 if (root.settingsPage && root.settingsPage.saveSettingsFromToolbar) {
                     root.settingsPage.saveSettingsFromToolbar();
@@ -55,20 +56,9 @@ Item {
         onActivated: {
             if (!root.stack || !root.tabBar) return;
             var currentIdx = root.stack.currentIndex;
-            if (currentIdx === 3 || currentIdx === 2) {
-                root.stack.currentIndex = 0;
-                root.tabBar.currentIndex = 0;
-            } else if (currentIdx === 0) {
-                root.stack.currentIndex = 1;
-                root.tabBar.currentIndex = 1;
-                // refreshIssues é disparado por Main.qml (Connections onCurrentIndexChanged)
-            } else if (currentIdx === 1) {
-                root.stack.currentIndex = 0;
-                root.tabBar.currentIndex = 0;
-            } else {
-                root.stack.currentIndex = 0;
-                root.tabBar.currentIndex = 0;
-            }
+            var next = (currentIdx + 1) % 5;
+            root.stack.currentIndex = next;
+            root.tabBar.currentIndex = next;
         }
     }
 
@@ -90,20 +80,9 @@ Item {
         onActivated: {
             if (!root.stack || !root.tabBar) return;
             var currentIdx = root.stack.currentIndex;
-            if (currentIdx === 3 || currentIdx === 2) {
-                root.stack.currentIndex = 1;
-                root.tabBar.currentIndex = 1;
-                // refreshIssues é disparado por Main.qml (Connections onCurrentIndexChanged)
-            } else if (currentIdx === 1) {
-                root.stack.currentIndex = 2;
-                root.tabBar.currentIndex = 2;
-            } else if (currentIdx === 0) {
-                root.stack.currentIndex = 2;
-                root.tabBar.currentIndex = 2;
-            } else {
-                root.stack.currentIndex = 0;
-                root.tabBar.currentIndex = 0;
-            }
+            var prev = (currentIdx - 1 + 5) % 5;
+            root.stack.currentIndex = prev;
+            root.tabBar.currentIndex = prev;
         }
     }
 }

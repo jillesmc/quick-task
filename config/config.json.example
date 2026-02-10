@@ -72,6 +72,10 @@
     "allowed_image_extensions": ["png", "jpg", "jpeg", "gif", "webp"],
     "allowed_document_extensions": ["pdf", "txt", "md", "json", "yaml", "xml", "log"]
   },
+  "github": {
+    "token": "",
+    "username": ""
+  },
   "voice_input": {
     "enabled": false,
     "localai_base_url": "http://localhost:8080",

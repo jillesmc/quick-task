@@ -18,6 +18,7 @@ RowLayout {
     property var issuesPage: null
     property var settingsPage: null
     property var pendingWorklogsPage: null
+    property var githubPage: null
     property var issueModel: null
     property var jiraService: null
     property var timerModel: null
@@ -50,6 +51,10 @@ RowLayout {
         Controls.TabButton {
             icon.name: "configure"
         }
+
+        Controls.TabButton {
+            text: "GitHub"
+        }
     }
 
     Controls.ToolButton {
@@ -71,7 +76,7 @@ RowLayout {
             if (root.currentTabIndex === 3) return "document-save";
             return "";
         }
-        visible: root.currentTabIndex >= 0 && root.currentTabIndex !== 2
+        visible: root.currentTabIndex >= 0 && root.currentTabIndex !== 2 && root.currentTabIndex !== 4
         enabled: {
             if (root.currentTabIndex === 0) {
                 if (!root.createPage) return false;
@@ -103,6 +108,19 @@ RowLayout {
                 root.issuesPage.updateIssue();
             } else if (root.currentTabIndex === 3 && root.settingsPage && root.settingsPage.saveSettingsFromToolbar) {
                 root.settingsPage.saveSettingsFromToolbar();
+            }
+        }
+    }
+
+    Controls.ToolButton {
+        id: refreshGitHubButton
+        text: qsTr("Atualizar")
+        icon.name: "view-refresh"
+        visible: root.currentTabIndex === 4
+        enabled: root.githubPage && root.githubPage.githubService && root.githubPage.githubService.available && !root.githubPage.isLoading
+        onClicked: {
+            if (root.currentTabIndex === 4 && root.githubPage && typeof root.githubPage.reload === "function") {
+                root.githubPage.reload();
             }
         }
     }

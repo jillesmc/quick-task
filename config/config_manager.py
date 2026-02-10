@@ -669,6 +669,44 @@ class ConfigManager:
             self.get_worklog_check_config().get("block_transition_if_pending", False)
         )
 
+    def get_github_token(self) -> str:
+        """
+        Retorna o token de API do GitHub.
+        Preferência: variável de ambiente GITHUB_API_TOKEN, depois config.json (github.token).
+        """
+        token = os.environ.get("GITHUB_API_TOKEN", "").strip()
+        if token:
+            return token
+        return (self._config.get("github") or {}).get("token", "")
+
+    def get_github_username(self) -> str:
+        """Retorna o username do GitHub a partir do config.json (github.username)."""
+        return (self._config.get("github") or {}).get("username", "")
+
+    def get_github_token_from_config(self) -> str:
+        """Retorna o token GitHub apenas do config.json (para exibir/editar na UI; não usa env)."""
+        return (self._config.get("github") or {}).get("token", "")
+
+    def save_github_config(self, token: str, username: str) -> None:
+        """
+        Salva configurações GitHub no config.json (seção github).
+        No Flatpak, salva em XDG_CONFIG_HOME.
+        """
+        if "github" not in self._config:
+            self._config["github"] = {}
+        self._config["github"]["token"] = token
+        self._config["github"]["username"] = username
+        if str(self.config_path).startswith("/app/"):
+            xdg_config = os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")
+            self.config_path = Path(xdg_config) / "jira-quick-task" / "config.json"
+        self.config_path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            with open(self.config_path, "w", encoding="utf-8") as f:
+                json.dump(self._config, f, indent=2, ensure_ascii=False)
+            self.load_config()
+        except Exception as e:
+            raise RuntimeError(f"Erro ao salvar configuração GitHub: {e}") from e
+
     def get_jira_cli_config_path(self) -> Optional[Path]:
         """
         Retorna o caminho do arquivo de configuração do Jira (.jira-config.yml)
