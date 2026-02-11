@@ -2,7 +2,7 @@
  * SettingsPage.qml
  *
  * Página de configuração de conexão Jira
- * Permite configurar JIRA_BASE_URL, JIRA_EMAIL e JIRA_API_TOKEN
+ * Permite configurar conexão Jira (server, login, token) e GitHub (token, username) via arquivos de configuração.
  */
 import QtQuick
 import QtQuick.Layouts
@@ -124,6 +124,11 @@ Kirigami.Page {
                     }
 
                     GitHubSettingsBlock {
+                        Layout.fillWidth: true
+                        settingsModel: page.settingsModel
+                    }
+
+                    DevelopmentPanelSettingsBlock {
                         Layout.fillWidth: true
                         settingsModel: page.settingsModel
                     }

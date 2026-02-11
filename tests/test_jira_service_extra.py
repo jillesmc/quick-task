@@ -98,3 +98,42 @@ def test_get_issue_details_maps_fields_and_uppercases_status(
     assert details["status"] == "IN DEVELOPMENT"
     assert details["parentKey"] == "PLATFORM-1"
     assert details["parentSummary"] == "Epic summary"
+
+
+def test_build_issue_details_dict_includes_development_when_present(
+    jira_service_with_mocks,
+):
+    """_build_issue_details_dict inclui 'development' no resultado quando presente em issue_data."""
+    service = jira_service_with_mocks
+    issue_data = {
+        "key": "TEST-1",
+        "id": "100",
+        "summary": "S",
+        "description": "",
+        "status": {"name": "Open"},
+        "parent": None,
+        "development": {
+            "branches": [{"name": "feature/x", "url": "https://github.com/a/b/tree/feature/x"}],
+            "pullRequests": [{"number": "1", "title": "PR", "url": "https://github.com/a/b/pull/1"}],
+        },
+    }
+    result = service._build_issue_details_dict(issue_data)
+    assert "development" in result
+    assert result["development"]["branches"] == issue_data["development"]["branches"]
+    assert result["development"]["pullRequests"] == issue_data["development"]["pullRequests"]
+
+
+def test_build_issue_details_dict_omits_development_when_absent(
+    jira_service_with_mocks,
+):
+    """_build_issue_details_dict não adiciona 'development' quando ausente em issue_data."""
+    service = jira_service_with_mocks
+    issue_data = {
+        "key": "TEST-1",
+        "summary": "S",
+        "description": "",
+        "status": {"name": "Open"},
+        "parent": None,
+    }
+    result = service._build_issue_details_dict(issue_data)
+    assert "development" not in result

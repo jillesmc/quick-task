@@ -292,8 +292,8 @@ def test_get_github_token_from_config():
             temp_path.unlink()
 
 
-def test_get_github_token_env_override(monkeypatch):
-    """get_github_token prefers GITHUB_API_TOKEN env over config."""
+def test_get_github_token_only_from_config(monkeypatch):
+    """get_github_token reads only from config.json; env vars are ignored."""
     config_with_github = {
         "project": "TEST",
         "github": {"token": "config-token", "username": "u"},
@@ -302,9 +302,9 @@ def test_get_github_token_env_override(monkeypatch):
         json.dump(config_with_github, f)
         temp_path = Path(f.name)
     try:
-        monkeypatch.setenv("GITHUB_API_TOKEN", "env-token")
+        monkeypatch.setenv("GITHUB_API_TOKEN", "env-token-ignored")
         manager = ConfigManager(config_path=temp_path)
-        assert manager.get_github_token() == "env-token"
+        assert manager.get_github_token() == "config-token"
         assert manager.get_github_token_from_config() == "config-token"
     finally:
         if temp_path.exists():
@@ -325,6 +325,61 @@ def test_save_github_config():
         manager.save_github_config("new-token", "newuser")
         assert manager.get_github_token_from_config() == "new-token"
         assert manager.get_github_username() == "newuser"
+    finally:
+        if temp_path.exists():
+            temp_path.unlink()
+
+
+def test_get_development_panel_config_defaults(config_manager: ConfigManager):
+    """Sem development_panel no config, retorna defaults."""
+    cfg = config_manager.get_development_panel_config()
+    assert cfg["enabled"] is True
+    assert cfg["github_enrichment"] is False
+    assert cfg.get("default_org", "") == ""
+
+
+def test_get_development_panel_config_with_section():
+    """Com development_panel no config, retorna valores do arquivo."""
+    config_with_dev = {
+        "project": "TEST",
+        "development_panel": {
+            "enabled": False,
+            "github_enrichment": True,
+            "default_org": "minha-org",
+        },
+    }
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+        json.dump(config_with_dev, f)
+        temp_path = Path(f.name)
+    try:
+        manager = ConfigManager(config_path=temp_path)
+        cfg = manager.get_development_panel_config()
+        assert cfg["enabled"] is False
+        assert cfg["github_enrichment"] is True
+        assert cfg.get("default_org") == "minha-org"
+        assert manager.development_panel_default_org() == "minha-org"
+        assert manager.development_panel_enabled() is False
+        assert manager.development_panel_github_enrichment() is True
+    finally:
+        if temp_path.exists():
+            temp_path.unlink()
+
+
+def test_save_development_panel_config():
+    """save_development_panel_config persiste e recarrega."""
+    config_base = {"project": "TEST"}
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+        json.dump(config_base, f)
+        temp_path = Path(f.name)
+    try:
+        manager = ConfigManager(config_path=temp_path)
+        manager.save_development_panel_config(
+            {"enabled": False, "github_enrichment": True, "default_org": "my-org"}
+        )
+        assert manager.get_development_panel_config()["enabled"] is False
+        assert manager.development_panel_github_enrichment() is True
+        assert manager.get_development_panel_config().get("default_org") == "my-org"
+        assert manager.development_panel_default_org() == "my-org"
     finally:
         if temp_path.exists():
             temp_path.unlink()

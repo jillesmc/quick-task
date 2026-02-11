@@ -165,6 +165,7 @@ Kirigami.ApplicationWindow {
             timerService: root._ctxTimerService
             timerModel: root._ctxTimerModel
             worklogSyncService: root._ctxWorklogSyncService
+            githubService: root._ctxGitHubService
             hideWindowFn: root.hideWindowFn
             sharedEpicKey: root.sharedEpicKey
             sharedEpicSummary: root.sharedEpicSummary

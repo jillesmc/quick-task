@@ -55,6 +55,7 @@ Kirigami.Page {
     property var timerModel: null
     property var worklogSyncService: null
     property var hideWindowFn: null
+    property var githubService: null
 
     // Estado para fluxo de transição em duas fases (TO DO → … → IN DEVELOPMENT → diálogo → target)
     property string _pendingTwoPhaseTarget: ""
@@ -497,6 +498,7 @@ Kirigami.Page {
             jiraService: page.jiraService
             clipboardHelper: page.clipboardHelper
             voiceInputService: page._ctxVoiceInputService
+            githubService: page.githubService
             sharedEpicKey: page.sharedEpicKey
             sharedEpicSummary: page.sharedEpicSummary
             savedStatus: page.originalStatus
@@ -895,8 +897,17 @@ Kirigami.Page {
                 }
                 page.originalStatus = String(details.status || "");
                 MyIssuesPageLogic.applyIssueDetailsToForm(details, page.detailPane);
+                if (details.development && details.development.pullRequests && details.development.pullRequests.length > 0 && page.jiraService && typeof page.jiraService.enrichPullRequests === "function") {
+                    page.jiraService.enrichPullRequests(page.selectedIssueKey, details.development.pullRequests);
+                }
             } finally {
                 page.isDetailsLoading = false;
+            }
+        }
+
+        function onDevelopmentEnriched(issueKey, enrichedList) {
+            if (issueKey && issueKey === page.selectedIssueKey && page.detailPane) {
+                page.detailPane.enrichedPrs = enrichedList || null;
             }
         }
     }

@@ -76,6 +76,11 @@
     "token": "",
     "username": ""
   },
+  "development_panel": {
+    "enabled": true,
+    "github_enrichment": false,
+    "default_org": ""
+  },
   "voice_input": {
     "enabled": false,
     "localai_base_url": "http://localhost:8080",

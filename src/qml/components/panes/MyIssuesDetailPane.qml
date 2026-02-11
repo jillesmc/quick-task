@@ -49,6 +49,13 @@ Item {
     property real topSectionHeight: 300
     property real epicSectionHeight: 250
 
+    /** Dados de development (branches/PRs) para o painel; preenchido em setDetails. null quando feature desativada. */
+    property var developmentData: null
+    /** Lista enriquecida de PRs (checks, approvals) quando disponível; definida externamente ao receber developmentEnriched. */
+    property var enrichedPrs: null
+    /** Serviço GitHub (para criar branch no painel de Development). */
+    property var githubService: null
+
     signal epicSelected(string key, string summary)
 
     function getFieldData() {
@@ -110,6 +117,8 @@ Item {
         if (epicSearchForm) {
             epicSearchForm.reset();
         }
+        pane.developmentData = null;
+        pane.enrichedPrs = null;
     }
 
     function setDetails(details) {
@@ -126,6 +135,13 @@ Item {
             issueModel.documentacaoAnexa = String(details.documentacaoAnexa || "Não");
             issueModel.utilizacaoIA = String(details.utilizacaoIA || "Não");
             issueModel.registrarWorklog = false;
+        }
+        if (details.hasOwnProperty("development") && details.development && typeof details.development === "object") {
+            pane.developmentData = details.development;
+            pane.enrichedPrs = null;
+        } else {
+            pane.developmentData = null;
+            pane.enrichedPrs = null;
         }
         if (details.parentKey) {
             var parentKey = String(details.parentKey || "");
@@ -204,6 +220,16 @@ Item {
                                 }
                             }
                         }
+                    }
+
+                    DevelopmentPanel {
+                        Layout.fillWidth: true
+                        developmentData: pane.developmentData
+                        enrichedPrs: pane.enrichedPrs
+                        issueKey: pane.selectedIssueKey
+                        issueSummary: pane.issueModel ? pane.issueModel.summary : ""
+                        jiraService: pane.jiraService
+                        githubService: pane.githubService
                     }
 
                     ColumnLayout {

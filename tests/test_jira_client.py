@@ -23,15 +23,8 @@ def mock_config_file(tmp_path):
     return config_file
 
 
-@pytest.fixture
-def mock_env_token(monkeypatch):
-    """Configura JIRA_API_TOKEN no ambiente"""
-    monkeypatch.setenv("JIRA_API_TOKEN", "test-token")
-    return "test-token"
-
-
 @patch("core.jira_client.requests.request")
-def test_get_current_user_success(mock_request, mock_config_file, mock_env_token):
+def test_get_current_user_success(mock_request, mock_config_file):
     """Testa obtenção de usuário atual via REST API"""
     mock_response = Mock()
     mock_response.status_code = 200
@@ -53,7 +46,7 @@ def test_get_current_user_success(mock_request, mock_config_file, mock_env_token
 
 
 @patch("core.jira_client.requests.request")
-def test_get_current_user_fallback(mock_request, mock_config_file, mock_env_token):
+def test_get_current_user_fallback(mock_request, mock_config_file):
     """Testa fallback para email do config quando API falha"""
     mock_response = Mock()
     mock_response.status_code = 500
@@ -66,7 +59,7 @@ def test_get_current_user_fallback(mock_request, mock_config_file, mock_env_toke
 
 
 @patch("core.jira_client.requests.request")
-def test_create_issue_success(mock_request, mock_config_file, mock_env_token):
+def test_create_issue_success(mock_request, mock_config_file):
     """Testa criação de issue com sucesso usando REST API"""
     # Mock para GET myself (quando assignee é o usuário atual)
     myself_response = Mock()
@@ -117,8 +110,7 @@ def test_create_issue_success(mock_request, mock_config_file, mock_env_token):
 
 @patch("core.jira_client.requests.request")
 def test_create_issue_with_custom_fields(
-    mock_request, mock_config_file, mock_env_token
-):
+    mock_request, mock_config_file):
     """Testa criação de issue com campos customizados"""
     # Mock para POST issue (criação sem assignee, então não precisa de GET myself)
     create_response = Mock()
@@ -148,7 +140,7 @@ def test_create_issue_with_custom_fields(
 
 
 @patch("core.jira_client.requests.request")
-def test_create_issue_with_parent(mock_request, mock_config_file, mock_env_token):
+def test_create_issue_with_parent(mock_request, mock_config_file):
     """Testa criação de issue com parent"""
     # Mock para POST issue (criação sem assignee, então não precisa de GET myself)
     create_response = Mock()
@@ -176,7 +168,7 @@ def test_create_issue_with_parent(mock_request, mock_config_file, mock_env_token
 
 
 @patch("core.jira_client.requests.request")
-def test_create_issue_error(mock_request, mock_config_file, mock_env_token):
+def test_create_issue_error(mock_request, mock_config_file):
     """Testa erro ao criar issue"""
     mock_response = Mock()
     mock_response.status_code = 400
@@ -195,7 +187,7 @@ def test_create_issue_error(mock_request, mock_config_file, mock_env_token):
 
 
 @patch("core.jira_client.requests.request")
-def test_transition_issue_success(mock_request, mock_config_file, mock_env_token):
+def test_transition_issue_success(mock_request, mock_config_file):
     """Testa transição de status com sucesso"""
     # Primeiro, mock da busca de transições
     transitions_response = Mock()
@@ -228,8 +220,7 @@ def test_transition_issue_success(mock_request, mock_config_file, mock_env_token
 @patch("core.jira_client.time.sleep")
 @patch("core.jira_client.requests.request")
 def test_transition_issue_retry(
-    mock_request, mock_sleep, mock_config_file, mock_env_token
-):
+    mock_request, mock_sleep, mock_config_file):
     """Testa retry em caso de falha"""
     transitions_response = Mock()
     transitions_response.status_code = 200
@@ -260,7 +251,7 @@ def test_transition_issue_retry(
 
 
 @patch("core.jira_client.requests.request")
-def test_transition_issue_not_found(mock_request, mock_config_file, mock_env_token):
+def test_transition_issue_not_found(mock_request, mock_config_file):
     """Testa quando transição não é encontrada"""
     transitions_response = Mock()
     transitions_response.status_code = 200
@@ -278,7 +269,7 @@ def test_transition_issue_not_found(mock_request, mock_config_file, mock_env_tok
 
 
 @patch("core.jira_client.requests.request")
-def test_update_issue_success(mock_request, mock_config_file, mock_env_token):
+def test_update_issue_success(mock_request, mock_config_file):
     """Testa atualização de issue com sucesso"""
     mock_response = Mock()
     mock_response.status_code = 204
@@ -303,8 +294,7 @@ def test_update_issue_success(mock_request, mock_config_file, mock_env_token):
 
 @patch("core.jira_client.requests.request")
 def test_update_issue_with_custom_fields(
-    mock_request, mock_config_file, mock_env_token
-):
+    mock_request, mock_config_file):
     """Testa atualização de issue com campos customizados"""
     mock_response = Mock()
     mock_response.status_code = 204
@@ -324,7 +314,7 @@ def test_update_issue_with_custom_fields(
 
 
 @patch("core.jira_client.requests.request")
-def test_get_issue_details_success(mock_request, mock_config_file, mock_env_token):
+def test_get_issue_details_success(mock_request, mock_config_file):
     """Testa obtenção de detalhes da issue"""
     mock_response = Mock()
     mock_response.status_code = 200
@@ -353,7 +343,7 @@ def test_get_issue_details_success(mock_request, mock_config_file, mock_env_toke
 
 
 @patch("core.jira_client.requests.request")
-def test_get_issue_details_not_found(mock_request, mock_config_file, mock_env_token):
+def test_get_issue_details_not_found(mock_request, mock_config_file):
     """Testa quando issue não é encontrada"""
     mock_response = Mock()
     mock_response.status_code = 404
@@ -365,8 +355,115 @@ def test_get_issue_details_not_found(mock_request, mock_config_file, mock_env_to
     assert result is None
 
 
+@patch("core.jira_client.requests.get")
+def test_get_development_info_success(mock_get, mock_config_file):
+    """get_development_info retorna branches e pullRequests normalizados."""
+    mock_response = Mock()
+    mock_response.status_code = 200
+    mock_response.raise_for_status = Mock()
+    mock_response.json.return_value = {
+        "detail": [
+            {
+                "repositories": [
+                    {
+                        "name": "owner/repo",
+                        "branches": [
+                            {
+                                "name": "feature/TEST-123",
+                                "url": "https://github.com/owner/repo/tree/feature/TEST-123",
+                                "aheadCount": 2,
+                                "behindCount": 0,
+                                "lastCommit": {"timestamp": 1700000000000, "message": "Fix", "author": {"name": "Dev"}},
+                            }
+                        ],
+                        "pullRequests": [
+                            {
+                                "id": "owner/repo/456",
+                                "name": "Add feature",
+                                "url": "https://github.com/owner/repo/pull/456",
+                                "status": "OPEN",
+                                "source": {"branch": "feature/TEST-123"},
+                                "destination": {"branch": "main"},
+                                "createdDate": 1700000000000,
+                                "updatedDate": 1700000100000,
+                                "author": {"name": "Dev"},
+                            }
+                        ],
+                    }
+                ]
+            }
+        ]
+    }
+    mock_get.return_value = mock_response
+
+    client = JiraClient(jira_cli_config_path=mock_config_file)
+    result = client.get_development_info("12345")
+
+    assert result is not None
+    assert "branches" in result
+    assert "pullRequests" in result
+    assert len(result["branches"]) == 1
+    assert result["branches"][0]["name"] == "feature/TEST-123"
+    assert result["branches"][0]["commitsAhead"] == 2
+    assert result["branches"][0]["commitsBehind"] == 0
+    assert len(result["pullRequests"]) == 1
+    assert result["pullRequests"][0]["number"] == "456"
+    assert result["pullRequests"][0]["state"] == "open"
+    assert result["pullRequests"][0]["sourceBranch"] == "feature/TEST-123"
+    assert "repositories" in result
+    assert len(result["repositories"]) == 1
+    assert result["repositories"][0]["name"] == "owner/repo"
+    mock_get.assert_called_once()
+    call_args = mock_get.call_args
+    assert "issueId=12345" in str(call_args[1]["params"]) or "12345" in str(call_args)
+
+
+@patch("core.jira_client.requests.get")
+def test_get_development_info_returns_repositories_no_duplicates(mock_get, mock_config_file):
+    """repositories list has unique repo names when same repo appears in multiple details."""
+    mock_response = Mock()
+    mock_response.status_code = 200
+    mock_response.raise_for_status = Mock()
+    mock_response.json.return_value = {
+        "detail": [
+            {
+                "repositories": [
+                    {"name": "org/a", "branches": [], "pullRequests": []},
+                    {"name": "org/b", "branches": [], "pullRequests": []},
+                ]
+            },
+            {
+                "repositories": [
+                    {"name": "org/a", "branches": [{"name": "main"}], "pullRequests": []},
+                ]
+            },
+        ]
+    }
+    mock_get.return_value = mock_response
+
+    client = JiraClient(jira_cli_config_path=mock_config_file)
+    result = client.get_development_info("123")
+
+    assert "repositories" in result
+    names = [r["name"] for r in result["repositories"]]
+    assert names == ["org/a", "org/b"]
+
+
+@patch("core.jira_client.requests.get")
+def test_get_development_info_404_returns_empty(mock_get, mock_config_file):
+    """get_development_info retorna {} em 404/403."""
+    mock_response = Mock()
+    mock_response.status_code = 404
+    mock_get.return_value = mock_response
+
+    client = JiraClient(jira_cli_config_path=mock_config_file)
+    result = client.get_development_info("99999")
+
+    assert result == {}
+
+
 @patch("core.jira_client.requests.request")
-def test_register_worklog_success(mock_request, mock_config_file, mock_env_token):
+def test_register_worklog_success(mock_request, mock_config_file):
     """Testa registro de worklog com sucesso"""
     mock_response = Mock()
     mock_response.status_code = 201
@@ -388,7 +485,7 @@ def test_register_worklog_success(mock_request, mock_config_file, mock_env_token
 
 
 @patch("core.jira_client.requests.request")
-def test_register_worklog_with_comment(mock_request, mock_config_file, mock_env_token):
+def test_register_worklog_with_comment(mock_request, mock_config_file):
     """Testa registro de worklog com comentário"""
     mock_response = Mock()
     mock_response.status_code = 201
@@ -407,7 +504,7 @@ def test_register_worklog_with_comment(mock_request, mock_config_file, mock_env_
 
 
 @patch("core.jira_client.requests.request")
-def test_search_issues_success(mock_request, mock_config_file, mock_env_token):
+def test_search_issues_success(mock_request, mock_config_file):
     """Testa busca de issues com sucesso"""
     mock_response = Mock()
     mock_response.status_code = 200
@@ -605,7 +702,7 @@ def test_adf_to_markdown_doc_empty_content():
 
 
 @patch("core.jira_client.requests.request")
-def test_get_issue_comments_success(mock_request, mock_config_file, mock_env_token):
+def test_get_issue_comments_success(mock_request, mock_config_file):
     """get_issue_comments retorna lista normalizada com body em markdown."""
     mock_response = Mock()
     mock_response.status_code = 200
@@ -653,7 +750,7 @@ def test_get_issue_comments_success(mock_request, mock_config_file, mock_env_tok
 
 
 @patch("core.jira_client.requests.request")
-def test_get_issue_comments_empty(mock_request, mock_config_file, mock_env_token):
+def test_get_issue_comments_empty(mock_request, mock_config_file):
     """get_issue_comments retorna lista vazia quando não há comentários."""
     mock_response = Mock()
     mock_response.status_code = 200
@@ -667,7 +764,7 @@ def test_get_issue_comments_empty(mock_request, mock_config_file, mock_env_token
 
 
 @patch("core.jira_client.requests.request")
-def test_add_comment_success(mock_request, mock_config_file, mock_env_token):
+def test_add_comment_success(mock_request, mock_config_file):
     """add_comment envia body em ADF e retorna comentário normalizado."""
     mock_response = Mock()
     mock_response.status_code = 201
@@ -694,7 +791,7 @@ def test_add_comment_success(mock_request, mock_config_file, mock_env_token):
 
 
 @patch("core.jira_client.requests.request")
-def test_update_comment_success(mock_request, mock_config_file, mock_env_token):
+def test_update_comment_success(mock_request, mock_config_file):
     """update_comment envia body em ADF e retorna comentário atualizado."""
     mock_response = Mock()
     mock_response.status_code = 200
@@ -719,7 +816,7 @@ def test_update_comment_success(mock_request, mock_config_file, mock_env_token):
 
 
 @patch("core.jira_client.requests.request")
-def test_delete_comment_success(mock_request, mock_config_file, mock_env_token):
+def test_delete_comment_success(mock_request, mock_config_file):
     """delete_comment retorna True em 204."""
     mock_response = Mock()
     mock_response.status_code = 204
@@ -738,7 +835,7 @@ def test_delete_comment_success(mock_request, mock_config_file, mock_env_token):
 
 
 @patch("core.jira_client.requests.request")
-def test_get_attachment_settings_success(mock_request, mock_config_file, mock_env_token):
+def test_get_attachment_settings_success(mock_request, mock_config_file):
     """get_attachment_settings retorna enabled e uploadLimit."""
     mock_response = Mock()
     mock_response.status_code = 200
@@ -756,7 +853,7 @@ def test_get_attachment_settings_success(mock_request, mock_config_file, mock_en
 
 
 @patch("core.jira_client.requests.post")
-def test_add_attachment_success(mock_post, mock_config_file, mock_env_token, tmp_path):
+def test_add_attachment_success(mock_post, mock_config_file, tmp_path):
     """add_attachment envia multipart e retorna lista de anexos."""
     f = tmp_path / "test.txt"
     f.write_text("hello")
@@ -786,7 +883,7 @@ def test_add_attachment_success(mock_post, mock_config_file, mock_env_token, tmp
 
 
 @patch("core.jira_client.requests.post")
-def test_add_attachment_413(mock_post, mock_config_file, mock_env_token, tmp_path):
+def test_add_attachment_413(mock_post, mock_config_file, tmp_path):
     """add_attachment levanta RuntimeError em 413."""
     f = tmp_path / "big.bin"
     f.write_bytes(b"x" * 100)
@@ -803,7 +900,7 @@ def test_add_attachment_413(mock_post, mock_config_file, mock_env_token, tmp_pat
 
 
 @patch("core.jira_client.requests.post")
-def test_add_attachment_from_bytes_success(mock_post, mock_config_file, mock_env_token):
+def test_add_attachment_from_bytes_success(mock_post, mock_config_file):
     """add_attachment_from_bytes envia bytes e retorna lista de anexos."""
     mock_response = Mock()
     mock_response.status_code = 200

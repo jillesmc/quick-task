@@ -358,9 +358,13 @@ def main():
 
     jira_service.assetsCacheLoaded.connect(on_assets_cache_loaded)
 
+    # ConfigManager único: mesmo config em memória para GitHubService, SettingsModel e TimerService
+    from config.config_manager import ConfigManager as AppConfigManager
+
+    app_config_manager = AppConfigManager()
     try:
         debug_log("App", "main", "Criando GitHubService...")
-        github_service = GitHubService()
+        github_service = GitHubService(config_manager=app_config_manager)
         debug_log("App", "main", "GitHubService criado com sucesso")
     except Exception as e:
         print(f"⚠ Aviso: Erro ao criar GitHubService: {e}", file=sys.stderr)
@@ -368,7 +372,7 @@ def main():
 
     try:
         debug_log("App", "main", "Criando SettingsModel...")
-        settings_model = SettingsModel()
+        settings_model = SettingsModel(config_manager=app_config_manager)
         debug_log("App", "main", "SettingsModel criado com sucesso")
     except Exception as e:
         print(f"✗ Erro ao criar SettingsModel: {e}", file=sys.stderr)
@@ -404,7 +408,6 @@ def main():
         from src.services.notification_service import NotificationService
         from src.services.worklog_sync_service import WorklogSyncService
         from src.database.worklog_db import WorklogDatabase
-        from config.config_manager import ConfigManager
 
         debug_log("App", "main", "Criando WorklogDatabase...")
         worklog_db = WorklogDatabase()
@@ -415,8 +418,7 @@ def main():
         debug_log("App", "main", "TimerModel criado com sucesso")
 
         debug_log("App", "main", "Criando TimerService...")
-        config_manager = ConfigManager()
-        timer_service = TimerService(timer_model, config_manager, worklog_db)
+        timer_service = TimerService(timer_model, app_config_manager, worklog_db)
         debug_log("App", "main", "TimerService criado com sucesso")
 
         # Conectar sinal saved do SettingsModel para recarregar configurações no TimerService
@@ -430,6 +432,8 @@ def main():
                     "Configurações salvas, recarregando no TimerService",
                 )
                 timer_service.reload_config()
+                if github_service and hasattr(github_service, "notifyConfigChanged"):
+                    github_service.notifyConfigChanged()
 
             settings_model.saved.connect(on_settings_saved)
             debug_log(
@@ -447,7 +451,7 @@ def main():
         debug_log("App", "main", "NotificationService criado com sucesso")
 
         debug_log("App", "main", "Criando WorklogSyncService...")
-        worklog_sync_service = WorklogSyncService(worklog_db, config_manager)
+        worklog_sync_service = WorklogSyncService(worklog_db, app_config_manager)
         debug_log("App", "main", "WorklogSyncService criado com sucesso")
 
         # Criar TimerTrayManager para ícone separado do timer

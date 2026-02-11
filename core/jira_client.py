@@ -2108,6 +2108,142 @@ class JiraClient:
             )
             return None
 
+    def get_development_info(self, issue_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Busca informações de development (branches, pull requests) vinculados à issue.
+
+        Usa o endpoint interno do Jira /rest/dev-status/1.0/issue/detail (não documentado
+        oficialmente; pode mudar ou não existir em algumas instalações).
+
+        Args:
+            issue_id: ID interno da issue (numérico, ex.: "12345"), obtido de get_issue_details.
+
+        Returns:
+            Dict com "branches" e "pullRequests" (listas normalizadas para QML), ou None/{} em
+            caso de erro ou quando não houver dados (404/403 ou resposta vazia).
+        """
+        if not issue_id:
+            return None
+        url = f"{self._server_url.rstrip('/')}/rest/dev-status/1.0/issue/detail"
+        params = {
+            "issueId": str(issue_id),
+            "applicationType": "github",
+            "dataType": "pullrequest",
+        }
+        try:
+            auth = self._get_auth()
+            response = requests.get(
+                url,
+                params=params,
+                auth=auth,
+                headers={"Accept": "application/json"},
+                timeout=15,
+            )
+            if response.status_code in (403, 404):
+                return {}
+            response.raise_for_status()
+            data = response.json()
+            return self._parse_development_data(data)
+        except requests.RequestException as e:
+            try:
+                from src.utils.debug import debug_log
+
+                debug_log(
+                    "JiraClient",
+                    "get_development_info",
+                    "Erro ao obter development info (issueId=%s): %s",
+                    issue_id,
+                    str(e),
+                )
+            except ImportError:
+                pass
+            return {}
+        except Exception as e:
+            try:
+                from src.utils.debug import debug_log
+
+                debug_log(
+                    "JiraClient",
+                    "get_development_info",
+                    "Erro ao parsear development info: %s",
+                    str(e),
+                )
+            except ImportError:
+                pass
+            return {}
+
+    def _parse_development_data(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Normaliza a resposta do dev-status para estrutura fixa (camelCase para QML)."""
+        branches: List[Dict[str, Any]] = []
+        pull_requests: List[Dict[str, Any]] = []
+        repo_names_seen: set = set()
+        repositories: List[Dict[str, Any]] = []
+        for detail in data.get("detail") or []:
+            for repo in detail.get("repositories") or []:
+                repo_name = (repo.get("name") or "").strip()
+                if repo_name and repo_name not in repo_names_seen:
+                    repo_names_seen.add(repo_name)
+                    repositories.append({"name": repo_name})
+                for b in repo.get("branches") or []:
+                    last_commit = b.get("lastCommit") or {}
+                    ts = last_commit.get("timestamp")
+                    last_commit_time = ""
+                    if ts is not None:
+                        try:
+                            from datetime import datetime
+
+                            dt = datetime.fromtimestamp(int(ts) / 1000)
+                            last_commit_time = dt.isoformat()
+                        except (ValueError, OSError):
+                            pass
+                    branches.append({
+                        "name": (b.get("name") or "").strip(),
+                        "url": (b.get("url") or "").strip(),
+                        "repository": repo_name,
+                        "commitsAhead": int(b.get("aheadCount", 0) or 0),
+                        "commitsBehind": int(b.get("behindCount", 0) or 0),
+                        "lastCommitTime": last_commit_time,
+                        "lastCommitMessage": (last_commit.get("message") or "").strip(),
+                        "lastCommitAuthor": (last_commit.get("author") or {}).get("name", ""),
+                    })
+                for pr in repo.get("pullRequests") or []:
+                    src = pr.get("source") or {}
+                    dest = pr.get("destination") or {}
+                    author_obj = pr.get("author") or {}
+                    pr_id = pr.get("id") or ""
+                    number = pr_id.split("/")[-1] if "/" in pr_id else pr_id
+                    created_ts = pr.get("createdDate")
+                    updated_ts = pr.get("updatedDate")
+                    created_at = self._format_dev_timestamp(created_ts)
+                    updated_at = self._format_dev_timestamp(updated_ts)
+                    pull_requests.append({
+                        "number": str(number),
+                        "title": (pr.get("name") or "").strip(),
+                        "url": (pr.get("url") or "").strip(),
+                        "state": (pr.get("status") or "open").lower(),
+                        "sourceBranch": (src.get("branch") or "").strip(),
+                        "targetBranch": (dest.get("branch") or "").strip(),
+                        "createdAt": created_at,
+                        "updatedAt": updated_at,
+                        "author": (author_obj.get("name") or "").strip(),
+                    })
+        return {
+            "branches": branches,
+            "pullRequests": pull_requests,
+            "repositories": repositories,
+        }
+
+    def _format_dev_timestamp(self, ts: Any) -> str:
+        """Formata timestamp do dev-status (ms) para string ISO ou vazio."""
+        if ts is None:
+            return ""
+        try:
+            from datetime import datetime
+
+            return datetime.fromtimestamp(int(ts) / 1000).isoformat()
+        except (ValueError, OSError, TypeError):
+            return ""
+
     def get_issue_comments(
         self, issue_key: str, start_at: int = 0, max_results: int = 100
     ) -> List[Dict[str, Any]]:

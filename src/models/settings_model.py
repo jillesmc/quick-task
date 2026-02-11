@@ -28,11 +28,11 @@ class SettingsModel(QObject):
     accountIdFetched = Signal(str)
     fetchingAccountId = Signal()
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, config_manager=None):
         super().__init__(parent)
         try:
             debug_log("SettingsModel", "__init__", "Iniciando...")
-            self._config_manager = ConfigManager()
+            self._config_manager = config_manager if config_manager is not None else ConfigManager()
             debug_log("SettingsModel", "__init__", "ConfigManager criado")
             self._jira_base_url = ""
             self._jira_email = ""
@@ -70,6 +70,11 @@ class SettingsModel(QObject):
             self._worklog_check_enabled = True
             self._worklog_check_show_dialog = True
             self._worklog_check_block_if_pending = False
+
+            # Propriedades de development_panel (painel de Development em Minhas Issues)
+            self._development_panel_enabled = True
+            self._development_panel_github_enrichment = False
+            self._development_panel_default_org = ""
 
             # Propriedades GitHub
             self._github_token = ""
@@ -198,6 +203,15 @@ class SettingsModel(QObject):
         self._worklog_check_block_if_pending = worklog_check_config.get(
             "block_transition_if_pending", False
         )
+        # Carregar configurações de development_panel
+        dev_panel_config = self._config_manager.get_development_panel_config()
+        self._development_panel_enabled = dev_panel_config.get("enabled", True)
+        self._development_panel_github_enrichment = dev_panel_config.get(
+            "github_enrichment", False
+        )
+        self._development_panel_default_org = (
+            dev_panel_config.get("default_org", "") or ""
+        ).strip()
         # Carregar configurações GitHub do config.json
         self._github_token = self._config_manager.get_github_token_from_config()
         self._github_username = self._config_manager.get_github_username()
@@ -583,6 +597,19 @@ class SettingsModel(QObject):
                 "Configurações de worklog_check salvas no arquivo",
             )
 
+            # 4c2. Salvar configurações de development_panel
+            development_panel_config = {
+                "enabled": self._development_panel_enabled,
+                "github_enrichment": self._development_panel_github_enrichment,
+                "default_org": self._development_panel_default_org,
+            }
+            self._config_manager.save_development_panel_config(development_panel_config)
+            debug_log(
+                "SettingsModel",
+                "save",
+                "Configurações de development_panel salvas no arquivo",
+            )
+
             # 4d. Salvar configurações GitHub
             self._config_manager.save_github_config(
                 self._github_token, self._github_username
@@ -632,6 +659,11 @@ class SettingsModel(QObject):
     worklogCheckEnabledChanged = Signal()
     worklogCheckShowDialogChanged = Signal()
     worklogCheckBlockIfPendingChanged = Signal()
+
+    # Sinais para development_panel
+    developmentPanelEnabledChanged = Signal()
+    developmentPanelGitHubEnrichmentChanged = Signal()
+    developmentPanelDefaultOrgChanged = Signal()
 
     # Sinais para GitHub
     githubTokenChanged = Signal()
@@ -971,6 +1003,39 @@ class SettingsModel(QObject):
         if self._worklog_check_block_if_pending != value:
             self._worklog_check_block_if_pending = value
             self.worklogCheckBlockIfPendingChanged.emit()
+
+    @Property(bool, notify=developmentPanelEnabledChanged)
+    def developmentPanelEnabled(self) -> bool:
+        """Mostrar painel de Development (branches e PRs) nos detalhes da issue"""
+        return self._development_panel_enabled
+
+    @developmentPanelEnabled.setter
+    def developmentPanelEnabled(self, value: bool):
+        if self._development_panel_enabled != value:
+            self._development_panel_enabled = value
+            self.developmentPanelEnabledChanged.emit()
+
+    @Property(bool, notify=developmentPanelGitHubEnrichmentChanged)
+    def developmentPanelGitHubEnrichment(self) -> bool:
+        """Enriquecer PRs com dados do GitHub (checks, aprovações)"""
+        return self._development_panel_github_enrichment
+
+    @developmentPanelGitHubEnrichment.setter
+    def developmentPanelGitHubEnrichment(self, value: bool):
+        if self._development_panel_github_enrichment != value:
+            self._development_panel_github_enrichment = value
+            self.developmentPanelGitHubEnrichmentChanged.emit()
+
+    @Property(str, notify=developmentPanelDefaultOrgChanged)
+    def developmentPanelDefaultOrg(self) -> str:
+        return self._development_panel_default_org
+
+    @developmentPanelDefaultOrg.setter
+    def developmentPanelDefaultOrg(self, value: str):
+        v = (value or "").strip()
+        if self._development_panel_default_org != v:
+            self._development_panel_default_org = v
+            self.developmentPanelDefaultOrgChanged.emit()
 
     @Property(str, notify=githubTokenChanged)
     def githubToken(self) -> str:

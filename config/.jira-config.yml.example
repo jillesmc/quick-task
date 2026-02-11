@@ -65,16 +65,13 @@ issue:
 #   2. Edite o arquivo e preencha os campos abaixo:
 #      - login: Seu e-mail do Jira
 #      - server: URL do seu servidor Jira (ex: https://seu-projeto.atlassian.net)
-#   3. Configure o token Jira como variável de ambiente (OBRIGATÓRIO):
-#      export JIRA_API_TOKEN=<seu-token>
-#   4. A aplicação usa Jira REST API v3 diretamente.
-#      O token JIRA_API_TOKEN é necessário para todas as operações via REST API.
-#      O token pode ser obtido em: https://id.atlassian.com/manage-profile/security/api-tokens
-#      NÃO configure o token no arquivo de configuração por questões de segurança.
+#      - token: Token de API (obtenha em https://id.atlassian.com/manage-profile/security/api-tokens)
+#   3. A aplicação usa Jira REST API v3. O token é lido apenas deste arquivo (não usa variáveis de ambiente).
 #
 login: # PREENCHA COM SEU EMAIL AQUI
 project:
     key: PLATFORM
     type: classic
 server: # PREENCHA COM A URL DO SEU SERVIDOR JIRA AQUI (ex: https://seu-projeto.atlassian.net)
+token: # PREENCHA COM SEU TOKEN DE API JIRA (obtenha em https://id.atlassian.com/manage-profile/security/api-tokens)
 timezone: America/Sao_Paulo

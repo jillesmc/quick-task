@@ -669,14 +669,63 @@ class ConfigManager:
             self.get_worklog_check_config().get("block_transition_if_pending", False)
         )
 
+    def get_development_panel_config(self) -> Dict[str, Any]:
+        """
+        Retorna configuração do painel de Development (Minhas Issues).
+
+        Returns:
+            Dict com enabled, github_enrichment (defaults True e False).
+        """
+        default_config = {
+            "enabled": True,
+            "github_enrichment": False,
+            "default_org": "",
+        }
+        dev_panel = self._config.get("development_panel") or {}
+        if not isinstance(dev_panel, dict):
+            return default_config
+        result = dict(default_config)
+        result.update({k: v for k, v in dev_panel.items() if k in result})
+        return result
+
+    def save_development_panel_config(
+        self, development_panel_config: Dict[str, Any]
+    ) -> None:
+        """
+        Salva configurações do painel de Development no arquivo de configuração.
+        """
+        self._config["development_panel"] = development_panel_config
+        if str(self.config_path).startswith("/app/"):
+            xdg_config = os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")
+            self.config_path = Path(xdg_config) / "jira-quick-task" / "config.json"
+        self.config_path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            with open(self.config_path, "w", encoding="utf-8") as f:
+                json.dump(self._config, f, indent=2, ensure_ascii=False)
+            self.load_config()
+        except Exception as e:
+            raise RuntimeError(
+                f"Erro ao salvar configuração de development_panel: {e}"
+            ) from e
+
+    def development_panel_enabled(self) -> bool:
+        """Retorna se o painel de Development está habilitado."""
+        return bool(self.get_development_panel_config().get("enabled", True))
+
+    def development_panel_github_enrichment(self) -> bool:
+        """Retorna se o enriquecimento de PRs com dados do GitHub está habilitado."""
+        return bool(
+            self.get_development_panel_config().get("github_enrichment", False)
+        )
+
+    def development_panel_default_org(self) -> str:
+        """Org ou usuário GitHub para restringir a busca de repositórios no diálogo Criar branch."""
+        return str(
+            self.get_development_panel_config().get("default_org", "") or ""
+        ).strip()
+
     def get_github_token(self) -> str:
-        """
-        Retorna o token de API do GitHub.
-        Preferência: variável de ambiente GITHUB_API_TOKEN, depois config.json (github.token).
-        """
-        token = os.environ.get("GITHUB_API_TOKEN", "").strip()
-        if token:
-            return token
+        """Retorna o token de API do GitHub a partir do config.json (github.token). Única fonte."""
         return (self._config.get("github") or {}).get("token", "")
 
     def get_github_username(self) -> str:
@@ -684,8 +733,8 @@ class ConfigManager:
         return (self._config.get("github") or {}).get("username", "")
 
     def get_github_token_from_config(self) -> str:
-        """Retorna o token GitHub apenas do config.json (para exibir/editar na UI; não usa env)."""
-        return (self._config.get("github") or {}).get("token", "")
+        """Retorna o token GitHub do config.json (github.token). Mesmo que get_github_token."""
+        return self.get_github_token()
 
     def save_github_config(self, token: str, username: str) -> None:
         """

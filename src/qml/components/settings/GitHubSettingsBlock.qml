@@ -33,7 +33,7 @@ Rectangle {
         }
 
         Controls.Label {
-            text: qsTr("Token de API (opcional: use variável de ambiente GITHUB_API_TOKEN):")
+            text: qsTr("Token de API:")
             font.bold: true
             Layout.fillWidth: true
             wrapMode: Text.WordWrap

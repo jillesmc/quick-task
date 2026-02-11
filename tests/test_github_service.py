@@ -11,11 +11,14 @@ if not is_flatpak and "/usr/lib/python3/dist-packages" not in sys.path:
     sys.path.insert(0, "/usr/lib/python3/dist-packages")
 
 import pytest
+from PySide6.QtCore import QCoreApplication
 
 from src.github_service import (
     _normalize_item,
     _fetch_search_issues,
+    _search_repos_impl,
     GitHubService,
+    CreateBranchWorker,
 )
 
 
@@ -117,10 +120,10 @@ def test_fetch_search_issues_403():
 
 
 def test_github_service_is_available_false():
-    """GitHubService.isAvailable() is False when config has no token/username."""
+    """GitHubService.isAvailable() is False when config has no token/username (usa get_github_token_from_config)."""
     with patch("src.github_service.ConfigManager") as MockConfig:
         mock_cfg = MagicMock()
-        mock_cfg.get_github_token.return_value = ""
+        mock_cfg.get_github_token_from_config.return_value = ""
         mock_cfg.get_github_username.return_value = "user"
         MockConfig.return_value = mock_cfg
         svc = GitHubService()
@@ -128,7 +131,7 @@ def test_github_service_is_available_false():
 
     with patch("src.github_service.ConfigManager") as MockConfig:
         mock_cfg = MagicMock()
-        mock_cfg.get_github_token.return_value = "token"
+        mock_cfg.get_github_token_from_config.return_value = "token"
         mock_cfg.get_github_username.return_value = ""
         MockConfig.return_value = mock_cfg
         svc = GitHubService()
@@ -136,13 +139,134 @@ def test_github_service_is_available_false():
 
 
 def test_github_service_is_available_true():
-    """GitHubService.isAvailable() is True when token and username set."""
+    """GitHubService.isAvailable() is True when token and username set in config."""
     with patch("src.github_service.ConfigManager") as MockConfig:
         mock_cfg = MagicMock()
-        mock_cfg.get_github_token.return_value = "secret"
+        mock_cfg.get_github_token_from_config.return_value = "secret"
         mock_cfg.get_github_username.return_value = "me"
         MockConfig.return_value = mock_cfg
         svc = GitHubService()
     assert svc.isAvailable() is True
+
+
+def test_search_repos_impl_short_query_returns_empty():
+    """_search_repos_impl returns [] when query has < 2 chars."""
+    session = MagicMock()
+    assert _search_repos_impl(session, "a", "") == []
+    assert _search_repos_impl(session, "", "org") == []
+    session.get.assert_not_called()
+
+
+def test_search_repos_impl_with_default_org_calls_orgs_api():
+    """_search_repos_impl with default_org calls orgs API and filters by query."""
+    session = MagicMock()
+    session.get.return_value = MagicMock(
+        status_code=200,
+        json=lambda: [
+            {"full_name": "org/foo", "name": "foo", "default_branch": "main"},
+            {"full_name": "org/foobar", "name": "foobar", "default_branch": "master"},
+        ],
+        raise_for_status=MagicMock(),
+    )
+    result = _search_repos_impl(session, "foo", "org")
+    assert len(result) == 2
+    assert result[0]["full_name"] == "org/foo"
+    assert result[0]["default_branch"] == "main"
+    assert result[1]["full_name"] == "org/foobar"
+    session.get.assert_called_once()
+    call_url = session.get.call_args[0][0]
+    assert "orgs/org/repos" in call_url
+
+
+def test_search_repos_impl_filters_by_query():
+    """_search_repos_impl filters repos where query is in full_name or name."""
+    session = MagicMock()
+    session.get.return_value = MagicMock(
+        status_code=200,
+        json=lambda: [
+            {"full_name": "org/abc", "name": "abc", "default_branch": "main"},
+            {"full_name": "org/xyz", "name": "xyz", "default_branch": "main"},
+        ],
+        raise_for_status=MagicMock(),
+    )
+    result = _search_repos_impl(session, "ab", "org")
+    assert len(result) == 1
+    assert result[0]["full_name"] == "org/abc"
+
+
+@patch("src.github_service.requests")
+def test_create_branch_worker_success(mock_requests):
+    """CreateBranchWorker emits branchCreated with URL on successful GET repo, GET ref, POST refs."""
+    app = QCoreApplication.instance() or QCoreApplication([])
+    mock_session = MagicMock()
+    mock_requests.Session.return_value = mock_session
+
+    def get_side_effect(url, **kwargs):
+        if "git/ref" in url:
+            return MagicMock(
+                status_code=200,
+                json=lambda: {"object": {"sha": "abc123def"}},
+                raise_for_status=MagicMock(),
+            )
+        return MagicMock(
+            status_code=200,
+            json=lambda: {"default_branch": "main"},
+            raise_for_status=MagicMock(),
+        )
+
+    mock_session.get.side_effect = get_side_effect
+    mock_session.post.return_value = MagicMock(status_code=201, raise_for_status=MagicMock())
+
+    captured = []
+
+    def on_created(owner, repo, branch_name, url):
+        captured.append((owner, repo, branch_name, url))
+
+    worker = CreateBranchWorker("token", "owner", "repo", "feat-123", "", None)
+    worker.branchCreated.connect(on_created)
+    worker.start()
+    worker.wait(5000)
+    for _ in range(10):
+        app.processEvents()
+
+    assert len(captured) == 1
+    assert captured[0][0] == "owner"
+    assert captured[0][1] == "repo"
+    assert captured[0][2] == "feat-123"
+    assert captured[0][3] == "https://github.com/owner/repo/tree/feat-123"
+    assert mock_session.get.call_count >= 2
+    assert mock_session.post.call_count == 1
+    post_call = mock_session.post.call_args
+    assert "git/refs" in post_call[0][0]
+    assert post_call[1]["json"]["ref"] == "refs/heads/feat-123"
+    assert post_call[1]["json"]["sha"] == "abc123def"
+
+
+@patch("src.github_service.requests")
+def test_create_branch_worker_422_emits_error(mock_requests):
+    """CreateBranchWorker emits errorOccurred when POST returns 422 (branch already exists)."""
+    app = QCoreApplication.instance() or QCoreApplication([])
+    mock_session = MagicMock()
+    mock_requests.Session.return_value = mock_session
+    mock_session.get.side_effect = [
+        MagicMock(status_code=200, json=lambda: {"default_branch": "main"}, raise_for_status=MagicMock()),
+        MagicMock(status_code=200, json=lambda: {"object": {"sha": "abc"}}, raise_for_status=MagicMock()),
+    ]
+    mock_session.post.return_value = MagicMock(status_code=422, raise_for_status=MagicMock())
+
+    errors = []
+
+    def on_error(msg):
+        errors.append(msg)
+
+    worker = CreateBranchWorker("token", "o", "r", "branch", "", None)
+    worker.errorOccurred.connect(on_error)
+    worker.start()
+    worker.wait(5000)
+    for _ in range(10):
+        app.processEvents()
+
+    assert len(errors) == 1
+    assert "existe" in errors[0] or "422" in errors[0] or "nome" in errors[0].lower()
 
 

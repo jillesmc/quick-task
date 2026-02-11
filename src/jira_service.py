@@ -769,6 +769,8 @@ class JiraService(QObject):
     # Signals específicos para carregamento de detalhes de issue (modo assíncrono)
     issueDetailsStarted = Signal(str)  # issueKey
     issueDetailsLoaded = Signal("QVariant")  # dict com detalhes da issue
+    # Enriquecimento de PRs com dados do GitHub (checks, approvals)
+    developmentEnriched = Signal(str, "QVariant")  # issueKey, list of enriched PR dicts
     # Cache de opções de Assets (Valor entregue, Plataformas afetadas)
     assetsCacheLoaded = Signal(bool, str)  # success, message
     # Comentários de issues
@@ -845,6 +847,7 @@ class JiraService(QObject):
         self._reload_worker: Optional[QThread] = None  # manter referência para não GC antes do thread terminar
         self._comments_worker: Optional[QThread] = None
         self._attachment_worker: Optional[QThread] = None
+        self._development_enrich_worker: Optional[QThread] = None
 
     def get_assets_cache(self) -> Optional[AssetsCacheService]:
         """Retorna o serviço de cache de Assets (para IssueModel e payloads)."""
@@ -2244,7 +2247,7 @@ class JiraService(QObject):
                 status_name = str(status_obj)
         status_name = status_name.upper() if status_name else ""
 
-        return {
+        result = {
             "key": issue_data.get("key", ""),
             "summary": fields.get("summary", ""),
             "description": description,
@@ -2257,6 +2260,11 @@ class JiraService(QObject):
             "parentKey": parent_key,
             "parentSummary": parent_summary,
         }
+        # Pass through development info only when it was requested (feature enabled)
+        if "development" in issue_data and isinstance(issue_data["development"], dict):
+            result["development"] = issue_data["development"]
+        # When key absent, UI hides the Development block
+        return result
 
     @Slot(str)
     def getIssueDetailsAsync(self, issueKey: str) -> None:
@@ -2280,6 +2288,10 @@ class JiraService(QObject):
             self._issue_details_worker.terminate()
             self._issue_details_worker.wait()
 
+        fetch_development = bool(
+            self._config and self._config.development_panel_enabled()
+        )
+
         class _IssueDetailsWorker(QThread):
             resultReady = Signal("QVariant")
             errorOccurred = Signal(str)
@@ -2289,12 +2301,14 @@ class JiraService(QObject):
                 jira_client: JiraClient,
                 key: str,
                 extra_fields: Optional[List[str]] = None,
+                fetch_development: bool = False,
                 parent=None,
             ):
                 super().__init__(parent)
                 self._jira_client = jira_client
                 self._key = key
                 self._extra_fields = extra_fields or []
+                self._fetch_development = fetch_development
 
             def run(self) -> None:
                 try:
@@ -2305,13 +2319,26 @@ class JiraService(QObject):
                     if not issue_data:
                         self.resultReady.emit({})
                         return
+                    if self._fetch_development:
+                        issue_id = issue_data.get("id")
+                        if issue_id:
+                            dev_info = self._jira_client.get_development_info(
+                                str(issue_id)
+                            )
+                            issue_data["development"] = dev_info if dev_info else {}
+                        else:
+                            issue_data["development"] = {}
+                    # When not requested, do not set "development" so the UI can hide the block
                     self.resultReady.emit(issue_data)
                 except Exception as e:  # pragma: no cover - falhas inesperadas
                     self.errorOccurred.emit(str(e))
                     self.resultReady.emit({})
 
         worker = _IssueDetailsWorker(
-            self._jira_client, issueKey, self._get_assets_extra_fields()
+            self._jira_client,
+            issueKey,
+            self._get_assets_extra_fields(),
+            fetch_development=fetch_development,
         )
         self._issue_details_worker = worker
 
@@ -2334,6 +2361,120 @@ class JiraService(QObject):
 
         # Notificar início e disparar thread
         self.issueDetailsStarted.emit(issueKey.strip())
+        worker.start()
+
+    @Slot(str, "QVariant")
+    def enrichPullRequests(self, issue_key: str, pr_list: Any) -> None:
+        """
+        Enriquece lista de PRs com dados do GitHub (reviews/approvals). Emite developmentEnriched(issue_key, enriched_list).
+        Não faz nada se token GitHub ou github_enrichment estiver desativado.
+        pr_list: list of dicts (from QML can be QVariantList).
+        """
+        if not issue_key:
+            return
+        prs = pr_list if isinstance(pr_list, list) else []
+        if not prs:
+            return
+        if not self._config or not self._config.development_panel_github_enrichment():
+            return
+        token = (self._config.get_github_token() or "").strip()
+        if not token:
+            return
+        if self._development_enrich_worker and self._development_enrich_worker.isRunning():
+            return
+
+        class _DevelopmentEnrichWorker(QThread):
+            resultReady = Signal(str, "QVariant")
+
+            def __init__(
+                self,
+                key: str,
+                prs: List[Dict[str, Any]],
+                gh_token: str,
+            ):
+                super().__init__()
+                self._key = key
+                self._prs = prs
+                self._token = gh_token
+
+            def run(self) -> None:
+                try:
+                    import re
+
+                    try:
+                        import requests
+                    except ImportError:
+                        self.resultReady.emit(self._key, self._prs)
+                        return
+                    headers = {
+                        "Accept": "application/vnd.github.v3+json",
+                        "Authorization": f"token {self._token}",
+                    }
+                    enriched = []
+                    for pr in self._prs:
+                        pr_url = (pr.get("url") or "").strip()
+                        if not pr_url:
+                            enriched.append(dict(pr))
+                            continue
+                        # Parse https://github.com/owner/repo/pull/123
+                        match = re.search(
+                            r"github\.com/([^/]+)/([^/]+)/pull/(\d+)",
+                            pr_url,
+                            re.IGNORECASE,
+                        )
+                        if not match:
+                            enriched.append(dict(pr))
+                            continue
+                        owner, repo, number = match.group(1), match.group(2), match.group(3)
+                        row = dict(pr)
+                        try:
+                            r = requests.get(
+                                f"https://api.github.com/repos/{owner}/{repo}/pulls/{number}",
+                                headers=headers,
+                                timeout=10,
+                            )
+                            if r.ok:
+                                data = r.json()
+                                row["mergeableState"] = data.get("mergeable_state") or ""
+                            rev = requests.get(
+                                f"https://api.github.com/repos/{owner}/{repo}/pulls/{number}/reviews",
+                                headers=headers,
+                                timeout=10,
+                            )
+                            if rev.ok:
+                                reviews = rev.json() or []
+                                approvals = sum(
+                                    1 for x in reviews if (x.get("state") or "").upper() == "APPROVED"
+                                )
+                                changes = any(
+                                    (x.get("state") or "").upper() == "CHANGES_REQUESTED"
+                                    for x in reviews
+                                )
+                                row["approvalsCount"] = approvals
+                                row["changesRequested"] = changes
+                        except Exception:
+                            pass
+                        enriched.append(row)
+                    self.resultReady.emit(self._key, enriched)
+                except Exception:
+                    self.resultReady.emit(self._key, self._prs)
+
+        worker = _DevelopmentEnrichWorker(
+            issue_key.strip(), list(prs), token
+        )
+        self._development_enrich_worker = worker
+
+        def _on_enriched(key: str, enriched_list: Any) -> None:
+            self.developmentEnriched.emit(key, enriched_list)
+            if self._development_enrich_worker is worker:
+                self._development_enrich_worker = None
+
+        def _cleanup() -> None:
+            if self._development_enrich_worker is worker:
+                self._development_enrich_worker = None
+
+        worker.resultReady.connect(_on_enriched)
+        worker.finished.connect(_cleanup)
         worker.start()
 
     @Slot(str, result=str)
