@@ -23,6 +23,7 @@ RowLayout {
     property var jiraService: null
     property var timerModel: null
     property var timerService: null
+    property var githubService: null
 
     property int currentTabIndex: stack ? stack.currentIndex : -1
 
@@ -136,6 +137,24 @@ RowLayout {
             if (root.currentTabIndex === 2 && root.pendingWorklogsPage
                     && typeof root.pendingWorklogsPage.syncAllFromToolbar === "function") {
                 root.pendingWorklogsPage.syncAllFromToolbar();
+            }
+        }
+    }
+
+    Controls.ToolButton {
+        id: createBranchButton
+        text: qsTr("Criar branch")
+        icon.name: "vcs-branch"
+        visible: root.currentTabIndex === 1
+        enabled: {
+            if (root.currentTabIndex !== 1) return false;
+            if (!root.issuesPage || !root.issuesPage.selectedIssueKey) return false;
+            if (!root.githubService || !root.githubService.available) return false;
+            return true;
+        }
+        onClicked: {
+            if (root.currentTabIndex === 1 && root.issuesPage && typeof root.issuesPage.openCreateBranchDialog === "function") {
+                root.issuesPage.openCreateBranchDialog();
             }
         }
     }

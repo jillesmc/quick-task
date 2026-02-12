@@ -358,10 +358,12 @@ def main():
 
     jira_service.assetsCacheLoaded.connect(on_assets_cache_loaded)
 
-    # ConfigManager único: mesmo config em memória para GitHubService, SettingsModel e TimerService
+    # ConfigManager único: mesmo config em memória para JiraService, GitHubService, SettingsModel e TimerService
     from config.config_manager import ConfigManager as AppConfigManager
 
     app_config_manager = AppConfigManager()
+    # Injetar config compartilhado no JiraService (para enrichment refletir configurações salvas)
+    jira_service._config = app_config_manager
     try:
         debug_log("App", "main", "Criando GitHubService...")
         github_service = GitHubService(config_manager=app_config_manager)

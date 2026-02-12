@@ -106,6 +106,7 @@ Kirigami.ApplicationWindow {
         jiraService: root._ctxJiraService
         timerModel: root._ctxTimerModel
         timerService: root._ctxTimerService
+        githubService: root._ctxGitHubService
     }
 
     property alias tabBar: mainHeader.tabBar

@@ -357,40 +357,36 @@ def test_get_issue_details_not_found(mock_request, mock_config_file):
 
 @patch("core.jira_client.requests.get")
 def test_get_development_info_success(mock_get, mock_config_file):
-    """get_development_info retorna branches e pullRequests normalizados."""
+    """get_development_info retorna branches e pullRequests (formato dev-status/latest)."""
     mock_response = Mock()
     mock_response.status_code = 200
     mock_response.raise_for_status = Mock()
     mock_response.json.return_value = {
         "detail": [
             {
-                "repositories": [
+                "branches": [
                     {
-                        "name": "owner/repo",
-                        "branches": [
-                            {
-                                "name": "feature/TEST-123",
-                                "url": "https://github.com/owner/repo/tree/feature/TEST-123",
-                                "aheadCount": 2,
-                                "behindCount": 0,
-                                "lastCommit": {"timestamp": 1700000000000, "message": "Fix", "author": {"name": "Dev"}},
-                            }
-                        ],
-                        "pullRequests": [
-                            {
-                                "id": "owner/repo/456",
-                                "name": "Add feature",
-                                "url": "https://github.com/owner/repo/pull/456",
-                                "status": "OPEN",
-                                "source": {"branch": "feature/TEST-123"},
-                                "destination": {"branch": "main"},
-                                "createdDate": 1700000000000,
-                                "updatedDate": 1700000100000,
-                                "author": {"name": "Dev"},
-                            }
-                        ],
+                        "name": "feature/TEST-123",
+                        "url": "https://github.com/owner/repo/tree/feature/TEST-123",
+                        "repository": {"id": "1", "name": "owner/repo"},
+                        "aheadCount": 2,
+                        "behindCount": 0,
+                        "lastCommit": {"timestamp": 1700000000000, "message": "Fix", "author": {"name": "Dev"}},
                     }
-                ]
+                ],
+                "pullRequests": [
+                    {
+                        "id": "owner/repo/456",
+                        "name": "Add feature",
+                        "url": "https://github.com/owner/repo/pull/456",
+                        "status": "OPEN",
+                        "source": {"branch": "feature/TEST-123"},
+                        "destination": {"branch": "main"},
+                        "createdDate": 1700000000000,
+                        "updatedDate": 1700000100000,
+                        "author": {"name": "Dev"},
+                    }
+                ],
             }
         ]
     }
@@ -427,14 +423,14 @@ def test_get_development_info_returns_repositories_no_duplicates(mock_get, mock_
     mock_response.json.return_value = {
         "detail": [
             {
-                "repositories": [
-                    {"name": "org/a", "branches": [], "pullRequests": []},
-                    {"name": "org/b", "branches": [], "pullRequests": []},
+                "branches": [
+                    {"name": "main", "repository": {"name": "org/a"}},
+                    {"name": "feat", "repository": {"name": "org/b"}},
                 ]
             },
             {
-                "repositories": [
-                    {"name": "org/a", "branches": [{"name": "main"}], "pullRequests": []},
+                "branches": [
+                    {"name": "fix", "repository": {"name": "org/a"}},
                 ]
             },
         ]
@@ -447,6 +443,51 @@ def test_get_development_info_returns_repositories_no_duplicates(mock_get, mock_
     assert "repositories" in result
     names = [r["name"] for r in result["repositories"]]
     assert names == ["org/a", "org/b"]
+
+
+@patch("core.jira_client.requests.get")
+def test_get_development_info_new_format_direct_branches(mock_get, mock_config_file):
+    """dev-status/latest: detail[].branches direto (cada branch tem repository: {name})."""
+    mock_response = Mock()
+    mock_response.status_code = 200
+    mock_response.raise_for_status = Mock()
+    mock_response.json.return_value = {
+        "detail": [
+            {
+                "branches": [
+                    {
+                        "name": "PLATFORM-14840-feature",
+                        "url": "https://github.com/org/repo/tree/PLATFORM-14840-feature",
+                        "repository": {"id": "123", "name": "org/repo"},
+                        "aheadCount": 1,
+                        "behindCount": 0,
+                    }
+                ],
+                "pullRequests": [
+                    {
+                        "id": "org/repo/99",
+                        "name": "Add feature",
+                        "url": "https://github.com/org/repo/pull/99",
+                        "status": "OPEN",
+                        "source": {"branch": "PLATFORM-14840-feature"},
+                        "destination": {"branch": "main"},
+                        "author": {"name": "Dev"},
+                    }
+                ],
+            }
+        ]
+    }
+    mock_get.return_value = mock_response
+
+    client = JiraClient(jira_cli_config_path=mock_config_file)
+    result = client.get_development_info("1739865")
+
+    assert len(result["branches"]) == 1
+    assert result["branches"][0]["name"] == "PLATFORM-14840-feature"
+    assert result["branches"][0]["repository"] == "org/repo"
+    assert len(result["pullRequests"]) == 1
+    assert result["pullRequests"][0]["number"] == "99"
+    assert result["repositories"][0]["name"] == "org/repo"
 
 
 @patch("core.jira_client.requests.get")

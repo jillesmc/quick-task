@@ -157,15 +157,17 @@ def test_search_repos_impl_short_query_returns_empty():
     session.get.assert_not_called()
 
 
-def test_search_repos_impl_with_default_org_calls_orgs_api():
-    """_search_repos_impl with default_org calls orgs API and filters by query."""
+def test_search_repos_impl_with_default_org_uses_search_api():
+    """_search_repos_impl with default_org uses Search API when it returns results."""
     session = MagicMock()
     session.get.return_value = MagicMock(
         status_code=200,
-        json=lambda: [
-            {"full_name": "org/foo", "name": "foo", "default_branch": "main"},
-            {"full_name": "org/foobar", "name": "foobar", "default_branch": "master"},
-        ],
+        json=lambda: {
+            "items": [
+                {"full_name": "org/foo", "name": "foo", "default_branch": "main"},
+                {"full_name": "org/foobar", "name": "foobar", "default_branch": "master"},
+            ]
+        },
         raise_for_status=MagicMock(),
     )
     result = _search_repos_impl(session, "foo", "org")
@@ -175,20 +177,51 @@ def test_search_repos_impl_with_default_org_calls_orgs_api():
     assert result[1]["full_name"] == "org/foobar"
     session.get.assert_called_once()
     call_url = session.get.call_args[0][0]
-    assert "orgs/org/repos" in call_url
+    assert "search/repositories" in call_url
+
+
+def test_search_repos_impl_with_default_org_calls_orgs_api():
+    """_search_repos_impl with default_org falls back to orgs API when Search returns empty."""
+    session = MagicMock()
+
+    def mock_get(url, *args, **kwargs):
+        resp = MagicMock(status_code=200, raise_for_status=MagicMock())
+        if "search/repositories" in url:
+            resp.json.return_value = {"items": []}
+        else:
+            resp.json.return_value = [
+                {"full_name": "org/foo", "name": "foo", "default_branch": "main"},
+                {"full_name": "org/foobar", "name": "foobar", "default_branch": "master"},
+            ]
+        return resp
+
+    session.get.side_effect = mock_get
+    result = _search_repos_impl(session, "foo", "org")
+    assert len(result) == 2
+    assert result[0]["full_name"] == "org/foo"
+    assert result[0]["default_branch"] == "main"
+    assert result[1]["full_name"] == "org/foobar"
+    assert session.get.call_count == 3  # Search org, Search user, fallback orgs
+    last_call_url = session.get.call_args_list[-1][0][0]
+    assert "orgs/org/repos" in last_call_url
 
 
 def test_search_repos_impl_filters_by_query():
     """_search_repos_impl filters repos where query is in full_name or name."""
     session = MagicMock()
-    session.get.return_value = MagicMock(
-        status_code=200,
-        json=lambda: [
-            {"full_name": "org/abc", "name": "abc", "default_branch": "main"},
-            {"full_name": "org/xyz", "name": "xyz", "default_branch": "main"},
-        ],
-        raise_for_status=MagicMock(),
-    )
+
+    def mock_get(url, *args, **kwargs):
+        resp = MagicMock(status_code=200, raise_for_status=MagicMock())
+        if "search/repositories" in url:
+            resp.json.return_value = {"items": []}
+        else:
+            resp.json.return_value = [
+                {"full_name": "org/abc", "name": "abc", "default_branch": "main"},
+                {"full_name": "org/xyz", "name": "xyz", "default_branch": "main"},
+            ]
+        return resp
+
+    session.get.side_effect = mock_get
     result = _search_repos_impl(session, "ab", "org")
     assert len(result) == 1
     assert result[0]["full_name"] == "org/abc"

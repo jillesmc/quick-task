@@ -2112,11 +2112,11 @@ class JiraClient:
         """
         Busca informações de development (branches, pull requests) vinculados à issue.
 
-        Usa o endpoint interno do Jira /rest/dev-status/1.0/issue/detail (não documentado
-        oficialmente; pode mudar ou não existir em algumas instalações).
+        Usa o endpoint /rest/dev-status/latest/issue/details.
+        Requer issue_id (numérico) obtido de get_issue_details (campo "id"), não issueKey.
 
         Args:
-            issue_id: ID interno da issue (numérico, ex.: "12345"), obtido de get_issue_details.
+            issue_id: ID interno da issue (numérico, ex.: "1739865"), obtido de get_issue_details.
 
         Returns:
             Dict com "branches" e "pullRequests" (listas normalizadas para QML), ou None/{} em
@@ -2124,12 +2124,8 @@ class JiraClient:
         """
         if not issue_id:
             return None
-        url = f"{self._server_url.rstrip('/')}/rest/dev-status/1.0/issue/detail"
-        params = {
-            "issueId": str(issue_id),
-            "applicationType": "github",
-            "dataType": "pullrequest",
-        }
+        url = f"{self._server_url.rstrip('/')}/rest/dev-status/latest/issue/details"
+        params = {"issueId": str(issue_id)}
         try:
             auth = self._get_auth()
             response = requests.get(
@@ -2143,6 +2139,21 @@ class JiraClient:
                 return {}
             response.raise_for_status()
             data = response.json()
+            try:
+                from src.utils.debug import debug_log
+
+                data_str = json.dumps(data, ensure_ascii=False)[:500]
+                debug_log(
+                    "JiraClient",
+                    "get_development_info",
+                    "issue_id=%s status=%s data_keys=%s sample=%s",
+                    issue_id,
+                    response.status_code,
+                    list(data.keys()) if isinstance(data, dict) else "non-dict",
+                    data_str,
+                )
+            except ImportError:
+                pass
             return self._parse_development_data(data)
         except requests.RequestException as e:
             try:
@@ -2178,55 +2189,75 @@ class JiraClient:
         pull_requests: List[Dict[str, Any]] = []
         repo_names_seen: set = set()
         repositories: List[Dict[str, Any]] = []
-        for detail in data.get("detail") or []:
-            for repo in detail.get("repositories") or []:
-                repo_name = (repo.get("name") or "").strip()
+        # Formato dev-status/latest: detail[] com branches e pullRequests direto
+        detail_list = data.get("detail") or data.get("details") or []
+        try:
+            from src.utils.debug import debug_log
+
+            debug_log(
+                "JiraClient",
+                "_parse_development_data",
+                "detail_count=%s",
+                len(detail_list),
+            )
+        except ImportError:
+            pass
+
+        def _add_branch(b: Dict[str, Any], repo_name: str) -> None:
+            last_commit = b.get("lastCommit") or {}
+            ts = last_commit.get("timestamp")
+            last_commit_time = ""
+            if ts is not None:
+                try:
+                    from datetime import datetime
+
+                    dt = datetime.fromtimestamp(int(ts) / 1000)
+                    last_commit_time = dt.isoformat()
+                except (ValueError, OSError):
+                    pass
+            branches.append({
+                "name": (b.get("name") or "").strip(),
+                "url": (b.get("url") or "").strip(),
+                "repository": repo_name,
+                "commitsAhead": int(b.get("aheadCount", 0) or 0),
+                "commitsBehind": int(b.get("behindCount", 0) or 0),
+                "lastCommitTime": last_commit_time,
+                "lastCommitMessage": (last_commit.get("message") or "").strip(),
+                "lastCommitAuthor": (last_commit.get("author") or {}).get("name", ""),
+            })
+
+        def _add_pull_request(pr: Dict[str, Any]) -> None:
+            src = pr.get("source") or {}
+            dest = pr.get("destination") or {}
+            author_obj = pr.get("author") or {}
+            pr_id = pr.get("id") or ""
+            number = pr_id.split("/")[-1] if "/" in pr_id else pr_id
+            created_ts = pr.get("createdDate")
+            updated_ts = pr.get("updatedDate")
+            created_at = self._format_dev_timestamp(created_ts)
+            updated_at = self._format_dev_timestamp(updated_ts)
+            pull_requests.append({
+                "number": str(number),
+                "title": (pr.get("name") or "").strip(),
+                "url": (pr.get("url") or "").strip(),
+                "state": (pr.get("status") or "open").lower(),
+                "sourceBranch": (src.get("branch") or "").strip(),
+                "targetBranch": (dest.get("branch") or "").strip(),
+                "createdAt": created_at,
+                "updatedAt": updated_at,
+                "author": (author_obj.get("name") or "").strip(),
+            })
+
+        for detail in detail_list:
+            for b in detail.get("branches") or []:
+                repo_obj = b.get("repository") or {}
+                repo_name = (repo_obj.get("name") if isinstance(repo_obj, dict) else "") or ""
                 if repo_name and repo_name not in repo_names_seen:
                     repo_names_seen.add(repo_name)
                     repositories.append({"name": repo_name})
-                for b in repo.get("branches") or []:
-                    last_commit = b.get("lastCommit") or {}
-                    ts = last_commit.get("timestamp")
-                    last_commit_time = ""
-                    if ts is not None:
-                        try:
-                            from datetime import datetime
-
-                            dt = datetime.fromtimestamp(int(ts) / 1000)
-                            last_commit_time = dt.isoformat()
-                        except (ValueError, OSError):
-                            pass
-                    branches.append({
-                        "name": (b.get("name") or "").strip(),
-                        "url": (b.get("url") or "").strip(),
-                        "repository": repo_name,
-                        "commitsAhead": int(b.get("aheadCount", 0) or 0),
-                        "commitsBehind": int(b.get("behindCount", 0) or 0),
-                        "lastCommitTime": last_commit_time,
-                        "lastCommitMessage": (last_commit.get("message") or "").strip(),
-                        "lastCommitAuthor": (last_commit.get("author") or {}).get("name", ""),
-                    })
-                for pr in repo.get("pullRequests") or []:
-                    src = pr.get("source") or {}
-                    dest = pr.get("destination") or {}
-                    author_obj = pr.get("author") or {}
-                    pr_id = pr.get("id") or ""
-                    number = pr_id.split("/")[-1] if "/" in pr_id else pr_id
-                    created_ts = pr.get("createdDate")
-                    updated_ts = pr.get("updatedDate")
-                    created_at = self._format_dev_timestamp(created_ts)
-                    updated_at = self._format_dev_timestamp(updated_ts)
-                    pull_requests.append({
-                        "number": str(number),
-                        "title": (pr.get("name") or "").strip(),
-                        "url": (pr.get("url") or "").strip(),
-                        "state": (pr.get("status") or "open").lower(),
-                        "sourceBranch": (src.get("branch") or "").strip(),
-                        "targetBranch": (dest.get("branch") or "").strip(),
-                        "createdAt": created_at,
-                        "updatedAt": updated_at,
-                        "author": (author_obj.get("name") or "").strip(),
-                    })
+                _add_branch(b, repo_name)
+            for pr in detail.get("pullRequests") or []:
+                _add_pull_request(pr)
         return {
             "branches": branches,
             "pullRequests": pull_requests,

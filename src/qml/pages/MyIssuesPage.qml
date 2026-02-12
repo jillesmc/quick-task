@@ -879,6 +879,36 @@ Kirigami.Page {
         page.originalStatus = "";
     }
 
+    function openCreateBranchDialog() {
+        if (!page.selectedIssueKey || !page.githubService || !page.githubService.available) return
+        var singleRepo = ""
+        var d = page.detailPane ? page.detailPane.developmentData : null
+        if (d && d.repositories) {
+            var repos = Array.isArray(d.repositories) ? d.repositories : Array.from(d.repositories || [])
+            if (repos.length === 1) {
+                var r = repos[0]
+                singleRepo = (r && r.name) ? r.name : ""
+            }
+        }
+        // qmllint disable missing-property
+        if (createBranchDialogLoader.item && typeof createBranchDialogLoader.item.openWith === "function") {
+            createBranchDialogLoader.item.openWith(
+                page.selectedIssueKey,
+                page.issueModel ? page.issueModel.summary : "",
+                singleRepo,
+                page.githubService
+            )
+        }
+        // qmllint enable missing-property
+    }
+
+    Loader {
+        id: createBranchDialogLoader
+        active: page.selectedIssueKey !== "" && page.githubService && page.githubService.available
+        source: "../components/dialogs/CreateBranchDialog.qml"
+        onLoaded: if (item) item.visible = false
+    }
+
     // Reagir aos sinais assíncronos de carregamento de detalhes de issue
     Connections {
         target: page.jiraService
@@ -895,10 +925,17 @@ Kirigami.Page {
                 if (!details || !details.key) {
                     return;
                 }
+                var dev = details.development;
+                var devStr = dev ? ("branches:" + (dev.branches ? dev.branches.length : 0) + " prs:" + (dev.pullRequests ? dev.pullRequests.length : 0)) : "null";
+                console.log("[ Development ] details.development:", devStr, dev ? dev : "");
                 page.originalStatus = String(details.status || "");
                 MyIssuesPageLogic.applyIssueDetailsToForm(details, page.detailPane);
                 if (details.development && details.development.pullRequests && details.development.pullRequests.length > 0 && page.jiraService && typeof page.jiraService.enrichPullRequests === "function") {
                     page.jiraService.enrichPullRequests(page.selectedIssueKey, details.development.pullRequests);
+                }
+                if (details.development && details.development.branches && details.development.branches.length > 0 && page.jiraService && typeof page.jiraService.enrichBranches === "function") {
+                    console.log("[ Development ] calling enrichBranches branches=" + details.development.branches.length);
+                    page.jiraService.enrichBranches(page.selectedIssueKey, details.development.branches);
                 }
             } finally {
                 page.isDetailsLoading = false;
@@ -908,6 +945,14 @@ Kirigami.Page {
         function onDevelopmentEnriched(issueKey, enrichedList) {
             if (issueKey && issueKey === page.selectedIssueKey && page.detailPane) {
                 page.detailPane.enrichedPrs = enrichedList || null;
+            }
+        }
+
+        function onDevelopmentBranchesEnriched(issueKey, enrichedList) {
+            var count = enrichedList ? (Array.isArray(enrichedList) ? enrichedList.length : 0) : 0;
+            console.log("[ Development ] onDevelopmentBranchesEnriched issueKey=" + (issueKey || "") + " count=" + count);
+            if (issueKey && issueKey === page.selectedIssueKey && page.detailPane) {
+                page.detailPane.enrichedBranches = enrichedList || null;
             }
         }
     }

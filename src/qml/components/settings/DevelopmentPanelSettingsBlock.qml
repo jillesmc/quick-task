@@ -47,7 +47,7 @@ Rectangle {
 
         Controls.CheckBox {
             id: developmentPanelGitHubEnrichmentCheckbox
-            text: qsTr("Enriquecer PRs com dados do GitHub (checks, aprovações)")
+            text: qsTr("Enriquecer PRs e branches com dados do GitHub (checks, aprovações, ahead/behind)")
             Layout.fillWidth: true
             checked: false
             onCheckedChanged: {

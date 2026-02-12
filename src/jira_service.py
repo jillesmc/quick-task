@@ -771,6 +771,8 @@ class JiraService(QObject):
     issueDetailsLoaded = Signal("QVariant")  # dict com detalhes da issue
     # Enriquecimento de PRs com dados do GitHub (checks, approvals)
     developmentEnriched = Signal(str, "QVariant")  # issueKey, list of enriched PR dicts
+    # Enriquecimento de branches com ahead/behind do GitHub (compare API)
+    developmentBranchesEnriched = Signal(str, "QVariant")  # issueKey, list of enriched branch dicts
     # Cache de opções de Assets (Valor entregue, Plataformas afetadas)
     assetsCacheLoaded = Signal(bool, str)  # success, message
     # Comentários de issues
@@ -785,15 +787,15 @@ class JiraService(QObject):
     reachedInDevelopment = Signal(str)  # issueKey
     inDevelopmentReady = Signal(str)  # issueKey (para iniciar timer após transição automática)
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, config_manager: Optional[ConfigManager] = None):
         super().__init__(parent)
 
-        # Carregar configuração
+        # Usar ConfigManager compartilhado (SettingsModel) para enrichment, ou criar próprio
         try:
             from src.utils.debug import debug_log
 
             debug_log("JiraService", "__init__", "Carregando configuração...")
-            self._config = ConfigManager()
+            self._config = config_manager if config_manager is not None else ConfigManager()
             debug_log("JiraService", "__init__", "Configuração carregada com sucesso")
         except Exception as e:
             print(f"Erro ao carregar configuração: {e}", file=sys.stderr)
@@ -848,6 +850,7 @@ class JiraService(QObject):
         self._comments_worker: Optional[QThread] = None
         self._attachment_worker: Optional[QThread] = None
         self._development_enrich_worker: Optional[QThread] = None
+        self._development_branches_enrich_worker: Optional[QThread] = None
 
     def get_assets_cache(self) -> Optional[AssetsCacheService]:
         """Retorna o serviço de cache de Assets (para IssueModel e payloads)."""
@@ -2325,6 +2328,20 @@ class JiraService(QObject):
                             dev_info = self._jira_client.get_development_info(
                                 str(issue_id)
                             )
+                            try:
+                                from src.utils.debug import debug_log
+
+                                debug_log(
+                                    "JiraService",
+                                    "_IssueDetailsWorker.run",
+                                    "issue_id=%s dev_info=%s branches=%s pullRequests=%s",
+                                    issue_id,
+                                    bool(dev_info),
+                                    len(dev_info.get("branches", [])) if dev_info else 0,
+                                    len(dev_info.get("pullRequests", [])) if dev_info else 0,
+                                )
+                            except ImportError:
+                                pass
                             issue_data["development"] = dev_info if dev_info else {}
                         else:
                             issue_data["development"] = {}
@@ -2475,6 +2492,145 @@ class JiraService(QObject):
 
         worker.resultReady.connect(_on_enriched)
         worker.finished.connect(_cleanup)
+        worker.start()
+
+    @Slot(str, "QVariant")
+    def enrichBranches(self, issue_key: str, branch_list: Any) -> None:
+        """
+        Enriquece lista de branches com ahead/behind do GitHub (compare API).
+        Emite developmentBranchesEnriched(issue_key, enriched_list).
+        Só executa se github_enrichment estiver ativado.
+        """
+        try:
+            from src.utils.debug import debug_log
+
+            debug_log(
+                "JiraService",
+                "enrichBranches",
+                "issue_key=%s branches_count=%s config=%s github_enrichment=%s",
+                issue_key or "",
+                len(branch_list) if isinstance(branch_list, list) else 0,
+                "ok" if self._config else "null",
+                self._config.development_panel_github_enrichment() if self._config else False,
+            )
+        except ImportError:
+            pass
+        if not issue_key:
+            return
+        branches = branch_list if isinstance(branch_list, list) else []
+        if not branches:
+            return
+        if not self._config or not self._config.development_panel_github_enrichment():
+            return
+        token = (self._config.get_github_token() or "").strip()
+        if not token:
+            return
+        if self._development_branches_enrich_worker and self._development_branches_enrich_worker.isRunning():
+            return
+
+        class _BranchesEnrichWorker(QThread):
+            resultReady = Signal(str, "QVariant")
+
+            def __init__(self, key: str, brs: List[Dict[str, Any]], gh_token: str):
+                super().__init__()
+                self._key = key
+                self._branches = brs
+                self._token = gh_token
+
+            def run(self) -> None:
+                try:
+                    import re
+
+                    try:
+                        import requests
+                    except ImportError:
+                        self.resultReady.emit(self._key, self._branches)
+                        return
+                    headers = {
+                        "Accept": "application/vnd.github.v3+json",
+                        "Authorization": f"token {self._token}",
+                    }
+                    enriched = []
+                    for br in self._branches:
+                        br_url = (br.get("url") or "").strip()
+                        br_name = (br.get("name") or "").strip()
+                        if not br_url or not br_name:
+                            enriched.append(dict(br))
+                            continue
+                        match = re.search(
+                            r"github\.com/([^/]+)/([^/]+)/tree/",
+                            br_url,
+                            re.IGNORECASE,
+                        )
+                        if not match:
+                            enriched.append(dict(br))
+                            continue
+                        owner, repo = match.group(1), match.group(2)
+                        row = dict(br)
+                        for base in ("production", "main", "master"):
+                            try:
+                                r = requests.get(
+                                    f"https://api.github.com/repos/{owner}/{repo}/compare/{base}...{br_name}",
+                                    headers=headers,
+                                    timeout=10,
+                                )
+                                if r.ok:
+                                    data = r.json()
+                                    row["commitsAhead"] = int(
+                                        data.get("ahead_by", 0) or 0
+                                    )
+                                    row["commitsBehind"] = int(
+                                        data.get("behind_by", 0) or 0
+                                    )
+                                    try:
+                                        from src.utils.debug import debug_log
+
+                                        debug_log(
+                                            "JiraService",
+                                            "enrichBranches",
+                                            "branch=%s base=%s ahead=%s behind=%s",
+                                            br_name,
+                                            base,
+                                            row["commitsAhead"],
+                                            row["commitsBehind"],
+                                        )
+                                    except ImportError:
+                                        pass
+                                    break
+                            except Exception:
+                                pass
+                        enriched.append(row)
+                    try:
+                        from src.utils.debug import debug_log
+
+                        debug_log(
+                            "JiraService",
+                            "enrichBranches",
+                            "emitting developmentBranchesEnriched count=%s",
+                            len(enriched),
+                        )
+                    except ImportError:
+                        pass
+                    self.resultReady.emit(self._key, enriched)
+                except Exception:
+                    self.resultReady.emit(self._key, self._branches)
+
+        worker = _BranchesEnrichWorker(
+            issue_key.strip(), list(branches), token
+        )
+        self._development_branches_enrich_worker = worker
+
+        def _on_branches_enriched(key: str, enriched_list: Any) -> None:
+            self.developmentBranchesEnriched.emit(key, enriched_list)
+            if self._development_branches_enrich_worker is worker:
+                self._development_branches_enrich_worker = None
+
+        def _cleanup_br() -> None:
+            if self._development_branches_enrich_worker is worker:
+                self._development_branches_enrich_worker = None
+
+        worker.resultReady.connect(_on_branches_enriched)
+        worker.finished.connect(_cleanup_br)
         worker.start()
 
     @Slot(str, result=str)

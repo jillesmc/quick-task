@@ -53,6 +53,8 @@ Item {
     property var developmentData: null
     /** Lista enriquecida de PRs (checks, approvals) quando disponível; definida externamente ao receber developmentEnriched. */
     property var enrichedPrs: null
+    /** Lista enriquecida de branches (ahead/behind do GitHub) quando github_enrichment ativo; definida ao receber developmentBranchesEnriched. */
+    property var enrichedBranches: null
     /** Serviço GitHub (para criar branch no painel de Development). */
     property var githubService: null
 
@@ -119,6 +121,7 @@ Item {
         }
         pane.developmentData = null;
         pane.enrichedPrs = null;
+        pane.enrichedBranches = null;
     }
 
     function setDetails(details) {
@@ -139,9 +142,14 @@ Item {
         if (details.hasOwnProperty("development") && details.development && typeof details.development === "object") {
             pane.developmentData = details.development;
             pane.enrichedPrs = null;
+            pane.enrichedBranches = null;
+            var branchesLen = details.development.branches ? details.development.branches.length : 0;
+            var prsLen = details.development.pullRequests ? details.development.pullRequests.length : 0;
+            console.log("[ Development ] setDetails developmentData: present branches:" + branchesLen + " prs:" + prsLen);
         } else {
             pane.developmentData = null;
             pane.enrichedPrs = null;
+            console.log("[ Development ] setDetails developmentData: null");
         }
         if (details.parentKey) {
             var parentKey = String(details.parentKey || "");
@@ -191,45 +199,14 @@ Item {
                     Layout.minimumHeight: 150
                     spacing: 0
 
-                    RowLayout {
-                        Layout.fillWidth: true
-                        // Layout.margins: 20
-                        // Layout.bottomMargin: 5
-
-                        Kirigami.Heading {
-                            text: qsTr("Atualizar Task")
-                            level: 3
-                            Layout.fillWidth: true
-                        }
-
-                        Controls.Label {
-                            id: taskLinkLabel
-                            text: pane.selectedIssueKey || ""
-                            color: Kirigami.Theme.linkColor
-                            visible: pane.selectedIssueKey !== ""
-                            MouseArea {
-                                anchors.fill: parent
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: {
-                                    if (pane.jiraService && pane.selectedIssueKey && typeof pane.jiraService.getIssueUrl === 'function') {
-                                        var url = pane.jiraService.getIssueUrl(pane.selectedIssueKey);
-                                        if (url) {
-                                            Qt.openUrlExternally(url);
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    DevelopmentPanel {
+                    DevelopmentHeaderBar {
                         Layout.fillWidth: true
                         developmentData: pane.developmentData
                         enrichedPrs: pane.enrichedPrs
+                        enrichedBranches: pane.enrichedBranches
                         issueKey: pane.selectedIssueKey
                         issueSummary: pane.issueModel ? pane.issueModel.summary : ""
                         jiraService: pane.jiraService
-                        githubService: pane.githubService
                     }
 
                     ColumnLayout {
