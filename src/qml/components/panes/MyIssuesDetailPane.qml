@@ -225,10 +225,24 @@ Item {
                                 font.bold: true
                                 Layout.fillWidth: true
                             }
+                        }
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: Kirigami.Units.smallSpacing
+
+                            Controls.TextField {
+                                id: summaryFieldTab2
+                                Layout.fillWidth: true
+                                enabled: pane.selectedIssueKey !== "" && !pane.isProcessing
+                                text: pane.issueModel ? pane.issueModel.summary : ""
+                                onTextChanged: if (pane.issueModel)
+                                    pane.issueModel.summary = text
+                            }
 
                             Controls.ToolButton {
                                 visible: pane.voiceInputAvailable && pane.selectedIssueKey !== ""
-                                icon.name: "edit-find"
+                                icon.name: "tools-wizard"
                                 text: qsTr("Expandir com IA")
                                 enabled: !pane.isProcessing && !(pane.voiceInputService && pane.voiceInputService.isExpanding) && (summaryFieldTab2.text || descriptionFieldTab2.text)
                                 onClicked: {
@@ -241,15 +255,6 @@ Item {
                                     }
                                 }
                             }
-                        }
-
-                        Controls.TextField {
-                            id: summaryFieldTab2
-                            Layout.fillWidth: true
-                            enabled: pane.selectedIssueKey !== "" && !pane.isProcessing
-                            text: pane.issueModel ? pane.issueModel.summary : ""
-                            onTextChanged: if (pane.issueModel)
-                                pane.issueModel.summary = text
                         }
                     }
 

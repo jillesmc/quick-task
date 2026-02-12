@@ -226,9 +226,23 @@ Kirigami.Page {
                                         }
                                     }
                                 }
+                            }
+
+                            RowLayout {
+                                Layout.fillWidth: true
+                                spacing: Kirigami.Units.smallSpacing
+
+                                Controls.TextField {
+                                    id: summaryField
+                                    Layout.fillWidth: true
+                                    enabled: !page.isProcessing
+                                    text: page.issueModel ? page.issueModel.summary : ""
+                                    onTextChanged: if (page.issueModel) page.issueModel.summary = text
+                                }
+
                                 Controls.ToolButton {
                                     visible: page._ctxVoiceInputService !== null && page._ctxVoiceInputService.isAvailable()
-                                    icon.name: "edit-find"
+                                    icon.name: "tools-wizard"
                                     text: qsTr("Expandir com IA")
                                     enabled: !page.isProcessing && page.issueModel && (page.issueModel.summary || page.issueModel.description)
                                     onClicked: {
@@ -241,14 +255,6 @@ Kirigami.Page {
                                         }
                                     }
                                 }
-                            }
-
-                            Controls.TextField {
-                                id: summaryField
-                                Layout.fillWidth: true
-                                enabled: !page.isProcessing
-                                text: page.issueModel ? page.issueModel.summary : ""
-                                onTextChanged: if (page.issueModel) page.issueModel.summary = text
                             }
                         }
 
