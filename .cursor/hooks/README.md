@@ -2,20 +2,23 @@
 
 Este diretório contém hooks do Cursor para automação durante o desenvolvimento.
 
-## Hook: run-tests.sh
+## Hook: run-validation.sh
 
-**Quando executa:** Após qualquer edição de arquivo Python (`.py`)
+**Quando executa:** Após edição de arquivo Python (`.py`) ou QML (`.qml`)
 
-**O que faz:** Executa `make dev-test` automaticamente quando arquivos Python são editados.
+**O que faz:**
+- Arquivos `.py` → executa `make dev-test`
+- Arquivos `.qml` → executa `make qml-lint`
+- Outros arquivos → não executa nada
 
 **Como funciona:**
-- Detecta quando um arquivo `.py` é editado
+- Detecta o tipo de arquivo editado pelo payload (file_path)
 - Aguarda 1 segundo para agrupar múltiplas edições rápidas
-- Executa `make dev-test` em background (não bloqueia o Cursor)
+- Executa o comando apropriado em background (não bloqueia o Cursor)
 - Mostra resultado nos logs do Cursor
 
 **Logs:**
-- Saída completa: `/tmp/cursor-test-output.log`
+- Saída completa: `/tmp/cursor-validation-output.log`
 - Mensagens no Cursor: aparecem no canal de saída "Hooks"
 
 **Desabilitar temporariamente:**
@@ -23,5 +26,5 @@ Este diretório contém hooks do Cursor para automação durante o desenvolvimen
 - Ou renomear o script para não ser executável
 
 **Requisitos:**
-- `make dev-test` deve estar configurado no `Makefile`
-- Docker deve estar rodando (para `make dev-test`)
+- `make dev-test` e `make qml-lint` devem estar configurados no `Makefile`
+- Docker deve estar rodando (para ambos os comandos)

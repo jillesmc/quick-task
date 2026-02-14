@@ -2,9 +2,7 @@
   "version": 1,
   "hooks": {
     "afterFileEdit": [
-      {
-        "command": ".cursor/hooks/run-tests.sh"
-      }
+      {"command": ".cursor/hooks/run-validation.sh"}
     ]
   }
 }

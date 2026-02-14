@@ -1,24 +1,23 @@
 ---
-description: Convenções Python, PySide6 e integração com QML no jira-quick-task
-globs: "**/*.py"
-alwaysApply: false
+name: jira-quick-task-backend
+description: Lógica Python, PySide6, models, services, Jira API, config. Use ao editar src/**/*.py, core/**/*.py, config/**/*.py ou quando o usuário pedir alterações de backend.
 ---
 
-# Python / PySide6 / QML
+# Backend Python no jira-quick-task
 
-## Estrutura do projeto
+## Escopo
 
 - **config/**: `ConfigManager`, exemplos em `config.json.example` e `.jira-config.yml.example`.
 - **core/**: `JiraClient` (REST API v3), `status_transition`. Sem PySide6.
 - **src/**: app PySide6, serviços (QObject), models (Property/Signal para QML), `src/qml/` (QML).
 
-## Models expostos ao QML
+## Convenções PySide6
 
 - Usar `PySide6.QtCore`: `QObject`, `Property`, `Signal`, `Slot`.
 - Propriedade: `nomeChanged = Signal(tipo)` e `@Property(tipo, notify=nomeChanged)`; setter em Python com `_nome` e `nomeChanged.emit()`.
 - Nomes em camelCase nas propriedades QML (ex: `tipoAtividade`, `statusInicial`).
 
-## Configuração e paths
+## ConfigManager e paths
 
 - Config: `ConfigManager()` usa `config.json` e `.jira-config.yml` (paths por ambiente; Flatpak: `~/.var/app/org.kde.jira-quick-task/config/jira-quick-task/`).
 - Não depender de variáveis de ambiente para Jira; configuração via UI.
@@ -27,11 +26,8 @@ alwaysApply: false
 
 - `src.utils.debug.debug_log(module, function, message)`; ativar com `--debug` ou `JIRA_QUICK_TASK_DEBUG=1`. Formato: `[DEBUG] Module.function: message`.
 
-## Testes e execução
+## Testes
 
-- Testes: `make dev-test` (Docker). Fixtures em `tests/conftest.py`: `sample_config`, `temp_config_file`, `config_manager`, `mock_jira_client`, `mock_config_manager`.
+- **Sempre** rodar `make dev-test` ao concluir alterações em Python. Se falhar, analisar o output, corrigir e rodar novamente até passar.
+- Testes vivem em `tests/`; fixtures em `tests/conftest.py` (ver skill `jira-quick-task-tests`).
 - Formatar: `make dev-format` (black em src/, core/, config/, tests/).
-
-## Validação ao concluir
-
-Ao concluir alterações em Python: rodar `make dev-test`. Se falhar, analisar o output, corrigir e rodar novamente até passar antes de finalizar.

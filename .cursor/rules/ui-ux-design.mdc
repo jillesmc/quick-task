@@ -1,0 +1,18 @@
+---
+description: Princípios de design, acessibilidade e consistência visual no jira-quick-task
+globs: "**/*.qml"
+alwaysApply: false
+---
+
+# UI/UX Design
+
+## Princípios
+
+- **Clareza**: hierarquia visual clara, feedback ao usuário imediato.
+- **Consistência**: seguir padrões Kirigami e componentes existentes.
+- **Acessibilidade**: labels, contraste adequado, ordem de foco lógica.
+
+## Kirigami
+
+- Usar componentes Kirigami para cards, formulários, navegação.
+- Manter consistência com o resto do app.

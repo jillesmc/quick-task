@@ -1,10 +1,9 @@
 ---
-description: Padrões QML e Kirigami 6 no jira-quick-task
-globs: "**/*.qml"
-alwaysApply: false
+name: jira-quick-task-frontend-qml
+description: QML, Kirigami 6, componentes, bindings, integração com models Python. Use ao editar src/qml/**/*.qml ou quando o usuário pedir alterações de interface.
 ---
 
-# QML / Kirigami 6
+# Frontend Qt6 QML no jira-quick-task
 
 ## Imports padrão
 
@@ -27,8 +26,5 @@ alwaysApply: false
 
 ## Lint
 
-- Rodar `make qml-lint` (usa qmllint dentro do Docker com QML_IMPORT_PATH correto). Não assumir qmllint no host.
-
-## Validação ao concluir
-
-Ao concluir alterações em QML: rodar `make qml-lint`. Se falhar, analisar os erros, corrigir e rodar novamente até passar antes de finalizar.
+- **Sempre** rodar `make qml-lint` ao concluir alterações em QML. Se falhar, analisar os erros, corrigir e rodar novamente até passar.
+- Usar qmllint dentro do Docker com QML_IMPORT_PATH correto. Não assumir qmllint no host.
