@@ -43,8 +43,8 @@ Kirigami.Page {
     // Estado de carregamento dos detalhes da issue (parte inferior)
     property bool isDetailsLoading: false
 
-    // Flag para controlar busca automática inicial (apenas uma vez)
-    property bool initialSearchDone: false
+    // Cache: true = já houve busca (mesmo vazia); evita recarregar ao trocar de aba
+    property bool hasCachedData: false
 
     // Recebidos do Main (passados explicitamente)
     property var issueModel: null
@@ -237,6 +237,7 @@ Kirigami.Page {
                     }
                 } else {
                     Qt.callLater(function () {
+                        if (page.myIssuesModel) page.hasCachedData = true;
                         if (page._processDialog) {
                             page._processDialog.updateProgress(100, qsTr("Busca concluída!"));
                             Qt.callLater(function () {
@@ -268,6 +269,7 @@ Kirigami.Page {
                     }
                 } else {
                     Qt.callLater(function () {
+                        if (page.myIssuesModel) page.hasCachedData = true;
                         if (page.searchProgressDialog) {
                             page.searchProgressDialog.updateProgress(100, qsTr("Busca concluída!"));
                             Qt.callLater(function () {
@@ -286,6 +288,19 @@ Kirigami.Page {
             if (page.myIssuesModel) {
                 page.myIssuesModel.loadingChanged.connect(loadingConnection);
             }
+        }
+
+        // Se showProgress=false (background), conectar para setar hasCachedData ao concluir
+        if (!showProgressDialog && page.myIssuesModel) {
+            var cacheConnection = function (isLoading) {
+                if (!isLoading) {
+                    page.hasCachedData = true;
+                    if (page.myIssuesModel) {
+                        page.myIssuesModel.loadingChanged.disconnect(cacheConnection);
+                    }
+                }
+            };
+            page.myIssuesModel.loadingChanged.connect(cacheConnection);
         }
 
         // Iniciar busca
@@ -379,9 +394,11 @@ Kirigami.Page {
                     if (page._processDialog) {
                         page._processDialog.transitionToSuccess(issueKey, "", true);
                     }
-                    if (page.issueSearchForm) {
-                        var query = page.issueSearchForm.getQuery();
-                        page.refreshIssues(query);
+                    // Atualizar item na lista em memória (não refazer busca)
+                    var summary = (page.issueModel && page.issueModel.summary) ? page.issueModel.summary : "";
+                    var status = (page.issueModel && page.issueModel.statusInicial) ? page.issueModel.statusInicial : "";
+                    if (page.myIssuesModel && issueKey && typeof page.myIssuesModel.updateIssueInList === "function") {
+                        page.myIssuesModel.updateIssueInList(issueKey, summary, status);
                     }
                 });
 
@@ -528,9 +545,11 @@ Kirigami.Page {
                 page.isProcessing = false;
                 page._isTwoPhaseTransition = false;
                 page._processDialog.transitionToSuccess(issueKey, "", true);
-                if (page.issueSearchForm) {
-                    var query = page.issueSearchForm.getQuery();
-                    page.refreshIssues(query);
+                // Atualizar item na lista em memória (não refazer busca)
+                var summary = (page.issueModel && page.issueModel.summary) ? page.issueModel.summary : "";
+                var status = (page.issueModel && page.issueModel.statusInicial) ? page.issueModel.statusInicial : "";
+                if (page.myIssuesModel && issueKey && typeof page.myIssuesModel.updateIssueInList === "function") {
+                    page.myIssuesModel.updateIssueInList(issueKey, summary, status);
                 }
             }
         }

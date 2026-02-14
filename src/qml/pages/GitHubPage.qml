@@ -26,14 +26,20 @@ Kirigami.Page {
     property var prsRequestedForUser: []
     property var prsRequestedForTeam: []
     property var issues: []
-    property bool isLoading: false
-    property string errorMessage: ""
+    property bool isLoadingPRs: false
+    property bool isLoadingIssues: false
+    property string errorMessagePRs: ""
+    property string errorMessageIssues: ""
+    property bool hasCachedData: false
 
     function reload() {
         if (!page.githubService) return;
-        page.errorMessage = "";
-        page.isLoading = true;
-        page.githubService.loadItems();
+        page.errorMessagePRs = "";
+        page.errorMessageIssues = "";
+        page.isLoadingPRs = true;
+        page.isLoadingIssues = true;
+        page.githubService.loadPRs();
+        page.githubService.loadIssues();
     }
 
     function buildTitleAndDescription(item) {
@@ -75,7 +81,7 @@ Kirigami.Page {
         Kirigami.Action {
             text: qsTr("Atualizar")
             icon.name: "view-refresh"
-            enabled: page.githubService && page.githubService.available && !page.isLoading
+            enabled: page.githubService && page.githubService.available && !page.isLoadingPRs && !page.isLoadingIssues
             onTriggered: page.reload()
         }
     ]
@@ -83,18 +89,31 @@ Kirigami.Page {
     Connections {
         target: page.githubService || null
 
-        function onDataReady(data) {
-            if (!data) return;
-            page.prsRequestedForUser = data.prsRequestedForUser || [];
-            page.prsRequestedForTeam = data.prsRequestedForTeam || [];
-            page.issues = data.issues || [];
-            page.isLoading = false;
-            page.errorMessage = "";
+        function onPrsReady(prsUser, prsTeam) {
+            page.prsRequestedForUser = prsUser || [];
+            page.prsRequestedForTeam = prsTeam || [];
+            page.isLoadingPRs = false;
+            page.errorMessagePRs = "";
+            if (page.isLoadingIssues === false) page.hasCachedData = true;
         }
 
-        function onErrorOccurred(msg) {
-            page.isLoading = false;
-            page.errorMessage = msg || qsTr("Erro ao carregar.");
+        function onPrsErrorOccurred(msg) {
+            page.isLoadingPRs = false;
+            page.errorMessagePRs = msg || qsTr("Erro ao carregar PRs.");
+            if (page.isLoadingIssues === false) page.hasCachedData = true;
+        }
+
+        function onIssuesReady(issuesList) {
+            page.issues = issuesList || [];
+            page.isLoadingIssues = false;
+            page.errorMessageIssues = "";
+            if (page.isLoadingPRs === false) page.hasCachedData = true;
+        }
+
+        function onIssuesErrorOccurred(msg) {
+            page.isLoadingIssues = false;
+            page.errorMessageIssues = msg || qsTr("Erro ao carregar issues.");
+            if (page.isLoadingPRs === false) page.hasCachedData = true;
         }
     }
 
@@ -102,20 +121,6 @@ Kirigami.Page {
         anchors.fill: parent
         anchors.margins: Kirigami.Units.largeSpacing
         spacing: Kirigami.Units.mediumSpacing
-
-        Controls.Label {
-            Layout.fillWidth: true
-            visible: page.errorMessage.length > 0
-            text: page.errorMessage
-            color: Kirigami.Theme.negativeTextColor
-            wrapMode: Text.WordWrap
-        }
-
-        Controls.BusyIndicator {
-            Layout.alignment: Qt.AlignHCenter
-            running: page.isLoading
-            visible: page.isLoading
-        }
 
         Controls.Label {
             Layout.fillWidth: true
@@ -128,7 +133,7 @@ Kirigami.Page {
         Controls.SplitView {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            visible: page.githubService && page.githubService.available && !page.isLoading
+            visible: page.githubService && page.githubService.available
             handle: SplitViewHandle { }
 
             // Coluna esquerda: PRs (review para você + review para o time)
@@ -146,13 +151,27 @@ Kirigami.Page {
                     width: leftScroll.availableWidth
                     spacing: Kirigami.Units.largeSpacing
 
+                    Controls.BusyIndicator {
+                        Layout.alignment: Qt.AlignHCenter
+                        running: page.isLoadingPRs
+                        visible: page.isLoadingPRs
+                    }
+                    Controls.Label {
+                        Layout.fillWidth: true
+                        visible: page.errorMessagePRs.length > 0
+                        text: page.errorMessagePRs
+                        color: Kirigami.Theme.negativeTextColor
+                        wrapMode: Text.WordWrap
+                    }
+
                     Kirigami.Heading {
                         level: 4
                         text: qsTr("PRs — Review solicitado a você")
                         Layout.fillWidth: true
-                        visible: page.prsRequestedForUser.length > 0
+                        visible: !page.isLoadingPRs && page.prsRequestedForUser.length > 0
                     }
                     Repeater {
+                        visible: !page.isLoadingPRs
                         model: page.prsRequestedForUser
                         delegate: Item {
                             required property var modelData
@@ -168,18 +187,18 @@ Kirigami.Page {
                     }
                     Item {
                         Layout.preferredHeight: 1
-                        visible: page.prsRequestedForUser.length === 0 && page.prsRequestedForTeam.length === 0
+                        visible: !page.isLoadingPRs && page.prsRequestedForUser.length === 0 && page.prsRequestedForTeam.length === 0
                     }
                     Controls.Label {
                         text: qsTr("Nenhum PR com review solicitado a você.")
                         color: Kirigami.Theme.disabledTextColor
-                        visible: page.prsRequestedForUser.length === 0 && page.prsRequestedForTeam.length > 0
+                        visible: !page.isLoadingPRs && page.prsRequestedForUser.length === 0 && page.prsRequestedForTeam.length > 0
                         Layout.fillWidth: true
                     }
                     Controls.Label {
                         text: qsTr("Nenhum PR encontrado.")
                         color: Kirigami.Theme.disabledTextColor
-                        visible: page.prsRequestedForUser.length === 0 && page.prsRequestedForTeam.length === 0
+                        visible: !page.isLoadingPRs && page.prsRequestedForUser.length === 0 && page.prsRequestedForTeam.length === 0
                         Layout.fillWidth: true
                     }
 
@@ -188,9 +207,10 @@ Kirigami.Page {
                         text: qsTr("PRs — Review solicitado ao time")
                         Layout.fillWidth: true
                         Layout.topMargin: Kirigami.Units.largeSpacing
-                        visible: page.prsRequestedForTeam.length > 0
+                        visible: !page.isLoadingPRs && page.prsRequestedForTeam.length > 0
                     }
                     Repeater {
+                        visible: !page.isLoadingPRs
                         model: page.prsRequestedForTeam
                         delegate: Item {
                             required property var modelData
@@ -224,12 +244,27 @@ Kirigami.Page {
                     width: rightScroll.availableWidth
                     spacing: Kirigami.Units.largeSpacing
 
+                    Controls.BusyIndicator {
+                        Layout.alignment: Qt.AlignHCenter
+                        running: page.isLoadingIssues
+                        visible: page.isLoadingIssues
+                    }
+                    Controls.Label {
+                        Layout.fillWidth: true
+                        visible: page.errorMessageIssues.length > 0
+                        text: page.errorMessageIssues
+                        color: Kirigami.Theme.negativeTextColor
+                        wrapMode: Text.WordWrap
+                    }
+
                     Kirigami.Heading {
                         level: 4
                         text: qsTr("Issues (atribuídas a mim)")
                         Layout.fillWidth: true
+                        visible: !page.isLoadingIssues
                     }
                     Repeater {
+                        visible: !page.isLoadingIssues
                         model: page.issues
                         delegate: Item {
                             required property var modelData
@@ -247,7 +282,7 @@ Kirigami.Page {
                     Controls.Label {
                         text: qsTr("Nenhuma issue atribuída.")
                         color: Kirigami.Theme.disabledTextColor
-                        visible: page.issues.length === 0
+                        visible: !page.isLoadingIssues && page.issues.length === 0
                         Layout.fillWidth: true
                     }
                 }

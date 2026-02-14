@@ -54,18 +54,13 @@ def _normalize_item(
     return out
 
 
-class GitHubLoadWorker(QThread):
-    """Worker thread to fetch PRs (review requested for user, then for teams) and Issues."""
+class GitHubLoadPRsWorker(QThread):
+    """Worker to fetch PRs (review requested for user, then for teams)."""
 
-    dataLoaded = Signal(dict)  # { prsRequestedForUser, prsRequestedForTeam, issues }
+    prsReady = Signal(list, list)  # prsUser, prsTeam
     errorOccurred = Signal(str)
 
-    def __init__(
-        self,
-        token: str,
-        username: str,
-        parent=None,
-    ):
+    def __init__(self, token: str, username: str, parent=None):
         super().__init__(parent)
         self._token = (token or "").strip()
         self._username = (username or "").strip()
@@ -80,24 +75,18 @@ class GitHubLoadWorker(QThread):
         if not self._username:
             self.errorOccurred.emit("Configure o username do GitHub nas configurações.")
             return
-
         headers = {
             "Accept": "application/vnd.github.v3+json",
             "Authorization": f"token {self._token}",
         }
         session = requests.Session()
         session.headers.update(headers)
-
-        # 1) PRs where I'm explicitly requested (user-review-requested = direct, not via team)
         pr_user_query = f"is:pr is:open user-review-requested:{self._username}"
         prs_user, err = _fetch_search_issues(session, pr_user_query, "pr", "user")
         if err:
             self.errorOccurred.emit(err)
             return
-
         user_urls = {it["url"] for it in prs_user}
-
-        # 2) PRs where a team I'm in is requested (team-review-requested:org/slug)
         prs_team: List[Dict[str, Any]] = []
         teams, teams_err = _get_user_teams(session)
         if not teams_err and teams:
@@ -113,14 +102,97 @@ class GitHubLoadWorker(QThread):
                     if it["url"] not in user_urls:
                         prs_team.append(it)
                         user_urls.add(it["url"])
+        self.prsReady.emit(prs_user, prs_team)
 
-        # 3) Issues assigned to me
+
+class GitHubLoadIssuesWorker(QThread):
+    """Worker to fetch Issues assigned to me."""
+
+    issuesReady = Signal(list)
+    errorOccurred = Signal(str)
+
+    def __init__(self, token: str, username: str, parent=None):
+        super().__init__(parent)
+        self._token = (token or "").strip()
+        self._username = (username or "").strip()
+
+    def run(self) -> None:
+        if not requests:
+            self.errorOccurred.emit("Biblioteca 'requests' não instalada.")
+            return
+        if not self._token:
+            self.errorOccurred.emit("Configure o token do GitHub nas configurações.")
+            return
+        if not self._username:
+            self.errorOccurred.emit("Configure o username do GitHub nas configurações.")
+            return
+        headers = {
+            "Accept": "application/vnd.github.v3+json",
+            "Authorization": f"token {self._token}",
+        }
+        session = requests.Session()
+        session.headers.update(headers)
         issue_query = f"is:issue is:open assignee:{self._username}"
         issues, err = _fetch_search_issues(session, issue_query, "issue")
         if err:
             self.errorOccurred.emit(err)
             return
+        self.issuesReady.emit(issues)
 
+
+class GitHubLoadWorker(QThread):
+    """Legacy worker: fetches PRs + Issues in one thread. Used by loadItems()."""
+
+    dataLoaded = Signal(dict)  # { prsRequestedForUser, prsRequestedForTeam, issues }
+    errorOccurred = Signal(str)
+
+    def __init__(self, token: str, username: str, parent=None):
+        super().__init__(parent)
+        self._token = (token or "").strip()
+        self._username = (username or "").strip()
+
+    def run(self) -> None:
+        if not requests:
+            self.errorOccurred.emit("Biblioteca 'requests' não instalada.")
+            return
+        if not self._token:
+            self.errorOccurred.emit("Configure o token do GitHub nas configurações.")
+            return
+        if not self._username:
+            self.errorOccurred.emit("Configure o username do GitHub nas configurações.")
+            return
+        headers = {
+            "Accept": "application/vnd.github.v3+json",
+            "Authorization": f"token {self._token}",
+        }
+        session = requests.Session()
+        session.headers.update(headers)
+        pr_user_query = f"is:pr is:open user-review-requested:{self._username}"
+        prs_user, err = _fetch_search_issues(session, pr_user_query, "pr", "user")
+        if err:
+            self.errorOccurred.emit(err)
+            return
+        user_urls = {it["url"] for it in prs_user}
+        prs_team: List[Dict[str, Any]] = []
+        teams, teams_err = _get_user_teams(session)
+        if not teams_err and teams:
+            for team in teams:
+                org, slug = team.get("org", ""), team.get("slug", "")
+                if not org or not slug:
+                    continue
+                q = f"is:pr is:open team-review-requested:{org}/{slug}"
+                batch, batch_err = _fetch_search_issues(session, q, "pr", "team")
+                if batch_err:
+                    continue
+                for it in batch:
+                    if it["url"] not in user_urls:
+                        prs_team.append(it)
+                        user_urls.add(it["url"])
+        issue_query = f"is:issue is:open assignee:{self._username}"
+        issues, err = _fetch_search_issues(session, issue_query, "issue")
+        if err:
+            self.errorOccurred.emit(err)
+            return
         self.dataLoaded.emit({
             "prsRequestedForUser": prs_user,
             "prsRequestedForTeam": prs_team,
@@ -451,6 +523,10 @@ class GitHubService(QObject):
     itemsLoaded = Signal(list)  # deprecated: combined list for backward compat
     dataReady = Signal("QVariantMap")  # { prsRequestedForUser, prsRequestedForTeam, issues } — use from QML as onDataReady
     errorOccurred = Signal(str)
+    prsReady = Signal(list, list)  # prsUser, prsTeam
+    prsErrorOccurred = Signal(str)
+    issuesReady = Signal(list)
+    issuesErrorOccurred = Signal(str)
     availableChanged = Signal()
     reposSearchResults = Signal(str, list)  # (query_used, list of { full_name, default_branch })
     branchCreated = Signal(str, str, str, str)  # owner, repo, branchName, url
@@ -470,6 +546,8 @@ class GitHubService(QObject):
             injected,
         )
         self._worker: Optional[GitHubLoadWorker] = None
+        self._prs_worker: Optional[GitHubLoadPRsWorker] = None
+        self._issues_worker: Optional[GitHubLoadIssuesWorker] = None
         self._search_repos_worker: Optional[SearchReposWorker] = None
         self._create_branch_worker: Optional[CreateBranchWorker] = None
 
@@ -510,7 +588,45 @@ class GitHubService(QObject):
 
     @Slot()
     def loadItems(self) -> None:
-        """Load PRs (review requested) and Issues (assigned to me) in a background thread."""
+        """Load PRs and Issues in parallel (calls loadPRs + loadIssues)."""
+        self.loadPRs()
+        self.loadIssues()
+
+    @Slot()
+    def loadPRs(self) -> None:
+        """Load PRs (review requested for user, then for teams) in background."""
+        if self._prs_worker and self._prs_worker.isRunning():
+            return
+        token = self._get_token()
+        username = self._get_username()
+        self._prs_worker = GitHubLoadPRsWorker(token, username, parent=self)
+        self._prs_worker.prsReady.connect(self.prsReady.emit)
+        self._prs_worker.errorOccurred.connect(self.prsErrorOccurred.emit)
+        self._prs_worker.finished.connect(self._on_prs_worker_finished)
+        self._prs_worker.start()
+
+    def _on_prs_worker_finished(self) -> None:
+        self._prs_worker = None
+
+    @Slot()
+    def loadIssues(self) -> None:
+        """Load Issues (assigned to me) in background."""
+        if self._issues_worker and self._issues_worker.isRunning():
+            return
+        token = self._get_token()
+        username = self._get_username()
+        self._issues_worker = GitHubLoadIssuesWorker(token, username, parent=self)
+        self._issues_worker.issuesReady.connect(self.issuesReady.emit)
+        self._issues_worker.errorOccurred.connect(self.issuesErrorOccurred.emit)
+        self._issues_worker.finished.connect(self._on_issues_worker_finished)
+        self._issues_worker.start()
+
+    def _on_issues_worker_finished(self) -> None:
+        self._issues_worker = None
+
+    @Slot()
+    def loadItemsLegacy(self) -> None:
+        """Legacy: single worker for PRs+Issues. Used when both needed in one dataReady."""
         if self._worker and self._worker.isRunning():
             return
         token = self._get_token()
@@ -523,7 +639,6 @@ class GitHubService(QObject):
 
     def _on_data_loaded(self, data: dict) -> None:
         self.dataReady.emit(data)
-        # backward compat: combined list
         prs = (data.get("prsRequestedForUser") or []) + (data.get("prsRequestedForTeam") or [])
         self.itemsLoaded.emit(prs + (data.get("issues") or []))
 

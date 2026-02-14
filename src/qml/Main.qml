@@ -188,6 +188,7 @@ Kirigami.ApplicationWindow {
             googleTasksService: root._ctxGoogleTasksService
             googleAuthService: root._ctxGoogleAuthService
             jiraService: root._ctxJiraService
+            issueModel: root._ctxIssueModel
             tabBar: root.tabBar
         }
 
@@ -221,17 +222,20 @@ Kirigami.ApplicationWindow {
         function onCurrentIndexChanged() {
             root.stack.currentIndex = root.tabBar.currentIndex
             if (root.tabBar.currentIndex === 1 && issuesPage) {
-                if (!issuesPage.initialSearchDone) {
-                    issuesPage.initialSearchDone = true
+                if (!issuesPage.hasCachedData) {
+                    var query = issuesPage.issueSearchForm ? issuesPage.issueSearchForm.getQuery() : ""
+                    issuesPage.refreshIssues(query)
                 }
-                var query = issuesPage.issueSearchForm ? issuesPage.issueSearchForm.getQuery() : ""
-                issuesPage.refreshIssues(query)
             }
             if (root.tabBar.currentIndex === 2 && googlePage) {
-                googlePage.reload()
+                if (!googlePage.hasCachedData) {
+                    googlePage.reload()
+                }
             }
             if (root.tabBar.currentIndex === 3 && githubPage) {
-                githubPage.reload()
+                if (!githubPage.hasCachedData) {
+                    githubPage.reload()
+                }
             }
             if (root.tabBar.currentIndex === 4 && pendingWorklogsPage) {
                 pendingWorklogsPage.reloadWorklogs()

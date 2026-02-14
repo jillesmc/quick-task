@@ -139,7 +139,7 @@ RowLayout {
         text: qsTr("Atualizar")
         icon.name: "view-refresh"
         visible: root.currentTabIndex === 3
-        enabled: root.githubPage && root.githubPage.githubService && root.githubPage.githubService.available && !root.githubPage.isLoading
+        enabled: root.githubPage && root.githubPage.githubService && root.githubPage.githubService.available && !root.githubPage.isLoadingPRs && !root.githubPage.isLoadingIssues
         onClicked: {
             if (root.currentTabIndex === 3 && root.githubPage && typeof root.githubPage.reload === "function") {
                 root.githubPage.reload();

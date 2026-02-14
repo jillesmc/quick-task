@@ -299,6 +299,18 @@ class MyIssuesModel(QObject):
             self._search_worker.deleteLater()
             self._search_worker = None
 
+    @Slot(str, str, str)
+    def updateIssueInList(self, issue_key: str, summary: str, status: str) -> None:
+        """
+        Atualiza uma issue na lista em memória pelo key.
+        Usado após update bem-sucedido para evitar nova busca.
+        """
+        for i, issue in enumerate(self._issues):
+            if issue.get("key") == issue_key:
+                self._issues[i] = {**issue, "summary": summary, "status": status}
+                self.issuesChanged.emit()
+                return
+
     @Slot(str, result="QVariant")
     def getIssue(self, key: str) -> Dict[str, Any]:
         """

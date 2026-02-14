@@ -24,14 +24,17 @@ Kirigami.Page {
     property var googleTasksService: null
     property var googleAuthService: null
     property var jiraService: null
+    property var issueModel: null
     property var tabBar: null
 
     property var events: []
     property var tasks: []
     property bool isLoadingCalendar: false
     property bool isLoadingTasks: false
-    property string errorMessage: ""
+    property string errorMessageCalendar: ""
+    property string errorMessageTasks: ""
     property string currentDateStr: ""
+    property bool hasCachedData: false
 
     property bool isLoading: isLoadingCalendar || isLoadingTasks
 
@@ -77,7 +80,8 @@ Kirigami.Page {
     }
 
     function reload() {
-        page.errorMessage = ""
+        page.errorMessageCalendar = ""
+        page.errorMessageTasks = ""
         page.reloadCalendar()
         page.reloadTasks()
     }
@@ -98,21 +102,39 @@ Kirigami.Page {
         page.reloadCalendar()
     }
 
-    // qmllint disable missing-property
-    function openImportCalendarDialog(event) {
-        var item = importCalendarDialogLoader.item
-        if (item && typeof item.openWith === "function") {
-            item.openWith(event, page.jiraService)
+    function formatWorklogStart(isoStart) {
+        if (!isoStart || typeof isoStart !== "string") return ""
+        var s = isoStart.trim()
+        if (s.indexOf("T") >= 0) {
+            var parts = s.split("T")
+            var datePart = parts[0] || ""
+            var timePart = (parts[1] || "00:00:00").replace(/[+-]\d{2}:\d{2}$/, "").split(".")[0]
+            if (timePart.length === 5) timePart += ":00"
+            return datePart + " " + timePart
         }
+        return s + " 00:00:00"
     }
 
-    function openImportTaskDialog(task) {
-        var item = importTaskDialogLoader.item
-        if (item && typeof item.openWith === "function") {
-            item.openWith(task, page.jiraService)
-        }
+    function importEventToJira(event) {
+        if (!page.issueModel || !page.tabBar || !event) return
+        page.issueModel.summary = event.summary || ""
+        page.issueModel.description = event.description || ""
+        page.issueModel.worklogInicio = page.formatWorklogStart(event.start)
+        page.issueModel.worklogDuracao = event.duration_minutes || 30
+        page.issueModel.statusInicial = "IN DEVELOPMENT"
+        page.issueModel.registrarWorklog = true
+        page.tabBar.currentIndex = 0
     }
-    // qmllint enable missing-property
+
+    function importTaskToJira(task) {
+        if (!page.issueModel || !page.tabBar || !task) return
+        var desc = task.notes || ""
+        if (task.list_title) desc = (desc ? desc + "\n\n" : "") + qsTr("Lista: %1").arg(task.list_title)
+        if (task.due) desc = (desc ? desc + "\n" : "") + qsTr("Vencimento: %1").arg(task.due)
+        page.issueModel.summary = task.title || ""
+        page.issueModel.description = desc
+        page.tabBar.currentIndex = 0
+    }
 
     Component.onCompleted: {
         if (!page.currentDateStr) {
@@ -138,16 +160,19 @@ Kirigami.Page {
         function onEventsReady(list) {
             page.events = list || []
             page.isLoadingCalendar = false
+            page.errorMessageCalendar = ""
+            page.hasCachedData = true
         }
 
         function onErrorOccurred(msg) {
             page.isLoadingCalendar = false
-            page.errorMessage = msg || qsTr("Erro ao carregar eventos.")
+            page.errorMessageCalendar = msg || qsTr("Erro ao carregar eventos.")
+            page.hasCachedData = true
         }
 
         function onAuthRequired() {
             page.isLoadingCalendar = false
-            page.errorMessage = qsTr("Autorize o acesso ao Google nas Configurações.")
+            page.errorMessageCalendar = qsTr("Autorize o acesso ao Google nas Configurações.")
         }
     }
 
@@ -157,16 +182,19 @@ Kirigami.Page {
         function onTasksReady(list) {
             page.tasks = list || []
             page.isLoadingTasks = false
+            page.errorMessageTasks = ""
+            page.hasCachedData = true
         }
 
         function onErrorOccurred(msg) {
             page.isLoadingTasks = false
-            page.errorMessage = msg || qsTr("Erro ao carregar tarefas.")
+            page.errorMessageTasks = msg || qsTr("Erro ao carregar tarefas.")
+            page.hasCachedData = true
         }
 
         function onAuthRequired() {
             page.isLoadingTasks = false
-            page.errorMessage = qsTr("Autorize o acesso ao Google nas Configurações.")
+            page.errorMessageTasks = qsTr("Autorize o acesso ao Google nas Configurações.")
         }
     }
 
@@ -177,30 +205,16 @@ Kirigami.Page {
 
         Controls.Label {
             Layout.fillWidth: true
-            visible: page.errorMessage.length > 0
-            text: page.errorMessage
-            color: Kirigami.Theme.negativeTextColor
-            wrapMode: Text.WordWrap
-        }
-
-        Controls.Label {
-            Layout.fillWidth: true
             visible: !page.googleAuthService || !page.googleAuthService.isAuthorized
             text: qsTr("Configure e autorize o Google OAuth nas Configurações para acessar Calendar e Tasks.")
             color: Kirigami.Theme.disabledTextColor
             wrapMode: Text.WordWrap
         }
 
-        Controls.BusyIndicator {
-            Layout.alignment: Qt.AlignHCenter
-            running: page.isLoading
-            visible: page.isLoading
-        }
-
         Controls.SplitView {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            visible: page.googleAuthService && page.googleAuthService.isAuthorized && !page.isLoading
+            visible: page.googleAuthService && page.googleAuthService.isAuthorized
             handle: SplitViewHandle { }
 
             // Coluna esquerda: Google Calendar
@@ -218,15 +232,31 @@ Kirigami.Page {
                     width: leftScroll.availableWidth
                     spacing: Kirigami.Units.largeSpacing
 
+                    Controls.BusyIndicator {
+                        Layout.alignment: Qt.AlignHCenter
+                        running: page.isLoadingCalendar
+                        visible: page.isLoadingCalendar
+                    }
+
+                    Controls.Label {
+                        Layout.fillWidth: true
+                        visible: !page.isLoadingCalendar && page.errorMessageCalendar.length > 0
+                        text: page.errorMessageCalendar
+                        color: Kirigami.Theme.negativeTextColor
+                        wrapMode: Text.WordWrap
+                    }
+
                     Kirigami.Heading {
                         level: 4
                         text: qsTr("Calendar — Eventos do dia")
                         Layout.fillWidth: true
+                        visible: !page.isLoadingCalendar
                     }
 
                     RowLayout {
                         Layout.fillWidth: true
                         spacing: Kirigami.Units.smallSpacing
+                        visible: !page.isLoadingCalendar
 
                         Controls.Button {
                             icon.name: "arrow-left"
@@ -250,6 +280,7 @@ Kirigami.Page {
 
                     Repeater {
                         model: page.events
+                        visible: !page.isLoadingCalendar
                         delegate: Item {
                             required property var modelData
                             Layout.fillWidth: true
@@ -258,7 +289,7 @@ Kirigami.Page {
                                 id: eventDelegate
                                 itemData: parent.modelData
                                 width: parent.width - Kirigami.Units.smallSpacing * 2
-                                onImportRequested: (item) => page.openImportCalendarDialog(item)
+                                onImportRequested: (item) => page.importEventToJira(item)
                             }
                         }
                     }
@@ -266,7 +297,7 @@ Kirigami.Page {
                     Controls.Label {
                         text: qsTr("Nenhum evento neste dia.")
                         color: Kirigami.Theme.disabledTextColor
-                        visible: page.events.length === 0
+                        visible: !page.isLoadingCalendar && page.events.length === 0
                         Layout.fillWidth: true
                     }
                 }
@@ -287,14 +318,30 @@ Kirigami.Page {
                     width: rightScroll.availableWidth
                     spacing: Kirigami.Units.largeSpacing
 
+                    Controls.BusyIndicator {
+                        Layout.alignment: Qt.AlignHCenter
+                        running: page.isLoadingTasks
+                        visible: page.isLoadingTasks
+                    }
+
+                    Controls.Label {
+                        Layout.fillWidth: true
+                        visible: !page.isLoadingTasks && page.errorMessageTasks.length > 0
+                        text: page.errorMessageTasks
+                        color: Kirigami.Theme.negativeTextColor
+                        wrapMode: Text.WordWrap
+                    }
+
                     Kirigami.Heading {
                         level: 4
                         text: qsTr("Tasks — Tarefas pendentes")
                         Layout.fillWidth: true
+                        visible: !page.isLoadingTasks
                     }
 
                     Repeater {
                         model: page.tasks
+                        visible: !page.isLoadingTasks
                         delegate: Item {
                             required property var modelData
                             Layout.fillWidth: true
@@ -303,7 +350,7 @@ Kirigami.Page {
                                 id: taskDelegate
                                 itemData: parent.modelData
                                 width: parent.width - Kirigami.Units.smallSpacing * 2
-                                onImportRequested: (item) => page.openImportTaskDialog(item)
+                                onImportRequested: (item) => page.importTaskToJira(item)
                             }
                         }
                     }
@@ -311,7 +358,7 @@ Kirigami.Page {
                     Controls.Label {
                         text: qsTr("Nenhuma tarefa pendente.")
                         color: Kirigami.Theme.disabledTextColor
-                        visible: page.tasks.length === 0
+                        visible: !page.isLoadingTasks && page.tasks.length === 0
                         Layout.fillWidth: true
                     }
                 }
@@ -319,20 +366,4 @@ Kirigami.Page {
         }
     }
 
-    Loader {
-        id: importCalendarDialogLoader
-        active: true
-        source: "../components/dialogs/ImportCalendarEventDialog.qml"
-        onLoaded: {
-            if (item) {
-                item.jiraService = Qt.binding(function() { return page.jiraService })
-            }
-        }
-    }
-
-    Loader {
-        id: importTaskDialogLoader
-        active: true
-        source: "../components/dialogs/ImportTaskDialog.qml"
-    }
 }
