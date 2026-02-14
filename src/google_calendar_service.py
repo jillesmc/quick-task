@@ -62,6 +62,7 @@ class GoogleCalendarLoadWorker(QThread):
                     timeMax=time_max,
                     singleEvents=True,
                     orderBy="startTime",
+                    eventTypes=["default"],
                 )
                 .execute()
             )
