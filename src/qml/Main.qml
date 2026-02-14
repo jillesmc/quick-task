@@ -59,8 +59,8 @@ Kirigami.ApplicationWindow {
             // #endregion
             if (root.stack && root.tabBar && root._ctxSettingsModel) {
                 if (root._ctxSettingsModel.needsConfiguration || !root._ctxSettingsModel.isConfigured) {
-                    root.stack.currentIndex = 3
-                    root.tabBar.currentIndex = 3
+                    root.stack.currentIndex = 5
+                    root.tabBar.currentIndex = 5
                     if (typeof root._ctxDebugLog !== "undefined" && root._ctxDebugLog && typeof root._ctxDebugLog.log === "function") {
                         root._ctxDebugLog.log("Main.qml:callLater2", "set index 3")
                     }
@@ -89,9 +89,10 @@ Kirigami.ApplicationWindow {
     property var _ctxMyIssuesModel: myIssuesModel // qmllint disable unqualified
     property var _ctxWorklogSyncService: worklogSyncService // qmllint disable unqualified
     property var _ctxGitHubService: githubService // qmllint disable unqualified
-    property var _ctxGoogleCalendarService: googleCalendarService // qmllint disable unqualified
-    property var _ctxGoogleTasksService: googleTasksService // qmllint disable unqualified
-    property var _ctxGoogleAuthService: googleAuthService // qmllint disable unqualified
+    // Google services: atribuídos via Python após load (Opção B)
+    property var _ctxGoogleAuthService: null
+    property var _ctxGoogleCalendarService: null
+    property var _ctxGoogleTasksService: null
     property var _ctxClipboardHelper: clipboardHelper // qmllint disable unqualified
     property var hideWindowFn: hideWindow // qmllint disable unqualified
     property var _ctxDebugLog: debugLog // qmllint disable unqualified
@@ -180,30 +181,7 @@ Kirigami.ApplicationWindow {
             }
         }
 
-        // Índice 2: Worklogs Pendentes
-        PendingWorklogsPage {
-            id: pendingWorklogsPage
-            worklogSyncService: root._ctxWorklogSyncService
-            jiraService: root._ctxJiraService
-        }
-
-        // Índice 3: Configuração
-        SettingsPage {
-            id: settingsPage
-            settingsModel: root._ctxSettingsModel
-            jiraService: root._ctxJiraService
-            myIssuesModel: root._ctxMyIssuesModel
-        }
-
-        // Índice 4: GitHub (PRs review required, Issues atribuídas)
-        GitHubPage {
-            id: githubPage
-            githubService: root._ctxGitHubService
-            issueModel: root._ctxIssueModel
-            tabBar: root.tabBar
-        }
-
-        // Índice 5: Google (Calendar + Tasks unificados)
+        // Índice 2: Google (Calendar + Tasks unificados)
         GooglePage {
             id: googlePage
             googleCalendarService: root._ctxGoogleCalendarService
@@ -212,15 +190,36 @@ Kirigami.ApplicationWindow {
             jiraService: root._ctxJiraService
             tabBar: root.tabBar
         }
+
+        // Índice 3: GitHub (PRs review required, Issues atribuídas)
+        GitHubPage {
+            id: githubPage
+            githubService: root._ctxGitHubService
+            issueModel: root._ctxIssueModel
+            tabBar: root.tabBar
+        }
+
+        // Índice 4: Worklogs Pendentes
+        PendingWorklogsPage {
+            id: pendingWorklogsPage
+            worklogSyncService: root._ctxWorklogSyncService
+            jiraService: root._ctxJiraService
+        }
+
+        // Índice 5: Configuração
+        SettingsPage {
+            id: settingsPage
+            settingsModel: root._ctxSettingsModel
+            jiraService: root._ctxJiraService
+            myIssuesModel: root._ctxMyIssuesModel
+            googleAuthService: root._ctxGoogleAuthService
+        }
     }
 
     Connections {
         target: root.tabBar
         function onCurrentIndexChanged() {
             root.stack.currentIndex = root.tabBar.currentIndex
-            if (root.tabBar.currentIndex === 2 && pendingWorklogsPage) {
-                pendingWorklogsPage.reloadWorklogs()
-            }
             if (root.tabBar.currentIndex === 1 && issuesPage) {
                 if (!issuesPage.initialSearchDone) {
                     issuesPage.initialSearchDone = true
@@ -228,11 +227,14 @@ Kirigami.ApplicationWindow {
                 var query = issuesPage.issueSearchForm ? issuesPage.issueSearchForm.getQuery() : ""
                 issuesPage.refreshIssues(query)
             }
-            if (root.tabBar.currentIndex === 4 && githubPage) {
+            if (root.tabBar.currentIndex === 2 && googlePage) {
+                googlePage.reload()
+            }
+            if (root.tabBar.currentIndex === 3 && githubPage) {
                 githubPage.reload()
             }
-            if (root.tabBar.currentIndex === 5 && googlePage) {
-                googlePage.reload()
+            if (root.tabBar.currentIndex === 4 && pendingWorklogsPage) {
+                pendingWorklogsPage.reloadWorklogs()
             }
         }
     }
@@ -247,6 +249,7 @@ Kirigami.ApplicationWindow {
         pendingWorklogsPage: pendingWorklogsPage
         githubPage: githubPage
         settingsModel: root._ctxSettingsModel
+        googleTabEnabled: !!root._ctxGoogleAuthService
         onHideRequested: {
             if (root.hideWindowFn && typeof root.hideWindowFn === "function")
                 root.hideWindowFn() // qmllint disable use-proper-function

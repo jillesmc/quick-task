@@ -26,6 +26,13 @@ fi
 # Ajustar caminhos SSL se necessário
 adjust_ssl_paths
 
+# No Flatpak: garantir que usamos o app instalado em /app, não o source do host.
+# Sem isso, se o usuário rodar flatpak run do diretório do projeto, Python encontra
+# src/ no cwd e usa Path(__file__) do host → QML/Kirigami do runtime não batem.
+if [ -f "/.flatpak-info" ]; then
+    cd /app
+fi
+
 # A aplicação não lê mais variáveis de ambiente - tudo vem da tela de configuração
 # O token é lido diretamente do .jira-config.yml pelo código Python quando necessário
 

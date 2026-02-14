@@ -509,6 +509,30 @@ class SettingsModel(QObject):
         self.errorOccurred.emit(error_message)
 
     @Slot()
+    def saveGoogleOAuthOnly(self) -> bool:
+        """
+        Salva apenas as configurações Google OAuth no config.json.
+        Usado antes de autorizar, para que o fluxo OAuth leia client_id e client_secret.
+        Retorna True se salvou com sucesso, False em caso de erro.
+        """
+        try:
+            self._config_manager.save_google_oauth_config(
+                self._google_oauth_client_id,
+                self._google_oauth_project_id,
+                self._google_oauth_client_secret,
+            )
+            debug_log(
+                "SettingsModel",
+                "saveGoogleOAuthOnly",
+                "Configurações Google OAuth salvas",
+            )
+            return True
+        except Exception as e:
+            debug_log("SettingsModel", "saveGoogleOAuthOnly", "Erro: %s", e)
+            self.errorOccurred.emit(str(e))
+            return False
+
+    @Slot()
     def save(self):
         """Salva configurações e busca accountId automaticamente"""
         debug_log("SettingsModel", "save", "Iniciando salvamento")

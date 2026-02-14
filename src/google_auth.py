@@ -48,6 +48,15 @@ class GoogleAuthManager:
         self._config = config_manager
         self._token_path = _get_token_path(config_manager.config_path)
 
+    def remove_token(self) -> None:
+        """Remove stored token (e.g. after 401/403). User must re-authorize."""
+        if self._token_path.exists():
+            try:
+                self._token_path.unlink()
+                debug_log("GoogleAuthManager", "remove_token", "Token removido (401/403 ou inválido)")
+            except OSError as e:
+                debug_log("GoogleAuthManager", "remove_token", "Erro ao remover token: %s", e)
+
     def has_valid_token(self) -> bool:
         """Check if we have a stored token that can be used (or refreshed)."""
         if not self._token_path.exists():

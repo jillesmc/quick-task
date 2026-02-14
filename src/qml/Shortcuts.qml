@@ -1,7 +1,8 @@
 /**
  * Shortcuts.qml
  *
- * Atalhos globais: Ctrl+Enter (ação da aba), Esc (esconder), Ctrl+Tab, Ctrl+Shift+Tab.
+ * Atalhos globais: Alt+1..6 (abas diretas), Ctrl+Enter (ação da aba), Esc (esconder),
+ * Ctrl+Tab, Ctrl+Shift+Tab (ciclo 0-3, pulando Worklog e Settings).
  * Atalho de voz: lido das configurações (voice_input.keyboard_shortcut).
  */
 import QtQuick
@@ -17,6 +18,7 @@ Item {
     property var pendingWorklogsPage: null
     property var githubPage: null
     property var settingsModel: null
+    property bool googleTabEnabled: false
 
     signal hideRequested()
 
@@ -25,9 +27,9 @@ Item {
         sequences: [ "Ctrl+Return", "Ctrl+Enter" ]
         onActivated: {
             if (!root.stack) return;
-            if (root.stack.currentIndex === 2 || root.stack.currentIndex === 4
-                || root.stack.currentIndex === 5) return;
-            if (root.stack.currentIndex === 3) {
+            if (root.stack.currentIndex === 2 || root.stack.currentIndex === 3
+                || root.stack.currentIndex === 4) return;
+            if (root.stack.currentIndex === 5) {
                 if (root.settingsPage && root.settingsPage.saveSettingsFromToolbar) {
                     root.settingsPage.saveSettingsFromToolbar();
                 }
@@ -52,14 +54,72 @@ Item {
     }
 
     Shortcut {
+        sequence: "Alt+1"
+        onActivated: {
+            if (root.stack && root.tabBar) {
+                root.stack.currentIndex = 0
+                root.tabBar.currentIndex = 0
+            }
+        }
+    }
+    Shortcut {
+        sequence: "Alt+2"
+        onActivated: {
+            if (root.stack && root.tabBar) {
+                root.stack.currentIndex = 1
+                root.tabBar.currentIndex = 1
+            }
+        }
+    }
+    Shortcut {
+        sequence: "Alt+3"
+        onActivated: {
+            if (!root.googleTabEnabled) return
+            if (root.stack && root.tabBar) {
+                root.stack.currentIndex = 2
+                root.tabBar.currentIndex = 2
+            }
+        }
+    }
+    Shortcut {
+        sequence: "Alt+4"
+        onActivated: {
+            if (root.stack && root.tabBar) {
+                root.stack.currentIndex = 3
+                root.tabBar.currentIndex = 3
+            }
+        }
+    }
+    Shortcut {
+        sequence: "Alt+5"
+        onActivated: {
+            if (root.stack && root.tabBar) {
+                root.stack.currentIndex = 4
+                root.tabBar.currentIndex = 4
+            }
+        }
+    }
+    Shortcut {
+        sequence: "Alt+6"
+        onActivated: {
+            if (root.stack && root.tabBar) {
+                root.stack.currentIndex = 5
+                root.tabBar.currentIndex = 5
+            }
+        }
+    }
+
+    Shortcut {
         id: shortcutSwitchTab
         sequence: "Ctrl+Tab"
         onActivated: {
             if (!root.stack || !root.tabBar) return;
-            var currentIdx = root.stack.currentIndex;
-            var next = (currentIdx + 1) % 6;
-            root.stack.currentIndex = next;
-            root.tabBar.currentIndex = next;
+            var contentTabs = root.googleTabEnabled ? [0, 1, 2, 3] : [0, 1, 3]
+            var currentIdx = root.stack.currentIndex
+            var idx = contentTabs.indexOf(currentIdx)
+            var nextIdx = (idx >= 0) ? contentTabs[(idx + 1) % contentTabs.length] : 0
+            root.stack.currentIndex = nextIdx
+            root.tabBar.currentIndex = nextIdx
         }
     }
 
@@ -80,10 +140,12 @@ Item {
         sequence: "Ctrl+Shift+Tab"
         onActivated: {
             if (!root.stack || !root.tabBar) return;
-            var currentIdx = root.stack.currentIndex;
-            var prev = (currentIdx - 1 + 6) % 6;
-            root.stack.currentIndex = prev;
-            root.tabBar.currentIndex = prev;
+            var contentTabs = root.googleTabEnabled ? [0, 1, 2, 3] : [0, 1, 3]
+            var currentIdx = root.stack.currentIndex
+            var idx = contentTabs.indexOf(currentIdx)
+            var prevIdx = (idx >= 0) ? contentTabs[(idx - 1 + contentTabs.length) % contentTabs.length] : contentTabs[contentTabs.length - 1]
+            root.stack.currentIndex = prevIdx
+            root.tabBar.currentIndex = prevIdx
         }
     }
 }

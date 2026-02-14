@@ -36,14 +36,24 @@ RowLayout {
         Layout.fillWidth: true
         currentIndex: root.currentTabIndex >= 0 ? root.currentTabIndex : 0
 
+        // Ordem: 0 Criar, 1 Minhas Issues, 2 Google, 3 GitHub, 4 Worklog, 5 Settings
         Controls.TabButton {
-            text: "Criar Issue"
+            text: qsTr("Criar Issue")
         }
 
         Controls.TabButton {
-            text: "Minhas Issues"
-            // Busca ao abrir a aba é feita em Main.qml (Connections onCurrentIndexChanged)
-            // para evitar refreshIssues() duplicado e terminação do worker em execução (crash)
+            text: qsTr("Minhas Issues")
+        }
+
+        Controls.TabButton {
+            id: googleTabButton
+            text: qsTr("Google")
+            enabled: root.googlePage && root.googlePage.googleAuthService
+            icon.name: (root.googlePage && root.googlePage.googleAuthService) ? "" : "process-working"
+        }
+
+        Controls.TabButton {
+            text: "GitHub"
         }
 
         Controls.TabButton {
@@ -53,14 +63,6 @@ RowLayout {
         Controls.TabButton {
             icon.name: "configure"
         }
-
-        Controls.TabButton {
-            text: "GitHub"
-        }
-
-        Controls.TabButton {
-            text: qsTr("Google")
-        }
     }
 
     Controls.ToolButton {
@@ -68,7 +70,7 @@ RowLayout {
         text: {
             if (root.currentTabIndex === 0) return qsTr("Criar");
             if (root.currentTabIndex === 1) return qsTr("Atualizar task");
-            if (root.currentTabIndex === 3) {
+            if (root.currentTabIndex === 5) {
                 if (root.settingsPage && root.settingsPage.isSaving !== undefined && root.settingsPage.isSaving) {
                     return qsTr("Salvando...");
                 }
@@ -79,10 +81,10 @@ RowLayout {
         icon.name: {
             if (root.currentTabIndex === 0) return "document-new";
             if (root.currentTabIndex === 1) return "document-save";
-            if (root.currentTabIndex === 3) return "document-save";
+            if (root.currentTabIndex === 5) return "document-save";
             return "";
         }
-        visible: root.currentTabIndex >= 0 && root.currentTabIndex !== 2 && root.currentTabIndex !== 4 && root.currentTabIndex !== 5
+        visible: root.currentTabIndex >= 0 && root.currentTabIndex !== 2 && root.currentTabIndex !== 3 && root.currentTabIndex !== 4
         enabled: {
             if (root.currentTabIndex === 0) {
                 if (!root.createPage) return false;
@@ -99,7 +101,7 @@ RowLayout {
                 if (!root.jiraService || typeof root.jiraService.isAvailable !== "function") return false;
                 return root.jiraService.isAvailable();
             }
-            if (root.currentTabIndex === 3) {
+            if (root.currentTabIndex === 5) {
                 if (!root.settingsPage) return false;
                 if (root.settingsPage.isSaving !== undefined && root.settingsPage.isSaving) return false;
                 if (root.settingsPage.isValid !== undefined && !root.settingsPage.isValid) return false;
@@ -112,21 +114,8 @@ RowLayout {
                 root.createPage.createIssueFromToolbar();
             } else if (root.currentTabIndex === 1 && root.issuesPage && root.issuesPage.updateIssue) {
                 root.issuesPage.updateIssue();
-            } else if (root.currentTabIndex === 3 && root.settingsPage && root.settingsPage.saveSettingsFromToolbar) {
+            } else if (root.currentTabIndex === 5 && root.settingsPage && root.settingsPage.saveSettingsFromToolbar) {
                 root.settingsPage.saveSettingsFromToolbar();
-            }
-        }
-    }
-
-    Controls.ToolButton {
-        id: refreshGitHubButton
-        text: qsTr("Atualizar")
-        icon.name: "view-refresh"
-        visible: root.currentTabIndex === 4
-        enabled: root.githubPage && root.githubPage.githubService && root.githubPage.githubService.available && !root.githubPage.isLoading
-        onClicked: {
-            if (root.currentTabIndex === 4 && root.githubPage && typeof root.githubPage.reload === "function") {
-                root.githubPage.reload();
             }
         }
     }
@@ -135,12 +124,25 @@ RowLayout {
         id: refreshGoogleButton
         text: qsTr("Atualizar")
         icon.name: "view-refresh"
-        visible: root.currentTabIndex === 5
+        visible: root.currentTabIndex === 2
         enabled: root.googlePage && root.googlePage.googleAuthService
             && root.googlePage.googleAuthService.isAuthorized && !root.googlePage.isLoading
         onClicked: {
-            if (root.currentTabIndex === 5 && root.googlePage && typeof root.googlePage.reload === "function") {
+            if (root.currentTabIndex === 2 && root.googlePage && typeof root.googlePage.reload === "function") {
                 root.googlePage.reload();
+            }
+        }
+    }
+
+    Controls.ToolButton {
+        id: refreshGitHubButton
+        text: qsTr("Atualizar")
+        icon.name: "view-refresh"
+        visible: root.currentTabIndex === 3
+        enabled: root.githubPage && root.githubPage.githubService && root.githubPage.githubService.available && !root.githubPage.isLoading
+        onClicked: {
+            if (root.currentTabIndex === 3 && root.githubPage && typeof root.githubPage.reload === "function") {
+                root.githubPage.reload();
             }
         }
     }
@@ -149,11 +151,11 @@ RowLayout {
         id: syncWorklogsButton
         text: qsTr("Sincronizar")
         icon.name: "document-send"
-        visible: root.currentTabIndex === 2
+        visible: root.currentTabIndex === 4
         enabled: root.pendingWorklogsPage && root.pendingWorklogsPage.filteredWorklogs
                  && root.pendingWorklogsPage.filteredWorklogs.length > 0
         onClicked: {
-            if (root.currentTabIndex === 2 && root.pendingWorklogsPage
+            if (root.currentTabIndex === 4 && root.pendingWorklogsPage
                     && typeof root.pendingWorklogsPage.syncAllFromToolbar === "function") {
                 root.pendingWorklogsPage.syncAllFromToolbar();
             }

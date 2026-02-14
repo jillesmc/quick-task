@@ -22,15 +22,13 @@ Kirigami.Page {
     property var settingsModel: null
     property var jiraService: null
     property var myIssuesModel: null
+    property var googleAuthService: null
     property bool isSaving: false
     property bool isValid: connectionBlock ? connectionBlock.valid : false
 
     // Entrada por voz: context property (pode ser null se dependências não instaladas)
     property var _ctxVoiceInputService: (typeof voiceInputService !== "undefined" ? voiceInputService : null) // qmllint disable unqualified
     property bool voiceInputAvailable: _ctxVoiceInputService ? _ctxVoiceInputService.isAvailable() : false
-
-    // Google OAuth: context property (pode ser null até serviços Google serem criados)
-    property var _ctxGoogleAuthService: (typeof googleAuthService !== "undefined" ? googleAuthService : null) // qmllint disable unqualified
 
     // Função pública para integração com Main.qml (botão global no header)
     function saveSettingsFromToolbar() {
@@ -139,7 +137,7 @@ Kirigami.Page {
                     GoogleOAuthSettingsBlock {
                         Layout.fillWidth: true
                         settingsModel: page.settingsModel
-                        googleAuthService: page._ctxGoogleAuthService
+                        googleAuthService: page.googleAuthService
                     }
 
                     // Recarregar opções de Assets (Valor entregue, Plataformas afetadas)

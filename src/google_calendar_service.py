@@ -112,7 +112,11 @@ class GoogleCalendarLoadWorker(QThread):
         except Exception as e:
             msg = str(e) if str(e) else "Erro ao carregar eventos."
             debug_log("GoogleCalendarLoadWorker", "run", "Erro: %s", msg)
-            self.errorOccurred.emit(msg)
+            if "401" in msg or "403" in msg:
+                self._auth_manager.remove_token()
+                self.authRequired.emit()
+            else:
+                self.errorOccurred.emit(msg)
 
 
 class GoogleCalendarService(QObject):
