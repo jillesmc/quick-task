@@ -551,18 +551,51 @@ Kirigami.Page {
                                 when: page.issueModel
                             }
 
-                            // Binding reverso para inicializar campos
+                            // Binding reverso: inicializar e manter sincronizado quando model muda (ex.: import do Google Calendar)
                             Component.onCompleted: {
                                 if (page.issueModel && page.issueModel.worklogInicio) {
                                     var parts = page.issueModel.worklogInicio.split(" ");
                                     if (parts.length >= 2) {
-                                        worklogForm.date = parts[0];
-                                        worklogForm.time = parts[1];
+                                        worklogForm.setWorklogData({
+                                            date: parts[0],
+                                            time: parts[1],
+                                            duration: page.issueModel.worklogDuracao || 30,
+                                            comment: page.issueModel.worklogComment || ""
+                                        });
+                                    } else {
+                                        worklogForm.setWorklogData({
+                                            duration: page.issueModel.worklogDuracao || 30,
+                                            comment: page.issueModel.worklogComment || ""
+                                        });
+                                    }
+                                } else if (page.issueModel) {
+                                    worklogForm.setWorklogData({
+                                        duration: page.issueModel.worklogDuracao || 30,
+                                        comment: page.issueModel.worklogComment || ""
+                                    });
+                                }
+                            }
+                            Connections {
+                                target: page.issueModel || null
+                                function onWorklogInicioChanged() {
+                                    if (!page.issueModel || !worklogForm) return;
+                                    var inicio = page.issueModel.worklogInicio || "";
+                                    if (!inicio) return;
+                                    var parts = inicio.split(" ");
+                                    if (parts.length >= 2) {
+                                        worklogForm.setWorklogData({
+                                            date: parts[0],
+                                            time: parts[1],
+                                            duration: page.issueModel.worklogDuracao || 30,
+                                            comment: page.issueModel.worklogComment || ""
+                                        });
                                     }
                                 }
-                                if (page.issueModel) {
-                                    worklogForm.duration = page.issueModel.worklogDuracao || 30;
-                                    worklogForm.comment = page.issueModel.worklogComment || "";
+                                function onWorklogDuracaoChanged() {
+                                    if (!page.issueModel || !worklogForm) return;
+                                    worklogForm.setWorklogData({
+                                        duration: page.issueModel.worklogDuracao || 30
+                                    });
                                 }
                             }
                         }

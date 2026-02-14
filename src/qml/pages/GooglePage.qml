@@ -102,17 +102,26 @@ Kirigami.Page {
         page.reloadCalendar()
     }
 
+    function formatDueDate(rfc3339Str) {
+        if (!rfc3339Str || typeof rfc3339Str !== "string") return ""
+        var s = rfc3339Str.trim()
+        if (s.indexOf("T") >= 0) return s.split("T")[0] || ""
+        return s.split(" ")[0] || s
+    }
+
     function formatWorklogStart(isoStart) {
         if (!isoStart || typeof isoStart !== "string") return ""
         var s = isoStart.trim()
-        if (s.indexOf("T") >= 0) {
-            var parts = s.split("T")
-            var datePart = parts[0] || ""
-            var timePart = (parts[1] || "00:00:00").replace(/[+-]\d{2}:\d{2}$/, "").split(".")[0]
-            if (timePart.length === 5) timePart += ":00"
-            return datePart + " " + timePart
-        }
-        return s + " 00:00:00"
+        if (!s) return ""
+        var d = new Date(s)
+        if (isNaN(d.getTime())) return ""
+        var y = d.getFullYear()
+        var m = String(d.getMonth() + 1).padStart(2, "0")
+        var day = String(d.getDate()).padStart(2, "0")
+        var h = String(d.getHours()).padStart(2, "0")
+        var min = String(d.getMinutes()).padStart(2, "0")
+        var sec = String(d.getSeconds()).padStart(2, "0")
+        return y + "-" + m + "-" + day + " " + h + ":" + min + ":" + sec
     }
 
     function importEventToJira(event) {
@@ -130,7 +139,23 @@ Kirigami.Page {
         if (!page.issueModel || !page.tabBar || !task) return
         var desc = task.notes || ""
         if (task.list_title) desc = (desc ? desc + "\n\n" : "") + qsTr("Lista: %1").arg(task.list_title)
-        if (task.due) desc = (desc ? desc + "\n" : "") + qsTr("Vencimento: %1").arg(task.due)
+        if (task.due) desc = (desc ? desc + "\n" : "") + qsTr("Vencimento: %1").arg(page.formatDueDate(task.due))
+        var src = task.assignment_source || ""
+        if (src === "SPACE") {
+            desc = (desc ? desc + "\n\n" : "") + qsTr("Origem: Google Chat Space")
+            if (task.assignment_link) desc = desc + "\n" + qsTr("Link: %1").arg(task.assignment_link)
+        } else if (src === "DOCUMENT") {
+            desc = (desc ? desc + "\n\n" : "") + qsTr("Origem: Google Docs")
+            if (task.assignment_link) desc = desc + "\n" + qsTr("Link: %1").arg(task.assignment_link)
+        }
+        var links = task.links || []
+        if (links.length > 0) {
+            desc = (desc ? desc + "\n\n" : "") + qsTr("Links:")
+            for (var i = 0; i < links.length; i++) {
+                var lnk = links[i]
+                if (lnk && lnk.link) desc = desc + "\n- " + lnk.link
+            }
+        }
         page.issueModel.summary = task.title || ""
         page.issueModel.description = desc
         page.tabBar.currentIndex = 0

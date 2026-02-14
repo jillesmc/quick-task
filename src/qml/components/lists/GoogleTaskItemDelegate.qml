@@ -15,6 +15,21 @@ Rectangle {
 
     signal importRequested(var item)
 
+    function formatDueDate(rfc3339Str) {
+        if (!rfc3339Str || typeof rfc3339Str !== "string") return ""
+        var s = rfc3339Str.trim()
+        if (s.indexOf("T") >= 0) return s.split("T")[0] || ""
+        return s.split(" ")[0] || s
+    }
+
+    function sourceLabel() {
+        if (!root.itemData) return ""
+        var src = root.itemData.assignment_source || ""
+        if (src === "SPACE") return qsTr("Chat Space")
+        if (src === "DOCUMENT") return qsTr("Google Docs")
+        return ""
+    }
+
     width: parent ? parent.width - Kirigami.Units.smallSpacing * 2 : 200
     height: itemData ? (contentColumn.implicitHeight + Kirigami.Units.largeSpacing * 2) : 0
     visible: !!itemData
@@ -65,11 +80,17 @@ Rectangle {
             }
             Controls.Label {
                 text: root.itemData && root.itemData.due
-                    ? qsTr("Vencimento: %1").arg(root.itemData.due)
+                    ? qsTr("Vencimento: %1").arg(root.formatDueDate(root.itemData.due))
                     : ""
                 font.pointSize: Kirigami.Theme.smallFont.pointSize
                 color: Kirigami.Theme.disabledTextColor
                 visible: !!(root.itemData && root.itemData.due)
+            }
+            Controls.Label {
+                text: root.sourceLabel()
+                font.pointSize: Kirigami.Theme.smallFont.pointSize
+                color: Kirigami.Theme.disabledTextColor
+                visible: root.sourceLabel().length > 0
             }
         }
 

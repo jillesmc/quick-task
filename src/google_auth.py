@@ -57,6 +57,13 @@ class GoogleAuthManager:
             except OSError as e:
                 debug_log("GoogleAuthManager", "remove_token", "Erro ao remover token: %s", e)
 
+    def _get_scopes_for_load(self, data: dict) -> list:
+        """Use scopes from saved token to avoid invalid_scope when token has fewer scopes."""
+        saved = data.get("scopes")
+        if saved and isinstance(saved, list):
+            return saved
+        return SCOPES
+
     def has_valid_token(self) -> bool:
         """Check if we have a stored token that can be used (or refreshed)."""
         if not self._token_path.exists():
@@ -67,7 +74,8 @@ class GoogleAuthManager:
 
             with open(self._token_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
-            creds = Credentials.from_authorized_user_info(data, SCOPES)
+            scopes = self._get_scopes_for_load(data)
+            creds = Credentials.from_authorized_user_info(data, scopes)
             if creds.expired and creds.refresh_token:
                 creds.refresh(Request())
                 self._save_token(creds)
@@ -115,7 +123,8 @@ class GoogleAuthManager:
             try:
                 with open(self._token_path, "r", encoding="utf-8") as f:
                     data = json.load(f)
-                creds = Credentials.from_authorized_user_info(data, SCOPES)
+                scopes = self._get_scopes_for_load(data)
+                creds = Credentials.from_authorized_user_info(data, scopes)
                 if creds.expired and creds.refresh_token:
                     creds.refresh(Request())
                     self._save_token(creds)

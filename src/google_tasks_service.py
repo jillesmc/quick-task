@@ -21,6 +21,41 @@ class GoogleTasksLoadWorker(QThread):
         super().__init__(parent)
         self._auth_manager = auth_manager
 
+    def _extract_task_dict(
+        self, t: Dict[str, Any], list_id: str, list_title: str
+    ) -> Dict[str, Any]:
+        """Extract task dict with assignmentInfo and links for QML."""
+        assignment_info = t.get("assignmentInfo") or {}
+        surface_type = assignment_info.get("surfaceType", "")
+        link_to_task = (assignment_info.get("linkToTask") or "").strip()
+        space_info = assignment_info.get("spaceInfo") or {}
+        space_name = (space_info.get("space") or "").strip()
+
+        links_raw = t.get("links") or []
+        links = [
+            {
+                "type": (l.get("type") or "").strip(),
+                "link": (l.get("link") or "").strip(),
+                "description": (l.get("description") or "").strip(),
+            }
+            for l in links_raw
+        ]
+
+        return {
+            "id": t.get("id", ""),
+            "title": (t.get("title") or "(Sem título)").strip(),
+            "notes": (t.get("notes") or "").strip(),
+            "due": t.get("due", ""),
+            "status": t.get("status", "needsAction"),
+            "updated": t.get("updated", ""),
+            "list_id": list_id,
+            "list_title": list_title,
+            "assignment_source": surface_type,
+            "assignment_link": link_to_task,
+            "space_name": space_name,
+            "links": links,
+        }
+
     def run(self) -> None:
         try:
             creds = self._auth_manager.authenticate()
@@ -36,44 +71,51 @@ class GoogleTasksLoadWorker(QThread):
 
             service = build("tasks", "v1", credentials=creds)
 
-            task_lists_result = service.tasklists().list().execute()
-            task_lists = task_lists_result.get("items", [])
+            # Paginate task lists
+            all_task_lists: List[Dict[str, Any]] = []
+            page_token = None
+            while True:
+                list_params: Dict[str, Any] = {}
+                if page_token:
+                    list_params["pageToken"] = page_token
+                task_lists_result = service.tasklists().list(**list_params).execute()
+                items = task_lists_result.get("items", [])
+                all_task_lists.extend(items)
+                page_token = task_lists_result.get("nextPageToken")
+                if not page_token:
+                    break
 
             all_tasks: List[Dict[str, Any]] = []
 
-            for tl in task_lists:
+            for tl in all_task_lists:
                 list_id = tl.get("id", "")
                 list_title = (tl.get("title") or "").strip()
                 if not list_id:
                     continue
                 try:
-                    tasks_result = (
-                        service.tasks()
-                        .list(
-                            tasklist=list_id,
-                            showCompleted=False,
-                            showHidden=False,
-                        )
-                        .execute()
-                    )
+                    task_page_token = None
+                    while True:
+                        task_params: Dict[str, Any] = {
+                            "tasklist": list_id,
+                            "showCompleted": False,
+                            "showHidden": False,
+                            "showAssigned": True,
+                            "maxResults": 100,
+                        }
+                        if task_page_token:
+                            task_params["pageToken"] = task_page_token
+                        tasks_result = service.tasks().list(**task_params).execute()
+                        for t in tasks_result.get("items", []):
+                            if t.get("status") == "completed":
+                                continue
+                            all_tasks.append(
+                                self._extract_task_dict(t, list_id, list_title)
+                            )
+                        task_page_token = tasks_result.get("nextPageToken")
+                        if not task_page_token:
+                            break
                 except Exception:
                     continue
-
-                for t in tasks_result.get("items", []):
-                    if t.get("status") == "completed":
-                        continue
-                    all_tasks.append(
-                        {
-                            "id": t.get("id", ""),
-                            "title": (t.get("title") or "(Sem título)").strip(),
-                            "notes": (t.get("notes") or "").strip(),
-                            "due": t.get("due", ""),
-                            "status": t.get("status", "needsAction"),
-                            "updated": t.get("updated", ""),
-                            "list_id": list_id,
-                            "list_title": list_title,
-                        }
-                    )
 
             self.tasksReady.emit(all_tasks)
         except Exception as e:
