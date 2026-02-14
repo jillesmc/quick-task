@@ -81,6 +81,11 @@
     "github_enrichment": false,
     "default_org": ""
   },
+  "google_oauth": {
+    "client_id": "",
+    "project_id": "",
+    "client_secret": ""
+  },
   "voice_input": {
     "enabled": false,
     "localai_base_url": "http://localhost:8080",

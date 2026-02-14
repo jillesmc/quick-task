@@ -24,7 +24,7 @@ Rectangle {
         id: blockColumn
         anchors.fill: parent
         anchors.margins: Kirigami.Units.largeSpacing
-        spacing: Kirigami.Units.mediumSpacing
+        spacing: Kirigami.Units.smallSpacing
 
         Kirigami.Heading {
             text: qsTr("Painel de Development (Minhas Issues)")
@@ -58,6 +58,7 @@ Rectangle {
         }
 
         Controls.Label {
+            Layout.topMargin: Kirigami.Units.largeSpacing
             text: qsTr("Org ou usuário padrão (para busca de repositórios)")
             Layout.fillWidth: true
         }

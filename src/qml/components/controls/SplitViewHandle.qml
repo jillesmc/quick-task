@@ -12,20 +12,20 @@ import org.kde.kirigami as Kirigami
 Item {
     id: root
 
-    implicitWidth: 10
-    implicitHeight: 10
+    implicitWidth: Kirigami.Units.gridUnit
+    implicitHeight: Kirigami.Units.gridUnit
 
     // Três pontinhos verticais (orientação horizontal do SplitView = divisor vertical)
     Column {
         anchors.centerIn: parent
-        spacing: 4
+        spacing: Kirigami.Units.smallSpacing
 
         Repeater {
             model: 3
             Rectangle {
-                width: 4
-                height: 4
-                radius: 2
+                width: Kirigami.Units.smallSpacing
+                height: Kirigami.Units.smallSpacing
+                radius: Kirigami.Units.smallSpacing / 2
                 color: {
                     var base = Kirigami.Theme.neutralTextColor
                     if (SplitHandle.hovered) {

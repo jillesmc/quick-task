@@ -47,6 +47,7 @@ Kirigami.ApplicationWindow {
             mainHeader.settingsPage = settingsPage
             mainHeader.pendingWorklogsPage = pendingWorklogsPage
             mainHeader.githubPage = githubPage
+            mainHeader.googlePage = googlePage
         })
 
         // Verificar se precisa configurar antes de abrir
@@ -88,6 +89,9 @@ Kirigami.ApplicationWindow {
     property var _ctxMyIssuesModel: myIssuesModel // qmllint disable unqualified
     property var _ctxWorklogSyncService: worklogSyncService // qmllint disable unqualified
     property var _ctxGitHubService: githubService // qmllint disable unqualified
+    property var _ctxGoogleCalendarService: googleCalendarService // qmllint disable unqualified
+    property var _ctxGoogleTasksService: googleTasksService // qmllint disable unqualified
+    property var _ctxGoogleAuthService: googleAuthService // qmllint disable unqualified
     property var _ctxClipboardHelper: clipboardHelper // qmllint disable unqualified
     property var hideWindowFn: hideWindow // qmllint disable unqualified
     property var _ctxDebugLog: debugLog // qmllint disable unqualified
@@ -198,6 +202,16 @@ Kirigami.ApplicationWindow {
             issueModel: root._ctxIssueModel
             tabBar: root.tabBar
         }
+
+        // Índice 5: Google (Calendar + Tasks unificados)
+        GooglePage {
+            id: googlePage
+            googleCalendarService: root._ctxGoogleCalendarService
+            googleTasksService: root._ctxGoogleTasksService
+            googleAuthService: root._ctxGoogleAuthService
+            jiraService: root._ctxJiraService
+            tabBar: root.tabBar
+        }
     }
 
     Connections {
@@ -216,6 +230,9 @@ Kirigami.ApplicationWindow {
             }
             if (root.tabBar.currentIndex === 4 && githubPage) {
                 githubPage.reload()
+            }
+            if (root.tabBar.currentIndex === 5 && googlePage) {
+                googlePage.reload()
             }
         }
     }

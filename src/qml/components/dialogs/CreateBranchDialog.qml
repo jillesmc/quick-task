@@ -199,13 +199,13 @@ Controls.Dialog {
                 Component.onCompleted: console.log("[CreateBranchDialog] repoDropFrame created")
                 onVisibleChanged: console.log("[CreateBranchDialog] repoDropFrame.visible=" + visible + " count=" + root.repoSearchCount + " focus=" + repoSearchField.activeFocus)
                 Layout.fillWidth: true
-                Layout.preferredHeight: visible ? Math.min(root.repoSearchCount * 36, 140) : 0
+                Layout.preferredHeight: visible ? Math.min(root.repoSearchCount * (Kirigami.Units.gridUnit * 2), Kirigami.Units.gridUnit * 8) : 0
                 padding: 0
                 background: Rectangle {
                     color: Kirigami.Theme.backgroundColor
                     border.color: Kirigami.Theme.disabledTextColor
                     border.width: 1
-                    radius: 2
+                    radius: Kirigami.Units.smallSpacing
                 }
                 contentItem: ListView {
                     id: repoList
@@ -214,8 +214,8 @@ Controls.Dialog {
                     currentIndex: -1
                     delegate: Controls.ItemDelegate {
                         id: repoDelegate
-                        width: repoList.width - 2
-                        height: 36
+                        width: repoList.width
+                        height: Kirigami.Units.gridUnit * 2
                         required property string full_name
                         required property string default_branch
                         contentItem: Controls.Label {

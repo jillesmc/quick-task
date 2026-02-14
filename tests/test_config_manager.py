@@ -383,3 +383,55 @@ def test_save_development_panel_config():
     finally:
         if temp_path.exists():
             temp_path.unlink()
+
+
+def test_get_google_oauth_config_defaults(config_manager: ConfigManager):
+    """Sem google_oauth no config, retorna dict vazio."""
+    cfg = config_manager.get_google_oauth_config()
+    assert cfg.get("client_id", "") == ""
+    assert cfg.get("project_id", "") == ""
+    assert cfg.get("client_secret", "") == ""
+
+
+def test_get_google_oauth_config_with_section():
+    """Com google_oauth no config, retorna valores do arquivo."""
+    config_with_goauth = {
+        "project": "TEST",
+        "google_oauth": {
+            "client_id": "my-client-id",
+            "project_id": "my-project",
+            "client_secret": "my-secret",
+        },
+    }
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+        json.dump(config_with_goauth, f)
+        temp_path = Path(f.name)
+    try:
+        manager = ConfigManager(config_path=temp_path)
+        cfg = manager.get_google_oauth_config()
+        assert cfg["client_id"] == "my-client-id"
+        assert cfg["project_id"] == "my-project"
+        assert cfg["client_secret"] == "my-secret"
+    finally:
+        if temp_path.exists():
+            temp_path.unlink()
+
+
+def test_save_google_oauth_config():
+    """save_google_oauth_config persiste e recarrega."""
+    config_base = {"project": "TEST"}
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+        json.dump(config_base, f)
+        temp_path = Path(f.name)
+    try:
+        manager = ConfigManager(config_path=temp_path)
+        manager.save_google_oauth_config(
+            "new-client-id", "new-project", "new-secret"
+        )
+        cfg = manager.get_google_oauth_config()
+        assert cfg["client_id"] == "new-client-id"
+        assert cfg["project_id"] == "new-project"
+        assert cfg["client_secret"] == "new-secret"
+    finally:
+        if temp_path.exists():
+            temp_path.unlink()

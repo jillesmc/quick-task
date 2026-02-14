@@ -188,16 +188,16 @@ Item {
             ColumnLayout {
                 id: contentColumn
                 anchors.fill: parent
-                anchors.leftMargin: 20
-                anchors.rightMargin: 20
-                spacing: 0
+                anchors.leftMargin: Kirigami.Units.largeSpacing
+                anchors.rightMargin: Kirigami.Units.largeSpacing
+                spacing: Kirigami.Units.largeSpacing
 
                 ColumnLayout {
                     id: topSection
                     Layout.fillWidth: true
                     Layout.preferredHeight: pane.topSectionHeight
                     Layout.minimumHeight: 150
-                    spacing: 0
+                    spacing: Kirigami.Units.largeSpacing
 
                     DevelopmentHeaderBar {
                         Layout.fillWidth: true
@@ -313,6 +313,7 @@ Item {
                                         width: descriptionContainerTab2.width
                                         wrapMode: Controls.TextArea.Wrap
                                         enabled: pane.selectedIssueKey !== "" && !pane.isProcessing
+                                        topPadding: 0
                                         placeholderText: qsTr("Arraste imagens ou use Ctrl+V para colar; o link será inserido em markdown.")
                                         text: pane.issueModel ? pane.issueModel.description : ""
                                         onTextChanged: if (pane.issueModel)

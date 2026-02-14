@@ -25,7 +25,8 @@ Item {
         sequences: [ "Ctrl+Return", "Ctrl+Enter" ]
         onActivated: {
             if (!root.stack) return;
-            if (root.stack.currentIndex === 2 || root.stack.currentIndex === 4) return;
+            if (root.stack.currentIndex === 2 || root.stack.currentIndex === 4
+                || root.stack.currentIndex === 5) return;
             if (root.stack.currentIndex === 3) {
                 if (root.settingsPage && root.settingsPage.saveSettingsFromToolbar) {
                     root.settingsPage.saveSettingsFromToolbar();
@@ -56,7 +57,7 @@ Item {
         onActivated: {
             if (!root.stack || !root.tabBar) return;
             var currentIdx = root.stack.currentIndex;
-            var next = (currentIdx + 1) % 5;
+            var next = (currentIdx + 1) % 6;
             root.stack.currentIndex = next;
             root.tabBar.currentIndex = next;
         }
@@ -80,7 +81,7 @@ Item {
         onActivated: {
             if (!root.stack || !root.tabBar) return;
             var currentIdx = root.stack.currentIndex;
-            var prev = (currentIdx - 1 + 5) % 5;
+            var prev = (currentIdx - 1 + 6) % 6;
             root.stack.currentIndex = prev;
             root.tabBar.currentIndex = prev;
         }

@@ -19,6 +19,7 @@ RowLayout {
     property var settingsPage: null
     property var pendingWorklogsPage: null
     property var githubPage: null
+    property var googlePage: null
     property var issueModel: null
     property var jiraService: null
     property var timerModel: null
@@ -56,6 +57,10 @@ RowLayout {
         Controls.TabButton {
             text: "GitHub"
         }
+
+        Controls.TabButton {
+            text: qsTr("Google")
+        }
     }
 
     Controls.ToolButton {
@@ -77,7 +82,7 @@ RowLayout {
             if (root.currentTabIndex === 3) return "document-save";
             return "";
         }
-        visible: root.currentTabIndex >= 0 && root.currentTabIndex !== 2 && root.currentTabIndex !== 4
+        visible: root.currentTabIndex >= 0 && root.currentTabIndex !== 2 && root.currentTabIndex !== 4 && root.currentTabIndex !== 5
         enabled: {
             if (root.currentTabIndex === 0) {
                 if (!root.createPage) return false;
@@ -122,6 +127,20 @@ RowLayout {
         onClicked: {
             if (root.currentTabIndex === 4 && root.githubPage && typeof root.githubPage.reload === "function") {
                 root.githubPage.reload();
+            }
+        }
+    }
+
+    Controls.ToolButton {
+        id: refreshGoogleButton
+        text: qsTr("Atualizar")
+        icon.name: "view-refresh"
+        visible: root.currentTabIndex === 5
+        enabled: root.googlePage && root.googlePage.googleAuthService
+            && root.googlePage.googleAuthService.isAuthorized && !root.googlePage.isLoading
+        onClicked: {
+            if (root.currentTabIndex === 5 && root.googlePage && typeof root.googlePage.reload === "function") {
+                root.googlePage.reload();
             }
         }
     }

@@ -3,3 +3,5 @@ IssueListItem IssueListItem.qml
 EpicList EpicList.qml
 EpicListItem EpicListItem.qml
 GitHubItemDelegate GitHubItemDelegate.qml
+GoogleCalendarEventDelegate GoogleCalendarEventDelegate.qml
+GoogleTaskItemDelegate GoogleTaskItemDelegate.qml

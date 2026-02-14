@@ -424,16 +424,16 @@ Kirigami.Page {
             clip: true
             contentWidth: availableWidth
 
-            Item {
-                width: leftScrollView.width
+                Item {
+                    width: leftScrollView.availableWidth
                 // Garantir altura mínima = viewport para o list preencher o pane (evita espaço vazio abaixo da lista)
                 height: Math.max(leftColumnLayout.implicitHeight, leftScrollView.availableHeight)
 
                 ColumnLayout {
                     id: leftColumnLayout
                     anchors.fill: parent
-                    anchors.leftMargin: 20
-                    anchors.rightMargin: 20
+                    anchors.leftMargin: Kirigami.Units.largeSpacing
+                    anchors.rightMargin: Kirigami.Units.largeSpacing
                     spacing: Kirigami.Units.largeSpacing
 
                     // Busca de issues usando componente reutilizável

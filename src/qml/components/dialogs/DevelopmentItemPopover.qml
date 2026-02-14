@@ -32,7 +32,7 @@ Controls.Popup {
         color: Kirigami.Theme.backgroundColor
         border.color: Kirigami.Theme.disabledTextColor
         border.width: 1
-        radius: 4
+        radius: Kirigami.Units.smallSpacing
     }
 
     ColumnLayout {

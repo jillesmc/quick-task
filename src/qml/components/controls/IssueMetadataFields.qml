@@ -46,13 +46,13 @@ ColumnLayout {
         return idx >= 0 ? idx : -1
     }
 
-    spacing: 0
+    spacing: Kirigami.Units.largeSpacing
 
     GridLayout {
         id: metadataGrid
         Layout.fillWidth: true
         columnSpacing: Kirigami.Units.largeSpacing
-        rowSpacing: Kirigami.Units.largeSpacing
+        rowSpacing: Kirigami.Units.largeSpacing * 1.5
         columns: width > 650 ? 2 : 1
 
         // Status

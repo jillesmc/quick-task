@@ -24,7 +24,7 @@ Rectangle {
         id: contentColumn
         anchors.fill: parent
         anchors.margins: Kirigami.Units.largeSpacing
-        spacing: Kirigami.Units.mediumSpacing
+        spacing: Kirigami.Units.smallSpacing
 
         Kirigami.Heading {
             text: qsTr("GitHub")
@@ -33,6 +33,7 @@ Rectangle {
         }
 
         Controls.Label {
+            Layout.topMargin: Kirigami.Units.largeSpacing
             text: qsTr("Token de API:")
             font.bold: true
             Layout.fillWidth: true

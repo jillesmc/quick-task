@@ -756,6 +756,40 @@ class ConfigManager:
         except Exception as e:
             raise RuntimeError(f"Erro ao salvar configuração GitHub: {e}") from e
 
+    def get_google_oauth_config(self) -> Dict[str, str]:
+        """Retorna a configuração Google OAuth do config.json (google_oauth)."""
+        section = self._config.get("google_oauth") or {}
+        return {
+            "client_id": section.get("client_id", ""),
+            "project_id": section.get("project_id", ""),
+            "client_secret": section.get("client_secret", ""),
+        }
+
+    def save_google_oauth_config(
+        self, client_id: str, project_id: str, client_secret: str
+    ) -> None:
+        """
+        Salva configurações Google OAuth no config.json (seção google_oauth).
+        No Flatpak, salva em XDG_CONFIG_HOME.
+        """
+        if "google_oauth" not in self._config:
+            self._config["google_oauth"] = {}
+        self._config["google_oauth"]["client_id"] = client_id
+        self._config["google_oauth"]["project_id"] = project_id
+        self._config["google_oauth"]["client_secret"] = client_secret
+        if str(self.config_path).startswith("/app/"):
+            xdg_config = os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")
+            self.config_path = Path(xdg_config) / "jira-quick-task" / "config.json"
+        self.config_path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            with open(self.config_path, "w", encoding="utf-8") as f:
+                json.dump(self._config, f, indent=2, ensure_ascii=False)
+            self.load_config()
+        except Exception as e:
+            raise RuntimeError(
+                f"Erro ao salvar configuração Google OAuth: {e}"
+            ) from e
+
     def get_jira_cli_config_path(self) -> Optional[Path]:
         """
         Retorna o caminho do arquivo de configuração do Jira (.jira-config.yml)

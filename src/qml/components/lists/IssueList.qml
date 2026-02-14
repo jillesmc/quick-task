@@ -79,8 +79,8 @@ Controls.Frame {
     
     ColumnLayout {
         anchors.fill: parent
-        spacing: 0
-        
+        spacing: Kirigami.Units.smallSpacing
+
         // Cabeçalho da lista
         Rectangle {
             Layout.fillWidth: true

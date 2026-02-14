@@ -27,7 +27,7 @@ Rectangle {
         id: connectionBlock
         anchors.fill: parent
         anchors.margins: Kirigami.Units.largeSpacing
-        spacing: Kirigami.Units.mediumSpacing
+        spacing: Kirigami.Units.smallSpacing
 
         Kirigami.Heading {
             text: qsTr("Conexão Jira")
@@ -36,6 +36,7 @@ Rectangle {
         }
 
         Controls.Label {
+            Layout.topMargin: Kirigami.Units.largeSpacing
             text: qsTr("URL do Servidor Jira:")
             font.bold: true
             Layout.fillWidth: true
@@ -90,6 +91,7 @@ Rectangle {
 
         RowLayout {
             Layout.fillWidth: true
+            Layout.topMargin: Kirigami.Units.largeSpacing
             spacing: Kirigami.Units.smallSpacing
 
             Controls.Label {

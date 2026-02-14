@@ -39,6 +39,7 @@
     "python3-pytz.json",
     "python3-pyyaml.json",
     "python3-xlib.json",
+    "python3-google.json",
     {
       "name": "jira-quick-task",
       "buildsystem": "simple",

@@ -16,7 +16,7 @@ RowLayout {
     property string filterDateFrom: ""
     property string filterDateTo: ""
 
-    spacing: Kirigami.Units.mediumSpacing
+    spacing: Kirigami.Units.smallSpacing
 
     Controls.Label {
         text: qsTr("Filtrar por Issue Key:")

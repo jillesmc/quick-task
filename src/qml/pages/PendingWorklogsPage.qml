@@ -114,7 +114,7 @@ Kirigami.Page {
 
     ColumnLayout {
         anchors.fill: parent
-        anchors.margins: 20
+        anchors.margins: Kirigami.Units.largeSpacing
         spacing: Kirigami.Units.largeSpacing
 
         // Cabeçalho com estatísticas
@@ -301,7 +301,7 @@ Kirigami.Page {
             ListView {
                 id: worklogsListView
                 model: page.filteredWorklogs
-                spacing: 2
+                spacing: Kirigami.Units.smallSpacing
 
                 // Cabeçalho da tabela (simulado com RowLayout fixo)
                 header: Rectangle {

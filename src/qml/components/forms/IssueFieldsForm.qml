@@ -55,17 +55,22 @@ ColumnLayout {
     signal fieldChanged(string fieldName, var value)
     
     spacing: Kirigami.Units.largeSpacing
-    
-    // Description
-    Controls.Label {
-        text: qsTr("Description:")
-        font.bold: true
+
+    // Description (label + input com smallSpacing)
+    ColumnLayout {
         Layout.fillWidth: true
         Layout.alignment: Qt.AlignLeft | Qt.AlignTop
-    }
-    
-    // Scroll vertical para descrições longas + DropArea para anexos
-    Controls.ScrollView {
+        spacing: Kirigami.Units.smallSpacing
+
+        Controls.Label {
+            text: qsTr("Description:")
+            font.bold: true
+            Layout.fillWidth: true
+            Layout.alignment: Qt.AlignLeft | Qt.AlignTop
+        }
+
+        // Scroll vertical para descrições longas + DropArea para anexos
+        Controls.ScrollView {
         id: descriptionScrollView
         Layout.fillWidth: true
         Layout.preferredHeight: 120
@@ -113,6 +118,7 @@ ColumnLayout {
                 id: descriptionField
                 width: parent.width
                 wrapMode: Controls.TextArea.Wrap
+                topPadding: 0
                 enabled: root.enabled
                 focus: true
                 placeholderText: qsTr("Arraste imagens ou use Ctrl+V para colar; o link será inserido em markdown.")
@@ -156,8 +162,9 @@ ColumnLayout {
                 }
             }
         }
+        }
     }
-    
+
     // GridLayout para Tipo de atividade, Documentação anexa e Utilização de IA em 2 colunas
     GridLayout {
         id: twoColumnGrid

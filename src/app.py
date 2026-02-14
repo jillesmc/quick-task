@@ -372,6 +372,17 @@ def main():
         print(f"⚠ Aviso: Erro ao criar GitHubService: {e}", file=sys.stderr)
         github_service = None
 
+    google_auth_service = None
+    try:
+        from src.google_auth_service import GoogleAuthService
+
+        debug_log("App", "main", "Criando GoogleAuthService...")
+        google_auth_service = GoogleAuthService(config_manager=app_config_manager)
+        debug_log("App", "main", "GoogleAuthService criado com sucesso")
+    except Exception as e:
+        print(f"⚠ Aviso: Erro ao criar GoogleAuthService: {e}", file=sys.stderr)
+        google_auth_service = None
+
     try:
         debug_log("App", "main", "Criando SettingsModel...")
         settings_model = SettingsModel(config_manager=app_config_manager)
@@ -597,6 +608,48 @@ def main():
             debug_log("App", "main", "githubService exposto ao contexto QML")
     except Exception as e:
         print(f"⚠ Aviso: Erro ao expor githubService: {e}", file=sys.stderr)
+
+    try:
+        engine.rootContext().setContextProperty(
+            "googleAuthService",
+            google_auth_service if google_auth_service else None,
+        )
+        if google_auth_service:
+            debug_log("App", "main", "googleAuthService exposto ao contexto QML")
+    except Exception as e:
+        print(f"⚠ Aviso: Erro ao expor googleAuthService: {e}", file=sys.stderr)
+
+    google_calendar_service = None
+    google_tasks_service = None
+    try:
+        from src.google_calendar_service import GoogleCalendarService
+        from src.google_tasks_service import GoogleTasksService
+
+        debug_log("App", "main", "Criando GoogleCalendarService...")
+        google_calendar_service = GoogleCalendarService(
+            config_manager=app_config_manager
+        )
+        debug_log("App", "main", "Criando GoogleTasksService...")
+        google_tasks_service = GoogleTasksService(
+            config_manager=app_config_manager
+        )
+        debug_log("App", "main", "Serviços Google criados com sucesso")
+    except Exception as e:
+        print(f"⚠ Aviso: Erro ao criar serviços Google: {e}", file=sys.stderr)
+
+    try:
+        engine.rootContext().setContextProperty(
+            "googleCalendarService",
+            google_calendar_service if google_calendar_service else None,
+        )
+        engine.rootContext().setContextProperty(
+            "googleTasksService",
+            google_tasks_service if google_tasks_service else None,
+        )
+        if google_calendar_service or google_tasks_service:
+            debug_log("App", "main", "Serviços Google expostos ao contexto QML")
+    except Exception as e:
+        print(f"⚠ Aviso: Erro ao expor serviços Google: {e}", file=sys.stderr)
 
     try:
         engine.rootContext().setContextProperty("settingsModel", settings_model)

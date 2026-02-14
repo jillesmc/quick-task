@@ -24,7 +24,7 @@ Rectangle {
         id: blockColumn
         anchors.fill: parent
         anchors.margins: Kirigami.Units.largeSpacing
-        spacing: Kirigami.Units.mediumSpacing
+        spacing: Kirigami.Units.smallSpacing
 
         Kirigami.Heading {
             text: qsTr("Verificação de worklogs ao transitar status")
@@ -48,6 +48,7 @@ Rectangle {
 
         Controls.CheckBox {
             id: worklogCheckShowDialogCheckbox
+            Layout.topMargin: Kirigami.Units.largeSpacing
             text: qsTr("Mostrar diálogo de confirmação quando houver pendentes")
             Layout.fillWidth: true
             checked: true

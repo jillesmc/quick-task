@@ -29,6 +29,9 @@ Kirigami.Page {
     property var _ctxVoiceInputService: (typeof voiceInputService !== "undefined" ? voiceInputService : null) // qmllint disable unqualified
     property bool voiceInputAvailable: _ctxVoiceInputService ? _ctxVoiceInputService.isAvailable() : false
 
+    // Google OAuth: context property (pode ser null até serviços Google serem criados)
+    property var _ctxGoogleAuthService: (typeof googleAuthService !== "undefined" ? googleAuthService : null) // qmllint disable unqualified
+
     // Função pública para integração com Main.qml (botão global no header)
     function saveSettingsFromToolbar() {
         if (page.settingsModel && page.isValid && !page.isSaving) {
@@ -105,7 +108,7 @@ Kirigami.Page {
             contentWidth: availableWidth
 
             Item {
-                width: leftScrollView.width
+                width: leftScrollView.availableWidth
                 implicitHeight: leftColumn.implicitHeight + 2 * Kirigami.Units.largeSpacing
 
                 ColumnLayout {
@@ -131,6 +134,12 @@ Kirigami.Page {
                     DevelopmentPanelSettingsBlock {
                         Layout.fillWidth: true
                         settingsModel: page.settingsModel
+                    }
+
+                    GoogleOAuthSettingsBlock {
+                        Layout.fillWidth: true
+                        settingsModel: page.settingsModel
+                        googleAuthService: page._ctxGoogleAuthService
                     }
 
                     // Recarregar opções de Assets (Valor entregue, Plataformas afetadas)

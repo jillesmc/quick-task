@@ -80,6 +80,11 @@ class SettingsModel(QObject):
             self._github_token = ""
             self._github_username = ""
 
+            # Propriedades Google OAuth
+            self._google_oauth_client_id = ""
+            self._google_oauth_project_id = ""
+            self._google_oauth_client_secret = ""
+
             debug_log("SettingsModel", "__init__", "Carregando valores atuais...")
             self._load_current_values()
             debug_log("SettingsModel", "__init__", "Concluído")
@@ -215,6 +220,12 @@ class SettingsModel(QObject):
         # Carregar configurações GitHub do config.json
         self._github_token = self._config_manager.get_github_token_from_config()
         self._github_username = self._config_manager.get_github_username()
+
+        # Carregar configurações Google OAuth do config.json
+        goauth = self._config_manager.get_google_oauth_config()
+        self._google_oauth_client_id = goauth.get("client_id", "") or ""
+        self._google_oauth_project_id = goauth.get("project_id", "") or ""
+        self._google_oauth_client_secret = goauth.get("client_secret", "") or ""
 
         debug_log(
             "SettingsModel",
@@ -610,7 +621,19 @@ class SettingsModel(QObject):
                 "Configurações de development_panel salvas no arquivo",
             )
 
-            # 4d. Salvar configurações GitHub
+            # 4d. Salvar configurações Google OAuth
+            self._config_manager.save_google_oauth_config(
+                self._google_oauth_client_id,
+                self._google_oauth_project_id,
+                self._google_oauth_client_secret,
+            )
+            debug_log(
+                "SettingsModel",
+                "save",
+                "Configurações Google OAuth salvas no arquivo",
+            )
+
+            # 4e. Salvar configurações GitHub
             self._config_manager.save_github_config(
                 self._github_token, self._github_username
             )
@@ -668,6 +691,11 @@ class SettingsModel(QObject):
     # Sinais para GitHub
     githubTokenChanged = Signal()
     githubUsernameChanged = Signal()
+
+    # Sinais para Google OAuth
+    googleOAuthClientIdChanged = Signal()
+    googleOAuthProjectIdChanged = Signal()
+    googleOAuthClientSecretChanged = Signal()
 
     # Propriedades QML
     @Property(str, notify=jiraBaseUrlChanged)
@@ -1058,3 +1086,36 @@ class SettingsModel(QObject):
         if self._github_username != value:
             self._github_username = (value or "").strip()
             self.githubUsernameChanged.emit()
+
+    @Property(str, notify=googleOAuthClientIdChanged)
+    def googleOAuthClientId(self) -> str:
+        """Client ID do Google OAuth (GCP)"""
+        return self._google_oauth_client_id
+
+    @googleOAuthClientId.setter
+    def googleOAuthClientId(self, value: str):
+        if self._google_oauth_client_id != value:
+            self._google_oauth_client_id = value or ""
+            self.googleOAuthClientIdChanged.emit()
+
+    @Property(str, notify=googleOAuthProjectIdChanged)
+    def googleOAuthProjectId(self) -> str:
+        """Project ID do Google OAuth (GCP)"""
+        return self._google_oauth_project_id
+
+    @googleOAuthProjectId.setter
+    def googleOAuthProjectId(self, value: str):
+        if self._google_oauth_project_id != value:
+            self._google_oauth_project_id = value or ""
+            self.googleOAuthProjectIdChanged.emit()
+
+    @Property(str, notify=googleOAuthClientSecretChanged)
+    def googleOAuthClientSecret(self) -> str:
+        """Client Secret do Google OAuth (GCP)"""
+        return self._google_oauth_client_secret
+
+    @googleOAuthClientSecret.setter
+    def googleOAuthClientSecret(self, value: str):
+        if self._google_oauth_client_secret != value:
+            self._google_oauth_client_secret = value or ""
+            self.googleOAuthClientSecretChanged.emit()

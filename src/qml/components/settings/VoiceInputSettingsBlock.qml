@@ -29,7 +29,7 @@ Rectangle {
         id: voiceBlock
         anchors.fill: parent
         anchors.margins: Kirigami.Units.largeSpacing
-        spacing: Kirigami.Units.mediumSpacing
+        spacing: Kirigami.Units.smallSpacing
 
         Kirigami.Heading {
             text: qsTr("Entrada por voz")
@@ -68,6 +68,7 @@ Rectangle {
         }
 
         Controls.Label {
+            Layout.topMargin: Kirigami.Units.largeSpacing
             text: qsTr("URL base LocalAI:")
             font.bold: true
             Layout.fillWidth: true

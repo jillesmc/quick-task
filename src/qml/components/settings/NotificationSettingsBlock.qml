@@ -24,7 +24,7 @@ Rectangle {
         id: notificationsBlock
         anchors.fill: parent
         anchors.margins: Kirigami.Units.largeSpacing
-        spacing: Kirigami.Units.mediumSpacing
+        spacing: Kirigami.Units.smallSpacing
 
         Kirigami.Heading {
             text: qsTr("Notificações")
@@ -62,6 +62,7 @@ Rectangle {
         }
 
         Controls.Label {
+            Layout.topMargin: Kirigami.Units.largeSpacing
             text: qsTr("Arquivo de som - Pausa Curta:")
             font.bold: true
             Layout.fillWidth: true
@@ -201,6 +202,7 @@ Rectangle {
 
         Controls.CheckBox {
             id: desktopNotificationsCheckbox
+            Layout.topMargin: Kirigami.Units.largeSpacing
             text: qsTr("Usar Notificações do Sistema")
             Layout.fillWidth: true
             checked: true

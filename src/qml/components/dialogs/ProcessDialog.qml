@@ -266,19 +266,19 @@ Controls.Dialog {
                 }
                 Item {
                     Layout.fillWidth: true
-                    implicitHeight: 8
+                    implicitHeight: Kirigami.Units.smallSpacing * 2
                     Rectangle {
                         anchors.fill: parent
                         color: Kirigami.Theme.backgroundColor
                         border.color: Kirigami.Theme.disabledTextColor
-                        radius: 2
+                        radius: Kirigami.Units.smallSpacing
                     }
                     Rectangle {
                         width: Math.min(1, Math.max(0, root.progressValue / 100)) * parent.width
                         anchors.left: parent.left
                         anchors.top: parent.top
                         anchors.bottom: parent.bottom
-                        radius: 2
+                        radius: Kirigami.Units.smallSpacing
                         color: Kirigami.Theme.highlightColor
                     }
                 }

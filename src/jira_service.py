@@ -1176,6 +1176,70 @@ class JiraService(QObject):
 
         return True
 
+    @Slot(str, str, str, int, result=bool)
+    def createIssueFromCalendarEvent(  # NOSONAR
+        self,
+        summary: str,
+        description: str,
+        worklog_start: str,  # "YYYY-MM-DD HH:MM:SS"
+        worklog_duration_minutes: int,
+    ) -> bool:
+        """
+        Cria issue no Jira a partir de evento do Google Calendar.
+        Usa defaults do config para tipo_atividade, status, etc.
+        worklog_start: data/hora de início (formato "YYYY-MM-DD HH:MM:SS")
+        worklog_duration_minutes: duração do worklog em minutos
+        """
+        tipo_values = self._config.get_tipo_atividade_values() if self._config else []
+        tipo = tipo_values[0] if tipo_values else "Melhorias Técnicas/Atualizações Técnicas/Plataforma/Segurança"
+        return self.createIssue(
+            summary=summary.strip(),
+            description=description.strip() if description else "",
+            tipoAtividade=tipo,
+            statusInicial="TO DO",
+            documentacaoAnexa="Não",
+            utilizacaoIA="Não",
+            valorEntregue="",
+            plataformasAfetadas=[],
+            registrarWorklog=True,
+            worklogInicio=worklog_start,
+            worklogDuracao=worklog_duration_minutes,
+            worklogTimezone=self.getTimezone(),
+            parentEpicKey="",
+            worklogComment="",
+            pendingAttachments=None,
+        )
+
+    @Slot(str, str, result=bool)
+    def createIssueFromTask(  # NOSONAR
+        self,
+        summary: str,
+        description: str,
+    ) -> bool:
+        """
+        Cria issue no Jira a partir de tarefa do Google Tasks.
+        Usa defaults do config; sem worklog.
+        """
+        tipo_values = self._config.get_tipo_atividade_values() if self._config else []
+        tipo = tipo_values[0] if tipo_values else "Melhorias Técnicas/Atualizações Técnicas/Plataforma/Segurança"
+        return self.createIssue(
+            summary=summary.strip(),
+            description=description.strip() if description else "",
+            tipoAtividade=tipo,
+            statusInicial="TO DO",
+            documentacaoAnexa="Não",
+            utilizacaoIA="Não",
+            valorEntregue="",
+            plataformasAfetadas=[],
+            registrarWorklog=False,
+            worklogInicio="",
+            worklogDuracao=0,
+            worklogTimezone=self.getTimezone(),
+            parentEpicKey="",
+            worklogComment="",
+            pendingAttachments=None,
+        )
+
     @Slot(result=bool)
     def isAvailable(self) -> bool:
         """Verifica se o serviço está disponível"""

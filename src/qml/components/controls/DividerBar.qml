@@ -18,14 +18,14 @@ Rectangle {
 
     Row {
         anchors.centerIn: parent
-        spacing: 4
+        spacing: Kirigami.Units.smallSpacing
         Repeater {
             model: 3
             Rectangle {
                 id: dotRect
-                width: 3
-                height: 3
-                radius: 1.5
+                width: Kirigami.Units.smallSpacing
+                height: Kirigami.Units.smallSpacing
+                radius: Kirigami.Units.smallSpacing / 2
                 color: root.containsMouse ? Kirigami.Theme.highlightColor : Kirigami.Theme.textColor
                 opacity: root.containsMouse ? 1 : 0.6
                 Behavior on color { ColorAnimation { duration: 150 } }

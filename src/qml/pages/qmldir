@@ -2,5 +2,6 @@ IssueFormPage IssueFormPage.qml
 MyIssuesPage MyIssuesPage.qml
 PendingWorklogsPage PendingWorklogsPage.qml
 GitHubPage GitHubPage.qml
+GooglePage GooglePage.qml
 SettingsPage SettingsPage.qml
 TimerPage TimerPage.qml

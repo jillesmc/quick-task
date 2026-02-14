@@ -182,23 +182,39 @@ Kirigami.Page {
                 property real epicSectionHeight: 300
 
                 Item {
-                    width: leftScrollView.width
+                    width: leftScrollView.availableWidth
                     implicitHeight: leftColumn.implicitHeight
+
+                    Component.onCompleted: {
+                        function initSectionHeights() {
+                            if (leftScrollView.availableHeight > 200) {
+                                var spacing = Kirigami.Units.largeSpacing
+                                var dividerApprox = 24
+                                var total = leftScrollView.availableHeight - 2 * dividerApprox - 2 * spacing
+                                var half = Math.max(250, total / 2)
+                                leftScrollView.topSectionHeight = half
+                                leftScrollView.epicSectionHeight = half
+                            }
+                        }
+                        Qt.callLater(initSectionHeights)
+                        // Fallback: viewport pode não estar pronto no primeiro frame
+                        Qt.callLater(function() { Qt.callLater(initSectionHeights) })
+                    }
 
                     ColumnLayout {
                         id: leftColumn
                         anchors.fill: parent
-                        anchors.leftMargin: 20
-                        anchors.rightMargin: 20
-                        spacing: 0
+                        anchors.leftMargin: Kirigami.Units.largeSpacing
+                        anchors.rightMargin: Kirigami.Units.largeSpacing
+                        spacing: Kirigami.Units.largeSpacing
 
                         // Seção superior: Summary e Description
                         ColumnLayout {
                             id: topSection
                             Layout.fillWidth: true
                             Layout.preferredHeight: leftScrollView.topSectionHeight
-                        Layout.minimumHeight: 450
-                        spacing: 0
+                            Layout.minimumHeight: 250
+                        spacing: Kirigami.Units.largeSpacing
 
                         ColumnLayout {
                             Layout.fillWidth: true
@@ -331,6 +347,7 @@ Kirigami.Page {
                                             width: descriptionContainer.width
                                             wrapMode: Controls.TextArea.Wrap
                                             enabled: !page.isProcessing
+                                            topPadding: 0
                                             placeholderText: qsTr("Arraste imagens ou use Ctrl+V para colar; o link será inserido em markdown.")
                                             text: page.issueModel ? page.issueModel.description : ""
                                             onTextChanged: if (page.issueModel) page.issueModel.description = text
@@ -380,7 +397,7 @@ Kirigami.Page {
                             id: epicSection
                             Layout.fillWidth: true
                             Layout.preferredHeight: leftScrollView.epicSectionHeight
-                            Layout.minimumHeight: 450
+                            Layout.minimumHeight: 250
                             spacing: Kirigami.Units.smallSpacing
 
                             Controls.Label {
@@ -474,12 +491,13 @@ Kirigami.Page {
 
                 Item {
                     width: rightScrollView.availableWidth
-                    implicitHeight: rightColumn.implicitHeight + 40
+                    implicitHeight: rightColumn.implicitHeight + 2 * Kirigami.Units.largeSpacing
 
                     ColumnLayout {
                         id: rightColumn
                         anchors.fill: parent
-                        anchors.leftMargin: 20
+                        anchors.leftMargin: Kirigami.Units.largeSpacing
+                        anchors.rightMargin: Kirigami.Units.largeSpacing
                         spacing: Kirigami.Units.largeSpacing
 
                         // Worklog (habilitado só quando status inicial é IN DEVELOPMENT ou posterior)

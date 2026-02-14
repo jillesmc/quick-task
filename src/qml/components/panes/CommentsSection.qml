@@ -101,7 +101,7 @@ ColumnLayout {
                     color: Kirigami.Theme.alternateBackgroundColor
                     border.color: Kirigami.Theme.disabledTextColor
                     border.width: 1
-                    radius: 4
+                    radius: Kirigami.Units.smallSpacing
 
                     required property var modelData
 

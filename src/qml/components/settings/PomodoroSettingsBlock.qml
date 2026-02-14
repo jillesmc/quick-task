@@ -24,7 +24,7 @@ Rectangle {
         id: pomodoroBlock
         anchors.fill: parent
         anchors.margins: Kirigami.Units.largeSpacing
-        spacing: Kirigami.Units.mediumSpacing
+        spacing: Kirigami.Units.smallSpacing
 
         Kirigami.Heading {
             text: qsTr("Configurações de Pomodoro")
@@ -50,6 +50,7 @@ Rectangle {
         }
 
         Controls.Label {
+            Layout.topMargin: Kirigami.Units.largeSpacing
             text: qsTr("Duração do Pomodoro (minutos):")
             font.bold: true
             Layout.fillWidth: true
