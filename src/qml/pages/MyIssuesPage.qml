@@ -397,8 +397,9 @@ Kirigami.Page {
                     // Atualizar item na lista em memória (não refazer busca)
                     var summary = (page.issueModel && page.issueModel.summary) ? page.issueModel.summary : "";
                     var status = (page.issueModel && page.issueModel.statusInicial) ? page.issueModel.statusInicial : "";
+                    var prioridade = (page.issueModel && page.issueModel.prioridade) ? page.issueModel.prioridade : "";
                     if (page.myIssuesModel && issueKey && typeof page.myIssuesModel.updateIssueInList === "function") {
-                        page.myIssuesModel.updateIssueInList(issueKey, summary, status);
+                        page.myIssuesModel.updateIssueInList(issueKey, summary, status, prioridade, "");
                     }
                 });
 
@@ -466,10 +467,33 @@ Kirigami.Page {
                         }
                     }
 
-                    Controls.Label {
-                        text: qsTr("Issues atribuídas a você")
-                        font.bold: true
+                    RowLayout {
                         Layout.fillWidth: true
+                        spacing: Kirigami.Units.smallSpacing
+
+                        Controls.Label {
+                            text: qsTr("Issues atribuídas a você")
+                            font.bold: true
+                            Layout.fillWidth: true
+                        }
+
+                        Controls.Label {
+                            text: qsTr("Ordenar:")
+                            Layout.preferredWidth: 50
+                        }
+
+                        Controls.ComboBox {
+                            id: sortCombo
+                            Layout.preferredWidth: 120
+                            model: [qsTr("Prioridade"), qsTr("Status"), qsTr("Chave")]
+                            currentIndex: 0
+                            onActivated: function(index) {
+                                if (page.myIssuesModel) {
+                                    var criteria = ["priority", "status", "key"][index]
+                                    page.myIssuesModel.setSortBy(criteria)
+                                }
+                            }
+                        }
                     }
 
                     // Lista de issues usando componente reutilizável
@@ -484,6 +508,7 @@ Kirigami.Page {
                             anchors.fill: parent
                             enabled: !page.isProcessing
                             model: page.myIssuesModel ? page.myIssuesModel.issues : []
+                            sourceModel: page.myIssuesModel
                             isLoading: page.myIssuesModel ? page.myIssuesModel.isLoading : false
                             selectedIssueKey: page.selectedIssueKey
                             timerModel: page.timerModel
@@ -548,8 +573,9 @@ Kirigami.Page {
                 // Atualizar item na lista em memória (não refazer busca)
                 var summary = (page.issueModel && page.issueModel.summary) ? page.issueModel.summary : "";
                 var status = (page.issueModel && page.issueModel.statusInicial) ? page.issueModel.statusInicial : "";
+                var prioridade = (page.issueModel && page.issueModel.prioridade) ? page.issueModel.prioridade : "";
                 if (page.myIssuesModel && issueKey && typeof page.myIssuesModel.updateIssueInList === "function") {
-                    page.myIssuesModel.updateIssueInList(issueKey, summary, status);
+                    page.myIssuesModel.updateIssueInList(issueKey, summary, status, prioridade, "");
                 }
             }
         }
@@ -943,6 +969,16 @@ Kirigami.Page {
             try {
                 if (!details || !details.key) {
                     return;
+                }
+                // Corrigir prioridade na lista quando a busca não retornou (ex.: search/jql)
+                if (page.myIssuesModel && details.key && typeof page.myIssuesModel.updateIssueInList === "function") {
+                    var summary = String(details.summary || "");
+                    var status = String(details.status || "");
+                    var priority = String(details.priority || "");
+                    var priorityId = String(details.priorityId || "");
+                    if (priority || priorityId) {
+                        page.myIssuesModel.updateIssueInList(details.key, summary, status, priority, priorityId);
+                    }
                 }
                 var dev = details.development;
                 var devStr = dev ? ("branches:" + (dev.branches ? dev.branches.length : 0) + " prs:" + (dev.pullRequests ? dev.pullRequests.length : 0)) : "null";

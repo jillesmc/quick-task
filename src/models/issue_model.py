@@ -39,6 +39,7 @@ class IssueModel(QObject):
     epicParentKeyChanged = Signal(str)
     epicParentSummaryChanged = Signal(str)
     pendingAttachmentsChanged = Signal()
+    prioridadeChanged = Signal(str)
 
     def __init__(self, parent=None):
         """Inicializa o modelo com valores padrão"""
@@ -93,6 +94,9 @@ class IssueModel(QObject):
         )
         self._worklogDuracao = 30  # 30 minutos como padrão
         self._worklogComment: str = ""
+
+        # Prioridade (padrão Jira: Medium)
+        self._prioridade: str = "Medium"
 
         # Epic parent (opcional)
         self._epicParentKey: str = ""
@@ -156,6 +160,17 @@ class IssueModel(QObject):
         if self._statusInicial != value:
             self._statusInicial = value
             self.statusInicialChanged.emit(value)
+
+    # Propriedade: prioridade
+    @Property(str, notify=prioridadeChanged)
+    def prioridade(self) -> str:
+        return self._prioridade
+
+    @prioridade.setter
+    def prioridade(self, value: str) -> None:
+        if self._prioridade != (value or ""):
+            self._prioridade = value or "Medium"
+            self.prioridadeChanged.emit(self._prioridade)
 
     # Propriedade: documentacaoAnexa
     @Property(str, notify=documentacaoAnexaChanged)
@@ -287,6 +302,9 @@ class IssueModel(QObject):
         self.worklogInicio = now.strftime("%Y-%m-%d %H:%M:%S")
         self.worklogDuracao = 30
         self.worklogComment = ""
+
+        # Resetar prioridade
+        self.prioridade = "Medium"
 
         # Resetar Epic parent
         self.epicParentKey = ""

@@ -92,7 +92,8 @@ Item {
             worklogDuracao: issueModel.worklogDuracao || 0,
             worklogComment: issueModel.worklogComment || "",
             parentEpicKey: parentEpicKey,
-            pendingAttachments: issueModel.pendingAttachments || []
+            pendingAttachments: issueModel.pendingAttachments || [],
+            prioridade: issueModel.prioridade || "Medium"
         }
     }
     
@@ -142,7 +143,8 @@ Item {
             "", // timezone vazio - será usado o do config.json automaticamente
             data.parentEpicKey,
             data.worklogComment,
-            data.pendingAttachments || []
+            data.pendingAttachments || [],
+            data.prioridade || "Medium"
         )
     }
     

@@ -29,6 +29,8 @@ Controls.Frame {
     id: issueListRoot
     
     property var model: []
+    /** Objeto com .issues e .issuesChanged (ex.: myIssuesModel). Se definido, conecta a issuesChanged para forçar sync quando a lista mudar (Qt pode não detectar mudança de referência na binding). */
+    property var sourceModel: null
     property bool enabled: true
     property string selectedIssueKey: ""
     property bool isLoading: false
@@ -50,18 +52,52 @@ Controls.Frame {
     }
 
     function syncIssueModel() {
+        var prevSelected = issueListRoot.selectedIssueKey
+        var data = (issueListRoot.sourceModel && issueListRoot.sourceModel.issues) ? issueListRoot.sourceModel.issues : issueListRoot.model
+        var dataSource = (issueListRoot.sourceModel && issueListRoot.sourceModel.issues) ? "sourceModel.issues" : "model"
+        console.log("[IssueList] syncIssueModel: dataSource=" + dataSource + " data.length=" + (data ? data.length : "null"))
+        if (data && data.length > 0) {
+            var item = data[0]
+            var keys = (typeof item === "object" && item !== null) ? Object.keys(item) : []
+            console.log("[IssueList] syncIssueModel: first item keys=" + JSON.stringify(keys) + " item.key=" + (item && item.key) + " item['key']=" + (item && item["key"]) + " item.summary=" + (item && (item.summary || item["summary"] || "").toString().slice(0, 30)))
+        }
         issueListModel.clear()
-        if (!issueListRoot.model || !issueListRoot.model.length) return
-        for (var i = 0; i < issueListRoot.model.length; i++) {
-            var item = issueListRoot.model[i]
+        if (!data || !data.length) {
+            if (prevSelected) issuesListView.currentIndex = -1
+            return
+        }
+        for (var i = 0; i < data.length; i++) {
+            var item = data[i]
+            var it = item || {}
+            var keyVal = (it.key !== undefined || it["key"] !== undefined) ? String(it.key || it["key"] || "") : ""
             issueListModel.append({
-                key: item && item.key !== undefined ? item.key : "",
-                summary: item && item.summary !== undefined ? item.summary : "",
-                status: item && item.status !== undefined ? item.status : "",
-                issueType: item && item.issueType !== undefined ? item.issueType : "",
-                assignee: item && item.assignee !== undefined ? item.assignee : "",
-                parentKey: item && item.parentKey !== undefined ? item.parentKey : "",
+                key: keyVal,
+                summary: (it.summary !== undefined || it["summary"] !== undefined) ? String(it.summary || it["summary"] || "") : "",
+                status: (it.status !== undefined || it["status"] !== undefined) ? String(it.status || it["status"] || "") : "",
+                issueType: (it.issueType !== undefined || it["issueType"] !== undefined) ? String(it.issueType || it["issueType"] || "") : "",
+                assignee: (it.assignee !== undefined || it["assignee"] !== undefined) ? String(it.assignee || it["assignee"] || "") : "",
+                parentKey: (it.parentKey !== undefined || it["parentKey"] !== undefined) ? String(it.parentKey || it["parentKey"] || "") : "",
+                priority: (it.priority !== undefined || it["priority"] !== undefined) ? String(it.priority || it["priority"] || "") : "",
+                priorityId: (it.priorityId !== undefined || it["priorityId"] !== undefined) ? String(it.priorityId || it["priorityId"] || "") : "",
                 index: i
+            })
+        }
+        console.log("[IssueList] syncIssueModel: issueListModel.count=" + issueListModel.count)
+        if (issueListModel.count > 0) {
+            var row0 = issueListModel.get(0)
+            console.log("[IssueList] syncIssueModel: get(0) key=" + (row0 && row0.key) + " summary=" + (row0 && (row0.summary || "").toString().slice(0, 30)) + " priority=" + (row0 && row0.priority))
+        }
+        // Restaurar seleção após sync (evita reset para primeiro item)
+        if (prevSelected && data && data.length > 0) {
+            Qt.callLater(function() {
+                for (var j = 0; j < data.length; j++) {
+                    var it2 = data[j]
+                    var k = (it2 && (it2.key !== undefined || it2["key"] !== undefined)) ? String(it2.key || it2["key"] || "") : ""
+                    if (k === prevSelected) {
+                        issuesListView.currentIndex = j
+                        break
+                    }
+                }
             })
         }
     }
@@ -71,6 +107,23 @@ Controls.Frame {
         function onModelChanged() {
             issueListRoot.syncIssueModel()
         }
+    }
+
+    Connections {
+        target: issueListRoot.sourceModel || null
+        function onIssuesChanged() {
+            console.log("[IssueList] onIssuesChanged: sourceModel=" + (issueListRoot.sourceModel ? "set" : "null"))
+            if (issueListRoot.sourceModel) issueListRoot.syncIssueModel()
+        }
+    }
+
+    onSourceModelChanged: {
+        console.log("[IssueList] onSourceModelChanged: sourceModel=" + (issueListRoot.sourceModel ? "set" : "null"))
+        if (issueListRoot.sourceModel) issueListRoot.syncIssueModel()
+    }
+
+    onModelChanged: {
+        console.log("[IssueList] onModelChanged: model.length=" + (issueListRoot.model ? issueListRoot.model.length : "null"))
     }
 
     Component.onCompleted: {
@@ -98,32 +151,42 @@ Controls.Frame {
                     text: qsTr("Tipo")
                     font.bold: true
                     Layout.preferredWidth: 30
-                    horizontalAlignment: Text.AlignHCenter
+                    horizontalAlignment: Text.AlignLeft
+                }
+
+                Controls.Label {
+                    text: qsTr("Pri")
+                    font.bold: true
+                    Layout.preferredWidth: 50
+                    horizontalAlignment: Text.AlignLeft
                 }
                 
                 Controls.Label {
                     text: qsTr("Chave")
                     font.bold: true
                     Layout.preferredWidth: 110
+                    horizontalAlignment: Text.AlignLeft
                 }
                 
                 Controls.Label {
                     text: qsTr("Resumo")
                     font.bold: true
                     Layout.fillWidth: true
+                    horizontalAlignment: Text.AlignLeft
                 }
                 
                 Controls.Label {
                     text: qsTr("Status")
                     font.bold: true
-                    Layout.preferredWidth: 120
-                    horizontalAlignment: Text.AlignHCenter
+                    Layout.preferredWidth: 70
+                    horizontalAlignment: Text.AlignLeft
                 }
                 
                 Controls.Label {
                     text: qsTr("Parent")
                     font.bold: true
                     Layout.preferredWidth: 150
+                    horizontalAlignment: Text.AlignLeft
                 }
                 
                 Item {
@@ -189,6 +252,8 @@ Controls.Frame {
                 id: delegateItem
                 timerModel: issueListRoot.timerModel
                 timerService: issueListRoot.timerService
+                priority: (ListView.view && ListView.view.model && ListView.view.model.get(index) && ListView.view.model.get(index).priority !== undefined) ? String(ListView.view.model.get(index).priority) : ""
+                priorityId: (ListView.view && ListView.view.model && ListView.view.model.get(index) && ListView.view.model.get(index).priorityId !== undefined) ? String(ListView.view.model.get(index).priorityId) : ""
                 onStartTimerRequested: function(issueKey) {
                     issueListRoot.requestStartTimer(issueKey)
                 }

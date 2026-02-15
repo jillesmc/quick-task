@@ -738,6 +738,9 @@ Kirigami.Page {
                 page.issueModel.statusInicial = page.issueModel.statusSequence[0];
             }
 
+            // Prioridade padrão
+            page.issueModel.prioridade = "Medium";
+
             // Valores padrão
             page.issueModel.documentacaoAnexa = "Não";
             page.issueModel.utilizacaoIA = "Não";

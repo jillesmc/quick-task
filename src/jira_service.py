@@ -78,6 +78,7 @@ class JiraWorker(QThread):
         asset_custom_fields: Optional[Dict[str, Any]] = None,
         assets_cache: Any = None,
         pending_attachments: Optional[List[Dict[str, Any]]] = None,
+        priority: Optional[str] = None,
         parent=None,
     ):
         super().__init__(parent)
@@ -100,6 +101,7 @@ class JiraWorker(QThread):
         self.asset_custom_fields = asset_custom_fields or {}
         self.assets_cache = assets_cache
         self.pending_attachments = pending_attachments or []
+        self.priority = priority
 
     def run(self):
         """Executa a criação da issue e transições em thread separada"""
@@ -185,6 +187,7 @@ class JiraWorker(QThread):
                 assignee=assignee,
                 custom_fields=custom_fields,
                 parent_issue_key=self.parent_epic_key or None,
+                priority=self.priority,
             )
 
             issue_key = result["issue_key"]
@@ -1011,6 +1014,7 @@ class JiraService(QObject):
         str,
         str,
         "QVariantList",
+        str,
         result=bool,
     )
     def createIssue(  # NOSONAR - camelCase necessário para compatibilidade com QML
@@ -1030,6 +1034,7 @@ class JiraService(QObject):
         parentEpicKey: str,  # NOSONAR - pode ser vazio
         worklogComment: str = "",  # NOSONAR - comentário opcional do worklog
         pendingAttachments: Optional[List[Any]] = None,  # NOSONAR
+        prioridade: str = "Medium",  # NOSONAR - prioridade da issue
     ) -> bool:
         """
         Cria uma issue no Jira de forma assíncrona
@@ -1164,6 +1169,7 @@ class JiraService(QObject):
             asset_custom_fields=asset_custom_fields if asset_custom_fields else None,
             assets_cache=self._assets_cache,
             pending_attachments=pending_list if pending_list else None,
+            priority=prioridade.strip() if prioridade else None,
         )
 
         # Conectar signals do worker
@@ -1208,6 +1214,7 @@ class JiraService(QObject):
             parentEpicKey="",
             worklogComment="",
             pendingAttachments=None,
+            prioridade="Medium",
         )
 
     @Slot(str, str, result=bool)
@@ -1238,6 +1245,7 @@ class JiraService(QObject):
             parentEpicKey="",
             worklogComment="",
             pendingAttachments=None,
+            prioridade="Medium",
         )
 
     @Slot(result=bool)
@@ -2314,11 +2322,23 @@ class JiraService(QObject):
                 status_name = str(status_obj)
         status_name = status_name.upper() if status_name else ""
 
+        # Extrair prioridade (objeto {id, name} da API)
+        priority_obj = fields.get("priority") or {}
+        priority_name = ""
+        priority_id = ""
+        if isinstance(priority_obj, dict):
+            priority_name = (priority_obj.get("name") or "").strip()
+            priority_id = str(priority_obj.get("id") or "")
+        elif priority_obj:
+            priority_name = str(priority_obj).strip()
+
         result = {
             "key": issue_data.get("key", ""),
             "summary": fields.get("summary", ""),
             "description": description,
             "status": status_name,
+            "priority": priority_name or "Medium",
+            "priorityId": priority_id,
             "tipoAtividade": tipo_atividade,
             "documentacaoAnexa": documentacao_anexa,
             "utilizacaoIA": utilizacao_ia,

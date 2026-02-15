@@ -133,6 +133,7 @@ Item {
             issueModel.description = String(details.description || "");
             issueModel.tipoAtividade = String(details.tipoAtividade || "");
             issueModel.statusInicial = String(details.status || "");
+            issueModel.prioridade = String(details.priority || "Medium");
             issueModel.valorEntregue = String(details.valorEntregue || "");
             issueModel.plataformasAfetadas = details.plataformasAfetadas || [];
             issueModel.documentacaoAnexa = String(details.documentacaoAnexa || "Não");

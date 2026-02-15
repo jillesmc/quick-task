@@ -17,6 +17,11 @@ sys.path.insert(0, str(ROOT_DIR))
 from config.config_manager import ConfigManager
 from core.jira_client import JiraClient
 
+try:
+    from src.utils.debug import debug_log
+except ImportError:
+    debug_log = lambda *a, **k: None
+
 
 class SearchWorker(QThread):
     """Worker thread para busca assíncrona de issues"""
@@ -58,6 +63,9 @@ class SearchWorker(QThread):
                 status = (fields.get("status") or {}).get("name", "")
                 issue_type = (fields.get("issuetype") or {}).get("name", "")
                 assignee = (fields.get("assignee") or {}).get("displayName", "")
+                priority_obj = fields.get("priority") or {}
+                priority = (priority_obj.get("name") or "").strip()
+                priority_id = str(priority_obj.get("id") or "")
 
                 # Extrair informação de parent (Epic ou outro parent)
                 # REST API retorna parent diretamente na busca
@@ -77,6 +85,8 @@ class SearchWorker(QThread):
                         "assignee": assignee,
                         "parentKey": parent_key,
                         "parentSummary": "",  # Não buscamos mais o summary
+                        "priority": priority,
+                        "priorityId": priority_id,
                     }
                 )
 
@@ -98,6 +108,7 @@ class MyIssuesModel(QObject):
         self._issues: List[Dict[str, Any]] = []
         self._is_loading: bool = False
         self._search_worker: Optional[SearchWorker] = None
+        self._sort_by: str = "priority"  # "priority" | "status" | "key"
 
         # Carregar configuração
         try:
@@ -285,8 +296,88 @@ class MyIssuesModel(QObject):
         self._search_worker.start()
 
     def _on_issues_found(self, issues: List[Dict[str, Any]]) -> None:
-        """Callback quando issues são encontradas"""
-        self._set_issues(issues)
+        """Callback quando issues são encontradas. Ordena conforme sortBy atual."""
+        debug_log(
+            "MyIssuesModel",
+            "_on_issues_found",
+            "Recebidas %d issues",
+            len(issues) if issues else 0,
+        )
+        if issues:
+            first = issues[0]
+            debug_log(
+                "MyIssuesModel",
+                "_on_issues_found",
+                "Primeiro item keys=%s key=%s summary=%s status=%s priority=%s priorityId=%s",
+                list(first.keys()) if isinstance(first, dict) else "?",
+                first.get("key", "?") if isinstance(first, dict) else "?",
+                (first.get("summary", "?") or "")[:40] if isinstance(first, dict) else "?",
+                first.get("status", "?") if isinstance(first, dict) else "?",
+                first.get("priority", "?") if isinstance(first, dict) else "?",
+                first.get("priorityId", "?") if isinstance(first, dict) else "?",
+            )
+        sorted_issues = self._sort_issues(issues)
+        self._set_issues(sorted_issues)
+        debug_log("MyIssuesModel", "_on_issues_found", "issuesChanged emitido")
+
+    def _sort_issues(self, issues: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Ordena issues conforme self._sort_by."""
+        if self._sort_by == "status":
+            return self._sort_by_status(issues)
+        if self._sort_by == "key":
+            return sorted(issues, key=lambda i: i.get("key", ""))
+        return self._sort_by_priority(issues)
+
+    def _sort_by_priority(self, issues: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Ordena por prioridade (Highest → Lowest), depois por key."""
+        priority_order = {
+            "Highest": 1,
+            "High": 2,
+            "Medium": 3,
+            "Low": 4,
+            "Lowest": 5,
+        }
+
+        def sort_key(issue: Dict[str, Any]) -> tuple:
+            p = (issue.get("priority") or "Medium").strip()
+            return (priority_order.get(p, 99), issue.get("key", ""))
+
+        return sorted(issues, key=sort_key)
+
+    def _sort_by_status(self, issues: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Ordena por status (To Do → Done), depois por prioridade."""
+        status_order = {
+            "TO DO": 1,
+            "BACKLOG": 1,
+            "WAITING DEVELOPMENT": 2,
+            "IN DEVELOPMENT": 3,
+            "IN PROGRESS": 3,
+            "CODE REVIEW": 4,
+            "IN REVIEW": 4,
+            "WAITING FOR HOMOLOG": 5,
+            "IN HOMOLOGATION": 6,
+            "READY FOR DEPLOY": 7,
+            "DONE": 8,
+            "CLOSED": 8,
+        }
+        priority_order = {
+            "Highest": 1,
+            "High": 2,
+            "Medium": 3,
+            "Low": 4,
+            "Lowest": 5,
+        }
+
+        def sort_key(issue: Dict[str, Any]) -> tuple:
+            s = (issue.get("status") or "").strip().upper()
+            p = (issue.get("priority") or "Medium").strip()
+            return (
+                status_order.get(s, 99),
+                priority_order.get(p, 99),
+                issue.get("key", ""),
+            )
+
+        return sorted(issues, key=sort_key)
 
     def _on_search_error(self, error_message: str) -> None:
         """Callback quando ocorre erro na busca"""
@@ -300,16 +391,44 @@ class MyIssuesModel(QObject):
             self._search_worker = None
 
     @Slot(str, str, str)
-    def updateIssueInList(self, issue_key: str, summary: str, status: str) -> None:
+    @Slot(str, str, str, str, str)
+    def updateIssueInList(
+        self,
+        issue_key: str,
+        summary: str,
+        status: str,
+        priority: str = "",
+        priority_id: str = "",
+    ) -> None:
         """
         Atualiza uma issue na lista em memória pelo key.
-        Usado após update bem-sucedido para evitar nova busca.
+        Usado após update bem-sucedido ou ao carregar detalhes.
+        priority e priority_id são opcionais (para corrigir exibição quando a busca não retorna).
         """
         for i, issue in enumerate(self._issues):
             if issue.get("key") == issue_key:
-                self._issues[i] = {**issue, "summary": summary, "status": status}
+                updates: Dict[str, Any] = {"summary": summary, "status": status}
+                if priority:
+                    updates["priority"] = priority
+                if priority_id:
+                    updates["priorityId"] = priority_id
+                # Nova lista para forçar QML a detectar mudança (modelChanged) e re-sincronizar
+                new_list = list(self._issues)
+                new_list[i] = {**issue, **updates}
+                self._issues = new_list
                 self.issuesChanged.emit()
                 return
+
+    @Slot(str)
+    def setSortBy(self, sort_by: str) -> None:
+        """Define critério de ordenação e reordena a lista atual."""
+        valid = ("priority", "status", "key")
+        if sort_by not in valid:
+            return
+        if self._sort_by != sort_by:
+            self._sort_by = sort_by
+            sorted_issues = self._sort_issues(self._issues)
+            self._set_issues(sorted_issues)
 
     @Slot(str, result="QVariant")
     def getIssue(self, key: str) -> Dict[str, Any]:

@@ -55,6 +55,40 @@ ColumnLayout {
         rowSpacing: Kirigami.Units.largeSpacing * 1.5
         columns: width > 650 ? 2 : 1
 
+        // Prioridade
+        ColumnLayout {
+            id: prioridadeColumnLayout
+            Layout.fillWidth: true
+            Layout.alignment: Qt.AlignTop
+            spacing: Kirigami.Units.smallSpacing
+
+            Controls.Label {
+                text: qsTr("Prioridade:")
+                font.bold: true
+                Layout.fillWidth: true
+            }
+
+            Controls.ComboBox {
+                id: prioridadeCombo
+                Layout.fillWidth: true
+                enabled: metadataFieldsRoot.enabled
+                model: ["Highest", "High", "Medium", "Low", "Lowest"]
+                currentIndex: {
+                    if (!metadataFieldsRoot.issueModel) return 2
+                    var p = (metadataFieldsRoot.issueModel.prioridade || "Medium").trim()
+                    for (var i = 0; i < model.length; i++) {
+                        if (model[i] === p) return i
+                    }
+                    return 2
+                }
+                onActivated: function(index) {
+                    if (metadataFieldsRoot.issueModel && index >= 0 && index < model.length) {
+                        metadataFieldsRoot.issueModel.prioridade = model[index]
+                    }
+                }
+            }
+        }
+
         // Status
         ColumnLayout {
             id: statusColumnLayout

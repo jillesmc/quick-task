@@ -1204,6 +1204,7 @@ class JiraClient:
         assignee: Optional[str] = None,
         custom_fields: Optional[Dict[str, str]] = None,
         parent_issue_key: Optional[str] = None,
+        priority: Optional[str] = None,
     ) -> Dict[str, str]:
         """
         Cria uma issue no Jira usando REST API
@@ -1216,6 +1217,7 @@ class JiraClient:
             assignee: Email do assignee (opcional)
             custom_fields: Dicionário com campos customizados (field_id: valor)
             parent_issue_key: Chave da issue pai (Epic) (opcional)
+            priority: Nome da prioridade (ex: "High", "Medium") (opcional)
 
         Returns:
             Dicionário com 'issue_key' e 'issue_url'
@@ -1321,6 +1323,10 @@ class JiraClient:
         # Adicionar parent se fornecido (dentro de fields)
         if parent_issue_key and parent_issue_key.strip():
             fields["parent"] = {"key": parent_issue_key.strip()}
+
+        # Adicionar prioridade se fornecido
+        if priority and priority.strip():
+            fields["priority"] = {"name": priority.strip()}
 
         # Adicionar campos customizados em fields
         # CREATE pode aceitar string direta, mas vamos usar {"value": "text"} para consistência
@@ -1822,6 +1828,7 @@ class JiraClient:
                 "assignee",
                 "parent",
                 "description",
+                "priority",
             ],
         }
 
@@ -2048,12 +2055,13 @@ class JiraClient:
         if not issue_key:
             return None
 
-        # Campos necessários: summary, description, status, parent (com summary), e campos customizados
+        # Campos necessários: summary, description, status, parent (com summary), priority, e campos customizados
         fields_list = [
             "summary",
             "description",
             "status",
             "parent",
+            "priority",
             "customfield_12088",  # tipo_atividade
             "customfield_14840",  # documentacao_anexa
             "customfield_14841",  # utilizacao_ia

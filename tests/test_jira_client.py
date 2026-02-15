@@ -168,6 +168,32 @@ def test_create_issue_with_parent(mock_request, mock_config_file):
 
 
 @patch("core.jira_client.requests.request")
+def test_create_issue_with_priority(mock_request, mock_config_file):
+    """Testa criação de issue com prioridade"""
+    create_response = Mock()
+    create_response.status_code = 201
+    create_response.json.return_value = {
+        "key": "TEST-123",
+        "self": "https://test.atlassian.net/rest/api/3/issue/TEST-123",
+    }
+    mock_request.return_value = create_response
+
+    client = JiraClient(jira_cli_config_path=mock_config_file)
+    result = client.create_issue(
+        project="TEST",
+        issue_type="Task",
+        summary="Test",
+        description="Test",
+        priority="High",
+    )
+
+    assert result["issue_key"] == "TEST-123"
+    call_args = mock_request.call_args
+    payload = call_args[1]["json"]
+    assert payload["fields"]["priority"]["name"] == "High"
+
+
+@patch("core.jira_client.requests.request")
 def test_create_issue_error(mock_request, mock_config_file):
     """Testa erro ao criar issue"""
     mock_response = Mock()
