@@ -136,6 +136,8 @@ Controls.Frame {
     }
 
     function _onCurrentRowChanged() {
+        if (issueListRoot._syncing)
+            return
         var r = issuesTableView.currentRow
         if (issueListRoot._selecting) {
             issueListRoot._selecting = false
