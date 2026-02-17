@@ -251,7 +251,6 @@ Controls.Frame {
                         implicitWidth: 30
                         implicitHeight: 36
                         color: (selected || current || row === issueListRoot.activeRow) ? Kirigami.Theme.highlightColor : "transparent"
-                        opacity: (selected || current || row === issueListRoot.activeRow) ? 0.3 : 1
                         required property bool selected
                         required property bool current
                         required property int row
@@ -282,7 +281,6 @@ Controls.Frame {
                         implicitWidth: 50
                         implicitHeight: 36
                         color: (selected || current || row === issueListRoot.activeRow) ? Kirigami.Theme.highlightColor : "transparent"
-                        opacity: (selected || current || row === issueListRoot.activeRow) ? 0.3 : 1
                         required property bool selected
                         required property bool current
                         required property int row
@@ -340,7 +338,6 @@ Controls.Frame {
                         implicitWidth: 1
                         implicitHeight: 36
                         color: (selected || current || row === issueListRoot.activeRow) ? Kirigami.Theme.highlightColor : "transparent"
-                        opacity: (selected || current || row === issueListRoot.activeRow) ? 0.3 : 1
                         required property bool selected
                         required property bool current
                         required property int row
@@ -357,7 +354,6 @@ Controls.Frame {
                         implicitWidth: 110
                         implicitHeight: 36
                         color: (selected || current || row === issueListRoot.activeRow) ? Kirigami.Theme.highlightColor : "transparent"
-                        opacity: (selected || current || row === issueListRoot.activeRow) ? 0.3 : 1
                         required property bool selected
                         required property bool current
                         required property int row
@@ -383,7 +379,6 @@ Controls.Frame {
                         implicitWidth: 200
                         implicitHeight: 36
                         color: (selected || current || row === issueListRoot.activeRow) ? Kirigami.Theme.highlightColor : "transparent"
-                        opacity: (selected || current || row === issueListRoot.activeRow) ? 0.3 : 1
                         required property bool selected
                         required property bool current
                         required property int row
@@ -408,7 +403,6 @@ Controls.Frame {
                         implicitWidth: 70
                         implicitHeight: 36
                         color: (selected || current || row === issueListRoot.activeRow) ? Kirigami.Theme.highlightColor : "transparent"
-                        opacity: (selected || current || row === issueListRoot.activeRow) ? 0.3 : 1
                         required property bool selected
                         required property bool current
                         required property int row
@@ -446,7 +440,6 @@ Controls.Frame {
                         implicitWidth: 150
                         implicitHeight: 36
                         color: (selected || current || row === issueListRoot.activeRow) ? Kirigami.Theme.highlightColor : "transparent"
-                        opacity: (selected || current || row === issueListRoot.activeRow) ? 0.3 : 1
                         required property bool selected
                         required property bool current
                         required property int row
@@ -471,7 +464,6 @@ Controls.Frame {
                         implicitWidth: 70
                         implicitHeight: 36
                         color: (selected || current || row === issueListRoot.activeRow) ? Kirigami.Theme.highlightColor : "transparent"
-                        opacity: (selected || current || row === issueListRoot.activeRow) ? 0.3 : 1
                         required property bool selected
                         required property bool current
                         required property int row
@@ -483,16 +475,8 @@ Controls.Frame {
                         }
                         RowLayout {
                             anchors.fill: parent
+                            anchors.leftMargin: Kirigami.Units.smallSpacing
                             spacing: Kirigami.Units.smallSpacing
-                            Item { Layout.preferredWidth: 4 }
-                            Controls.Label {
-                                text: "⏱"
-                                visible: issueListRoot.timerModel && issueListRoot.timerModel.issueKey === timerCell._issueKey &&
-                                         (issueListRoot.timerModel.state === "running" || issueListRoot.timerModel.state === "paused")
-                                color: issueListRoot.timerModel && issueListRoot.timerModel.state === "running" ? "#3daee9" : "#808080"
-                                Layout.preferredWidth: 30
-                                Layout.alignment: Qt.AlignVCenter
-                            }
                             Controls.ToolButton {
                                 icon.name: {
                                     if (issueListRoot.timerModel && issueListRoot.timerModel.issueKey === timerCell._issueKey && issueListRoot.timerModel.state === "running")
@@ -504,6 +488,7 @@ Controls.Frame {
                                     return "chronometer"
                                 }
                                 Layout.preferredWidth: 40
+                                Layout.alignment: Qt.AlignVCenter
                                 enabled: issueListRoot.timerService && issueListRoot.timerModel
                                 onClicked: {
                                     issueListRoot._selectRowByIndex(timerCell.row)
@@ -525,6 +510,15 @@ Controls.Frame {
                                     }
                                 }
                             }
+                            Controls.Label {
+                                text: "⏱"
+                                visible: issueListRoot.timerModel && issueListRoot.timerModel.issueKey === timerCell._issueKey &&
+                                         (issueListRoot.timerModel.state === "running" || issueListRoot.timerModel.state === "paused")
+                                color: issueListRoot.timerModel && issueListRoot.timerModel.state === "running" ? "#3daee9" : "#808080"
+                                Layout.preferredWidth: 20
+                                Layout.alignment: Qt.AlignVCenter
+                            }
+                            Item { Layout.fillWidth: true }
                         }
                     }
                 }
