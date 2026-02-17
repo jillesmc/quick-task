@@ -216,12 +216,16 @@ Controls.Frame {
             interactive: true
             columnSpacing: 1
             rowSpacing: 1
+            resizableColumns: true
             selectionModel: ItemSelectionModel { model: issueTableModel }
             selectionBehavior: TableView.SelectRows
             pointerNavigationEnabled: false  // Tratamos clique no delegate (Qt 6 não seleciona linha no tap)
             model: issueTableModel
 
             columnWidthProvider: function(column) {
+                var explicitW = issuesTableView.explicitColumnWidth(column)
+                if (explicitW >= 0)
+                    return explicitW
                 if (column >= 0 && column < issueListRoot._colWidths.length) {
                     var w = issueListRoot._colWidths[column]
                     return w >= 0 ? w : 100
