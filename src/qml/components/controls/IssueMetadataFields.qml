@@ -68,22 +68,21 @@ ColumnLayout {
                 Layout.fillWidth: true
             }
 
-            Controls.ComboBox {
-                id: prioridadeCombo
+            IssueRadioGroup {
+                id: prioridadeRadioGroup
                 Layout.fillWidth: true
+                model: [
+                    { value: "Highest", label: "Highest", icon: "flag-red" },
+                    { value: "High", label: "High", icon: "flag-yellow" },
+                    { value: "Medium", label: "Medium", icon: "flag" },
+                    { value: "Low", label: "Low", icon: "flag-green" },
+                    { value: "Lowest", label: "Lowest", icon: "flag-blue" }
+                ]
                 enabled: metadataFieldsRoot.enabled
-                model: ["Highest", "High", "Medium", "Low", "Lowest"]
-                currentIndex: {
-                    if (!metadataFieldsRoot.issueModel) return 2
-                    var p = (metadataFieldsRoot.issueModel.prioridade || "Medium").trim()
-                    for (var i = 0; i < model.length; i++) {
-                        if (model[i] === p) return i
-                    }
-                    return 2
-                }
-                onActivated: function(index) {
-                    if (metadataFieldsRoot.issueModel && index >= 0 && index < model.length) {
-                        metadataFieldsRoot.issueModel.prioridade = model[index]
+                selectedValue: metadataFieldsRoot.issueModel ? metadataFieldsRoot.issueModel.prioridade : "Medium"
+                onValueChanged: function(value) {
+                    if (metadataFieldsRoot.issueModel) {
+                        metadataFieldsRoot.issueModel.prioridade = value
                     }
                 }
             }

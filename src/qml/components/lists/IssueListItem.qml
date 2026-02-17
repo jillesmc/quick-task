@@ -31,7 +31,17 @@ Controls.ItemDelegate {
         if (s.indexOf("BLOCKED") >= 0 || s.indexOf("WAITING") >= 0) return "Wait"
         return s.length > 8 ? s.substring(0, 8) + "…" : s
     }
-    // Prioridade: texto abreviado (Jira Cloud usa IDs como 10000, não 1-5)
+    // Prioridade: ícone Breeze ou fallback em texto abreviado (Jira Cloud usa IDs como 10000, não 1-5)
+    property string priorityIcon: {
+        var p = (root.priority || "").toLowerCase()
+        var id = root.priorityId
+        if (p.includes("highest") || id === "1" || id === "10000") return "flag-red"
+        if ((p.includes("high") && !p.includes("lowest")) || id === "2" || id === "10001") return "flag-yellow"
+        if (p.includes("medium") || p.includes("médio") || id === "3" || id === "10002") return "flag"
+        if ((p.includes("low") && !p.includes("lowest")) || id === "4" || id === "10003") return "flag-green"
+        if (p.includes("lowest") || id === "5" || id === "10004") return "flag-blue"
+        return ""
+    }
     property string priorityDisplay: {
         var p = (root.priority || "").toLowerCase()
         var id = root.priorityId
@@ -79,13 +89,25 @@ Controls.ItemDelegate {
             horizontalAlignment: Text.AlignLeft
         }
 
-        Controls.Label {
-            text: root.priorityDisplay
-            font.pointSize: Kirigami.Theme.defaultFont.pointSize
+        Item {
             Layout.preferredWidth: 50
             Layout.minimumWidth: 40
-            horizontalAlignment: Text.AlignLeft
-            elide: Text.ElideRight
+            Layout.alignment: Qt.AlignLeft | Qt.AlignVCenter
+            Kirigami.Icon {
+                anchors.centerIn: parent
+                source: root.priorityIcon
+                width: Kirigami.Units.iconSizes.small
+                height: width
+                visible: root.priorityIcon !== ""
+            }
+            Controls.Label {
+                anchors.centerIn: parent
+                text: root.priorityDisplay
+                font.pointSize: Kirigami.Theme.defaultFont.pointSize
+                horizontalAlignment: Text.AlignLeft
+                elide: Text.ElideRight
+                visible: root.priorityIcon === ""
+            }
         }
 
         Controls.Label {

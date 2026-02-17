@@ -417,9 +417,8 @@ Kirigami.Page {
                 });
 
                 page.controller.issueSelected.connect(function (issueKey, issueData) {
-                    if (issueKey) {
-                        page.selectedIssueKey = issueKey;
-                        page.loadIssueDetails(issueKey);
+                    if (issueKey && page.issueList) {
+                        page.issueList.selectIssue(issueKey);
                     }
                 });
             }
@@ -510,7 +509,6 @@ Kirigami.Page {
                             model: page.myIssuesModel ? page.myIssuesModel.issues : []
                             sourceModel: page.myIssuesModel
                             isLoading: page.myIssuesModel ? page.myIssuesModel.isLoading : false
-                            selectedIssueKey: page.selectedIssueKey
                             timerModel: page.timerModel
                             timerService: page.timerService
 
@@ -519,8 +517,9 @@ Kirigami.Page {
                                     page._startTimerAfterInDevelopment(issueKey)
                             }
                             onIssueSelected: function (issueKey, issueData) {
-                                page.selectedIssueKey = issueKey;
-                                page.loadIssueDetails(issueKey);
+                                page.selectedIssueKey = issueKey || "";
+                                if (!issueKey) return;
+                                Qt.callLater(function() { page.loadIssueDetails(issueKey); });
                             }
                         }
                     }

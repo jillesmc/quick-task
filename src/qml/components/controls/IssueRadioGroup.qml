@@ -2,8 +2,8 @@ pragma ComponentBehavior: Bound
 /**
  * IssueRadioGroup.qml
  *
- * Grupo de radio buttons a partir de um model (array de strings ou array de { value, label }).
- * Quando model é array de objetos, value é o identificador (ex.: objectId) e label é exibido.
+ * Grupo de radio buttons a partir de um model (array de strings ou array de { value, label, icon }).
+ * Quando model é array de objetos, value é o identificador, label é exibido, icon (opcional) à esquerda.
  * Recebe model, enabled, selectedValue; emite valueChanged(value).
  */
 import QtQuick
@@ -34,6 +34,11 @@ ColumnLayout {
         if (data && typeof data.label !== "undefined") return String(data.label)
         return data ? String(data) : ""
     }
+    function itemIcon(data) {
+        if (!data || typeof data !== "object") return ""
+        if (data.icon !== undefined) return String(data.icon)
+        return ""
+    }
 
     Column {
         Layout.fillWidth: true
@@ -47,6 +52,8 @@ ColumnLayout {
                 id: radioButton
                 required property var modelData
                 required property int index
+                display: group.itemIcon(radioButton.modelData) ? Controls.AbstractButton.TextBesideIcon : Controls.AbstractButton.TextOnly
+                icon.name: group.itemIcon(radioButton.modelData) || undefined
                 text: group.itemLabel(radioButton.modelData)
                 enabled: group.enabled && (group.minEnabledIndex < 0 || radioButton.index >= group.minEnabledIndex)
                 checked: group.selectedValue === group.itemValue(radioButton.modelData)
