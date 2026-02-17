@@ -5,7 +5,7 @@ Para diagnosticar problemas, execute a aplicação com debug habilitado:
 ## Opção 1: Via Makefile (Recomendado)
 
 ```bash
-make flatpak-run-debug
+make run-debug
 ```
 
 ## Opção 2: Via Flatpak diretamente

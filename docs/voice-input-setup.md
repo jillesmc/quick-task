@@ -1,11 +1,30 @@
-# Configurar entrada por voz (LocalAI no host)
+# Configurar entrada por voz (LocalAI)
 
-A funcionalidade **Criar tarefa por voz** grava áudio no app e envia para o **LocalAI** rodando no seu computador (localhost). O LocalAI faz a transcrição (Whisper) e o processamento do texto (LLM) para preencher Summary, Description e Tipo de atividade.
+A funcionalidade **Criar tarefa por voz** grava áudio no app e envia para o **LocalAI** no host. O LocalAI faz transcrição (Whisper) e processamento de texto (LLM) para preencher Summary, Description e Tipo de atividade.
+
+**Conteúdo:** [Arquitetura](#arquitetura) · [Instalar LocalAI](#1-instalar-o-localai-host) · [Modelos](#2-modelos-no-localai) · [Configuração](#3-configuração-no-app) · [Uso](#6-uso) · [Diagnóstico](#diagnóstico)
 
 ## Arquitetura
 
-- **No Flatpak (app):** apenas gravação de áudio (sounddevice + PortAudio) e cliente HTTP para `http://localhost:8080`.
-- **No host:** LocalAI com modelos Whisper (transcrição) e LLM (ex.: qwen2.5:3b).
+```mermaid
+flowchart LR
+    subgraph App
+        A["Áudio"]
+        B["Texto transcrito"]
+        C["Campos preenchidos"]
+    end
+    subgraph LocalAI
+        D["Whisper"]
+        E["LLM"]
+    end
+    A -->|"grava e envia"| D
+    D -->|"transcrição"| B
+    B -->|"envia"| E
+    E -->|"extrai summary, description, tipo"| C
+```
+
+- **No app (Flatpak):** gravação de áudio (sounddevice + PortAudio) e cliente HTTP para `http://localhost:8080`.
+- **No host:** LocalAI com Whisper (transcrição) e LLM (ex.: qwen2.5:3b).
 
 O app **não** embute modelos de ML; tudo roda no LocalAI no host.
 
@@ -13,19 +32,14 @@ O app **não** embute modelos de ML; tudo roda no LocalAI no host.
 
 ### Docker (recomendado)
 
-Para instalação **com GPU NVIDIA CUDA** (driver, NVIDIA Container Toolkit, modelos Whisper e Qwen), use o guia **[LocalAI com NVIDIA CUDA via Docker](localai-docker-nvidia-setup.md)**.
-
-Use o arquivo de composição incluído no repositório:
+Para **GPU NVIDIA CUDA**, use o guia [LocalAI com NVIDIA CUDA via Docker](localai-docker-nvidia-setup.md).
 
 ```bash
-# Opcional: criar diretório para persistência de modelos
 mkdir -p .localai-models
-
-# Subir LocalAI (GPU NVIDIA CUDA 12)
 docker compose -f docker-compose.localai.yml up -d
 ```
 
-Para **CPU apenas**, edite `docker-compose.localai.yml`: use `image: localai/localai:latest` e remova o bloco `deploy` (recursos de GPU).
+Para **CPU apenas**, edite `docker-compose.localai.yml`: use `image: localai/localai:latest` e remova o bloco `deploy` (GPU).
 
 ### Verificar
 
@@ -33,96 +47,74 @@ Para **CPU apenas**, edite `docker-compose.localai.yml`: use `image: localai/loc
 curl http://localhost:8080/v1/models
 ```
 
-Se retornar JSON (lista de modelos ou vazia), o LocalAI está ativo.
+Se retornar JSON, o LocalAI está ativo.
 
 ## 2. Modelos no LocalAI
 
-O app usa a API OpenAI-compatível do LocalAI:
+O app usa a API OpenAI-compatível:
 
-- **Transcrição:** `POST /v1/audio/transcriptions` (modelo configurado em `localai_whisper_model`, ex.: `whisper-1`).
-- **LLM:** `POST /v1/chat/completions` (modelo em `localai_llm_model`, ex.: `qwen2.5:3b`).
+| Uso | Endpoint | Modelo (exemplo) |
+|-----|----------|------------------|
+| Transcrição | `POST /v1/audio/transcriptions` | `whisper-1` |
+| Extração LLM | `POST /v1/chat/completions` | `qwen2.5:3b` |
 
-Baixe e configure os modelos conforme a [documentação do LocalAI](https://localai.io/getting-started/models/). Modelos sugeridos para ~6GB VRAM: Whisper (transcrição) + um LLM pequeno (ex.: qwen2.5:3b).
+Baixe e configure os modelos conforme a [documentação do LocalAI](https://localai.io/getting-started/models/). Sugestão para ~6GB VRAM: Whisper + qwen2.5:3b.
 
 ## 3. Configuração no app
 
-No **config.json** (ou `~/.config/jira-quick-task/config.json`), bloco **voice_input**:
+No **config.json** ou em **Configurações → Entrada por voz**:
 
-```json
-"voice_input": {
-  "enabled": true,
-  "localai_base_url": "http://localhost:8080",
-  "localai_whisper_model": "whisper-1",
-  "localai_llm_model": "qwen2.5:3b",
-  "localai_task_system_prompt": "Você extrai dados estruturados...",
-  "localai_comment_improvement_prompt": "Você apenas melhora o texto...",
-  "language": "pt",
-  "max_recording_seconds": 120,
-  "keyboard_shortcut": "Ctrl+Shift+V",
-  "auto_process_after_stop": false,
-  "microphone_device": "default"
-}
-```
+| Campo | Descrição | Default |
+|-------|-----------|---------|
+| `localai_base_url` | URL do LocalAI | `http://localhost:8080` |
+| `localai_whisper_model` | Modelo de transcrição | `whisper-1` |
+| `localai_llm_model` | Modelo para extrair campos | `qwen2.5:3b` |
+| `localai_task_system_prompt` | Pré-prompt para extração (summary, description, tipo). Define estrutura da description em Markdown | — |
+| `localai_comment_improvement_prompt` | Pré-prompt para **Melhorar com IA** em comentários | — |
+| `enabled` | Ativa entrada por voz e atalho | `false` |
+| `language` | Idioma da transcrição | `pt` |
+| `max_recording_seconds` | Tempo máximo de gravação | `120` |
+| `keyboard_shortcut` | Atalho de teclado | `Ctrl+Shift+V` |
+| `auto_process_after_stop` | Processar automaticamente ao parar gravação | `false` |
+| `microphone_device` | Dispositivo de microfone | `default` |
 
-- **localai_base_url:** URL do LocalAI (default: `http://localhost:8080`).
-- **localai_whisper_model:** modelo de transcrição (ex.: `whisper-1`).
-- **localai_llm_model:** modelo para extrair campos (ex.: `qwen2.5:3b`).
-- **localai_task_system_prompt:** pré-prompt de sistema para extração de task (summary, description, tipo_atividade). Define como a **description** deve ser estruturada (ex.: Contexto, Passos, Critérios em Markdown).
-- **localai_comment_improvement_prompt:** pré-prompt usado ao **melhorar comentários** com IA (apenas expandir e estruturar o texto, sem extração de campos).
-- **enabled:** ativa a entrada por voz e o atalho.
-- **language:** idioma da transcrição (ex.: `pt`).
-- **max_recording_seconds**, **keyboard_shortcut**, **auto_process_after_stop**, **microphone_device:** como antes.
-
-Na interface, em **Configurações → Entrada por voz**, você pode preencher URL base LocalAI, nomes dos modelos e os dois pré-prompts (campos multilinha). Os pré-prompts são lidos do config em cada pedido ao LocalAI, portanto alterações salvas passam a valer no próximo uso.
+Os pré-prompts são lidos do config em cada pedido; alterações salvas valem no próximo uso.
 
 ## 4. Flatpak: permissões
 
-O manifest já inclui:
-
-- **--share=network** – acesso a `localhost:8080`.
-- **--socket=pulseaudio** – captura de áudio.
-
-O módulo **python3-audio.json** (sounddevice, scipy, numpy) e **portaudio.json** fornecem apenas gravação; não há modelos de ML no Flatpak.
+O manifest já inclui `--share=network` e `--socket=pulseaudio`. Não há modelos de ML no Flatpak.
 
 ## 5. Quando a entrada por voz fica disponível
 
-O bloco **Entrada por voz** (e o botão/atalho **Criar por voz**) só fica habilitado quando:
+O bloco **Entrada por voz** e o botão **Criar por voz** só ficam habilitados quando:
 
-1. As dependências de **áudio** estão disponíveis (sounddevice, PortAudio no Flatpak).
-2. O app consegue falar com o **LocalAI** em `localai_base_url` (ex.: `GET /v1/models` com sucesso).
+1. Dependências de **áudio** estão disponíveis (sounddevice, PortAudio).
+2. O app consegue falar com o **LocalAI** em `localai_base_url` (`GET /v1/models` com sucesso).
 
-Se o LocalAI não estiver rodando ou a URL estiver errada, a opção de voz permanece desabilitada. Inicie o LocalAI e, se precisar, ajuste `localai_base_url` nas configurações.
+## Diagnóstico
 
-### Como identificar o que falta
+Se a opção de voz estiver desabilitada:
 
-1. **Rode o app com debug** (terminal): `jira-quick-task --debug` ou `flatpak run org.kde.jira-quick-task --debug`.
-2. Abra **Configuração** e verifique se o bloco **Entrada por voz** aparece e se está habilitado/desabilitado.
-3. **Veja o log de debug**: o `LocalAIClient` grava a URL usada e o erro quando a verificação falha.
-   - Fora do Flatpak: `.cursor/debug.log` (na raiz do projeto) ou saída no terminal.
-   - No Flatpak: `~/.config/jira-quick-task/debug.log` (ou variável `XDG_CONFIG_HOME`).
-4. Exemplos de mensagem:
-   - `GET http://localhost:8080/v1/models failed: Connection refused` → LocalAI não está rodando ou não está em 8080.
-   - `GET http://localhost:8080/v1/models failed: ... timed out` → Firewall ou rede bloqueando.
-   - **No Flatpak:** se `localhost` falhar mesmo com o LocalAI rodando no host, use o **IP da máquina** em vez de localhost (veja abaixo).
-
-### Flatpak e localhost
-
-Dentro do Flatpak, `127.0.0.1` / `localhost` pode referir-se ao loopback do sandbox, não ao host. Se o LocalAI está no host e o app é o Flatpak na mesma máquina:
-
-1. Descubra o IP da sua máquina na LAN (ex.: `ip -4 addr` ou `hostname -I`), ex.: `192.168.1.10`.
-2. Configure o LocalAI para escutar em todas as interfaces (ex.: bind em `0.0.0.0:8080` no Docker).
-3. Nas configurações do app, em **URL base LocalAI**, use `http://192.168.1.10:8080` (ou o IP que você obteve).
+1. **Rode com debug:** `flatpak run org.kde.jira-quick-task --debug` ou `make run-debug`.
+2. Abra **Configuração** e verifique o bloco **Entrada por voz**.
+3. **Log de debug:** `LocalAIClient` grava URL e erro. Logs em `~/.config/jira-quick-task/debug.log` (Flatpak) ou saída do terminal.
+4. **Mensagens comuns:**
+   - `Connection refused` → LocalAI não está rodando ou não está em 8080.
+   - `timed out` → Firewall ou rede bloqueando.
+   - **Flatpak + localhost:** `127.0.0.1` pode referir-se ao loopback do sandbox. Use o **IP da máquina** (ex.: `ip -4 addr`), configure o LocalAI para escutar em `0.0.0.0:8080` e use `http://192.168.x.x:8080` nas configurações do app.
 
 ## 6. Uso
 
+![Modal Criar tarefa por voz](screenshots/criar-issue-por-voz.png)
+
 1. Na aba **Criar Issue**, use o botão **Criar por voz** (microfone) ou o atalho (ex.: **Ctrl+Shift+V**).
 2. **Gravar** para capturar áudio; **Parar** para enviar ao LocalAI e transcrever.
-3. A transcrição aparece na caixa de texto; você pode editar antes de processar.
-4. **Processar com IA** envia o texto ao LLM no LocalAI e preenche Summary, Description e Tipo de atividade.
-5. Revise o formulário e clique em **Criar** para enviar ao Jira.
+3. A transcrição aparece na caixa de texto; edite se necessário.
+4. **Processar com IA** envia o texto ao LLM e preenche Summary, Description e Tipo de atividade.
+5. Revise e clique em **Criar** para enviar ao Jira.
 
 ## Referências
 
-- [LocalAI com NVIDIA CUDA via Docker](localai-docker-nvidia-setup.md) — guia de instalação com GPU e modelos (Whisper, Qwen)
-- [LocalAI](https://localai.io/) – [Docker](https://localai.io/installation/docker/), [Audio-to-text](https://localai.io/features/audio-to-text/), [Text generation](https://localai.io/features/text-generation/), [GPU](https://localai.io/features/gpu-acceleration/)
+- [LocalAI com NVIDIA CUDA via Docker](localai-docker-nvidia-setup.md)
+- [LocalAI](https://localai.io/) — [Docker](https://localai.io/installation/docker/), [Audio-to-text](https://localai.io/features/audio-to-text/), [Text generation](https://localai.io/features/text-generation/)
 - [SoundDevice](https://python-sounddevice.readthedocs.io/)
