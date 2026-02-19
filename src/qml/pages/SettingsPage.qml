@@ -96,7 +96,7 @@ Kirigami.Page {
         orientation: Qt.Horizontal
         handle: SplitViewHandle { }
 
-        // Coluna Esquerda (50%): Conexão Jira
+        // Coluna Esquerda: Conexões com plataformas e dados do Jira
         Controls.ScrollView {
             id: leftScrollView
             Controls.SplitView.preferredWidth: parent.width * 0.5
@@ -125,11 +125,6 @@ Kirigami.Page {
                     }
 
                     GitHubSettingsBlock {
-                        Layout.fillWidth: true
-                        settingsModel: page.settingsModel
-                    }
-
-                    DevelopmentPanelSettingsBlock {
                         Layout.fillWidth: true
                         settingsModel: page.settingsModel
                     }
@@ -186,7 +181,7 @@ Kirigami.Page {
             }
         }
 
-        // Coluna Direita (50%): Pomodoro, Notificações e Entrada por voz
+        // Coluna Direita: Configurações agrupadas por tema
         Controls.ScrollView {
             id: rightScrollView
             Controls.SplitView.fillWidth: true
@@ -208,27 +203,58 @@ Kirigami.Page {
                     anchors.bottomMargin: Kirigami.Units.largeSpacing
                     spacing: Kirigami.Units.largeSpacing
 
+                    // Produtividade (Timer)
+                    Kirigami.Heading {
+                        text: qsTr("Produtividade")
+                        level: 2
+                        Layout.fillWidth: true
+                        Layout.topMargin: 0
+                    }
                     PomodoroSettingsBlock {
                         Layout.fillWidth: true
                         settingsModel: page.settingsModel
                     }
-
                     NotificationSettingsBlock {
                         Layout.fillWidth: true
                         settingsModel: page.settingsModel
                     }
 
+                    // Workflow Jira
+                    Kirigami.Heading {
+                        text: qsTr("Workflow Jira")
+                        level: 2
+                        Layout.fillWidth: true
+                        Layout.topMargin: Kirigami.Units.largeSpacing
+                    }
+                    StatusTransitionsSettingsBlock {
+                        Layout.fillWidth: true
+                        settingsModel: page.settingsModel
+                    }
+                    DevelopmentPanelSettingsBlock {
+                        Layout.fillWidth: true
+                        settingsModel: page.settingsModel
+                    }
+
+                    // Entrada
+                    Kirigami.Heading {
+                        text: qsTr("Entrada")
+                        level: 2
+                        Layout.fillWidth: true
+                        Layout.topMargin: Kirigami.Units.largeSpacing
+                    }
                     VoiceInputSettingsBlock {
                         Layout.fillWidth: true
                         settingsModel: page.settingsModel
                         voiceInputAvailable: page.voiceInputAvailable
                     }
 
-                    StatusTransitionsSettingsBlock {
+                    // Timesheet
+                    Kirigami.Heading {
+                        text: qsTr("Timesheet")
+                        level: 2
                         Layout.fillWidth: true
-                        settingsModel: page.settingsModel
+                        Layout.topMargin: Kirigami.Units.largeSpacing
                     }
-
                     TimesheetSettingsBlock {
                         Layout.fillWidth: true
                         settingsModel: page.settingsModel
