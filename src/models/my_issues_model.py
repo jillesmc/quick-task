@@ -311,7 +311,11 @@ class MyIssuesModel(QObject):
                 "Primeiro item keys=%s key=%s summary=%s status=%s priority=%s priorityId=%s",
                 list(first.keys()) if isinstance(first, dict) else "?",
                 first.get("key", "?") if isinstance(first, dict) else "?",
-                (first.get("summary", "?") or "")[:40] if isinstance(first, dict) else "?",
+                (
+                    (first.get("summary", "?") or "")[:40]
+                    if isinstance(first, dict)
+                    else "?"
+                ),
                 first.get("status", "?") if isinstance(first, dict) else "?",
                 first.get("priority", "?") if isinstance(first, dict) else "?",
                 first.get("priorityId", "?") if isinstance(first, dict) else "?",

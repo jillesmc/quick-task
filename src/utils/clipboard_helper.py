@@ -36,12 +36,20 @@ class ClipboardHelper(QObject):
         """
         debug_log("ClipboardHelper", "getClipboardImageAsTempFile", "chamado")
         if not self.hasClipboardImage():
-            debug_log("ClipboardHelper", "getClipboardImageAsTempFile", "sem imagem no clipboard")
+            debug_log(
+                "ClipboardHelper",
+                "getClipboardImageAsTempFile",
+                "sem imagem no clipboard",
+            )
             return ""
         clipboard = QGuiApplication.clipboard()
         image = clipboard.image()
         if image.isNull():
-            debug_log("ClipboardHelper", "getClipboardImageAsTempFile", "clipboard.image() é null")
+            debug_log(
+                "ClipboardHelper",
+                "getClipboardImageAsTempFile",
+                "clipboard.image() é null",
+            )
             return ""
         try:
             fd = tempfile.NamedTemporaryFile(
@@ -50,14 +58,35 @@ class ClipboardHelper(QObject):
             path = Path(fd.name)
             fd.close()
             if image.save(str(path)):
-                debug_log("ClipboardHelper", "getClipboardImageAsTempFile", "salvo em %s", path)
+                debug_log(
+                    "ClipboardHelper",
+                    "getClipboardImageAsTempFile",
+                    "salvo em %s",
+                    path,
+                )
                 return str(path)
             path.unlink(missing_ok=True)
-            debug_log("ClipboardHelper", "getClipboardImageAsTempFile", "image.save falhou")
+            debug_log(
+                "ClipboardHelper", "getClipboardImageAsTempFile", "image.save falhou"
+            )
             return ""
         except OSError as e:
-            debug_log("ClipboardHelper", "getClipboardImageAsTempFile", "OSError: %s", e)
+            debug_log(
+                "ClipboardHelper", "getClipboardImageAsTempFile", "OSError: %s", e
+            )
             return ""
+
+    @Slot(str)
+    def setText(self, text: str) -> None:
+        """
+        Copia texto para a área de transferência.
+        Usado para copiar comandos Git no popover de Development.
+        """
+        if not text:
+            return
+        clipboard = QGuiApplication.clipboard()
+        if clipboard:
+            clipboard.setText(text.strip())
 
     @Slot(str, result=str)
     def copyFileToTemp(self, source_path: str) -> str:
@@ -68,12 +97,19 @@ class ClipboardHelper(QObject):
         que o worker consiga ler o arquivo ao enviar o anexo.
         Retorna o path do temp ou string vazia em caso de erro.
         """
-        debug_log("ClipboardHelper", "copyFileToTemp", "chamado source_path=%s", source_path or "(vazio)")
+        debug_log(
+            "ClipboardHelper",
+            "copyFileToTemp",
+            "chamado source_path=%s",
+            source_path or "(vazio)",
+        )
         if not source_path or not source_path.strip():
             return ""
         path = Path(source_path.strip())
         if not path.exists():
-            debug_log("ClipboardHelper", "copyFileToTemp", "arquivo não existe: %s", path)
+            debug_log(
+                "ClipboardHelper", "copyFileToTemp", "arquivo não existe: %s", path
+            )
             return ""
         if not path.is_file():
             debug_log("ClipboardHelper", "copyFileToTemp", "não é arquivo: %s", path)

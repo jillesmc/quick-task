@@ -16,6 +16,7 @@ def temp_db_path():
     """Caminho para banco de dados temporário."""
     fd, path = tempfile.mkstemp(suffix=".db")
     import os
+
     os.close(fd)
     yield Path(path)
     if Path(path).exists():
@@ -35,7 +36,9 @@ def test_get_pending_worklogs_for_issue_empty(worklog_db: WorklogDatabase):
     assert worklog_db.get_pending_worklogs_for_issue("   ") == []
 
 
-def test_get_pending_worklogs_for_issue_only_returns_unsynced(worklog_db: WorklogDatabase):
+def test_get_pending_worklogs_for_issue_only_returns_unsynced(
+    worklog_db: WorklogDatabase,
+):
     """Retorna apenas sessões não sincronizadas da issue dada."""
     base = datetime(2026, 1, 15, 10, 0, 0)
     worklog_db.save_session(

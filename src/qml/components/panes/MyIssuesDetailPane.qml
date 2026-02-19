@@ -39,6 +39,7 @@ Item {
     property bool isDetailsLoading: false
     property var jiraService: null
     property var clipboardHelper: null
+    property var gitCommandHelper: null
     property var voiceInputService: null
     property bool voiceInputAvailable: voiceInputService ? voiceInputService.isAvailable() : false
     property string sharedEpicKey: ""
@@ -208,6 +209,14 @@ Item {
                         issueKey: pane.selectedIssueKey
                         issueSummary: pane.issueModel ? pane.issueModel.summary : ""
                         jiraService: pane.jiraService
+                        clipboardHelper: pane.clipboardHelper
+                        applicationWindow: pane.applicationWindow
+                        gitCommandHelper: pane.gitCommandHelper
+                        onReloadRequested: {
+                            if (pane.myIssuesPage && pane.selectedIssueKey && typeof pane.myIssuesPage.loadIssueDetails === "function") {
+                                pane.myIssuesPage.loadIssueDetails(pane.selectedIssueKey)
+                            }
+                        }
                     }
 
                     ColumnLayout {

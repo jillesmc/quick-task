@@ -169,6 +169,7 @@ class ConfigManager:
         try:
             from src.utils.debug import debug_log
         except ImportError:
+
             def debug_log(*_args, **_kwargs):
                 pass  # no-op quando src.utils.debug não disponível (ex.: testes/init)
 
@@ -242,17 +243,21 @@ class ConfigManager:
         if cloud_id is not None:
             self._config["assets"]["cloud_id"] = cloud_id
         if object_type_valor_entregue is not None:
-            self._config["assets"]["object_type_valor_entregue"] = object_type_valor_entregue
+            self._config["assets"][
+                "object_type_valor_entregue"
+            ] = object_type_valor_entregue
         if object_type_plataformas_afetadas is not None:
-            self._config["assets"]["object_type_plataformas_afetadas"] = (
-                object_type_plataformas_afetadas
-            )
+            self._config["assets"][
+                "object_type_plataformas_afetadas"
+            ] = object_type_plataformas_afetadas
         if object_type_id_valor_entregue is not None:
-            self._config["assets"]["object_type_id_valor_entregue"] = object_type_id_valor_entregue
+            self._config["assets"][
+                "object_type_id_valor_entregue"
+            ] = object_type_id_valor_entregue
         if object_type_id_plataformas_afetadas is not None:
-            self._config["assets"]["object_type_id_plataformas_afetadas"] = (
-                object_type_id_plataformas_afetadas
-            )
+            self._config["assets"][
+                "object_type_id_plataformas_afetadas"
+            ] = object_type_id_plataformas_afetadas
 
     def _validate_config(self) -> None:
         """Valida a estrutura básica da configuração"""
@@ -473,10 +478,16 @@ class ConfigManager:
         result = dict(defaults)
         result.update({k: v for k, v in voice_config.items() if k != "whisper_model"})
         # Migração: se config antiga tem ollama_* e não tem localai_*, preencher localai_* a partir de ollama_*
-        if "localai_base_url" not in voice_config and voice_config.get("ollama_base_url"):
+        if "localai_base_url" not in voice_config and voice_config.get(
+            "ollama_base_url"
+        ):
             result["localai_base_url"] = voice_config["ollama_base_url"]
-            result["localai_whisper_model"] = voice_config.get("ollama_whisper_model") or defaults.get("localai_whisper_model", "")
-            result["localai_llm_model"] = voice_config.get("ollama_llm_model") or defaults.get("localai_llm_model", "")
+            result["localai_whisper_model"] = voice_config.get(
+                "ollama_whisper_model"
+            ) or defaults.get("localai_whisper_model", "")
+            result["localai_llm_model"] = voice_config.get(
+                "ollama_llm_model"
+            ) or defaults.get("localai_llm_model", "")
         return result
 
     def get_voice_input_enabled(self) -> bool:
@@ -497,11 +508,16 @@ class ConfigManager:
 
     def get_localai_task_system_prompt(self) -> str:
         """Retorna o pré-prompt de sistema para extração de task (valor do arquivo)."""
-        return str(self.get_voice_input_config().get("localai_task_system_prompt") or "")
+        return str(
+            self.get_voice_input_config().get("localai_task_system_prompt") or ""
+        )
 
     def get_localai_comment_improvement_prompt(self) -> str:
         """Retorna o pré-prompt para melhoria de texto de comentários (valor do arquivo)."""
-        return str(self.get_voice_input_config().get("localai_comment_improvement_prompt") or "")
+        return str(
+            self.get_voice_input_config().get("localai_comment_improvement_prompt")
+            or ""
+        )
 
     def get_voice_input_language(self) -> str:
         """Retorna o idioma para transcrição (valor do arquivo)."""
@@ -541,7 +557,9 @@ class ConfigManager:
                 json.dump(self._config, f, indent=2, ensure_ascii=False)
             self.load_config()
         except Exception as e:
-            raise RuntimeError(f"Erro ao salvar configuração de voice_input: {e}") from e
+            raise RuntimeError(
+                f"Erro ao salvar configuração de voice_input: {e}"
+            ) from e
 
     def get_pomodoro_config(self) -> Dict[str, Any]:
         """
@@ -714,9 +732,7 @@ class ConfigManager:
 
     def development_panel_github_enrichment(self) -> bool:
         """Retorna se o enriquecimento de PRs com dados do GitHub está habilitado."""
-        return bool(
-            self.get_development_panel_config().get("github_enrichment", False)
-        )
+        return bool(self.get_development_panel_config().get("github_enrichment", False))
 
     def development_panel_default_org(self) -> str:
         """Org ou usuário GitHub para restringir a busca de repositórios no diálogo Criar branch."""
@@ -786,9 +802,7 @@ class ConfigManager:
                 json.dump(self._config, f, indent=2, ensure_ascii=False)
             self.load_config()
         except Exception as e:
-            raise RuntimeError(
-                f"Erro ao salvar configuração Google OAuth: {e}"
-            ) from e
+            raise RuntimeError(f"Erro ao salvar configuração Google OAuth: {e}") from e
 
     def get_jira_cli_config_path(self) -> Optional[Path]:
         """

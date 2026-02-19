@@ -12,6 +12,7 @@ from PySide6.QtCore import QObject, Signal, QThread, Slot  # type: ignore[import
 
 try:
     import requests
+
     REQUESTS_AVAILABLE = True
 except ImportError:
     REQUESTS_AVAILABLE = False
@@ -78,9 +79,7 @@ class _ImproveCommentWorker(QThread):
 
     def run(self) -> None:
         try:
-            result = self._client._improve_comment_text_sync(
-                self._text, self._prompt
-            )
+            result = self._client._improve_comment_text_sync(self._text, self._prompt)
             self.finished.emit(result or "")
         except Exception as e:
             self.error_occurred.emit(str(e))
@@ -132,6 +131,7 @@ class LocalAIClient(QObject):
                 return True
             try:
                 from src.utils.debug import debug_log, is_debug_enabled
+
                 if is_debug_enabled():
                     debug_log(
                         "LocalAIClient",
@@ -146,6 +146,7 @@ class LocalAIClient(QObject):
         except Exception as e:
             try:
                 from src.utils.debug import debug_log, is_debug_enabled
+
                 if is_debug_enabled():
                     debug_log(
                         "LocalAIClient",
@@ -221,7 +222,9 @@ class LocalAIClient(QObject):
             return ""
         if not REQUESTS_AVAILABLE:
             return text
-        prompt = (comment_improvement_prompt or "").strip() or DEFAULT_COMMENT_IMPROVEMENT_PROMPT
+        prompt = (
+            comment_improvement_prompt or ""
+        ).strip() or DEFAULT_COMMENT_IMPROVEMENT_PROMPT
         try:
             r = requests.post(
                 self._get_chat_completions_url(),
@@ -240,7 +243,9 @@ class LocalAIClient(QObject):
             data = r.json()
             raw = ""
             try:
-                raw = (data.get("choices", [{}])[0].get("message", {}).get("content") or "").strip()
+                raw = (
+                    data.get("choices", [{}])[0].get("message", {}).get("content") or ""
+                ).strip()
             except (IndexError, KeyError, TypeError):
                 pass
             return raw if raw else text
@@ -248,7 +253,9 @@ class LocalAIClient(QObject):
             return text
 
     @Slot(str)
-    def improve_comment_text(self, text: str, comment_improvement_prompt: Optional[str] = None) -> None:
+    def improve_comment_text(
+        self, text: str, comment_improvement_prompt: Optional[str] = None
+    ) -> None:
         """
         Inicia melhoria de texto de comentário em thread.
         Emite commentTextImproved(str) com o texto melhorado ou o original em falha.
@@ -261,8 +268,12 @@ class LocalAIClient(QObject):
         )
         self._improve_worker.finished.connect(self._on_improve_finished)
         self._improve_worker.error_occurred.connect(self._on_improve_error)
-        self._improve_worker.finished.connect(lambda: setattr(self, "_improve_worker", None))
-        self._improve_worker.error_occurred.connect(lambda: setattr(self, "_improve_worker", None))
+        self._improve_worker.finished.connect(
+            lambda: setattr(self, "_improve_worker", None)
+        )
+        self._improve_worker.error_occurred.connect(
+            lambda: setattr(self, "_improve_worker", None)
+        )
         self._improve_worker.start()
 
     def _on_improve_finished(self, result: str) -> None:
@@ -289,7 +300,9 @@ class LocalAIClient(QObject):
         if not REQUESTS_AVAILABLE:
             return self._heuristic_fallback(transcription, tipo_atividade_values)
 
-        system_content = (task_system_prompt or "").strip() or DEFAULT_TASK_SYSTEM_PROMPT
+        system_content = (
+            task_system_prompt or ""
+        ).strip() or DEFAULT_TASK_SYSTEM_PROMPT
         prompt = self._build_llm_prompt(transcription, tipo_atividade_values)
         try:
             r = requests.post(
@@ -310,7 +323,9 @@ class LocalAIClient(QObject):
             data = r.json()
             raw = ""
             try:
-                raw = (data.get("choices", [{}])[0].get("message", {}).get("content") or "").strip()
+                raw = (
+                    data.get("choices", [{}])[0].get("message", {}).get("content") or ""
+                ).strip()
             except (IndexError, KeyError, TypeError):
                 pass
             parsed = self._extract_json(raw)
@@ -399,7 +414,10 @@ Exemplo de resposta:
             for v in tipo_atividade_values:
                 if "bug" in v.lower() or "incidente" in v.lower():
                     return v
-        if any(w in low for w in ("feature", "funcionalidade", "melhoria", "adicionar", "novo")):
+        if any(
+            w in low
+            for w in ("feature", "funcionalidade", "melhoria", "adicionar", "novo")
+        ):
             for v in tipo_atividade_values:
                 if "novas" in v.lower() or "melhoria" in v.lower():
                     return v
@@ -417,6 +435,8 @@ Exemplo de resposta:
         return {
             "summary": self._heuristic_summary(transcription),
             "description": transcription,
-            "tipo_atividade": self._heuristic_tipo(transcription, tipo_atividade_values),
+            "tipo_atividade": self._heuristic_tipo(
+                transcription, tipo_atividade_values
+            ),
             "utilizacaoIA": "Não",
         }

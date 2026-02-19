@@ -295,9 +295,7 @@ class JiraClient:
                 f"Erro ao obter configurações de anexos: {str(e)}"
             ) from e
 
-    def add_attachment(
-        self, issue_key: str, file_path: str
-    ) -> List[Dict[str, Any]]:
+    def add_attachment(self, issue_key: str, file_path: str) -> List[Dict[str, Any]]:
         """
         Adiciona um anexo a uma issue (POST multipart/form-data).
         Requer header X-Atlassian-Token: no-check e parâmetro "file".
@@ -347,15 +345,12 @@ class JiraClient:
                         error_msg = "; ".join(err_json["errorMessages"])
                     elif "errors" in err_json and err_json["errors"]:
                         error_msg = "; ".join(
-                            f"{k}: {v}"
-                            for k, v in err_json["errors"].items()
+                            f"{k}: {v}" for k, v in err_json["errors"].items()
                         )
                 except (json.JSONDecodeError, TypeError, ValueError):
                     pass
                 if response.status_code == 413:
-                    error_msg = (
-                        "Arquivo muito grande. Reduza o tamanho ou use o limite do Jira."
-                    )
+                    error_msg = "Arquivo muito grande. Reduza o tamanho ou use o limite do Jira."
                 raise RuntimeError(
                     f"Erro ao anexar arquivo (HTTP {response.status_code}): {error_msg}"
                 )
@@ -373,9 +368,7 @@ class JiraClient:
                 for a in data
             ]
         except requests.exceptions.RequestException as e:
-            raise RuntimeError(
-                f"Erro de rede ao anexar arquivo: {str(e)}"
-            ) from e
+            raise RuntimeError(f"Erro de rede ao anexar arquivo: {str(e)}") from e
 
     def add_attachment_from_bytes(
         self,
@@ -423,15 +416,12 @@ class JiraClient:
                         error_msg = "; ".join(err_json["errorMessages"])
                     elif "errors" in err_json and err_json["errors"]:
                         error_msg = "; ".join(
-                            f"{k}: {v}"
-                            for k, v in err_json["errors"].items()
+                            f"{k}: {v}" for k, v in err_json["errors"].items()
                         )
                 except (json.JSONDecodeError, TypeError, ValueError):
                     pass
                 if response.status_code == 413:
-                    error_msg = (
-                        "Arquivo muito grande. Reduza o tamanho ou use o limite do Jira."
-                    )
+                    error_msg = "Arquivo muito grande. Reduza o tamanho ou use o limite do Jira."
                 raise RuntimeError(
                     f"Erro ao anexar arquivo (HTTP {response.status_code}): {error_msg}"
                 )
@@ -449,9 +439,7 @@ class JiraClient:
                 for a in resp_data
             ]
         except requests.exceptions.RequestException as e:
-            raise RuntimeError(
-                f"Erro de rede ao anexar arquivo: {str(e)}"
-            ) from e
+            raise RuntimeError(f"Erro de rede ao anexar arquivo: {str(e)}") from e
 
     def get_assets_workspace_id(self) -> Optional[str]:
         """
@@ -478,7 +466,11 @@ class JiraClient:
                     w = values[0]
                     return w.get("id") or w.get("workspaceId")
             return None
-        except (RuntimeError, requests.exceptions.RequestException, json.JSONDecodeError):
+        except (
+            RuntimeError,
+            requests.exceptions.RequestException,
+            json.JSONDecodeError,
+        ):
             return None
 
     def get_cloud_id_from_tenant(self) -> Optional[str]:
@@ -496,7 +488,11 @@ class JiraClient:
             if isinstance(data, dict):
                 return data.get("cloudId") or None
             return None
-        except (RuntimeError, requests.exceptions.RequestException, json.JSONDecodeError):
+        except (
+            RuntimeError,
+            requests.exceptions.RequestException,
+            json.JSONDecodeError,
+        ):
             return None
 
     def get_field_id_by_name(self, field_name: str) -> Optional[str]:
@@ -523,7 +519,11 @@ class JiraClient:
                     if (clause or "").strip().lower() == name_clean:
                         return fid
             return None
-        except (RuntimeError, requests.exceptions.RequestException, json.JSONDecodeError):
+        except (
+            RuntimeError,
+            requests.exceptions.RequestException,
+            json.JSONDecodeError,
+        ):
             return None
 
     def fetch_assets_objects_aql(
@@ -563,8 +563,17 @@ class JiraClient:
                 "total": data.get("total", 0),
                 "isLast": data.get("isLast", True),
             }
-        except (RuntimeError, requests.exceptions.RequestException, json.JSONDecodeError):
-            return {"values": [], "objectTypeAttributes": [], "total": 0, "isLast": True}
+        except (
+            RuntimeError,
+            requests.exceptions.RequestException,
+            json.JSONDecodeError,
+        ):
+            return {
+                "values": [],
+                "objectTypeAttributes": [],
+                "total": 0,
+                "isLast": True,
+            }
 
     def get_current_user(self) -> Optional[str]:
         """
@@ -836,9 +845,7 @@ class JiraClient:
                 continue
 
             # Lista não ordenada: - * + ou ├─ └─ (estilo árvore)
-            unordered_list_match = re.match(
-                r"^([-*+]\s+|├─\s*|└─\s*)(.*)$", stripped
-            )
+            unordered_list_match = re.match(r"^([-*+]\s+|├─\s*|└─\s*)(.*)$", stripped)
             if unordered_list_match:
                 debug_log(
                     "JiraClient",
@@ -977,8 +984,8 @@ class JiraClient:
         if node_type == "orderedList":
             items = []
             for i, item in enumerate(content, 1):
-                item_md = JiraClient._adf_to_markdown(item).strip().replace(
-                    "\n\n", "\n"
+                item_md = (
+                    JiraClient._adf_to_markdown(item).strip().replace("\n\n", "\n")
                 )
                 items.append(f"{i}. " + item_md)
             return "\n".join(items) + "\n"
@@ -1020,9 +1027,12 @@ class JiraClient:
 
         # Fallback: outros blocos (panel, table, etc.)
         if content:
-            return "\n\n".join(
-                JiraClient._adf_to_markdown(c).strip() for c in content
-            ).strip() + "\n"
+            return (
+                "\n\n".join(
+                    JiraClient._adf_to_markdown(c).strip() for c in content
+                ).strip()
+                + "\n"
+            )
         return ""
 
     @staticmethod
@@ -1338,7 +1348,10 @@ class JiraClient:
                 normalize_asset_field_value,
             )
         except ImportError:
-            is_placeholder_custom_field_id = lambda fid: fid in ("customfield_XXXXX", "customfield_YYYYY")
+            is_placeholder_custom_field_id = lambda fid: fid in (
+                "customfield_XXXXX",
+                "customfield_YYYYY",
+            )
             normalize_asset_field_value = lambda v: v
         if custom_fields:
             for field_id, field_value in custom_fields.items():
@@ -1469,7 +1482,10 @@ class JiraClient:
                 normalize_asset_field_value,
             )
         except ImportError:
-            is_placeholder_custom_field_id = lambda fid: fid in ("customfield_XXXXX", "customfield_YYYYY")
+            is_placeholder_custom_field_id = lambda fid: fid in (
+                "customfield_XXXXX",
+                "customfield_YYYYY",
+            )
             normalize_asset_field_value = lambda v: v
         if custom_fields:
             for field_id, field_value in custom_fields.items():
@@ -2223,16 +2239,20 @@ class JiraClient:
                     last_commit_time = dt.isoformat()
                 except (ValueError, OSError):
                     pass
-            branches.append({
-                "name": (b.get("name") or "").strip(),
-                "url": (b.get("url") or "").strip(),
-                "repository": repo_name,
-                "commitsAhead": int(b.get("aheadCount", 0) or 0),
-                "commitsBehind": int(b.get("behindCount", 0) or 0),
-                "lastCommitTime": last_commit_time,
-                "lastCommitMessage": (last_commit.get("message") or "").strip(),
-                "lastCommitAuthor": (last_commit.get("author") or {}).get("name", ""),
-            })
+            branches.append(
+                {
+                    "name": (b.get("name") or "").strip(),
+                    "url": (b.get("url") or "").strip(),
+                    "repository": repo_name,
+                    "commitsAhead": int(b.get("aheadCount", 0) or 0),
+                    "commitsBehind": int(b.get("behindCount", 0) or 0),
+                    "lastCommitTime": last_commit_time,
+                    "lastCommitMessage": (last_commit.get("message") or "").strip(),
+                    "lastCommitAuthor": (last_commit.get("author") or {}).get(
+                        "name", ""
+                    ),
+                }
+            )
 
         def _add_pull_request(pr: Dict[str, Any]) -> None:
             src = pr.get("source") or {}
@@ -2244,22 +2264,26 @@ class JiraClient:
             updated_ts = pr.get("updatedDate")
             created_at = self._format_dev_timestamp(created_ts)
             updated_at = self._format_dev_timestamp(updated_ts)
-            pull_requests.append({
-                "number": str(number),
-                "title": (pr.get("name") or "").strip(),
-                "url": (pr.get("url") or "").strip(),
-                "state": (pr.get("status") or "open").lower(),
-                "sourceBranch": (src.get("branch") or "").strip(),
-                "targetBranch": (dest.get("branch") or "").strip(),
-                "createdAt": created_at,
-                "updatedAt": updated_at,
-                "author": (author_obj.get("name") or "").strip(),
-            })
+            pull_requests.append(
+                {
+                    "number": str(number),
+                    "title": (pr.get("name") or "").strip(),
+                    "url": (pr.get("url") or "").strip(),
+                    "state": (pr.get("status") or "open").lower(),
+                    "sourceBranch": (src.get("branch") or "").strip(),
+                    "targetBranch": (dest.get("branch") or "").strip(),
+                    "createdAt": created_at,
+                    "updatedAt": updated_at,
+                    "author": (author_obj.get("name") or "").strip(),
+                }
+            )
 
         for detail in detail_list:
             for b in detail.get("branches") or []:
                 repo_obj = b.get("repository") or {}
-                repo_name = (repo_obj.get("name") if isinstance(repo_obj, dict) else "") or ""
+                repo_name = (
+                    repo_obj.get("name") if isinstance(repo_obj, dict) else ""
+                ) or ""
                 if repo_name and repo_name not in repo_names_seen:
                     repo_names_seen.add(repo_name)
                     repositories.append({"name": repo_name})
@@ -2334,16 +2358,18 @@ class JiraClient:
                     body_md = JiraClient._adf_to_markdown(body_raw)
                 else:
                     body_md = str(body_raw) if body_raw else ""
-                all_comments.append({
-                    "id": str(c.get("id", "")),
-                    "author": {
-                        "accountId": author.get("accountId", ""),
-                        "displayName": author.get("displayName", ""),
-                    },
-                    "body": body_md,
-                    "created": c.get("created", ""),
-                    "updated": c.get("updated", ""),
-                })
+                all_comments.append(
+                    {
+                        "id": str(c.get("id", "")),
+                        "author": {
+                            "accountId": author.get("accountId", ""),
+                            "displayName": author.get("displayName", ""),
+                        },
+                        "body": body_md,
+                        "created": c.get("created", ""),
+                        "updated": c.get("updated", ""),
+                    }
+                )
             if start + len(comments) >= total:
                 break
             start += len(comments)
@@ -2351,7 +2377,9 @@ class JiraClient:
                 break
         return all_comments
 
-    def add_comment(self, issue_key: str, body_markdown: str) -> Optional[Dict[str, Any]]:
+    def add_comment(
+        self, issue_key: str, body_markdown: str
+    ) -> Optional[Dict[str, Any]]:
         """
         Adiciona um comentário à issue (POST .../comment). Body em ADF.
 

@@ -113,14 +113,21 @@ def test_build_issue_details_dict_includes_development_when_present(
         "status": {"name": "Open"},
         "parent": None,
         "development": {
-            "branches": [{"name": "feature/x", "url": "https://github.com/a/b/tree/feature/x"}],
-            "pullRequests": [{"number": "1", "title": "PR", "url": "https://github.com/a/b/pull/1"}],
+            "branches": [
+                {"name": "feature/x", "url": "https://github.com/a/b/tree/feature/x"}
+            ],
+            "pullRequests": [
+                {"number": "1", "title": "PR", "url": "https://github.com/a/b/pull/1"}
+            ],
         },
     }
     result = service._build_issue_details_dict(issue_data)
     assert "development" in result
     assert result["development"]["branches"] == issue_data["development"]["branches"]
-    assert result["development"]["pullRequests"] == issue_data["development"]["pullRequests"]
+    assert (
+        result["development"]["pullRequests"]
+        == issue_data["development"]["pullRequests"]
+    )
 
 
 def test_build_issue_details_dict_omits_development_when_absent(

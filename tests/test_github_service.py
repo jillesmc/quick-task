@@ -6,6 +6,7 @@ import sys
 from unittest.mock import MagicMock, patch
 
 import os
+
 is_flatpak = os.path.exists("/.flatpak-info")
 if not is_flatpak and "/usr/lib/python3/dist-packages" not in sys.path:
     sys.path.insert(0, "/usr/lib/python3/dist-packages")
@@ -165,7 +166,11 @@ def test_search_repos_impl_with_default_org_uses_search_api():
         json=lambda: {
             "items": [
                 {"full_name": "org/foo", "name": "foo", "default_branch": "main"},
-                {"full_name": "org/foobar", "name": "foobar", "default_branch": "master"},
+                {
+                    "full_name": "org/foobar",
+                    "name": "foobar",
+                    "default_branch": "master",
+                },
             ]
         },
         raise_for_status=MagicMock(),
@@ -191,7 +196,11 @@ def test_search_repos_impl_with_default_org_calls_orgs_api():
         else:
             resp.json.return_value = [
                 {"full_name": "org/foo", "name": "foo", "default_branch": "main"},
-                {"full_name": "org/foobar", "name": "foobar", "default_branch": "master"},
+                {
+                    "full_name": "org/foobar",
+                    "name": "foobar",
+                    "default_branch": "master",
+                },
             ]
         return resp
 
@@ -248,7 +257,9 @@ def test_create_branch_worker_success(mock_requests):
         )
 
     mock_session.get.side_effect = get_side_effect
-    mock_session.post.return_value = MagicMock(status_code=201, raise_for_status=MagicMock())
+    mock_session.post.return_value = MagicMock(
+        status_code=201, raise_for_status=MagicMock()
+    )
 
     captured = []
 
@@ -282,10 +293,20 @@ def test_create_branch_worker_422_emits_error(mock_requests):
     mock_session = MagicMock()
     mock_requests.Session.return_value = mock_session
     mock_session.get.side_effect = [
-        MagicMock(status_code=200, json=lambda: {"default_branch": "main"}, raise_for_status=MagicMock()),
-        MagicMock(status_code=200, json=lambda: {"object": {"sha": "abc"}}, raise_for_status=MagicMock()),
+        MagicMock(
+            status_code=200,
+            json=lambda: {"default_branch": "main"},
+            raise_for_status=MagicMock(),
+        ),
+        MagicMock(
+            status_code=200,
+            json=lambda: {"object": {"sha": "abc"}},
+            raise_for_status=MagicMock(),
+        ),
     ]
-    mock_session.post.return_value = MagicMock(status_code=422, raise_for_status=MagicMock())
+    mock_session.post.return_value = MagicMock(
+        status_code=422, raise_for_status=MagicMock()
+    )
 
     errors = []
 
@@ -301,5 +322,3 @@ def test_create_branch_worker_422_emits_error(mock_requests):
 
     assert len(errors) == 1
     assert "existe" in errors[0] or "422" in errors[0] or "nome" in errors[0].lower()
-
-

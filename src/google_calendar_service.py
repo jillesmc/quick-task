@@ -82,15 +82,11 @@ class GoogleCalendarLoadWorker(QThread):
                 # Parse and compute duration in minutes
                 try:
                     if "T" in start_dt_str:
-                        s = datetime.fromisoformat(
-                            start_dt_str.replace("Z", "+00:00")
-                        )
+                        s = datetime.fromisoformat(start_dt_str.replace("Z", "+00:00"))
                     else:
                         s = datetime.strptime(start_dt_str, "%Y-%m-%d")
                     if "T" in end_dt_str:
-                        en = datetime.fromisoformat(
-                            end_dt_str.replace("Z", "+00:00")
-                        )
+                        en = datetime.fromisoformat(end_dt_str.replace("Z", "+00:00"))
                     else:
                         en = datetime.strptime(end_dt_str, "%Y-%m-%d")
                     duration_minutes = int((en - s).total_seconds() / 60)

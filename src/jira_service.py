@@ -205,17 +205,13 @@ class JiraWorker(QThread):
                     if not path or not placeholder_id:
                         continue
                     try:
-                        att_result = self.jira_client.add_attachment(
-                            issue_key, path
-                        )
+                        att_result = self.jira_client.add_attachment(issue_key, path)
                         if att_result and len(att_result) > 0:
                             content_url = att_result[0].get("content", "")
                             if content_url:
                                 placeholder_to_url[placeholder_id] = content_url
                     except Exception as e:
-                        self.errorOccurred.emit(
-                            f"Erro ao anexar arquivo: {str(e)}"
-                        )
+                        self.errorOccurred.emit(f"Erro ao anexar arquivo: {str(e)}")
                 # Substituir placeholders na descrição
                 for pid, content_url in placeholder_to_url.items():
                     description_final = description_final.replace(
@@ -278,9 +274,7 @@ class JiraWorker(QThread):
                     time_spent = self.jira_client._format_duration_minutes(
                         self.worklog_duracao
                     )
-                    started_str = self.worklog_inicio.strftime(
-                        "%Y-%m-%d %H:%M:%S"
-                    )
+                    started_str = self.worklog_inicio.strftime("%Y-%m-%d %H:%M:%S")
                     worklog_ok = self.jira_client.register_worklog(
                         issue_key=issue_key,
                         time_spent=time_spent,
@@ -293,9 +287,7 @@ class JiraWorker(QThread):
                             f"AVISO: Não foi possível registrar worklog para {issue_key}"
                         )
                     else:
-                        self.progressUpdated.emit(
-                            90, "Worklog registrado com sucesso!"
-                        )
+                        self.progressUpdated.emit(90, "Worklog registrado com sucesso!")
 
             self.progressUpdated.emit(100, "Concluído!")
 
@@ -315,7 +307,9 @@ class UpdateWorker(QThread):
     # Signals para comunicação com a thread principal
     progressUpdated = Signal(int, str)  # percentage, message
     issueUpdated = Signal(str)  # issue_key
-    reachedInDevelopment = Signal(str)  # issue_key (Fase 1 completa; usado em transição em duas fases)
+    reachedInDevelopment = Signal(
+        str
+    )  # issue_key (Fase 1 completa; usado em transição em duas fases)
     errorOccurred = Signal(str)  # error_message
     finished = Signal()
 
@@ -421,7 +415,9 @@ class UpdateWorker(QThread):
                                 self.plataformas_afetadas
                             )
                             custom_fields[plataformas_alias] = (
-                                objs if objs else [{"value": p} for p in self.plataformas_afetadas]
+                                objs
+                                if objs
+                                else [{"value": p} for p in self.plataformas_afetadas]
                             )
                         else:
                             custom_fields[plataformas_alias] = [
@@ -483,7 +479,9 @@ class UpdateWorker(QThread):
             transition_target = (
                 self.target_status_override.strip()
                 if self.target_status_override and self.target_status_override.strip()
-                else (self.status.strip() if self.status and self.status.strip() else None)
+                else (
+                    self.status.strip() if self.status and self.status.strip() else None
+                )
             )
             if transition_target:
                 self.progressUpdated.emit(60, "Iniciando transições de status...")
@@ -535,9 +533,7 @@ class UpdateWorker(QThread):
                     time_spent = self.jira_client._format_duration_minutes(
                         self.worklog_duracao
                     )
-                    started_str = self.worklog_inicio.strftime(
-                        "%Y-%m-%d %H:%M:%S"
-                    )
+                    started_str = self.worklog_inicio.strftime("%Y-%m-%d %H:%M:%S")
                     worklog_ok = self.jira_client.register_worklog(
                         issue_key=self.issue_key,
                         time_spent=time_spent,
@@ -588,7 +584,10 @@ class UpdateWorker(QThread):
         except Exception as e:
             error_msg = str(e)
             # Dica quando o Jira exige campos obrigatórios na transição
-            if "preencher" in error_msg.lower() or "tipo de atividade" in error_msg.lower():
+            if (
+                "preencher" in error_msg.lower()
+                or "tipo de atividade" in error_msg.lower()
+            ):
                 error_msg += (
                     "\n\nPreencha no formulário: Tipo de atividade, Utilização de IA, "
                     "Documentação Anexa, Plataformas Afetadas e Valor entregue; depois tente novamente."
@@ -626,7 +625,9 @@ class TransitionFromInDevelopmentWorker(QThread):
                 self.errorOccurred.emit("Status alvo não fornecido")
                 return
             sequence = self._config.get_status_sequence()
-            self.progressUpdated.emit(10, "Transicionando para " + self._target_status + "...")
+            self.progressUpdated.emit(
+                10, "Transicionando para " + self._target_status + "..."
+            )
 
             def progress_cb(_status, percentage, message):
                 self.progressUpdated.emit(10 + int((percentage * 90) / 100), message)
@@ -734,15 +735,11 @@ class AttachmentUploadWorker(QThread):
 
     def run(self) -> None:
         try:
-            result = self._jira_client.add_attachment(
-                self._issue_key, self._file_path
-            )
+            result = self._jira_client.add_attachment(self._issue_key, self._file_path)
             if result and len(result) > 0:
                 content_url = result[0].get("content", "")
                 filename = result[0].get("filename", "")
-                self.uploadSucceeded.emit(
-                    self._issue_key, content_url, filename
-                )
+                self.uploadSucceeded.emit(self._issue_key, content_url, filename)
             else:
                 self.uploadFailed.emit(
                     self._issue_key, "Resposta vazia ao anexar arquivo"
@@ -775,7 +772,9 @@ class JiraService(QObject):
     # Enriquecimento de PRs com dados do GitHub (checks, approvals)
     developmentEnriched = Signal(str, "QVariant")  # issueKey, list of enriched PR dicts
     # Enriquecimento de branches com ahead/behind do GitHub (compare API)
-    developmentBranchesEnriched = Signal(str, "QVariant")  # issueKey, list of enriched branch dicts
+    developmentBranchesEnriched = Signal(
+        str, "QVariant"
+    )  # issueKey, list of enriched branch dicts
     # Cache de opções de Assets (Valor entregue, Plataformas afetadas)
     assetsCacheLoaded = Signal(bool, str)  # success, message
     # Comentários de issues
@@ -788,7 +787,9 @@ class JiraService(QObject):
     uploadFailed = Signal(str, str)  # issueKey, errorMessage
     # Transição em duas fases: ao atingir IN DEVELOPMENT (para sync worklogs pendentes)
     reachedInDevelopment = Signal(str)  # issueKey
-    inDevelopmentReady = Signal(str)  # issueKey (para iniciar timer após transição automática)
+    inDevelopmentReady = Signal(
+        str
+    )  # issueKey (para iniciar timer após transição automática)
 
     def __init__(self, parent=None, config_manager: Optional[ConfigManager] = None):
         super().__init__(parent)
@@ -798,7 +799,9 @@ class JiraService(QObject):
             from src.utils.debug import debug_log
 
             debug_log("JiraService", "__init__", "Carregando configuração...")
-            self._config = config_manager if config_manager is not None else ConfigManager()
+            self._config = (
+                config_manager if config_manager is not None else ConfigManager()
+            )
             debug_log("JiraService", "__init__", "Configuração carregada com sucesso")
         except Exception as e:
             print(f"Erro ao carregar configuração: {e}", file=sys.stderr)
@@ -834,9 +837,7 @@ class JiraService(QObject):
         self._assets_cache: Optional[AssetsCacheService] = None
         if self._jira_client and self._config:
             try:
-                self._assets_cache = AssetsCacheService(
-                    self._jira_client, self._config
-                )
+                self._assets_cache = AssetsCacheService(self._jira_client, self._config)
                 self._assets_cache.load()
             except Exception:
                 self._assets_cache = None
@@ -849,7 +850,9 @@ class JiraService(QObject):
         self._ensure_in_dev_worker: Optional[EnsureInDevelopmentWorker] = None
         self._epic_search_worker: Optional[QThread] = None
         self._issue_details_worker: Optional[QThread] = None
-        self._reload_worker: Optional[QThread] = None  # manter referência para não GC antes do thread terminar
+        self._reload_worker: Optional[QThread] = (
+            None  # manter referência para não GC antes do thread terminar
+        )
         self._comments_worker: Optional[QThread] = None
         self._attachment_worker: Optional[QThread] = None
         self._development_enrich_worker: Optional[QThread] = None
@@ -1105,9 +1108,7 @@ class JiraService(QObject):
                 and not is_placeholder_custom_field_id(valor_field_id)
                 and valorEntregue
             ):
-                obj = self._assets_cache.resolve_valor_entregue_object(
-                    valorEntregue
-                )
+                obj = self._assets_cache.resolve_valor_entregue_object(valorEntregue)
                 if obj:
                     asset_custom_fields[valor_field_id] = [obj]
             if (
@@ -1130,18 +1131,14 @@ class JiraService(QObject):
                         {
                             "path": str(item.get("path", "")).strip(),
                             "filename": str(item.get("filename", "")).strip(),
-                            "placeholderId": str(
-                                item.get("placeholderId", "")
-                            ).strip(),
+                            "placeholderId": str(item.get("placeholderId", "")).strip(),
                         }
                     )
                 elif hasattr(item, "get"):
                     pending_list.append(
                         {
                             "path": str(getattr(item, "path", "")).strip(),
-                            "filename": str(
-                                getattr(item, "filename", "")
-                            ).strip(),
+                            "filename": str(getattr(item, "filename", "")).strip(),
                             "placeholderId": str(
                                 getattr(item, "placeholderId", "")
                             ).strip(),
@@ -1197,7 +1194,11 @@ class JiraService(QObject):
         worklog_duration_minutes: duração do worklog em minutos
         """
         tipo_values = self._config.get_tipo_atividade_values() if self._config else []
-        tipo = tipo_values[0] if tipo_values else "Melhorias Técnicas/Atualizações Técnicas/Plataforma/Segurança"
+        tipo = (
+            tipo_values[0]
+            if tipo_values
+            else "Melhorias Técnicas/Atualizações Técnicas/Plataforma/Segurança"
+        )
         return self.createIssue(
             summary=summary.strip(),
             description=description.strip() if description else "",
@@ -1228,7 +1229,11 @@ class JiraService(QObject):
         Usa defaults do config; sem worklog.
         """
         tipo_values = self._config.get_tipo_atividade_values() if self._config else []
-        tipo = tipo_values[0] if tipo_values else "Melhorias Técnicas/Atualizações Técnicas/Plataforma/Segurança"
+        tipo = (
+            tipo_values[0]
+            if tipo_values
+            else "Melhorias Técnicas/Atualizações Técnicas/Plataforma/Segurança"
+        )
         return self.createIssue(
             summary=summary.strip(),
             description=description.strip() if description else "",
@@ -1713,7 +1718,9 @@ class JiraService(QObject):
         try:
             file_size = path.stat().st_size
         except OSError:
-            self.uploadFailed.emit(issueKey.strip(), "Não foi possível ler o tamanho do arquivo.")
+            self.uploadFailed.emit(
+                issueKey.strip(), "Não foi possível ler o tamanho do arquivo."
+            )
             return False
         if file_size > max_bytes:
             self.uploadFailed.emit(
@@ -1865,7 +1872,24 @@ class JiraService(QObject):
         """Retorna se deve bloquear transição se houver pendentes (config)."""
         return bool(self._config and self._config.worklog_check_block_if_pending())
 
-    @Slot(str, str, str, str, str, str, str, str, list, str, bool, str, int, str, str, result=bool)
+    @Slot(
+        str,
+        str,
+        str,
+        str,
+        str,
+        str,
+        str,
+        str,
+        list,
+        str,
+        bool,
+        str,
+        int,
+        str,
+        str,
+        result=bool,
+    )
     def transitionToInDevelopment(  # NOSONAR - Fase 1: atualizar campos e transitar até IN DEVELOPMENT
         self,
         issueKey: str,  # NOSONAR
@@ -1885,7 +1909,12 @@ class JiraService(QObject):
         worklogComment: str,  # NOSONAR
     ) -> bool:
         """Fase 1: atualiza campos da issue e transiciona até IN DEVELOPMENT; emite reachedInDevelopment(issueKey)."""
-        if not self._jira_client or not self._config or not issueKey or not issueKey.strip():
+        if (
+            not self._jira_client
+            or not self._config
+            or not issueKey
+            or not issueKey.strip()
+        ):
             if not issueKey or not issueKey.strip():
                 self.errorOccurred.emit("Issue key é obrigatório")
             return False
@@ -1899,9 +1928,13 @@ class JiraService(QObject):
                     worklogInicio.strip(), "%Y-%m-%d %H:%M:%S"
                 )
             except (ValueError, AttributeError):
-                self.errorOccurred.emit(f"Formato de data/hora inválido: {worklogInicio}")
+                self.errorOccurred.emit(
+                    f"Formato de data/hora inválido: {worklogInicio}"
+                )
                 return False
-        worklogTimezone = self._config.get_timezone() if self._config else "America/Sao_Paulo"
+        worklogTimezone = (
+            self._config.get_timezone() if self._config else "America/Sao_Paulo"
+        )
         self._update_worker = UpdateWorker(
             jira_client=self._jira_client,
             config=self._config,
@@ -1934,9 +1967,17 @@ class JiraService(QObject):
         self, issueKey: str, targetStatus: str  # NOSONAR
     ) -> bool:
         """Fase 2: transiciona de IN DEVELOPMENT até o status alvo (sem worklog)."""
-        if not self._jira_client or not self._config or not issueKey or not issueKey.strip():
+        if (
+            not self._jira_client
+            or not self._config
+            or not issueKey
+            or not issueKey.strip()
+        ):
             return False
-        if self._transition_from_in_dev_worker and self._transition_from_in_dev_worker.isRunning():
+        if (
+            self._transition_from_in_dev_worker
+            and self._transition_from_in_dev_worker.isRunning()
+        ):
             self._transition_from_in_dev_worker.terminate()
             self._transition_from_in_dev_worker.wait()
         self._transition_from_in_dev_worker = TransitionFromInDevelopmentWorker(
@@ -1949,9 +1990,7 @@ class JiraService(QObject):
         self._transition_from_in_dev_worker.progressUpdated.connect(
             self.progressUpdated.emit
         )
-        self._transition_from_in_dev_worker.issueUpdated.connect(
-            self.issueUpdated.emit
-        )
+        self._transition_from_in_dev_worker.issueUpdated.connect(self.issueUpdated.emit)
         self._transition_from_in_dev_worker.errorOccurred.connect(
             self.errorOccurred.emit
         )
@@ -1966,7 +2005,12 @@ class JiraService(QObject):
         Se a issue estiver em status anterior a IN DEVELOPMENT, transita para IN DEVELOPMENT.
         Emite inDevelopmentReady(issueKey) quando a issue estiver pronta (para iniciar timer).
         """
-        if not self._jira_client or not self._config or not issueKey or not issueKey.strip():
+        if (
+            not self._jira_client
+            or not self._config
+            or not issueKey
+            or not issueKey.strip()
+        ):
             if issueKey and issueKey.strip():
                 self.inDevelopmentReady.emit(issueKey.strip())
             return False
@@ -1981,12 +2025,8 @@ class JiraService(QObject):
         self._ensure_in_dev_worker.inDevelopmentReady.connect(
             self.inDevelopmentReady.emit
         )
-        self._ensure_in_dev_worker.progressUpdated.connect(
-            self.progressUpdated.emit
-        )
-        self._ensure_in_dev_worker.errorOccurred.connect(
-            self.errorOccurred.emit
-        )
+        self._ensure_in_dev_worker.progressUpdated.connect(self.progressUpdated.emit)
+        self._ensure_in_dev_worker.errorOccurred.connect(self.errorOccurred.emit)
         self._ensure_in_dev_worker.start()
         return True
 
@@ -2279,9 +2319,13 @@ class JiraService(QObject):
             if isinstance(raw_ve, dict) and (
                 "objectId" in raw_ve or "id" in raw_ve or "workspaceId" in raw_ve
             ):
-                valor_entregue = extract_asset_single(CUSTOM_FIELD_IDS["valor_entregue"])
+                valor_entregue = extract_asset_single(
+                    CUSTOM_FIELD_IDS["valor_entregue"]
+                )
             elif isinstance(raw_ve, list) and raw_ve and isinstance(raw_ve[0], dict):
-                valor_entregue = extract_asset_single(CUSTOM_FIELD_IDS["valor_entregue"])
+                valor_entregue = extract_asset_single(
+                    CUSTOM_FIELD_IDS["valor_entregue"]
+                )
             else:
                 valor_entregue = extract_custom_field_by_id(
                     CUSTOM_FIELD_IDS["valor_entregue"]
@@ -2293,9 +2337,7 @@ class JiraService(QObject):
                 plataformas_afetadas = extract_asset_multi(
                     CUSTOM_FIELD_IDS["plataformas_afetadas"]
                 )
-            elif isinstance(raw_pa, dict) and (
-                "objectId" in raw_pa or "id" in raw_pa
-            ):
+            elif isinstance(raw_pa, dict) and ("objectId" in raw_pa or "id" in raw_pa):
                 plataformas_afetadas = extract_asset_multi(
                     CUSTOM_FIELD_IDS["plataformas_afetadas"]
                 )
@@ -2421,8 +2463,16 @@ class JiraService(QObject):
                                     "issue_id=%s dev_info=%s branches=%s pullRequests=%s",
                                     issue_id,
                                     bool(dev_info),
-                                    len(dev_info.get("branches", [])) if dev_info else 0,
-                                    len(dev_info.get("pullRequests", [])) if dev_info else 0,
+                                    (
+                                        len(dev_info.get("branches", []))
+                                        if dev_info
+                                        else 0
+                                    ),
+                                    (
+                                        len(dev_info.get("pullRequests", []))
+                                        if dev_info
+                                        else 0
+                                    ),
                                 )
                             except ImportError:
                                 pass
@@ -2481,7 +2531,10 @@ class JiraService(QObject):
         token = (self._config.get_github_token() or "").strip()
         if not token:
             return
-        if self._development_enrich_worker and self._development_enrich_worker.isRunning():
+        if (
+            self._development_enrich_worker
+            and self._development_enrich_worker.isRunning()
+        ):
             return
 
         class _DevelopmentEnrichWorker(QThread):
@@ -2526,7 +2579,11 @@ class JiraService(QObject):
                         if not match:
                             enriched.append(dict(pr))
                             continue
-                        owner, repo, number = match.group(1), match.group(2), match.group(3)
+                        owner, repo, number = (
+                            match.group(1),
+                            match.group(2),
+                            match.group(3),
+                        )
                         row = dict(pr)
                         try:
                             r = requests.get(
@@ -2536,7 +2593,9 @@ class JiraService(QObject):
                             )
                             if r.ok:
                                 data = r.json()
-                                row["mergeableState"] = data.get("mergeable_state") or ""
+                                row["mergeableState"] = (
+                                    data.get("mergeable_state") or ""
+                                )
                             rev = requests.get(
                                 f"https://api.github.com/repos/{owner}/{repo}/pulls/{number}/reviews",
                                 headers=headers,
@@ -2545,10 +2604,13 @@ class JiraService(QObject):
                             if rev.ok:
                                 reviews = rev.json() or []
                                 approvals = sum(
-                                    1 for x in reviews if (x.get("state") or "").upper() == "APPROVED"
+                                    1
+                                    for x in reviews
+                                    if (x.get("state") or "").upper() == "APPROVED"
                                 )
                                 changes = any(
-                                    (x.get("state") or "").upper() == "CHANGES_REQUESTED"
+                                    (x.get("state") or "").upper()
+                                    == "CHANGES_REQUESTED"
                                     for x in reviews
                                 )
                                 row["approvalsCount"] = approvals
@@ -2560,9 +2622,7 @@ class JiraService(QObject):
                 except Exception:
                     self.resultReady.emit(self._key, self._prs)
 
-        worker = _DevelopmentEnrichWorker(
-            issue_key.strip(), list(prs), token
-        )
+        worker = _DevelopmentEnrichWorker(issue_key.strip(), list(prs), token)
         self._development_enrich_worker = worker
 
         def _on_enriched(key: str, enriched_list: Any) -> None:
@@ -2595,7 +2655,11 @@ class JiraService(QObject):
                 issue_key or "",
                 len(branch_list) if isinstance(branch_list, list) else 0,
                 "ok" if self._config else "null",
-                self._config.development_panel_github_enrichment() if self._config else False,
+                (
+                    self._config.development_panel_github_enrichment()
+                    if self._config
+                    else False
+                ),
             )
         except ImportError:
             pass
@@ -2609,7 +2673,10 @@ class JiraService(QObject):
         token = (self._config.get_github_token() or "").strip()
         if not token:
             return
-        if self._development_branches_enrich_worker and self._development_branches_enrich_worker.isRunning():
+        if (
+            self._development_branches_enrich_worker
+            and self._development_branches_enrich_worker.isRunning()
+        ):
             return
 
         class _BranchesEnrichWorker(QThread):
@@ -2699,9 +2766,7 @@ class JiraService(QObject):
                 except Exception:
                     self.resultReady.emit(self._key, self._branches)
 
-        worker = _BranchesEnrichWorker(
-            issue_key.strip(), list(branches), token
-        )
+        worker = _BranchesEnrichWorker(issue_key.strip(), list(branches), token)
         self._development_branches_enrich_worker = worker
 
         def _on_branches_enriched(key: str, enriched_list: Any) -> None:

@@ -83,7 +83,9 @@ class IssueModel(QObject):
         # Valor Entregue e Plataformas afetadas (objectIds quando usar Assets; labels como fallback)
         valor_entregue_values = self.valorEntregueValues
         self._valorEntregue = valor_entregue_values[0] if valor_entregue_values else ""
-        self._plataformasAfetadas: List[str] = []  # lista de objectIds quando usar Assets
+        self._plataformasAfetadas: List[str] = (
+            []
+        )  # lista de objectIds quando usar Assets
 
         # Worklog padrão
         self._registrarWorklog = False
@@ -287,11 +289,15 @@ class IssueModel(QObject):
         if self._assets_cache:
             opts = self._assets_cache.get_valor_entregue_options()
             first = opts[0] if opts else None
-            self.valorEntregue = (first.get("objectId", "") if isinstance(first, dict) else "") or ""
+            self.valorEntregue = (
+                first.get("objectId", "") if isinstance(first, dict) else ""
+            ) or ""
         else:
             try:
                 valor_entregue_values = self.valorEntregueValues
-                self.valorEntregue = valor_entregue_values[0] if valor_entregue_values else ""
+                self.valorEntregue = (
+                    valor_entregue_values[0] if valor_entregue_values else ""
+                )
             except Exception:
                 self.valorEntregue = ""
         self.plataformasAfetadas = []
@@ -362,7 +368,9 @@ class IssueModel(QObject):
                     {
                         "path": str(getattr(item, "path", "")).strip(),
                         "filename": str(getattr(item, "filename", "")).strip(),
-                        "placeholderId": str(getattr(item, "placeholderId", "")).strip(),
+                        "placeholderId": str(
+                            getattr(item, "placeholderId", "")
+                        ).strip(),
                     }
                 )
         if normalized != self._pending_attachments:
@@ -431,7 +439,11 @@ class IssueModel(QObject):
                         break
             if self._plataformasAfetadas and cache:
                 opts = cache.get_plataformas_afetadas_options()
-                label_to_id = {e.get("label"): e.get("objectId") for e in opts if isinstance(e, dict)}
+                label_to_id = {
+                    e.get("label"): e.get("objectId")
+                    for e in opts
+                    if isinstance(e, dict)
+                }
                 self._plataformasAfetadas = [
                     label_to_id.get(v, v) for v in self._plataformasAfetadas
                 ]
@@ -462,7 +474,10 @@ class IssueModel(QObject):
         try:
             if self._assets_cache:
                 return [
-                    {"value": (e.get("objectId", "") if isinstance(e, dict) else ""), "label": (e.get("label", "") if isinstance(e, dict) else "")}
+                    {
+                        "value": (e.get("objectId", "") if isinstance(e, dict) else ""),
+                        "label": (e.get("label", "") if isinstance(e, dict) else ""),
+                    }
                     for e in self._assets_cache.get_valor_entregue_options()
                 ]
             if self._config:
@@ -478,7 +493,10 @@ class IssueModel(QObject):
         try:
             if self._assets_cache:
                 return [
-                    {"value": (e.get("objectId", "") if isinstance(e, dict) else ""), "label": (e.get("label", "") if isinstance(e, dict) else "")}
+                    {
+                        "value": (e.get("objectId", "") if isinstance(e, dict) else ""),
+                        "label": (e.get("label", "") if isinstance(e, dict) else ""),
+                    }
                     for e in self._assets_cache.get_plataformas_afetadas_options()
                 ]
             if self._config:

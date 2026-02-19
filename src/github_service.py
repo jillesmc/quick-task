@@ -17,8 +17,10 @@ from config.config_manager import ConfigManager
 try:
     from src.utils.debug import debug_log
 except ImportError:
+
     def debug_log(_mod: str, _fn: str, _msg: str, *args: Any) -> None:
         pass
+
 
 try:
     import requests
@@ -193,11 +195,13 @@ class GitHubLoadWorker(QThread):
         if err:
             self.errorOccurred.emit(err)
             return
-        self.dataLoaded.emit({
-            "prsRequestedForUser": prs_user,
-            "prsRequestedForTeam": prs_team,
-            "issues": issues,
-        })
+        self.dataLoaded.emit(
+            {
+                "prsRequestedForUser": prs_user,
+                "prsRequestedForTeam": prs_team,
+                "issues": issues,
+            }
+        )
 
 
 def _fetch_search_issues(
@@ -213,7 +217,11 @@ def _fetch_search_issues(
         resp = session.get(url, params=params, timeout=30)
         if resp.status_code == 403 or resp.status_code == 429:
             retry = resp.headers.get("Retry-After", "")
-            msg = resp.json().get("message", resp.text) if resp.text else "Rate limit ou acesso negado."
+            msg = (
+                resp.json().get("message", resp.text)
+                if resp.text
+                else "Rate limit ou acesso negado."
+            )
             if retry:
                 return [], f"GitHub rate limit. Tente novamente em {retry}s. {msg}"
             return [], f"GitHub API: {msg}"
@@ -236,8 +244,10 @@ def _search_repos_impl(
     try:
         from src.utils.debug import debug_log as _log
     except ImportError:
+
         def _log(_m: str, _f: str, _msg: str, *args: Any) -> None:
             pass
+
     q = (query or "").strip().lower()
     if len(q) < 2:
         return []
@@ -263,21 +273,42 @@ def _search_repos_impl(
                             full_name = (r.get("full_name") or "").strip()
                             if not full_name:
                                 continue
-                            out.append({
-                                "full_name": full_name,
-                                "default_branch": (r.get("default_branch") or "main").strip(),
-                            })
-                        _log("_search_repos_impl", "run", "GET search/repositories q='%s' resultados=%s", search_q[:50], len(out))
+                            out.append(
+                                {
+                                    "full_name": full_name,
+                                    "default_branch": (
+                                        r.get("default_branch") or "main"
+                                    ).strip(),
+                                }
+                            )
+                        _log(
+                            "_search_repos_impl",
+                            "run",
+                            "GET search/repositories q='%s' resultados=%s",
+                            search_q[:50],
+                            len(out),
+                        )
                         return out
             except requests.RequestException as ex:
-                _log("_search_repos_impl", "run", "Search API RequestException: %s", str(ex))
+                _log(
+                    "_search_repos_impl",
+                    "run",
+                    "Search API RequestException: %s",
+                    str(ex),
+                )
             # If org returned 0 or error, try user (and vice versa)
 
         # Fallback: list org repos and filter client-side (limited to first 100)
         repos: List[Dict[str, Any]] = []
         for url, params in [
-            (f"{GITHUB_API_BASE}/orgs/{default_org}/repos", {"type": "all", "per_page": 100}),
-            (f"{GITHUB_API_BASE}/users/{default_org}/repos", {"sort": "updated", "per_page": 100}),
+            (
+                f"{GITHUB_API_BASE}/orgs/{default_org}/repos",
+                {"type": "all", "per_page": 100},
+            ),
+            (
+                f"{GITHUB_API_BASE}/users/{default_org}/repos",
+                {"sort": "updated", "per_page": 100},
+            ),
         ]:
             try:
                 resp = session.get(url, params=params, timeout=15)
@@ -286,7 +317,13 @@ def _search_repos_impl(
                     continue
                 resp.raise_for_status()
                 repos = resp.json() or []
-                _log("_search_repos_impl", "run", "GET %s repos_raw=%s (fallback)", url[:50], len(repos))
+                _log(
+                    "_search_repos_impl",
+                    "run",
+                    "GET %s repos_raw=%s (fallback)",
+                    url[:50],
+                    len(repos),
+                )
                 break
             except requests.RequestException as ex:
                 _log("_search_repos_impl", "run", "RequestException: %s", str(ex))
@@ -299,11 +336,19 @@ def _search_repos_impl(
                 continue
             if q not in full_name.lower() and q not in name.lower():
                 continue
-            out.append({
-                "full_name": full_name,
-                "default_branch": (r.get("default_branch") or "main").strip(),
-            })
-        _log("_search_repos_impl", "run", "após filtro query='%s' resultados=%s", q[:30], len(out))
+            out.append(
+                {
+                    "full_name": full_name,
+                    "default_branch": (r.get("default_branch") or "main").strip(),
+                }
+            )
+        _log(
+            "_search_repos_impl",
+            "run",
+            "após filtro query='%s' resultados=%s",
+            q[:30],
+            len(out),
+        )
         return out
 
     # No default_org: list user repos and filter
@@ -327,15 +372,25 @@ def _search_repos_impl(
             continue
         if q not in full_name.lower() and q not in name.lower():
             continue
-        out.append({
-            "full_name": full_name,
-            "default_branch": (r.get("default_branch") or "main").strip(),
-        })
-    _log("_search_repos_impl", "run", "após filtro query='%s' resultados=%s", q[:30], len(out))
+        out.append(
+            {
+                "full_name": full_name,
+                "default_branch": (r.get("default_branch") or "main").strip(),
+            }
+        )
+    _log(
+        "_search_repos_impl",
+        "run",
+        "após filtro query='%s' resultados=%s",
+        q[:30],
+        len(out),
+    )
     return out
 
 
-def _get_user_teams(session: "requests.Session") -> Tuple[List[Dict[str, Any]], Optional[str]]:
+def _get_user_teams(
+    session: "requests.Session",
+) -> Tuple[List[Dict[str, Any]], Optional[str]]:
     """GET /user/teams; return (list of {org, slug}, error or None). Requires read:org scope."""
     url = f"{GITHUB_API_BASE}/user/teams"
     try:
@@ -362,7 +417,9 @@ def _get_user_teams(session: "requests.Session") -> Tuple[List[Dict[str, Any]], 
 class SearchReposWorker(QThread):
     """Worker to search repositories (optionally scoped by default_org)."""
 
-    reposSearchResults = Signal(str, list)  # (query_used, list of { full_name, default_branch })
+    reposSearchResults = Signal(
+        str, list
+    )  # (query_used, list of { full_name, default_branch })
     errorOccurred = Signal(str)
 
     def __init__(
@@ -406,7 +463,9 @@ class SearchReposWorker(QThread):
                 len(results),
             )
             if results:
-                names = [r.get("full_name", "") for r in results[:5] if isinstance(r, dict)]
+                names = [
+                    r.get("full_name", "") for r in results[:5] if isinstance(r, dict)
+                ]
                 debug_log(
                     "SearchReposWorker",
                     "run",
@@ -501,9 +560,7 @@ class CreateBranchWorker(QThread):
                 return
             resp.raise_for_status()
             url = f"https://github.com/{self._owner}/{self._repo}/tree/{self._branch_name}"
-            self.branchCreated.emit(
-                self._owner, self._repo, self._branch_name, url
-            )
+            self.branchCreated.emit(self._owner, self._repo, self._branch_name, url)
         except requests.RequestException as e:
             if hasattr(e, "response") and e.response is not None:
                 try:
@@ -521,14 +578,18 @@ class GitHubService(QObject):
     """Service for listing GitHub PRs/Issues and exposing to QML."""
 
     itemsLoaded = Signal(list)  # deprecated: combined list for backward compat
-    dataReady = Signal("QVariantMap")  # { prsRequestedForUser, prsRequestedForTeam, issues } — use from QML as onDataReady
+    dataReady = Signal(
+        "QVariantMap"
+    )  # { prsRequestedForUser, prsRequestedForTeam, issues } — use from QML as onDataReady
     errorOccurred = Signal(str)
     prsReady = Signal(list, list)  # prsUser, prsTeam
     prsErrorOccurred = Signal(str)
     issuesReady = Signal(list)
     issuesErrorOccurred = Signal(str)
     availableChanged = Signal()
-    reposSearchResults = Signal(str, list)  # (query_used, list of { full_name, default_branch })
+    reposSearchResults = Signal(
+        str, list
+    )  # (query_used, list of { full_name, default_branch })
     branchCreated = Signal(str, str, str, str)  # owner, repo, branchName, url
 
     def __init__(self, parent=None, config_manager=None):
@@ -639,7 +700,9 @@ class GitHubService(QObject):
 
     def _on_data_loaded(self, data: dict) -> None:
         self.dataReady.emit(data)
-        prs = (data.get("prsRequestedForUser") or []) + (data.get("prsRequestedForTeam") or [])
+        prs = (data.get("prsRequestedForUser") or []) + (
+            data.get("prsRequestedForTeam") or []
+        )
         self.itemsLoaded.emit(prs + (data.get("issues") or []))
 
     def _on_worker_finished(self) -> None:
@@ -676,7 +739,9 @@ class GitHubService(QObject):
         self._search_repos_worker = SearchReposWorker(
             token, default_org, query or "", parent=self
         )
-        self._search_repos_worker.reposSearchResults.connect(self.reposSearchResults.emit)
+        self._search_repos_worker.reposSearchResults.connect(
+            self.reposSearchResults.emit
+        )
         self._search_repos_worker.errorOccurred.connect(self.errorOccurred.emit)
         self._search_repos_worker.finished.connect(self._on_search_repos_finished)
         self._search_repos_worker.start()

@@ -58,6 +58,7 @@ except ImportError:
 # #region agent log
 def _get_debug_log_path():
     from src.utils.debug import get_debug_log_path as _g
+
     return _g()
 
 
@@ -88,6 +89,7 @@ class DebugLogger(QObject):
     @Slot(str, str)
     def log(self, location, message):
         _write_debug_ndjson(location, message, hypothesis_id="C")
+
     # #endregion
 
 
@@ -301,7 +303,9 @@ def main():
         raise
 
     try:
-        debug_log("App", "main", "Criando IssueModel (detalhe/edição em Minhas Issues)...")
+        debug_log(
+            "App", "main", "Criando IssueModel (detalhe/edição em Minhas Issues)..."
+        )
         editing_issue_model = IssueModel()
         debug_log("App", "main", "editingIssueModel criado com sucesso")
     except Exception as e:
@@ -335,17 +339,30 @@ def main():
 
     # Conectar cache de Assets aos modelos de issue (Valor entregue / Plataformas afetadas)
     # #region agent log
-    _write_debug_ndjson("app.main:before_get_assets_cache", "calling get_assets_cache", hypothesis_id="B")
+    _write_debug_ndjson(
+        "app.main:before_get_assets_cache",
+        "calling get_assets_cache",
+        hypothesis_id="B",
+    )
     # #endregion
     assets_cache = jira_service.get_assets_cache()
     if assets_cache:
         # #region agent log
-        _write_debug_ndjson("app.main:before_set_assets_cache", "calling set_assets_cache", data={"has_cache": True}, hypothesis_id="B")
+        _write_debug_ndjson(
+            "app.main:before_set_assets_cache",
+            "calling set_assets_cache",
+            data={"has_cache": True},
+            hypothesis_id="B",
+        )
         # #endregion
         issue_model.set_assets_cache(assets_cache)
         editing_issue_model.set_assets_cache(assets_cache)
         # #region agent log
-        _write_debug_ndjson("app.main:after_set_assets_cache", "set_assets_cache done", hypothesis_id="B")
+        _write_debug_ndjson(
+            "app.main:after_set_assets_cache",
+            "set_assets_cache done",
+            hypothesis_id="B",
+        )
         # #endregion
 
     def on_assets_cache_loaded(success, message):
@@ -545,6 +562,16 @@ def main():
         print(f"⚠ Aviso: Erro ao criar ClipboardHelper: {e}", file=sys.stderr)
         clipboard_helper = None
 
+    # GitCommandHelper para comandos git clone no popover de Development
+    git_command_helper = None
+    try:
+        from src.utils.git_command_helper import GitCommandHelper
+
+        git_command_helper = GitCommandHelper()
+        debug_log("App", "main", "GitCommandHelper criado com sucesso")
+    except Exception as e:
+        print(f"⚠ Aviso: Erro ao criar GitCommandHelper: {e}", file=sys.stderr)
+
     # VoiceInputService (entrada por voz): opcional; gravação local (sounddevice), transcrição/LLM via LocalAI no host
     voice_input_service = None
     try:
@@ -558,7 +585,9 @@ def main():
         if voice_input_service.isAvailable():
             debug_log("App", "main", "VoiceInputService criado com sucesso")
         else:
-            debug_log("App", "main", "VoiceInputService criado (deps de voz não instaladas)")
+            debug_log(
+                "App", "main", "VoiceInputService criado (deps de voz não instaladas)"
+            )
     except Exception as e:
         print(f"⚠ Aviso: Erro ao criar VoiceInputService: {e}", file=sys.stderr)
         voice_input_service = None
@@ -573,7 +602,9 @@ def main():
         raise
 
     try:
-        engine.rootContext().setContextProperty("editingIssueModel", editing_issue_model)
+        engine.rootContext().setContextProperty(
+            "editingIssueModel", editing_issue_model
+        )
         debug_log("App", "main", "editingIssueModel exposto ao contexto QML")
     except Exception as e:
         print(f"✗ Erro ao expor editingIssueModel: {e}", file=sys.stderr)
@@ -619,6 +650,16 @@ def main():
             debug_log("App", "main", "clipboardHelper exposto ao contexto QML")
     except Exception as e:
         print(f"⚠ Aviso: Erro ao expor clipboardHelper: {e}", file=sys.stderr)
+
+    try:
+        engine.rootContext().setContextProperty(
+            "gitCommandHelper",
+            git_command_helper if git_command_helper else None,
+        )
+        if git_command_helper:
+            debug_log("App", "main", "gitCommandHelper exposto ao contexto QML")
+    except Exception as e:
+        print(f"⚠ Aviso: Erro ao expor gitCommandHelper: {e}", file=sys.stderr)
 
     try:
         engine.rootContext().setContextProperty(
@@ -841,7 +882,13 @@ def main():
                     class TimerWindowHelper(QObject):
                         """Helper QObject para expor funções da janela do timer ao QML"""
 
-                        def __init__(self, window_ref, timer_model_ref, timer_service_ref, parent=None):
+                        def __init__(
+                            self,
+                            window_ref,
+                            timer_model_ref,
+                            timer_service_ref,
+                            parent=None,
+                        ):
                             super().__init__(parent)
                             # Manter referência forte à janela para evitar garbage collection
                             self._window_ref = window_ref
@@ -1202,18 +1249,25 @@ def main():
     debug_log("App", "main", "URL QML: %s", url.toString())
 
     # #region agent log
-    _write_debug_ndjson("app.main:before_engine_load", "about to engine.load", hypothesis_id="A")
+    _write_debug_ndjson(
+        "app.main:before_engine_load", "about to engine.load", hypothesis_id="A"
+    )
     debug_logger = DebugLogger(app)
     engine.rootContext().setContextProperty("debugLog", debug_logger)
     # #endregion
     debug_log("App", "main", "Chamando engine.load()...")
     engine.load(url)
     # #region agent log
-    _write_debug_ndjson("app.main:after_engine_load", "engine.load returned", hypothesis_id="A")
+    _write_debug_ndjson(
+        "app.main:after_engine_load", "engine.load returned", hypothesis_id="A"
+    )
+
     def _log_500ms():
         _write_debug_ndjson("app.main:500ms", "500ms after load", hypothesis_id="D")
+
     def _log_2s():
         _write_debug_ndjson("app.main:2s", "2s after load", hypothesis_id="D")
+
     QTimer.singleShot(500, _log_500ms)
     QTimer.singleShot(2000, _log_2s)
     # #endregion
@@ -1332,7 +1386,9 @@ def main():
         shortcut_manager.register_with_window(main_window)
     except Exception:
         pass
-    _write_debug_ndjson("App.main", "after_shortcut_register", "step3", hypothesis_id="S")
+    _write_debug_ndjson(
+        "App.main", "after_shortcut_register", "step3", hypothesis_id="S"
+    )
 
     # Mostrar tray icon
     def show_tray_icon():

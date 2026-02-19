@@ -198,9 +198,7 @@ class WorklogDatabase:
         )
         return sessions
 
-    def get_pending_worklogs_for_issue(
-        self, issue_key: str
-    ) -> List[Dict[str, Any]]:
+    def get_pending_worklogs_for_issue(self, issue_key: str) -> List[Dict[str, Any]]:
         """
         Obtém sessões de worklog não sincronizadas para uma issue específica.
 

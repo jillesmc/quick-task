@@ -18,6 +18,11 @@ Item {
     property string issueKey: ""
     property string issueSummary: ""
     property var jiraService: null
+    property var clipboardHelper: null
+    property var applicationWindow: null
+    property var gitCommandHelper: null
+    /** Chamado quando o usuário clica em Atualizar; recarrega detalhes da issue. */
+    signal reloadRequested()
 
     readonly property var branches: {
         var d = root.developmentData
@@ -49,6 +54,9 @@ Item {
         popoverLoader.item.itemType = itemType
         popoverLoader.item.enrichedPr = (itemType === "pr" ? enrichedData : null) || null
         popoverLoader.item.enrichedBranch = (itemType === "branch" ? enrichedData : null) || null
+        popoverLoader.item.clipboardHelper = root.clipboardHelper
+        popoverLoader.item.applicationWindow = root.applicationWindow
+        popoverLoader.item.gitCommandHelper = root.gitCommandHelper
         var pos = chip.mapToItem(overlay, 0, chip.height)
         popoverLoader.item.x = pos.x
         popoverLoader.item.y = pos.y
@@ -61,7 +69,14 @@ Item {
         id: popoverLoader
         active: root.hasAny || root.issueKey !== ""
         source: "../dialogs/DevelopmentItemPopover.qml"
-        onLoaded: if (item && Controls.Overlay.overlay) item.parent = Controls.Overlay.overlay
+        onLoaded: {
+            if (item && Controls.Overlay.overlay) item.parent = Controls.Overlay.overlay
+            if (item) {
+                item.clipboardHelper = root.clipboardHelper
+                item.applicationWindow = root.applicationWindow
+                item.gitCommandHelper = root.gitCommandHelper
+            }
+        }
     }
 
     Flow {
@@ -89,6 +104,18 @@ Item {
             }
             Controls.ToolTip.visible: hovered
             Controls.ToolTip.text: qsTr("Abrir issue no Jira")
+        }
+
+        // Botão Atualizar (reload development)
+        Controls.Button {
+            visible: root.issueKey !== "" && root.hasAny
+            flat: true
+            font.pixelSize: Kirigami.Theme.smallFont.pixelSize
+            icon.name: "view-refresh"
+            display: Controls.AbstractButton.IconOnly
+            onClicked: root.reloadRequested()
+            Controls.ToolTip.visible: hovered
+            Controls.ToolTip.text: qsTr("Atualizar painel Development")
         }
 
         // PRs (ícone + chip)

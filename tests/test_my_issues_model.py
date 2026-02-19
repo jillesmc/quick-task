@@ -25,12 +25,14 @@ def _make_raw_issue(
             "issuetype": {"name": "Task"},
             "assignee": {"displayName": "User"},
             "parent": None,
-            "priority": {
-                "id": priority_id,
-                "name": priority_name,
-            }
-            if priority_name
-            else None,
+            "priority": (
+                {
+                    "id": priority_id,
+                    "name": priority_name,
+                }
+                if priority_name
+                else None
+            ),
         },
     }
 

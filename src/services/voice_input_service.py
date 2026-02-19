@@ -13,6 +13,7 @@ def _load_voice_components():
     try:
         from src.services.audio_recorder import AudioRecorder, AUDIO_DEPS_AVAILABLE
         from src.services.localai_client import LocalAIClient
+
         return AudioRecorder, LocalAIClient, AUDIO_DEPS_AVAILABLE
     except ImportError:
         return None, None, False
@@ -187,7 +188,11 @@ class VoiceInputService(QObject):
         """
         text = (summary or "").strip()
         if (description or "").strip():
-            text = f"{text}\n\n{(description or '').strip()}" if text else (description or "").strip()
+            text = (
+                f"{text}\n\n{(description or '').strip()}"
+                if text
+                else (description or "").strip()
+            )
         if not text:
             self.error.emit("Resumo ou descrição são necessários para expandir")
             return
@@ -232,4 +237,6 @@ class VoiceInputService(QObject):
         comment_prompt = None
         if self._config:
             comment_prompt = self._config.get_localai_comment_improvement_prompt()
-        self._client.improve_comment_text(text, comment_improvement_prompt=comment_prompt)
+        self._client.improve_comment_text(
+            text, comment_improvement_prompt=comment_prompt
+        )

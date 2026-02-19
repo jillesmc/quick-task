@@ -226,7 +226,9 @@ def test_needs_two_phase_transition_to_do_to_in_development():
 
 def test_needs_two_phase_transition_in_development_to_code_review():
     """IN DEVELOPMENT → Code Review: uma fase (já está em IN DEVELOPMENT)."""
-    assert needs_two_phase_transition("IN DEVELOPMENT", "CODE REVIEW", SEQUENCE) is False
+    assert (
+        needs_two_phase_transition("IN DEVELOPMENT", "CODE REVIEW", SEQUENCE) is False
+    )
 
 
 def test_needs_two_phase_transition_done_to_done():
@@ -244,23 +246,28 @@ def test_needs_two_phase_transition_case_insensitive():
 
 def test_requires_worklog_check_in_dev_to_code_review():
     """IN DEVELOPMENT → Code Review: deve verificar worklogs."""
-    assert requires_worklog_check_before_transition(
-        "IN DEVELOPMENT", "CODE REVIEW", SEQUENCE
-    ) is True
+    assert (
+        requires_worklog_check_before_transition(
+            "IN DEVELOPMENT", "CODE REVIEW", SEQUENCE
+        )
+        is True
+    )
 
 
 def test_requires_worklog_check_to_do_to_code_review():
     """To Do → Code Review: deve verificar worklogs (target > IN DEVELOPMENT)."""
-    assert requires_worklog_check_before_transition(
-        "TO DO", "CODE REVIEW", SEQUENCE
-    ) is True
+    assert (
+        requires_worklog_check_before_transition("TO DO", "CODE REVIEW", SEQUENCE)
+        is True
+    )
 
 
 def test_requires_worklog_check_to_do_to_in_development():
     """To Do → IN DEVELOPMENT: não exige verificação (target = IN DEVELOPMENT)."""
-    assert requires_worklog_check_before_transition(
-        "TO DO", "IN DEVELOPMENT", SEQUENCE
-    ) is False
+    assert (
+        requires_worklog_check_before_transition("TO DO", "IN DEVELOPMENT", SEQUENCE)
+        is False
+    )
 
 
 def test_requires_worklog_check_done_to_done():

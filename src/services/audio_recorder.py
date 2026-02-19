@@ -67,7 +67,9 @@ class _RecordingWorker(QThread):
         self._start_time = time.monotonic()
         last_progress = 0.0
         try:
-            device_id = self._device if self._device and self._device != "default" else None
+            device_id = (
+                self._device if self._device and self._device != "default" else None
+            )
             self._stream = sd.InputStream(
                 samplerate=self._sample_rate,
                 channels=1,

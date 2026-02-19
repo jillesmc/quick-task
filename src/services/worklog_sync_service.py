@@ -193,7 +193,9 @@ class WorklogSyncService(QObject):
         """
         if not issue_key or not str(issue_key).strip():
             return []
-        pending = self._worklog_db.get_pending_worklogs_for_issue(str(issue_key).strip())
+        pending = self._worklog_db.get_pending_worklogs_for_issue(
+            str(issue_key).strip()
+        )
         debug_log(
             "WorklogSyncService",
             "get_pending_worklogs_for_issue",
@@ -298,9 +300,7 @@ class WorklogSyncService(QObject):
         """Callback quando a sincronização termina"""
         # Contar quantos foram sincronizados
         pending = self._worklog_db.get_pending_worklogs()
-        synced_count = (
-            len(self._sync_worker._session_ids) if self._sync_worker else 0
-        )
+        synced_count = len(self._sync_worker._session_ids) if self._sync_worker else 0
         self.syncCompleted.emit(synced_count)
         debug_log(
             "WorklogSyncService",

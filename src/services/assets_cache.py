@@ -16,7 +16,10 @@ from src.utils.field_utils import is_placeholder_custom_field_id
 # Aliases Jira para descoberta de customfield_
 ASSET_FIELD_ALIASES = {
     "valor_entregue": ["Qual tipo de valor", "Qual_tipo_de_valor"],
-    "plataformas_afetadas": ["Quais Plataformas Afetadas", "Quais_Plataformas_Afetadas"],
+    "plataformas_afetadas": [
+        "Quais Plataformas Afetadas",
+        "Quais_Plataformas_Afetadas",
+    ],
 }
 
 
@@ -35,7 +38,9 @@ def _object_to_cache_entry(obj: Dict[str, Any], workspace_id: str) -> Dict[str, 
     oid = obj.get("id") or obj.get("objectKey") or ""
     if isinstance(oid, dict):
         oid = oid.get("id") or oid.get("objectKey") or ""
-    global_id = obj.get("globalId") or (f"{workspace_id}:{oid}" if workspace_id else oid)
+    global_id = obj.get("globalId") or (
+        f"{workspace_id}:{oid}" if workspace_id else oid
+    )
     return {
         "workspaceId": obj.get("workspaceId") or workspace_id,
         "objectId": str(oid),
@@ -78,13 +83,13 @@ class AssetsCacheService:
             with open(self._cache_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
             ve = data.get("valor_entregue")
-            self._cache["valor_entregue"] = (
-                [e for e in (ve if isinstance(ve, list) else []) if isinstance(e, dict)]
-            )
+            self._cache["valor_entregue"] = [
+                e for e in (ve if isinstance(ve, list) else []) if isinstance(e, dict)
+            ]
             pa = data.get("plataformas_afetadas")
-            self._cache["plataformas_afetadas"] = (
-                [e for e in (pa if isinstance(pa, list) else []) if isinstance(e, dict)]
-            )
+            self._cache["plataformas_afetadas"] = [
+                e for e in (pa if isinstance(pa, list) else []) if isinstance(e, dict)
+            ]
             self._cache["updated_at"] = data.get("updated_at")
             return True
         except (json.JSONDecodeError, OSError):
@@ -155,12 +160,20 @@ class AssetsCacheService:
                 if cloud_id and self._config:
                     self._config.set_assets_config(cloud_id=cloud_id)
                     self._config.save_config()
-            workspace_id = self._client.get_assets_workspace_id() if self._client else None
+            workspace_id = (
+                self._client.get_assets_workspace_id() if self._client else None
+            )
 
             if not cloud_id:
-                return False, "Assets: cloud_id não configurado (config.assets.cloud_id). Preencha em config.json ou use servidor *.atlassian.net para detecção automática."
+                return (
+                    False,
+                    "Assets: cloud_id não configurado (config.assets.cloud_id). Preencha em config.json ou use servidor *.atlassian.net para detecção automática.",
+                )
             if not workspace_id:
-                return False, "Assets: não foi possível obter workspaceId (Assets habilitado no Jira?)."
+                return (
+                    False,
+                    "Assets: não foi possível obter workspaceId (Assets habilitado no Jira?).",
+                )
 
             debug_log(
                 "AssetsCacheService",
@@ -176,7 +189,9 @@ class AssetsCacheService:
                 else None
             )
             type_id_plataformas = (
-                self._config.get_assets_object_type_id_plataformas() if self._config else None
+                self._config.get_assets_object_type_id_plataformas()
+                if self._config
+                else None
             )
             type_valor = (
                 self._config.get_assets_object_type_valor_entregue()
@@ -184,7 +199,9 @@ class AssetsCacheService:
                 else None
             )
             type_plataformas = (
-                self._config.get_assets_object_type_plataformas() if self._config else None
+                self._config.get_assets_object_type_plataformas()
+                if self._config
+                else None
             )
 
             def _aql_object_type_by_id(oid: int) -> str:
@@ -238,7 +255,11 @@ class AssetsCacheService:
                         start_at=start,
                         max_results=50,
                     )
-                    vals = result.get("values") if isinstance(result.get("values"), list) else []
+                    vals = (
+                        result.get("values")
+                        if isinstance(result.get("values"), list)
+                        else []
+                    )
                     debug_log(
                         "AssetsCacheService",
                         "reload",
@@ -246,7 +267,11 @@ class AssetsCacheService:
                         start,
                         len(vals),
                         result.get("isLast"),
-                        list(result.keys()) if isinstance(result, dict) else type(result).__name__,
+                        (
+                            list(result.keys())
+                            if isinstance(result, dict)
+                            else type(result).__name__
+                        ),
                     )
                     if vals and start == 0:
                         first = vals[0]
@@ -254,7 +279,11 @@ class AssetsCacheService:
                             "AssetsCacheService",
                             "reload",
                             "Valor entregue primeiro item keys: %s",
-                            list(first.keys()) if isinstance(first, dict) else type(first).__name__,
+                            (
+                                list(first.keys())
+                                if isinstance(first, dict)
+                                else type(first).__name__
+                            ),
                         )
                     for obj in vals:
                         if isinstance(obj, dict):
@@ -284,7 +313,11 @@ class AssetsCacheService:
                         start_at=start,
                         max_results=50,
                     )
-                    vals = result.get("values") if isinstance(result.get("values"), list) else []
+                    vals = (
+                        result.get("values")
+                        if isinstance(result.get("values"), list)
+                        else []
+                    )
                     debug_log(
                         "AssetsCacheService",
                         "reload",
@@ -299,7 +332,11 @@ class AssetsCacheService:
                             "AssetsCacheService",
                             "reload",
                             "Plataformas primeiro item keys: %s",
-                            list(first.keys()) if isinstance(first, dict) else type(first).__name__,
+                            (
+                                list(first.keys())
+                                if isinstance(first, dict)
+                                else type(first).__name__
+                            ),
                         )
                     for obj in vals:
                         if isinstance(obj, dict):
@@ -348,12 +385,16 @@ class AssetsCacheService:
     def get_valor_entregue_options(self) -> List[Dict[str, Any]]:
         """Retorna lista de opções para Valor entregue: [{ objectId, id, workspaceId, label }, ...]."""
         raw = self._cache.get("valor_entregue", [])
-        return [e for e in (raw if isinstance(raw, list) else []) if isinstance(e, dict)]
+        return [
+            e for e in (raw if isinstance(raw, list) else []) if isinstance(e, dict)
+        ]
 
     def get_plataformas_afetadas_options(self) -> List[Dict[str, Any]]:
         """Retorna lista de opções para Plataformas afetadas: [{ objectId, id, workspaceId, label }, ...]."""
         raw = self._cache.get("plataformas_afetadas", [])
-        return [e for e in (raw if isinstance(raw, list) else []) if isinstance(e, dict)]
+        return [
+            e for e in (raw if isinstance(raw, list) else []) if isinstance(e, dict)
+        ]
 
     def get_valor_entregue_labels(self) -> List[str]:
         """Retorna apenas os labels para Valor entregue (para exibição na UI)."""
@@ -390,15 +431,21 @@ class AssetsCacheService:
         Dada uma lista de objectIds (ou labels) de Plataformas afetadas, retorna
         lista de objetos completos { workspaceId, id, objectId } para envio na API.
         """
-        options = {e.get("objectId"): e for e in self.get_plataformas_afetadas_options()}
-        options_by_label = {e.get("label"): e for e in self.get_plataformas_afetadas_options()}
+        options = {
+            e.get("objectId"): e for e in self.get_plataformas_afetadas_options()
+        }
+        options_by_label = {
+            e.get("label"): e for e in self.get_plataformas_afetadas_options()
+        }
         out = []
         for oid in object_ids or []:
             e = options.get(oid) or options_by_label.get(oid)
             if e:
-                out.append({
-                    "workspaceId": e.get("workspaceId"),
-                    "id": e.get("id"),
-                    "objectId": e.get("objectId"),
-                })
+                out.append(
+                    {
+                        "workspaceId": e.get("workspaceId"),
+                        "id": e.get("id"),
+                        "objectId": e.get("objectId"),
+                    }
+                )
         return out

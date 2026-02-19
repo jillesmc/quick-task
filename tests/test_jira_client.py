@@ -109,8 +109,7 @@ def test_create_issue_success(mock_request, mock_config_file):
 
 
 @patch("core.jira_client.requests.request")
-def test_create_issue_with_custom_fields(
-    mock_request, mock_config_file):
+def test_create_issue_with_custom_fields(mock_request, mock_config_file):
     """Testa criação de issue com campos customizados"""
     # Mock para POST issue (criação sem assignee, então não precisa de GET myself)
     create_response = Mock()
@@ -245,8 +244,7 @@ def test_transition_issue_success(mock_request, mock_config_file):
 
 @patch("core.jira_client.time.sleep")
 @patch("core.jira_client.requests.request")
-def test_transition_issue_retry(
-    mock_request, mock_sleep, mock_config_file):
+def test_transition_issue_retry(mock_request, mock_sleep, mock_config_file):
     """Testa retry em caso de falha"""
     transitions_response = Mock()
     transitions_response.status_code = 200
@@ -319,8 +317,7 @@ def test_update_issue_success(mock_request, mock_config_file):
 
 
 @patch("core.jira_client.requests.request")
-def test_update_issue_with_custom_fields(
-    mock_request, mock_config_file):
+def test_update_issue_with_custom_fields(mock_request, mock_config_file):
     """Testa atualização de issue com campos customizados"""
     mock_response = Mock()
     mock_response.status_code = 204
@@ -397,7 +394,11 @@ def test_get_development_info_success(mock_get, mock_config_file):
                         "repository": {"id": "1", "name": "owner/repo"},
                         "aheadCount": 2,
                         "behindCount": 0,
-                        "lastCommit": {"timestamp": 1700000000000, "message": "Fix", "author": {"name": "Dev"}},
+                        "lastCommit": {
+                            "timestamp": 1700000000000,
+                            "message": "Fix",
+                            "author": {"name": "Dev"},
+                        },
                     }
                 ],
                 "pullRequests": [
@@ -441,7 +442,9 @@ def test_get_development_info_success(mock_get, mock_config_file):
 
 
 @patch("core.jira_client.requests.get")
-def test_get_development_info_returns_repositories_no_duplicates(mock_get, mock_config_file):
+def test_get_development_info_returns_repositories_no_duplicates(
+    mock_get, mock_config_file
+):
     """repositories list has unique repo names when same repo appears in multiple details."""
     mock_response = Mock()
     mock_response.status_code = 200
@@ -821,7 +824,12 @@ def test_get_issue_comments_empty(mock_request, mock_config_file):
     """get_issue_comments retorna lista vazia quando não há comentários."""
     mock_response = Mock()
     mock_response.status_code = 200
-    mock_response.json.return_value = {"comments": [], "total": 0, "startAt": 0, "maxResults": 50}
+    mock_response.json.return_value = {
+        "comments": [],
+        "total": 0,
+        "startAt": 0,
+        "maxResults": 50,
+    }
     mock_request.return_value = mock_response
 
     client = JiraClient(jira_cli_config_path=mock_config_file)
@@ -838,7 +846,15 @@ def test_add_comment_success(mock_request, mock_config_file):
     mock_response.json.return_value = {
         "id": "10001",
         "author": {"accountId": "me", "displayName": "Eu"},
-        "body": {"type": "doc", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "Novo comentário"}]}]},
+        "body": {
+            "type": "doc",
+            "content": [
+                {
+                    "type": "paragraph",
+                    "content": [{"type": "text", "text": "Novo comentário"}],
+                }
+            ],
+        },
         "created": "2025-01-21T09:00:00.000+0000",
         "updated": "2025-01-21T09:00:00.000+0000",
     }
@@ -865,7 +881,15 @@ def test_update_comment_success(mock_request, mock_config_file):
     mock_response.json.return_value = {
         "id": "10000",
         "author": {"accountId": "user-1", "displayName": "João"},
-        "body": {"type": "doc", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "Texto editado"}]}]},
+        "body": {
+            "type": "doc",
+            "content": [
+                {
+                    "type": "paragraph",
+                    "content": [{"type": "text", "text": "Texto editado"}],
+                }
+            ],
+        },
         "created": "2025-01-20T10:30:00.000+0000",
         "updated": "2025-01-21T11:00:00.000+0000",
     }

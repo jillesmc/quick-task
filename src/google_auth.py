@@ -53,9 +53,15 @@ class GoogleAuthManager:
         if self._token_path.exists():
             try:
                 self._token_path.unlink()
-                debug_log("GoogleAuthManager", "remove_token", "Token removido (401/403 ou inválido)")
+                debug_log(
+                    "GoogleAuthManager",
+                    "remove_token",
+                    "Token removido (401/403 ou inválido)",
+                )
             except OSError as e:
-                debug_log("GoogleAuthManager", "remove_token", "Erro ao remover token: %s", e)
+                debug_log(
+                    "GoogleAuthManager", "remove_token", "Erro ao remover token: %s", e
+                )
 
     def _get_scopes_for_load(self, data: dict) -> list:
         """Use scopes from saved token to avoid invalid_scope when token has fewer scopes."""
@@ -81,7 +87,9 @@ class GoogleAuthManager:
                 self._save_token(creds)
             return getattr(creds, "valid", not creds.expired)
         except Exception as e:
-            debug_log("GoogleAuthManager", "has_valid_token", "Erro ao verificar token: %s", e)
+            debug_log(
+                "GoogleAuthManager", "has_valid_token", "Erro ao verificar token: %s", e
+            )
             return False
 
     def _save_token(self, credentials) -> None:
@@ -129,10 +137,17 @@ class GoogleAuthManager:
                     creds.refresh(Request())
                     self._save_token(creds)
                 if creds.valid:
-                    debug_log("GoogleAuthManager", "authenticate", "Token em cache válido")
+                    debug_log(
+                        "GoogleAuthManager", "authenticate", "Token em cache válido"
+                    )
                     return creds
             except Exception as e:
-                debug_log("GoogleAuthManager", "authenticate", "Token em cache inválido: %s", e)
+                debug_log(
+                    "GoogleAuthManager",
+                    "authenticate",
+                    "Token em cache inválido: %s",
+                    e,
+                )
 
         # Run OAuth flow (opens browser)
         client_config = _build_client_config(client_id, client_secret)

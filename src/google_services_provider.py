@@ -10,11 +10,15 @@ from PySide6.QtQml import QQmlApplicationEngine, qmlRegisterSingletonType  # typ
 from src.utils.debug import debug_log
 
 
-def _create_google_services_provider(engine: QQmlApplicationEngine) -> "GoogleServicesProvider":
+def _create_google_services_provider(
+    engine: QQmlApplicationEngine,
+) -> "GoogleServicesProvider":
     """Factory for singleton: creates services using config from context."""
     config = engine.rootContext().contextProperty("googleConfigManager")
     if not config:
-        debug_log("GoogleServicesProvider", "create", "googleConfigManager not in context")
+        debug_log(
+            "GoogleServicesProvider", "create", "googleConfigManager not in context"
+        )
         return GoogleServicesProvider(None, None, None)
 
     return create_provider_for_config(config)

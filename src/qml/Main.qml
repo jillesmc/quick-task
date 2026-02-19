@@ -94,6 +94,7 @@ Kirigami.ApplicationWindow {
     property var _ctxGoogleCalendarService: null
     property var _ctxGoogleTasksService: null
     property var _ctxClipboardHelper: clipboardHelper // qmllint disable unqualified
+    property var _ctxGitCommandHelper: gitCommandHelper // qmllint disable unqualified
     property var hideWindowFn: hideWindow // qmllint disable unqualified
     property var _ctxDebugLog: debugLog // qmllint disable unqualified
 
@@ -167,6 +168,7 @@ Kirigami.ApplicationWindow {
             issueModel: root._ctxEditingIssueModel
             jiraService: root._ctxJiraService
             clipboardHelper: root._ctxClipboardHelper
+            gitCommandHelper: root._ctxGitCommandHelper
             myIssuesModel: root._ctxMyIssuesModel
             timerService: root._ctxTimerService
             timerModel: root._ctxTimerModel

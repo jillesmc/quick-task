@@ -50,6 +50,7 @@ Kirigami.Page {
     property var issueModel: null
     property var jiraService: null
     property var clipboardHelper: null
+    property var gitCommandHelper: null
     property var myIssuesModel: null
     property var timerService: null
     property var timerModel: null
@@ -538,6 +539,7 @@ Kirigami.Page {
             isDetailsLoading: page.isDetailsLoading
             jiraService: page.jiraService
             clipboardHelper: page.clipboardHelper
+            gitCommandHelper: page.gitCommandHelper
             voiceInputService: page._ctxVoiceInputService
             githubService: page.githubService
             sharedEpicKey: page.sharedEpicKey

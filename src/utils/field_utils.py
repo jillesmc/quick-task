@@ -28,11 +28,13 @@ def normalize_asset_field_value(value: Any) -> Any:
         oid = item.get("objectId")
         gid = item.get("id")
         if wid is not None and oid is not None:
-            out.append({
-                "id": gid if gid is not None else f"{wid}:{oid}",
-                "objectId": str(oid),
-                "workspaceId": str(wid),
-            })
+            out.append(
+                {
+                    "id": gid if gid is not None else f"{wid}:{oid}",
+                    "objectId": str(oid),
+                    "workspaceId": str(wid),
+                }
+            )
         else:
             out.append(item)
     return out

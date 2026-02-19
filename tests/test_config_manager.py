@@ -425,9 +425,7 @@ def test_save_google_oauth_config():
         temp_path = Path(f.name)
     try:
         manager = ConfigManager(config_path=temp_path)
-        manager.save_google_oauth_config(
-            "new-client-id", "new-project", "new-secret"
-        )
+        manager.save_google_oauth_config("new-client-id", "new-project", "new-secret")
         cfg = manager.get_google_oauth_config()
         assert cfg["client_id"] == "new-client-id"
         assert cfg["project_id"] == "new-project"

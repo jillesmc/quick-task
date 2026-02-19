@@ -32,7 +32,9 @@ class SettingsModel(QObject):
         super().__init__(parent)
         try:
             debug_log("SettingsModel", "__init__", "Iniciando...")
-            self._config_manager = config_manager if config_manager is not None else ConfigManager()
+            self._config_manager = (
+                config_manager if config_manager is not None else ConfigManager()
+            )
             debug_log("SettingsModel", "__init__", "ConfigManager criado")
             self._jira_base_url = ""
             self._jira_email = ""
@@ -52,7 +54,9 @@ class SettingsModel(QObject):
             self._desktop_notifications = True
             self._short_sound_file = "short"  # Nome do arquivo sem extensão
             self._long_sound_file = "long"  # Nome do arquivo sem extensão
-            self._return_from_break_sound_file = ""  # Opcional: som ao voltar da pausa; vazio = não toca
+            self._return_from_break_sound_file = (
+                ""  # Opcional: som ao voltar da pausa; vazio = não toca
+            )
 
             # Propriedades de entrada por voz (voice_input)
             self._voice_enabled = False
@@ -178,8 +182,12 @@ class SettingsModel(QObject):
         # Carregar configurações de voice_input do config.json (localai_*; migração de ollama_* em get_voice_input_config)
         voice_config = self._config_manager.get_voice_input_config()
         self._voice_enabled = voice_config.get("enabled", False)
-        self._localai_base_url = voice_config.get("localai_base_url", "http://localhost:8080")
-        self._localai_whisper_model = voice_config.get("localai_whisper_model", "whisper-1")
+        self._localai_base_url = voice_config.get(
+            "localai_base_url", "http://localhost:8080"
+        )
+        self._localai_whisper_model = voice_config.get(
+            "localai_whisper_model", "whisper-1"
+        )
         self._localai_llm_model = voice_config.get("localai_llm_model", "qwen2.5:3b")
         self._localai_task_system_prompt = voice_config.get(
             "localai_task_system_prompt",
@@ -193,9 +201,7 @@ class SettingsModel(QObject):
         self._voice_max_recording_seconds = int(
             voice_config.get("max_recording_seconds", 120)
         )
-        self._voice_keyboard_shortcut = voice_config.get(
-            "keyboard_shortcut", "Meta+F"
-        )
+        self._voice_keyboard_shortcut = voice_config.get("keyboard_shortcut", "Meta+F")
         self._voice_auto_process_after_stop = voice_config.get(
             "auto_process_after_stop", False
         )
