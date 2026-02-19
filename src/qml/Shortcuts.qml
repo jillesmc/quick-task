@@ -16,6 +16,7 @@ Item {
     property var issuesPage: null
     property var settingsPage: null
     property var pendingWorklogsPage: null
+    property var timesheetPage: null
     property var githubPage: null
     property var settingsModel: null
     property bool googleTabEnabled: false
@@ -28,8 +29,8 @@ Item {
         onActivated: {
             if (!root.stack) return;
             if (root.stack.currentIndex === 2 || root.stack.currentIndex === 3
-                || root.stack.currentIndex === 4) return;
-            if (root.stack.currentIndex === 5) {
+                || root.stack.currentIndex === 4 || root.stack.currentIndex === 5) return;
+            if (root.stack.currentIndex === 6) {
                 if (root.settingsPage && root.settingsPage.saveSettingsFromToolbar) {
                     root.settingsPage.saveSettingsFromToolbar();
                 }
@@ -105,6 +106,15 @@ Item {
             if (root.stack && root.tabBar) {
                 root.stack.currentIndex = 5
                 root.tabBar.currentIndex = 5
+            }
+        }
+    }
+    Shortcut {
+        sequence: "Alt+7"
+        onActivated: {
+            if (root.stack && root.tabBar) {
+                root.stack.currentIndex = 6
+                root.tabBar.currentIndex = 6
             }
         }
     }

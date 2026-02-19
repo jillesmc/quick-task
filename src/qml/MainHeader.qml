@@ -18,6 +18,7 @@ RowLayout {
     property var issuesPage: null
     property var settingsPage: null
     property var pendingWorklogsPage: null
+    property var timesheetPage: null
     property var githubPage: null
     property var googlePage: null
     property var issueModel: null
@@ -36,7 +37,7 @@ RowLayout {
         Layout.fillWidth: true
         currentIndex: root.currentTabIndex >= 0 ? root.currentTabIndex : 0
 
-        // Ordem: 0 Criar, 1 Minhas Issues, 2 Google, 3 GitHub, 4 Worklog, 5 Settings
+        // Ordem: 0 Criar, 1 Minhas Issues, 2 Google, 3 GitHub, 4 Worklog, 5 Timesheet, 6 Settings
         Controls.TabButton {
             text: qsTr("Criar Issue")
         }
@@ -61,6 +62,13 @@ RowLayout {
         }
 
         Controls.TabButton {
+            icon.name: "view-calendar"
+            text: ""
+            Controls.ToolTip.text: qsTr("Timesheet")
+            Controls.ToolTip.visible: hovered
+        }
+
+        Controls.TabButton {
             icon.name: "configure"
         }
     }
@@ -70,7 +78,7 @@ RowLayout {
         text: {
             if (root.currentTabIndex === 0) return qsTr("Criar");
             if (root.currentTabIndex === 1) return qsTr("Atualizar task");
-            if (root.currentTabIndex === 5) {
+            if (root.currentTabIndex === 6) {
                 if (root.settingsPage && root.settingsPage.isSaving !== undefined && root.settingsPage.isSaving) {
                     return qsTr("Salvando...");
                 }
@@ -81,10 +89,10 @@ RowLayout {
         icon.name: {
             if (root.currentTabIndex === 0) return "document-new";
             if (root.currentTabIndex === 1) return "document-save";
-            if (root.currentTabIndex === 5) return "document-save";
+            if (root.currentTabIndex === 6) return "document-save";
             return "";
         }
-        visible: root.currentTabIndex >= 0 && root.currentTabIndex !== 2 && root.currentTabIndex !== 3 && root.currentTabIndex !== 4
+        visible: root.currentTabIndex >= 0 && root.currentTabIndex !== 2 && root.currentTabIndex !== 3 && root.currentTabIndex !== 4 && root.currentTabIndex !== 5
         enabled: {
             if (root.currentTabIndex === 0) {
                 if (!root.createPage) return false;
@@ -101,7 +109,7 @@ RowLayout {
                 if (!root.jiraService || typeof root.jiraService.isAvailable !== "function") return false;
                 return root.jiraService.isAvailable();
             }
-            if (root.currentTabIndex === 5) {
+            if (root.currentTabIndex === 6) {
                 if (!root.settingsPage) return false;
                 if (root.settingsPage.isSaving !== undefined && root.settingsPage.isSaving) return false;
                 if (root.settingsPage.isValid !== undefined && !root.settingsPage.isValid) return false;
@@ -114,7 +122,7 @@ RowLayout {
                 root.createPage.createIssueFromToolbar();
             } else if (root.currentTabIndex === 1 && root.issuesPage && root.issuesPage.updateIssue) {
                 root.issuesPage.updateIssue();
-            } else if (root.currentTabIndex === 5 && root.settingsPage && root.settingsPage.saveSettingsFromToolbar) {
+            } else if (root.currentTabIndex === 6 && root.settingsPage && root.settingsPage.saveSettingsFromToolbar) {
                 root.settingsPage.saveSettingsFromToolbar();
             }
         }
@@ -143,6 +151,19 @@ RowLayout {
         onClicked: {
             if (root.currentTabIndex === 3 && root.githubPage && typeof root.githubPage.reload === "function") {
                 root.githubPage.reload();
+            }
+        }
+    }
+
+    Controls.ToolButton {
+        id: refreshTimesheetButton
+        text: qsTr("Atualizar")
+        icon.name: "view-refresh"
+        visible: root.currentTabIndex === 5
+        enabled: root.timesheetPage && root.timesheetPage.timesheetViewModel && !root.timesheetPage.timesheetViewModel.loading
+        onClicked: {
+            if (root.currentTabIndex === 5 && root.timesheetPage && root.timesheetPage.timesheetViewModel) {
+                root.timesheetPage.timesheetViewModel.refresh()
             }
         }
     }

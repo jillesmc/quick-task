@@ -740,6 +740,40 @@ class ConfigManager:
             self.get_development_panel_config().get("default_org", "") or ""
         ).strip()
 
+    def get_timesheet_config(self) -> Dict[str, Any]:
+        """
+        Retorna configuração do Timesheet.
+
+        Returns:
+            Dict com enabled, cache_ttl_minutes, default_period, max_results
+        """
+        default_config = {
+            "enabled": True,
+            "cache_ttl_minutes": 5,
+            "default_period": "last_7_days",
+            "max_results": 500,
+        }
+        timesheet = self._config.get("timesheet") or {}
+        if not isinstance(timesheet, dict):
+            return default_config
+        result = dict(default_config)
+        result.update({k: v for k, v in timesheet.items() if k in result})
+        return result
+
+    def save_timesheet_config(self, timesheet_config: Dict[str, Any]) -> None:
+        """Salva configurações do Timesheet no arquivo de configuração."""
+        self._config["timesheet"] = timesheet_config
+        if str(self.config_path).startswith("/app/"):
+            xdg_config = os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")
+            self.config_path = Path(xdg_config) / "jira-quick-task" / "config.json"
+        self.config_path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            with open(self.config_path, "w", encoding="utf-8") as f:
+                json.dump(self._config, f, indent=2, ensure_ascii=False)
+            self.load_config()
+        except Exception as e:
+            raise RuntimeError(f"Erro ao salvar configuração do Timesheet: {e}") from e
+
     def get_github_token(self) -> str:
         """Retorna o token de API do GitHub a partir do config.json (github.token). Única fonte."""
         return (self._config.get("github") or {}).get("token", "")
@@ -856,6 +890,23 @@ class ConfigManager:
             return flatpak_example
 
         return None
+
+    def get_jira_login(self) -> str:
+        """
+        Retorna o email de login do Jira a partir do .jira-config.yml.
+        Usado para timesheet (worklogAuthor no JQL).
+        """
+        path = self.get_jira_cli_config_path()
+        if not path or not path.exists():
+            return ""
+        try:
+            import yaml
+
+            with open(path, "r", encoding="utf-8") as f:
+                config = yaml.safe_load(f) or {}
+                return str(config.get("login", "") or "").strip()
+        except Exception:
+            return ""
 
     def get_epic_filters(self) -> Dict[str, bool]:
         """

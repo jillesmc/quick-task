@@ -67,6 +67,12 @@
       "block_transition_if_pending": false
     }
   },
+  "timesheet": {
+    "enabled": true,
+    "cache_ttl_minutes": 1440,
+    "default_period": "last_7_days",
+    "max_results": 500
+  },
   "attachments": {
     "max_file_size_mb": 10,
     "allowed_image_extensions": ["png", "jpg", "jpeg", "gif", "webp"],

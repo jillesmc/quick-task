@@ -229,6 +229,11 @@ Kirigami.Page {
                         settingsModel: page.settingsModel
                     }
 
+                    TimesheetSettingsBlock {
+                        Layout.fillWidth: true
+                        settingsModel: page.settingsModel
+                    }
+
                     // Mensagens de feedback
                     Controls.Label {
                         id: successMessage

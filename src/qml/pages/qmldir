@@ -3,5 +3,6 @@ MyIssuesPage MyIssuesPage.qml
 PendingWorklogsPage PendingWorklogsPage.qml
 GitHubPage GitHubPage.qml
 GooglePage GooglePage.qml
+TimesheetPage TimesheetPage.qml
 SettingsPage SettingsPage.qml
 TimerPage TimerPage.qml

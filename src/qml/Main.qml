@@ -46,6 +46,7 @@ Kirigami.ApplicationWindow {
             mainHeader.issuesPage = issuesPage
             mainHeader.settingsPage = settingsPage
             mainHeader.pendingWorklogsPage = pendingWorklogsPage
+            mainHeader.timesheetPage = timesheetPage
             mainHeader.githubPage = githubPage
             mainHeader.googlePage = googlePage
         })
@@ -59,8 +60,8 @@ Kirigami.ApplicationWindow {
             // #endregion
             if (root.stack && root.tabBar && root._ctxSettingsModel) {
                 if (root._ctxSettingsModel.needsConfiguration || !root._ctxSettingsModel.isConfigured) {
-                    root.stack.currentIndex = 5
-                    root.tabBar.currentIndex = 5
+                    root.stack.currentIndex = 6
+                    root.tabBar.currentIndex = 6
                     if (typeof root._ctxDebugLog !== "undefined" && root._ctxDebugLog && typeof root._ctxDebugLog.log === "function") {
                         root._ctxDebugLog.log("Main.qml:callLater2", "set index 3")
                     }
@@ -88,6 +89,7 @@ Kirigami.ApplicationWindow {
     property var _ctxSettingsModel: settingsModel // qmllint disable unqualified
     property var _ctxMyIssuesModel: myIssuesModel // qmllint disable unqualified
     property var _ctxWorklogSyncService: worklogSyncService // qmllint disable unqualified
+    property var _ctxTimesheetViewModel: timesheetViewModel // qmllint disable unqualified
     property var _ctxGitHubService: githubService // qmllint disable unqualified
     // Google services: atribuídos via Python após load (Opção B)
     property var _ctxGoogleAuthService: null
@@ -209,7 +211,13 @@ Kirigami.ApplicationWindow {
             jiraService: root._ctxJiraService
         }
 
-        // Índice 5: Configuração
+        // Índice 5: Timesheet
+        TimesheetPage {
+            id: timesheetPage
+            timesheetViewModel: root._ctxTimesheetViewModel
+        }
+
+        // Índice 6: Configuração
         SettingsPage {
             id: settingsPage
             settingsModel: root._ctxSettingsModel
@@ -242,6 +250,11 @@ Kirigami.ApplicationWindow {
             if (root.tabBar.currentIndex === 4 && pendingWorklogsPage) {
                 pendingWorklogsPage.reloadWorklogs()
             }
+            if (root.tabBar.currentIndex === 5 && timesheetPage && timesheetPage.timesheetViewModel) {
+                if (!timesheetPage.timesheetViewModel.hasCachedData) {
+                    timesheetPage.timesheetViewModel.loadInitial()
+                }
+            }
         }
     }
 
@@ -253,6 +266,7 @@ Kirigami.ApplicationWindow {
         issuesPage: issuesPage
         settingsPage: settingsPage
         pendingWorklogsPage: pendingWorklogsPage
+        timesheetPage: timesheetPage
         githubPage: githubPage
         settingsModel: root._ctxSettingsModel
         googleTabEnabled: !!root._ctxGoogleAuthService

@@ -8,6 +8,7 @@ import os
 import re
 import sys
 import time
+from datetime import date
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 import requests
@@ -1779,6 +1780,102 @@ class JiraClient:
         except Exception as e:
             print(f"Erro inesperado ao registrar worklog: {str(e)}", file=sys.stderr)
             return False
+
+    def get_issue_worklogs(
+        self, issue_key: str, start_at: int = 0, max_results: int = 100
+    ) -> List[Dict[str, Any]]:
+        """
+        Obtém worklogs de uma issue (GET /rest/api/3/issue/{key}/worklog).
+
+        Args:
+            issue_key: Chave da issue (ex: PLATFORM-123)
+            start_at: Índice inicial para paginação
+            max_results: Máximo de worklogs por página
+
+        Returns:
+            Lista de dicts com: id, author (accountId, displayName, emailAddress),
+            timeSpentSeconds, started, comment (markdown).
+        """
+        if not issue_key:
+            return []
+        all_worklogs: List[Dict[str, Any]] = []
+        start = start_at
+        while True:
+            params = {"startAt": start, "maxResults": min(max_results, 100)}
+            try:
+                response = self._make_request(
+                    "GET",
+                    f"issue/{issue_key}/worklog",
+                    params=params,
+                    timeout=30,
+                )
+                data = response.json()
+            except RuntimeError as e:
+                print(
+                    f"Erro ao buscar worklogs da issue '{issue_key}': {e}",
+                    file=sys.stderr,
+                )
+                return all_worklogs if all_worklogs else []
+            except json.JSONDecodeError as e:
+                print(
+                    f"Erro ao decodificar JSON de worklogs: {e}",
+                    file=sys.stderr,
+                )
+                return all_worklogs if all_worklogs else []
+            worklogs = data.get("worklogs") or []
+            total = data.get("total", 0)
+            for w in worklogs:
+                author = w.get("author") or {}
+                body_raw = w.get("comment")
+                if isinstance(body_raw, dict):
+                    body_md = JiraClient._adf_to_markdown(body_raw)
+                else:
+                    body_md = str(body_raw) if body_raw else ""
+                all_worklogs.append(
+                    {
+                        "id": str(w.get("id", "")),
+                        "author": {
+                            "accountId": author.get("accountId", ""),
+                            "displayName": author.get("displayName", ""),
+                            "emailAddress": author.get("emailAddress", ""),
+                        },
+                        "timeSpentSeconds": w.get("timeSpentSeconds", 0),
+                        "started": w.get("started", ""),
+                        "comment": body_md,
+                    }
+                )
+            if start + len(worklogs) >= total:
+                break
+            start += len(worklogs)
+            if not worklogs:
+                break
+        return all_worklogs
+
+    def search_issues_with_worklogs_in_period(
+        self,
+        start_date: date,
+        end_date: date,
+        user_email: str,
+        max_results: int = 500,
+    ) -> List[Dict[str, Any]]:
+        """
+        Busca issues com worklogs do usuário em um período via JQL.
+
+        Args:
+            start_date: Data de início do período
+            end_date: Data de fim do período
+            user_email: Email do usuário (worklogAuthor)
+            max_results: Número máximo de issues
+
+        Returns:
+            Lista de issues (estrutura da REST API).
+        """
+        jql = (
+            f'worklogAuthor = "{user_email}" '
+            f'AND worklogDate >= "{start_date.isoformat()}" '
+            f'AND worklogDate <= "{end_date.isoformat()}"'
+        )
+        return self.search_issues(jql, max_results=max_results)
 
     def _parse_time_spent_to_seconds(self, time_spent: str) -> int:
         """Converte time_spent (ex: "1h 30m") para segundos"""

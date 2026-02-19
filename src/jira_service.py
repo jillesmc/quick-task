@@ -790,6 +790,8 @@ class JiraService(QObject):
     inDevelopmentReady = Signal(
         str
     )  # issueKey (para iniciar timer após transição automática)
+    # Worklog registrado (para invalidar cache do Timesheet)
+    worklogRegistered = Signal()
 
     def __init__(self, parent=None, config_manager: Optional[ConfigManager] = None):
         super().__init__(parent)
@@ -861,6 +863,10 @@ class JiraService(QObject):
     def get_assets_cache(self) -> Optional[AssetsCacheService]:
         """Retorna o serviço de cache de Assets (para IssueModel e payloads)."""
         return self._assets_cache
+
+    def get_jira_client(self) -> Optional[JiraClient]:
+        """Retorna o JiraClient (para WorklogService/Timesheet)."""
+        return self._jira_client
 
     @Slot()
     def reloadAssetsCache(self) -> None:
@@ -1687,6 +1693,8 @@ class JiraService(QObject):
             self.errorOccurred.emit(
                 f"Não foi possível registrar worklog para {issueKey}"
             )
+        else:
+            self.worklogRegistered.emit()
 
         return success
 

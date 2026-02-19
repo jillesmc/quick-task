@@ -424,6 +424,8 @@ def main():
     notification_service = None
     worklog_sync_service = None
     worklog_db = None
+    worklog_service = None
+    timesheet_model = None
 
     try:
         from src.models.timer_model import TimerModel
@@ -476,6 +478,39 @@ def main():
         debug_log("App", "main", "Criando WorklogSyncService...")
         worklog_sync_service = WorklogSyncService(worklog_db, app_config_manager)
         debug_log("App", "main", "WorklogSyncService criado com sucesso")
+
+        # WorklogService e TimesheetModel para tela de Timesheet
+        jira_client = jira_service.get_jira_client() if jira_service else None
+        if jira_client and app_config_manager:
+            try:
+                from src.services.worklog_service import WorklogService
+                from src.models.timesheet_model import TimesheetModel
+
+                worklog_service = WorklogService(
+                    jira_client=jira_client,
+                    config=app_config_manager,
+                )
+                user_email = app_config_manager.get_jira_login() or ""
+                timesheet_model = TimesheetModel(
+                    worklog_service=worklog_service,
+                    config=app_config_manager,
+                    user_email=user_email,
+                )
+                timesheet_model.loadInitial()
+                debug_log("App", "main", "WorklogService e TimesheetModel criados")
+                # Invalidação de cache quando worklogs são sincronizados ou registrados
+                if worklog_sync_service:
+                    worklog_sync_service.syncCompleted.connect(
+                        worklog_service.invalidate_cache
+                    )
+                jira_service.worklogRegistered.connect(worklog_service.invalidate_cache)
+            except Exception as e:
+                print(
+                    f"⚠ Aviso: Erro ao criar WorklogService/TimesheetModel: {e}",
+                    file=sys.stderr,
+                )
+                worklog_service = None
+                timesheet_model = None
 
         # Criar TimerTrayManager para ícone separado do timer
         timer_tray_manager = None
@@ -739,6 +774,15 @@ def main():
         import traceback
 
         traceback.print_exc(file=sys.stderr)
+
+    try:
+        engine.rootContext().setContextProperty("timesheetViewModel", timesheet_model)
+        if timesheet_model:
+            debug_log("App", "main", "timesheetViewModel exposto ao contexto QML")
+        else:
+            debug_log("App", "main", "timesheetViewModel é None - não foi criado")
+    except Exception as e:
+        print(f"⚠ Aviso: Erro ao expor timesheetViewModel: {e}", file=sys.stderr)
 
     # Expor timerTrayManager ao contexto QML
     try:

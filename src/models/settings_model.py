@@ -80,6 +80,12 @@ class SettingsModel(QObject):
             self._development_panel_github_enrichment = False
             self._development_panel_default_org = ""
 
+            # Propriedades de timesheet
+            self._timesheet_enabled = True
+            self._timesheet_cache_ttl_minutes = 1440  # 1 dia
+            self._timesheet_default_period = "last_7_days"
+            self._timesheet_max_results = 500
+
             # Propriedades GitHub
             self._github_token = ""
             self._github_username = ""
@@ -223,6 +229,16 @@ class SettingsModel(QObject):
         self._development_panel_default_org = (
             dev_panel_config.get("default_org", "") or ""
         ).strip()
+        # Carregar configurações de timesheet
+        timesheet_config = self._config_manager.get_timesheet_config()
+        self._timesheet_enabled = timesheet_config.get("enabled", True)
+        self._timesheet_cache_ttl_minutes = int(
+            timesheet_config.get("cache_ttl_minutes", 1440)
+        )
+        self._timesheet_default_period = (
+            timesheet_config.get("default_period", "last_7_days") or "last_7_days"
+        )
+        self._timesheet_max_results = int(timesheet_config.get("max_results", 500))
         # Carregar configurações GitHub do config.json
         self._github_token = self._config_manager.get_github_token_from_config()
         self._github_username = self._config_manager.get_github_username()
@@ -651,6 +667,20 @@ class SettingsModel(QObject):
                 "Configurações de development_panel salvas no arquivo",
             )
 
+            # 4c3. Salvar configurações de timesheet
+            timesheet_config = {
+                "enabled": self._timesheet_enabled,
+                "cache_ttl_minutes": self._timesheet_cache_ttl_minutes,
+                "default_period": self._timesheet_default_period,
+                "max_results": self._timesheet_max_results,
+            }
+            self._config_manager.save_timesheet_config(timesheet_config)
+            debug_log(
+                "SettingsModel",
+                "save",
+                "Configurações de timesheet salvas no arquivo",
+            )
+
             # 4d. Salvar configurações Google OAuth
             self._config_manager.save_google_oauth_config(
                 self._google_oauth_client_id,
@@ -717,6 +747,12 @@ class SettingsModel(QObject):
     developmentPanelEnabledChanged = Signal()
     developmentPanelGitHubEnrichmentChanged = Signal()
     developmentPanelDefaultOrgChanged = Signal()
+
+    # Sinais para timesheet
+    timesheetEnabledChanged = Signal()
+    timesheetCacheTtlMinutesChanged = Signal()
+    timesheetDefaultPeriodChanged = Signal()
+    timesheetMaxResultsChanged = Signal()
 
     # Sinais para GitHub
     githubTokenChanged = Signal()
@@ -1094,6 +1130,54 @@ class SettingsModel(QObject):
         if self._development_panel_default_org != v:
             self._development_panel_default_org = v
             self.developmentPanelDefaultOrgChanged.emit()
+
+    # Propriedades QML para timesheet
+    @Property(bool, notify=timesheetEnabledChanged)
+    def timesheetEnabled(self) -> bool:
+        """Habilitar Timesheet"""
+        return self._timesheet_enabled
+
+    @timesheetEnabled.setter
+    def timesheetEnabled(self, value: bool):
+        if self._timesheet_enabled != value:
+            self._timesheet_enabled = value
+            self.timesheetEnabledChanged.emit()
+
+    @Property(int, notify=timesheetCacheTtlMinutesChanged)
+    def timesheetCacheTtlMinutes(self) -> int:
+        """TTL do cache do Timesheet em minutos"""
+        return self._timesheet_cache_ttl_minutes
+
+    @timesheetCacheTtlMinutes.setter
+    def timesheetCacheTtlMinutes(self, value: int):
+        v = max(1, min(60, value))
+        if self._timesheet_cache_ttl_minutes != v:
+            self._timesheet_cache_ttl_minutes = v
+            self.timesheetCacheTtlMinutesChanged.emit()
+
+    @Property(str, notify=timesheetDefaultPeriodChanged)
+    def timesheetDefaultPeriod(self) -> str:
+        """Período padrão do Timesheet"""
+        return self._timesheet_default_period
+
+    @timesheetDefaultPeriod.setter
+    def timesheetDefaultPeriod(self, value: str):
+        v = value or "last_7_days"
+        if self._timesheet_default_period != v:
+            self._timesheet_default_period = v
+            self.timesheetDefaultPeriodChanged.emit()
+
+    @Property(int, notify=timesheetMaxResultsChanged)
+    def timesheetMaxResults(self) -> int:
+        """Máximo de issues por busca no Timesheet"""
+        return self._timesheet_max_results
+
+    @timesheetMaxResults.setter
+    def timesheetMaxResults(self, value: int):
+        v = max(50, min(1000, value))
+        if self._timesheet_max_results != v:
+            self._timesheet_max_results = v
+            self.timesheetMaxResultsChanged.emit()
 
     @Property(str, notify=githubTokenChanged)
     def githubToken(self) -> str:

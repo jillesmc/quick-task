@@ -1014,3 +1014,106 @@ def test_add_attachment_from_bytes_success(mock_post, mock_config_file):
     assert len(result) == 1
     assert result[0]["filename"] == "paste.png"
     assert "attachment/content/10002" in result[0]["content"]
+
+
+@patch("core.jira_client.requests.request")
+def test_get_issue_worklogs_success(mock_request, mock_config_file):
+    """Testa obtenção de worklogs de uma issue."""
+    mock_response = Mock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = {
+        "worklogs": [
+            {
+                "id": "10001",
+                "author": {
+                    "accountId": "acc-1",
+                    "displayName": "Test User",
+                    "emailAddress": "test@example.com",
+                },
+                "timeSpentSeconds": 3600,
+                "started": "2025-01-20T09:00:00.000-0300",
+                "comment": "Work done",
+            },
+            {
+                "id": "10002",
+                "author": {
+                    "accountId": "acc-1",
+                    "displayName": "Test User",
+                    "emailAddress": "test@example.com",
+                },
+                "timeSpentSeconds": 1800,
+                "started": "2025-01-20T14:00:00.000-0300",
+                "comment": None,
+            },
+        ],
+        "total": 2,
+    }
+    mock_request.return_value = mock_response
+
+    client = JiraClient(jira_cli_config_path=mock_config_file)
+    result = client.get_issue_worklogs("TEST-123")
+
+    assert len(result) == 2
+    assert result[0]["id"] == "10001"
+    assert result[0]["timeSpentSeconds"] == 3600
+    assert result[0]["comment"] == "Work done"
+    assert result[0]["author"]["emailAddress"] == "test@example.com"
+    assert result[1]["id"] == "10002"
+    assert result[1]["timeSpentSeconds"] == 1800
+    assert result[1]["comment"] == ""
+    mock_request.assert_called_once()
+    call_args = mock_request.call_args
+    assert call_args[0][0] == "GET"
+    assert "issue/TEST-123/worklog" in call_args[0][1]
+
+
+@patch("core.jira_client.requests.request")
+def test_get_issue_worklogs_empty_issue_key(mock_request, mock_config_file):
+    """Testa que issue_key vazia retorna lista vazia."""
+    client = JiraClient(jira_cli_config_path=mock_config_file)
+    result = client.get_issue_worklogs("")
+    assert result == []
+    mock_request.assert_not_called()
+
+
+@patch("core.jira_client.requests.request")
+def test_search_issues_with_worklogs_in_period(mock_request, mock_config_file):
+    """Testa busca de issues com worklogs no período."""
+    from datetime import date
+
+    mock_response = Mock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = {
+        "issues": [
+            {
+                "key": "TEST-1",
+                "fields": {
+                    "summary": "Issue 1",
+                    "status": {"name": "Done"},
+                    "issuetype": {"name": "Task"},
+                },
+            }
+        ],
+        "total": 1,
+    }
+    mock_request.return_value = mock_response
+
+    client = JiraClient(jira_cli_config_path=mock_config_file)
+    result = client.search_issues_with_worklogs_in_period(
+        start_date=date(2025, 1, 1),
+        end_date=date(2025, 1, 31),
+        user_email="test@example.com",
+        max_results=100,
+    )
+
+    assert len(result) == 1
+    assert result[0]["key"] == "TEST-1"
+    mock_request.assert_called_once()
+    call_args = mock_request.call_args
+    assert call_args[0][0] == "POST"
+    assert "search/jql" in call_args[0][1]
+    jql = call_args[1]["json"].get("jql", "")
+    assert "worklogAuthor" in jql
+    assert "test@example.com" in jql
+    assert "2025-01-01" in jql
+    assert "2025-01-31" in jql
