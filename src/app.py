@@ -706,6 +706,19 @@ def main():
     except Exception as e:
         print(f"⚠ Aviso: Erro ao expor voiceInputService: {e}", file=sys.stderr)
 
+    # MarkdownPreviewRenderer para modo Edit/Preview em description e comentários
+    try:
+        from src.services.markdown_preview_renderer import MarkdownPreviewRenderer
+
+        markdown_preview_renderer = MarkdownPreviewRenderer()
+        engine.rootContext().setContextProperty(
+            "markdownPreviewRenderer", markdown_preview_renderer
+        )
+        debug_log("App", "main", "markdownPreviewRenderer exposto ao contexto QML")
+    except Exception as e:
+        print(f"⚠ Aviso: Erro ao expor markdownPreviewRenderer: {e}", file=sys.stderr)
+        engine.rootContext().setContextProperty("markdownPreviewRenderer", None)
+
     try:
         engine.rootContext().setContextProperty("trayManager", tray_manager)
         debug_log("App", "main", "trayManager exposto ao contexto QML")

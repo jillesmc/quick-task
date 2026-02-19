@@ -7,6 +7,7 @@ import QtQuick
 import QtQuick.Controls as Controls
 import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
+import "../controls"
 
 Controls.Dialog {
     id: dialog
@@ -18,6 +19,7 @@ Controls.Dialog {
 
     property string commentId: ""
     property string initialBody: ""
+    property string commentText: ""
     property string issueKey: ""
     property var jiraService: null
     property var clipboardHelper: null
@@ -35,7 +37,7 @@ Controls.Dialog {
     function openWith(commentIdValue, body) {
         commentId = commentIdValue || ""
         initialBody = body || ""
-        commentTextArea.text = initialBody
+        commentText = initialBody
         open()
     }
 
@@ -55,62 +57,20 @@ Controls.Dialog {
         anchors.margins: Kirigami.Units.largeSpacing
         spacing: Kirigami.Units.mediumSpacing
 
-        Controls.ScrollView {
-            id: commentScrollView
+        EditPreviewContainer {
+            id: commentEditPreview
+            content: dialog.commentText
+            onContentEdited: function(newContent) {
+                dialog.commentText = newContent
+            }
+            label: qsTr("Comentário")
+            placeholderText: qsTr("Digite o comentário (Markdown suportado). Arraste imagens ou use Ctrl+V para colar.")
+            acceptDrops: true
+            jiraService: dialog.jiraService
+            issueKey: dialog.issueKey
+            clipboardHelper: dialog.clipboardHelper
             Layout.fillWidth: true
             Layout.fillHeight: true
-            clip: true
-            contentWidth: availableWidth
-
-            Item {
-                width: commentScrollView.availableWidth
-                height: commentTextArea.implicitHeight
-
-                DropArea {
-                    anchors.fill: parent
-                    onDropped: function(drop) {
-                        if (!dialog.jiraService || !dialog.issueKey || !drop.urls || drop.urls.length === 0) return
-                        var extList = ["png", "jpg", "jpeg", "gif", "webp"]
-                        for (var i = 0; i < drop.urls.length; i++) {
-                            var urlStr = drop.urls[i].toString()
-                            var path = urlStr.replace(/^file:\/\//, "")
-                            var filename = path.split("/").pop() || path.split("\\").pop() || "file"
-                            var ext = filename.indexOf(".") >= 0 ? filename.split(".").pop().toLowerCase() : ""
-                            if (extList.indexOf(ext) < 0) continue
-                            dialog.jiraService.uploadAttachment(dialog.issueKey, path)
-                        }
-                    }
-                }
-
-                Controls.TextArea {
-                    id: commentTextArea
-                    width: parent.width
-                    wrapMode: Controls.TextArea.Wrap
-                    placeholderText: qsTr("Digite o comentário (Markdown suportado). Arraste imagens ou use Ctrl+V para colar.")
-
-                    Keys.onPressed: function(event) {
-                        if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_V) {
-                            if (dialog.clipboardHelper && dialog.clipboardHelper.hasClipboardImage() && dialog.jiraService && dialog.issueKey) {
-                                var tempPath = dialog.clipboardHelper.getClipboardImageAsTempFile()
-                                if (tempPath) {
-                                    dialog.jiraService.uploadAttachment(dialog.issueKey, tempPath)
-                                    event.accepted = true
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        Connections {
-            target: dialog.jiraService || null
-            function onAttachmentUploaded(uploadedIssueKey, contentUrl, filename) {
-                if (uploadedIssueKey === dialog.issueKey && contentUrl && filename) {
-                    var markdown = "![" + filename + "](" + contentUrl + ")"
-                    commentTextArea.insert(commentTextArea.cursorPosition, markdown)
-                }
-            }
         }
 
         RowLayout {
@@ -121,11 +81,11 @@ Controls.Dialog {
             Controls.Button {
                 text: dialog.improvingComment ? qsTr("A melhorar…") : qsTr("Melhorar com IA")
                 visible: dialog.voiceInputAvailable
-                enabled: !dialog.improvingComment && (commentTextArea.text || "").trim() !== ""
+                enabled: !dialog.improvingComment && (dialog.commentText || "").trim() !== ""
                 onClicked: {
-                    if (dialog.voiceInputService && (commentTextArea.text || "").trim() !== "") {
+                    if (dialog.voiceInputService && (dialog.commentText || "").trim() !== "") {
                         dialog.improvingComment = true
-                        dialog.voiceInputService.improveCommentText(commentTextArea.text)
+                        dialog.voiceInputService.improveCommentText(dialog.commentText)
                     }
                 }
             }
@@ -137,7 +97,7 @@ Controls.Dialog {
             Controls.Button {
                 text: qsTr("Salvar")
                 onClicked: {
-                    dialog.accepted(dialog.commentId, commentTextArea.text || "")
+                    dialog.accepted(dialog.commentId, dialog.commentText || "")
                     dialog.close()
                 }
             }
@@ -150,7 +110,7 @@ Controls.Dialog {
         function onCommentTextImproved(text) {
             dialog.improvingComment = false
             if (text)
-                commentTextArea.text = text
+                dialog.commentText = text
         }
         function onError(message) {
             dialog.improvingComment = false

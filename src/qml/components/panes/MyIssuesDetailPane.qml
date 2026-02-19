@@ -49,6 +49,7 @@ Item {
 
     property real topSectionHeight: 300
     property real epicSectionHeight: 250
+    property bool _descriptionEditMode: true
 
     /** Dados de development (branches/PRs) para o painel; preenchido em setDetails. null quando feature desativada. */
     property var developmentData: null
@@ -66,8 +67,8 @@ Item {
         if (summaryFieldTab2) {
             fieldData.summary = summaryFieldTab2.text || "";
         }
-        if (descriptionFieldTab2) {
-            fieldData.description = descriptionFieldTab2.text || "";
+        if (pane.issueModel) {
+            fieldData.description = pane.issueModel.description || "";
         }
         if (issueModel) {
             fieldData.tipoAtividade = issueModel.tipoAtividade || "";
@@ -254,12 +255,12 @@ Item {
                                 visible: pane.voiceInputAvailable && pane.selectedIssueKey !== ""
                                 icon.name: "tools-wizard"
                                 text: qsTr("Expandir com IA")
-                                enabled: !pane.isProcessing && !(pane.voiceInputService && pane.voiceInputService.isExpanding) && (summaryFieldTab2.text || descriptionFieldTab2.text)
+                                enabled: !pane.isProcessing && !(pane.voiceInputService && pane.voiceInputService.isExpanding) && (summaryFieldTab2.text || (pane.issueModel ? pane.issueModel.description : ""))
                                 onClicked: {
-                                    if (pane.voiceInputService && summaryFieldTab2 && descriptionFieldTab2) {
+                                    if (pane.voiceInputService && summaryFieldTab2) {
                                         pane.voiceInputService.expandFromSummaryAndDescription(
                                             summaryFieldTab2.text || "",
-                                            descriptionFieldTab2.text || "",
+                                            (pane.issueModel ? pane.issueModel.description : "") || "",
                                             true
                                         );
                                     }
@@ -271,14 +272,24 @@ Item {
                     ColumnLayout {
                         Layout.fillWidth: true
                         Layout.fillHeight: true
-                        // Layout.margins: 20
-                        // Layout.topMargin: 0
                         spacing: Kirigami.Units.smallSpacing
 
-                        Controls.Label {
-                            text: qsTr("Description:")
-                            font.bold: true
+                        RowLayout {
                             Layout.fillWidth: true
+                            spacing: Kirigami.Units.smallSpacing
+
+                            Controls.Label {
+                                text: qsTr("Description:")
+                                font.bold: true
+                                Layout.fillWidth: true
+                            }
+
+                            EditPreviewToggle {
+                                isEditMode: pane._descriptionEditMode
+                                onModeChanged: function(editMode) {
+                                    pane._descriptionEditMode = editMode
+                                }
+                            }
                         }
 
                         Item {
@@ -286,78 +297,127 @@ Item {
                             Layout.fillWidth: true
                             Layout.fillHeight: true
 
-                            DropArea {
+                            StackLayout {
                                 anchors.fill: parent
-                                enabled: pane.selectedIssueKey !== "" && !pane.isProcessing && pane.jiraService
-                                onEntered: function(drag) {
-                                    console.log("[DEBUG] MyIssuesDetailPane DropArea onEntered, urls:", drag.urls ? drag.urls.length : 0)
-                                }
-                                onExited: {
-                                    console.log("[DEBUG] MyIssuesDetailPane DropArea onExited")
-                                }
-                                onDropped: function(drop) {
-                                    console.log("[DEBUG] MyIssuesDetailPane DropArea onDropped, urls:", drop.urls ? drop.urls.length : 0, "clipboardHelper:", !!pane.clipboardHelper)
-                                    if (!pane.jiraService || !pane.selectedIssueKey || !drop.urls || drop.urls.length === 0) return
-                                    var extList = ["png", "jpg", "jpeg", "gif", "webp"]
-                                    for (var i = 0; i < drop.urls.length; i++) {
-                                        var urlStr = drop.urls[i].toString()
-                                        var path = urlStr.replace(/^file:\/\//, "")
-                                        var filename = path.split("/").pop() || path.split("\\").pop() || "file"
-                                        var ext = filename.indexOf(".") >= 0 ? filename.split(".").pop().toLowerCase() : ""
-                                        var pathToUse = (pane.clipboardHelper && typeof pane.clipboardHelper.copyFileToTemp === "function")
-                                            ? pane.clipboardHelper.copyFileToTemp(path) : path
-                                        console.log("[DEBUG] MyIssuesDetailPane onDropped file:", filename, "copyFileToTemp result:", pathToUse ? "ok" : "vazio")
-                                        if (!pathToUse) pathToUse = path
-                                        pane.jiraService.uploadAttachment(pane.selectedIssueKey, pathToUse)
+                                currentIndex: pane._descriptionEditMode ? 0 : 1
+
+                                // Edit mode: estrutura original (DropArea > ScrollView > TextArea)
+                                DropArea {
+                                    enabled: pane.selectedIssueKey !== "" && !pane.isProcessing && pane.jiraService
+                                    onDropped: function(drop) {
+                                        if (!pane.jiraService || !pane.selectedIssueKey || !drop.urls || drop.urls.length === 0) return
+                                        var extList = ["png", "jpg", "jpeg", "gif", "webp"]
+                                        for (var i = 0; i < drop.urls.length; i++) {
+                                            var urlStr = drop.urls[i].toString()
+                                            var path = urlStr.replace(/^file:\/\//, "")
+                                            var filename = path.split("/").pop() || path.split("\\").pop() || "file"
+                                            var ext = filename.indexOf(".") >= 0 ? filename.split(".").pop().toLowerCase() : ""
+                                            var pathToUse = (pane.clipboardHelper && typeof pane.clipboardHelper.copyFileToTemp === "function")
+                                                ? pane.clipboardHelper.copyFileToTemp(path) : path
+                                            if (!pathToUse) pathToUse = path
+                                            pane.jiraService.uploadAttachment(pane.selectedIssueKey, pathToUse)
+                                        }
+                                    }
+
+                                    Controls.ScrollView {
+                                        id: descriptionScrollView
+                                        anchors.fill: parent
+                                        clip: true
+                                        contentWidth: descriptionFieldTab2.implicitWidth
+
+                                        Controls.TextArea {
+                                            id: descriptionFieldTab2
+                                            width: descriptionContainerTab2.width
+                                            wrapMode: Controls.TextArea.Wrap
+                                            enabled: pane.selectedIssueKey !== "" && !pane.isProcessing
+                                            topPadding: Kirigami.Units.smallSpacing
+                                            bottomPadding: Kirigami.Units.smallSpacing
+                                            placeholderText: qsTr("Arraste imagens ou use Ctrl+V para colar; o link será inserido em markdown.")
+                                            text: pane.issueModel ? pane.issueModel.description : ""
+                                            onTextChanged: if (pane.issueModel) pane.issueModel.description = text
+
+                                            Keys.onPressed: function(event) {
+                                                if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_V) {
+                                                    if (!pane.clipboardHelper || !pane.jiraService || !pane.selectedIssueKey) return
+                                                    if (pane.clipboardHelper.hasClipboardImage()) {
+                                                        var tempPath = pane.clipboardHelper.getClipboardImageAsTempFile()
+                                                        if (tempPath) {
+                                                            pane.jiraService.uploadAttachment(pane.selectedIssueKey, tempPath)
+                                                            event.accepted = true
+                                                        }
+                                                    }
+                                                } else if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_E) {
+                                                    pane._descriptionEditMode = true
+                                                    event.accepted = true
+                                                } else if ((event.modifiers & (Qt.ControlModifier | Qt.ShiftModifier)) === (Qt.ControlModifier | Qt.ShiftModifier) && event.key === Qt.Key_P) {
+                                                    pane._descriptionEditMode = false
+                                                    event.accepted = true
+                                                } else if (event.key === Qt.Key_Escape) {
+                                                    pane._descriptionEditMode = true
+                                                    event.accepted = true
+                                                }
+                                            }
+                                        }
                                     }
                                 }
 
-                                Controls.ScrollView {
-                                    id: descriptionScrollView
-                                    anchors.fill: parent
-                                    clip: true
-                                    contentWidth: descriptionFieldTab2.implicitWidth
+                                // Preview mode
+                                Rectangle {
+                                    focus: !pane._descriptionEditMode
+                                    color: "transparent"
+                                    border.color: Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g, Kirigami.Theme.textColor.b, 0.15)
+                                    border.width: 0.5
+                                    radius: Kirigami.Units.smallSpacing
 
-                                    Controls.TextArea {
-                                        id: descriptionFieldTab2
-                                        width: descriptionContainerTab2.width
-                                        wrapMode: Controls.TextArea.Wrap
-                                        enabled: pane.selectedIssueKey !== "" && !pane.isProcessing
-                                        topPadding: 0
-                                        placeholderText: qsTr("Arraste imagens ou use Ctrl+V para colar; o link será inserido em markdown.")
-                                        text: pane.issueModel ? pane.issueModel.description : ""
-                                        onTextChanged: if (pane.issueModel)
-                                            pane.issueModel.description = text
+                                    Keys.onPressed: function(event) {
+                                        if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_E) {
+                                            pane._descriptionEditMode = true
+                                            event.accepted = true
+                                        } else if ((event.modifiers & (Qt.ControlModifier | Qt.ShiftModifier)) === (Qt.ControlModifier | Qt.ShiftModifier) && event.key === Qt.Key_P) {
+                                            pane._descriptionEditMode = false
+                                            event.accepted = true
+                                        } else if (event.key === Qt.Key_Escape) {
+                                            pane._descriptionEditMode = true
+                                            event.accepted = true
+                                        }
+                                    }
 
-                                        Keys.onPressed: function(event) {
-                                            if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_V) {
-                                                console.log("[DEBUG] MyIssuesDetailPane Ctrl+V, clipboardHelper:", !!pane.clipboardHelper, "jiraService:", !!pane.jiraService, "selectedIssueKey:", pane.selectedIssueKey)
-                                                if (!pane.clipboardHelper || !pane.jiraService || !pane.selectedIssueKey) return
-                                                var hasImage = pane.clipboardHelper.hasClipboardImage()
-                                                console.log("[DEBUG] MyIssuesDetailPane hasClipboardImage:", hasImage)
-                                                if (hasImage) {
-                                                    var tempPath = pane.clipboardHelper.getClipboardImageAsTempFile()
-                                                    console.log("[DEBUG] MyIssuesDetailPane getClipboardImageAsTempFile result:", tempPath ? "ok" : "vazio")
-                                                    if (tempPath) {
-                                                        pane.jiraService.uploadAttachment(pane.selectedIssueKey, tempPath)
-                                                        event.accepted = true
-                                                    }
-                                                }
+                                    Controls.ScrollView {
+                                        id: descriptionPreviewScrollTab2
+                                        anchors.fill: parent
+                                        anchors.margins: 1
+                                        clip: true
+                                        contentWidth: availableWidth
+
+                                        Text {
+                                            width: descriptionPreviewScrollTab2.availableWidth - Kirigami.Units.largeSpacing * 2
+                                            x: Kirigami.Units.largeSpacing
+                                            topPadding: Kirigami.Units.smallSpacing
+                                            bottomPadding: Kirigami.Units.smallSpacing
+                                            textFormat: Text.RichText
+                                            color: "#ffffff"
+                                            // qmllint disable unqualified
+                                            text: (typeof markdownPreviewRenderer !== "undefined" && markdownPreviewRenderer)
+                                                ? markdownPreviewRenderer.render(pane.issueModel ? pane.issueModel.description : "")
+                                                : (pane.issueModel ? pane.issueModel.description : "")
+                                            wrapMode: Text.Wrap
+                                            onLinkActivated: function(link) {
+                                                Qt.openUrlExternally(link)
                                             }
                                         }
                                     }
                                 }
                             }
                         }
+                    }
 
-                        Connections {
-                            target: pane.jiraService || null
-                            function onAttachmentUploaded(issueKey, contentUrl, filename) {
-                                if (issueKey === pane.selectedIssueKey && contentUrl && filename) {
-                                    var markdown = "![" + filename + "](" + contentUrl + ")"
-                                    descriptionFieldTab2.insert(descriptionFieldTab2.cursorPosition, markdown)
-                                    if (pane.issueModel) pane.issueModel.description = descriptionFieldTab2.text
-                                }
+                    Connections {
+                        target: pane.jiraService || null
+                        function onAttachmentUploaded(uploadedIssueKey, contentUrl, filename) {
+                            if (uploadedIssueKey === pane.selectedIssueKey && contentUrl && filename && descriptionFieldTab2) {
+                                var markdown = "![" + filename + "](" + contentUrl + ")"
+                                descriptionFieldTab2.insert(descriptionFieldTab2.cursorPosition, markdown)
+                                if (pane.issueModel) pane.issueModel.description = descriptionFieldTab2.text
                             }
                         }
                     }

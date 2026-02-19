@@ -37,6 +37,7 @@ Kirigami.Page {
 
     // Contador para placeholders de anexos na descrição (nova issue)
     property int _descriptionPlaceholderCounter: 0
+    property bool _descriptionEditMode: true
     property var _allowedAttachmentExtensions: ["png", "jpg", "jpeg", "gif", "webp"]
 
     // Propriedades compartilhadas para sincronizar epic entre abas
@@ -281,10 +282,22 @@ Kirigami.Page {
                             // Layout.topMargin: 0
                             spacing: Kirigami.Units.smallSpacing
 
-                            Controls.Label {
-                                text: qsTr("Description:")
-                                font.bold: true
+                            RowLayout {
                                 Layout.fillWidth: true
+                                spacing: Kirigami.Units.smallSpacing
+
+                                Controls.Label {
+                                    text: qsTr("Description:")
+                                    font.bold: true
+                                    Layout.fillWidth: true
+                                }
+
+                                EditPreviewToggle {
+                                    isEditMode: page._descriptionEditMode
+                                    onModeChanged: function(editMode) {
+                                        page._descriptionEditMode = editMode
+                                    }
+                                }
                             }
 
                             // DropArea como container: cliques vão para o filho (ScrollView/TextArea), drops para o DropArea.
@@ -293,86 +306,126 @@ Kirigami.Page {
                                 Layout.fillWidth: true
                                 Layout.fillHeight: true
 
-                                DropArea {
+                                StackLayout {
                                     anchors.fill: parent
-                                    enabled: !page.isProcessing
-                                    onEntered: function(drag) {
-                                        console.log("[DEBUG] IssueFormPage DropArea onEntered, drag.urls:", drag.urls ? drag.urls.length : 0)
-                                    }
-                                    onExited: {
-                                        console.log("[DEBUG] IssueFormPage DropArea onExited")
-                                    }
-                                    onDropped: function(drop) {
-                                        console.log("[DEBUG] IssueFormPage DropArea onDropped, drop.urls:", drop.urls ? drop.urls.length : 0, "issueModel:", !!page.issueModel, "clipboardHelper:", !!page.clipboardHelper)
-                                        if (!drop.urls || drop.urls.length === 0 || !page.issueModel) {
-                                            console.log("[DEBUG] IssueFormPage onDropped: saída cedo (sem urls ou issueModel)")
-                                            return
-                                        }
-                                        var extList = page._allowedAttachmentExtensions || []
-                                        for (var i = 0; i < drop.urls.length; i++) {
-                                            var urlStr = drop.urls[i].toString()
-                                            var path = urlStr.replace(/^file:\/\//, "")
-                                            var filename = path.split("/").pop() || path.split("\\").pop() || "file"
-                                            var ext = filename.indexOf(".") >= 0 ? filename.split(".").pop().toLowerCase() : ""
-                                            console.log("[DEBUG] IssueFormPage onDropped file:", filename, "ext:", ext, "allowed:", extList.indexOf(ext) >= 0)
-                                            if (extList.indexOf(ext) < 0) continue
-                                            var pathToUse = ""
-                                            if (page.clipboardHelper && typeof page.clipboardHelper.copyFileToTemp === "function") {
-                                                pathToUse = page.clipboardHelper.copyFileToTemp(path)
-                                                console.log("[DEBUG] IssueFormPage onDropped copyFileToTemp result:", pathToUse ? "ok" : "vazio")
-                                            } else {
-                                                console.log("[DEBUG] IssueFormPage onDropped: sem clipboardHelper ou copyFileToTemp")
+                                    currentIndex: page._descriptionEditMode ? 0 : 1
+
+                                    // Edit mode: estrutura original (DropArea > ScrollView > TextArea)
+                                    DropArea {
+                                        enabled: !page.isProcessing
+                                        onDropped: function(drop) {
+                                            if (!drop.urls || drop.urls.length === 0 || !page.issueModel) return
+                                            var extList = page._allowedAttachmentExtensions || []
+                                            for (var i = 0; i < drop.urls.length; i++) {
+                                                var urlStr = drop.urls[i].toString()
+                                                var path = urlStr.replace(/^file:\/\//, "")
+                                                var filename = path.split("/").pop() || path.split("\\").pop() || "file"
+                                                var ext = filename.indexOf(".") >= 0 ? filename.split(".").pop().toLowerCase() : ""
+                                                if (extList.indexOf(ext) < 0) continue
+                                                var pathToUse = (page.clipboardHelper && typeof page.clipboardHelper.copyFileToTemp === "function")
+                                                    ? page.clipboardHelper.copyFileToTemp(path) : path
+                                                if (!pathToUse) continue
+                                                page._descriptionPlaceholderCounter += 1
+                                                var placeholderId = "p" + page._descriptionPlaceholderCounter
+                                                var list = page.issueModel.pendingAttachments || []
+                                                list.push({ path: pathToUse, filename: filename, placeholderId: placeholderId })
+                                                page.issueModel.pendingAttachments = list
+                                                var markdown = "![" + filename + "](pending:" + placeholderId + ")"
+                                                descriptionField.insert(descriptionField.cursorPosition, markdown)
+                                                if (page.issueModel) page.issueModel.description = descriptionField.text
                                             }
-                                            if (!pathToUse) continue
-                                            page._descriptionPlaceholderCounter += 1
-                                            var placeholderId = "p" + page._descriptionPlaceholderCounter
-                                            var list = page.issueModel.pendingAttachments || []
-                                            list.push({ path: pathToUse, filename: filename, placeholderId: placeholderId })
-                                            page.issueModel.pendingAttachments = list
-                                            var markdown = "![" + filename + "](pending:" + placeholderId + ")"
-                                            descriptionField.insert(descriptionField.cursorPosition, markdown)
-                                            if (page.issueModel) page.issueModel.description = descriptionField.text
-                                            console.log("[DEBUG] IssueFormPage onDropped: placeholder inserido", placeholderId)
+                                        }
+
+                                        Controls.ScrollView {
+                                            id: descriptionScrollView
+                                            anchors.fill: parent
+                                            clip: true
+                                            contentWidth: descriptionField.implicitWidth
+
+                                            Controls.TextArea {
+                                                id: descriptionField
+                                                width: descriptionContainer.width
+                                                wrapMode: Controls.TextArea.Wrap
+                                                enabled: !page.isProcessing
+                                                topPadding: Kirigami.Units.smallSpacing
+                                                bottomPadding: Kirigami.Units.smallSpacing
+                                                placeholderText: qsTr("Arraste imagens ou use Ctrl+V para colar; o link será inserido em markdown.")
+                                                text: page.issueModel ? page.issueModel.description : ""
+                                                onTextChanged: if (page.issueModel) page.issueModel.description = text
+
+                                                Keys.onPressed: function(event) {
+                                                    if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_V) {
+                                                        if (!page.clipboardHelper || !page.issueModel) return
+                                                        if (page.clipboardHelper.hasClipboardImage()) {
+                                                            var tempPath = page.clipboardHelper.getClipboardImageAsTempFile()
+                                                            if (tempPath) {
+                                                                page._descriptionPlaceholderCounter += 1
+                                                                var pid = "p" + page._descriptionPlaceholderCounter
+                                                                var list = page.issueModel.pendingAttachments || []
+                                                                list.push({ path: tempPath, filename: "paste.png", placeholderId: pid })
+                                                                page.issueModel.pendingAttachments = list
+                                                                descriptionField.insert(descriptionField.cursorPosition, "![paste.png](pending:" + pid + ")")
+                                                                if (page.issueModel) page.issueModel.description = descriptionField.text
+                                                                event.accepted = true
+                                                            }
+                                                        }
+                                                    } else if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_E) {
+                                                        page._descriptionEditMode = true
+                                                        event.accepted = true
+                                                    } else if ((event.modifiers & (Qt.ControlModifier | Qt.ShiftModifier)) === (Qt.ControlModifier | Qt.ShiftModifier) && event.key === Qt.Key_P) {
+                                                        page._descriptionEditMode = false
+                                                        event.accepted = true
+                                                    } else if (event.key === Qt.Key_Escape) {
+                                                        page._descriptionEditMode = true
+                                                        event.accepted = true
+                                                    }
+                                                }
+                                            }
                                         }
                                     }
 
-                                    Controls.ScrollView {
-                                        id: descriptionScrollView
-                                        anchors.fill: parent
-                                        clip: true
-                                        contentWidth: descriptionField.implicitWidth
+                                    // Preview mode
+                                    Rectangle {
+                                        focus: !page._descriptionEditMode
+                                        color: "transparent"
+                                        border.color: Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g, Kirigami.Theme.textColor.b, 0.15)
+                                        border.width: 0.5
+                                        radius: Kirigami.Units.smallSpacing
 
-                                        Controls.TextArea {
-                                            id: descriptionField
-                                            width: descriptionContainer.width
-                                            wrapMode: Controls.TextArea.Wrap
-                                            enabled: !page.isProcessing
-                                            topPadding: 0
-                                            placeholderText: qsTr("Arraste imagens ou use Ctrl+V para colar; o link será inserido em markdown.")
-                                            text: page.issueModel ? page.issueModel.description : ""
-                                            onTextChanged: if (page.issueModel) page.issueModel.description = text
+                                        Keys.onPressed: function(event) {
+                                            if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_E) {
+                                                page._descriptionEditMode = true
+                                                event.accepted = true
+                                            } else if ((event.modifiers & (Qt.ControlModifier | Qt.ShiftModifier)) === (Qt.ControlModifier | Qt.ShiftModifier) && event.key === Qt.Key_P) {
+                                                page._descriptionEditMode = false
+                                                event.accepted = true
+                                            } else if (event.key === Qt.Key_Escape) {
+                                                page._descriptionEditMode = true
+                                                event.accepted = true
+                                            }
+                                        }
 
-                                            Keys.onPressed: function(event) {
-                                                if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_V) {
-                                                    console.log("[DEBUG] IssueFormPage descriptionField Keys.onPressed Ctrl+V, clipboardHelper:", !!page.clipboardHelper, "issueModel:", !!page.issueModel)
-                                                    if (!page.clipboardHelper || !page.issueModel) return
-                                                    var hasImage = page.clipboardHelper.hasClipboardImage()
-                                                    console.log("[DEBUG] IssueFormPage hasClipboardImage:", hasImage)
-                                                    if (hasImage) {
-                                                        var tempPath = page.clipboardHelper.getClipboardImageAsTempFile()
-                                                        console.log("[DEBUG] IssueFormPage getClipboardImageAsTempFile result:", tempPath ? "ok" : "vazio")
-                                                        if (tempPath) {
-                                                            page._descriptionPlaceholderCounter += 1
-                                                            var pid = "p" + page._descriptionPlaceholderCounter
-                                                            var list = page.issueModel.pendingAttachments || []
-                                                            list.push({ path: tempPath, filename: "paste.png", placeholderId: pid })
-                                                            page.issueModel.pendingAttachments = list
-                                                            descriptionField.insert(descriptionField.cursorPosition, "![paste.png](pending:" + pid + ")")
-                                                            if (page.issueModel) page.issueModel.description = descriptionField.text
-                                                            event.accepted = true
-                                                            console.log("[DEBUG] IssueFormPage paste: placeholder inserido", pid)
-                                                        }
-                                                    }
+                                        Controls.ScrollView {
+                                            id: descriptionPreviewScroll
+                                            anchors.fill: parent
+                                            anchors.margins: 1
+                                            clip: true
+                                            contentWidth: availableWidth
+
+                                            Text {
+                                                width: descriptionPreviewScroll.availableWidth - Kirigami.Units.largeSpacing * 2
+                                                x: Kirigami.Units.largeSpacing
+                                                topPadding: Kirigami.Units.smallSpacing
+                                                bottomPadding: Kirigami.Units.smallSpacing
+                                                textFormat: Text.RichText
+                                                color: "#ffffff"
+                                                // qmllint disable unqualified
+                                                text: (typeof markdownPreviewRenderer !== "undefined" && markdownPreviewRenderer)
+                                                    ? markdownPreviewRenderer.render(page.issueModel ? page.issueModel.description : "")
+                                                    : (page.issueModel ? page.issueModel.description : "")
+                                                wrapMode: Text.Wrap
+                                                onLinkActivated: function(link) {
+                                                    Qt.openUrlExternally(link)
                                                 }
                                             }
                                         }

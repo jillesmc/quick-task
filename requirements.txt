@@ -17,6 +17,10 @@ requests>=2.31.0
 pytz>=2023.3
 pyyaml>=6.0
 
+# Markdown preview (EditPreviewContainer, comentários)
+markdown>=3.5
+Pygments>=2.17.0
+
 # Entrada por voz (gravação de áudio; transcrição/LLM via Ollama no host)
 sounddevice>=0.4.6
 scipy>=1.11.0

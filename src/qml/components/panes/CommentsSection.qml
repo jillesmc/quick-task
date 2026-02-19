@@ -9,6 +9,7 @@ import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls as Controls
 import org.kde.kirigami as Kirigami
+import "../controls"
 
 ColumnLayout {
     id: commentsSectionRoot
@@ -25,6 +26,7 @@ ColumnLayout {
     property var _voiceInputService: (typeof voiceInputService !== "undefined" ? voiceInputService : null) // qmllint disable unqualified
     property bool voiceInputAvailable: _voiceInputService ? _voiceInputService.isAvailable() : false
     property bool improvingNewComment: false
+    property string newCommentText: ""
 
     signal errorOccurred(string message)
 
@@ -163,54 +165,21 @@ ColumnLayout {
                 text: qsTr("Adicionar comentário")
                 font.bold: true
             }
-            Controls.ScrollView {
-                id: newCommentScrollView
+            EditPreviewContainer {
+                id: newCommentEditPreview
+                content: commentsSectionRoot.newCommentText
+                onContentEdited: function(newContent) {
+                    commentsSectionRoot.newCommentText = newContent
+                }
+                label: qsTr("Novo comentário")
+                placeholderText: qsTr("Digite seu comentário (Markdown suportado). Arraste imagens ou use Ctrl+V para colar.")
+                acceptDrops: true
+                jiraService: commentsSectionRoot.jiraService
+                issueKey: commentsSectionRoot.selectedIssueKey
+                clipboardHelper: commentsSectionRoot.clipboardHelper
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 Layout.minimumHeight: 160
-                clip: true
-                contentWidth: availableWidth
-
-                Item {
-                    width: newCommentScrollView.availableWidth
-                    height: Math.max(newCommentScrollView.availableHeight, newCommentField.implicitHeight)
-
-                    DropArea {
-                        anchors.fill: parent
-                        onDropped: function(drop) {
-                            if (!commentsSectionRoot.jiraService || !commentsSectionRoot.selectedIssueKey || !drop.urls || drop.urls.length === 0) return
-                            var extList = ["png", "jpg", "jpeg", "gif", "webp"]
-                            for (var i = 0; i < drop.urls.length; i++) {
-                                var urlStr = drop.urls[i].toString()
-                                var path = urlStr.replace(/^file:\/\//, "")
-                                var filename = path.split("/").pop() || path.split("\\").pop() || "file"
-                                var ext = filename.indexOf(".") >= 0 ? filename.split(".").pop().toLowerCase() : ""
-                                if (extList.indexOf(ext) < 0) continue
-                                commentsSectionRoot.jiraService.uploadAttachment(commentsSectionRoot.selectedIssueKey, path)
-                            }
-                        }
-                    }
-
-                    Controls.TextArea {
-                        id: newCommentField
-                        width: parent.width
-                        height: parent.height
-                        wrapMode: Controls.TextArea.Wrap
-                        placeholderText: qsTr("Digite seu comentário (Markdown suportado). Arraste imagens ou use Ctrl+V para colar.")
-
-                        Keys.onPressed: function(event) {
-                            if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_V) {
-                                if (commentsSectionRoot.clipboardHelper && commentsSectionRoot.clipboardHelper.hasClipboardImage() && commentsSectionRoot.jiraService && commentsSectionRoot.selectedIssueKey) {
-                                    var tempPath = commentsSectionRoot.clipboardHelper.getClipboardImageAsTempFile()
-                                    if (tempPath) {
-                                        commentsSectionRoot.jiraService.uploadAttachment(commentsSectionRoot.selectedIssueKey, tempPath)
-                                        event.accepted = true
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
             }
             RowLayout {
                 Layout.fillWidth: true
@@ -218,22 +187,22 @@ ColumnLayout {
                 Controls.Button {
                     text: commentsSectionRoot.improvingNewComment ? qsTr("A melhorar…") : qsTr("Melhorar com IA")
                     visible: commentsSectionRoot.voiceInputAvailable
-                    enabled: !commentsSectionRoot.improvingNewComment && newCommentField.text.trim() !== ""
+                    enabled: !commentsSectionRoot.improvingNewComment && (commentsSectionRoot.newCommentText || "").trim() !== ""
                     onClicked: {
-                        if (commentsSectionRoot._voiceInputService && newCommentField.text.trim() !== "") {
+                        if (commentsSectionRoot._voiceInputService && (commentsSectionRoot.newCommentText || "").trim() !== "") {
                             commentsSectionRoot.improvingNewComment = true
-                            commentsSectionRoot._voiceInputService.improveCommentText(newCommentField.text)
+                            commentsSectionRoot._voiceInputService.improveCommentText(commentsSectionRoot.newCommentText)
                         }
                     }
                 }
                 Item { Layout.fillWidth: true }
                 Controls.Button {
                     text: qsTr("Publicar")
-                    enabled: commentsSectionRoot.jiraService && commentsSectionRoot.selectedIssueKey !== "" && newCommentField.text.trim() !== ""
+                    enabled: commentsSectionRoot.jiraService && commentsSectionRoot.selectedIssueKey !== "" && (commentsSectionRoot.newCommentText || "").trim() !== ""
                     onClicked: {
                         if (commentsSectionRoot.jiraService && commentsSectionRoot.selectedIssueKey) {
-                            commentsSectionRoot.jiraService.addComment(commentsSectionRoot.selectedIssueKey, newCommentField.text.trim())
-                            newCommentField.text = ""
+                            commentsSectionRoot.jiraService.addComment(commentsSectionRoot.selectedIssueKey, commentsSectionRoot.newCommentText.trim())
+                            commentsSectionRoot.newCommentText = ""
                         }
                     }
                 }
@@ -247,7 +216,7 @@ ColumnLayout {
         function onCommentTextImproved(text) {
             commentsSectionRoot.improvingNewComment = false
             if (text)
-                newCommentField.text = text
+                commentsSectionRoot.newCommentText = text
         }
         function onError(message) {
             commentsSectionRoot.improvingNewComment = false
@@ -354,10 +323,7 @@ ColumnLayout {
             commentsSectionRoot.errorOccurred(message)
         }
         function onAttachmentUploaded(issueKey, contentUrl, filename) {
-            if (issueKey === commentsSectionRoot.selectedIssueKey && contentUrl && filename && !commentsSectionRoot._editCommentDialogOpen) {
-                var markdown = "![" + filename + "](" + contentUrl + ")"
-                newCommentField.insert(newCommentField.cursorPosition, markdown)
-            }
+            // EditPreviewContainer handles insert for new comment field; EditCommentDialog handles its own
         }
     }
 

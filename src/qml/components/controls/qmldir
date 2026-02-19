@@ -1,3 +1,5 @@
+EditPreviewContainer EditPreviewContainer.qml
+EditPreviewToggle EditPreviewToggle.qml
 IssueMetadataFields IssueMetadataFields.qml
 IssueRadioGroup IssueRadioGroup.qml
 IssueCheckList IssueCheckList.qml
