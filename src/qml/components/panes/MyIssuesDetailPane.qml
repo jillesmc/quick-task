@@ -52,6 +52,7 @@ Item {
     property real epicSectionHeight: 250
     property bool _descriptionEditMode: true
     property bool _pendingAttachOnly: false
+    property bool _pendingInsertAsLink: false
     property int _pendingEmbedDisplayWidth: 760
     property string _pendingEmbedPosition: "end"
     /** Anexos da issue vindos do GET (details.attachments). */
@@ -111,6 +112,12 @@ Item {
         dlg.rejected.connect(function () {})
         dlg.closed.connect(function () { dlg.destroy() })
         dlg.open()
+    }
+
+    function _uploadNonImageAndInsertLink(filePath, filename) {
+        if (!pane.jiraService || !pane.selectedIssueKey) return
+        pane._pendingInsertAsLink = true
+        pane.jiraService.uploadAttachment(pane.selectedIssueKey, filePath, "description")
     }
 
     function _openAttachmentsPopover(button) {
@@ -426,7 +433,10 @@ Item {
                                     enabled: pane.selectedIssueKey !== "" && !pane.isProcessing && pane.jiraService
                                     onDropped: function(drop) {
                                         if (!pane.jiraService || !pane.selectedIssueKey || !drop.urls || drop.urls.length === 0) return
-                                        var extList = ["png", "jpg", "jpeg", "gif", "webp"]
+                                        var extList = (typeof pane.jiraService.getAllowedAttachmentExtensions === "function")
+                                            ? pane.jiraService.getAllowedAttachmentExtensions() : []
+                                        var imageExtList = (typeof pane.jiraService.getAllowedImageExtensions === "function")
+                                            ? pane.jiraService.getAllowedImageExtensions() : []
                                         for (var i = 0; i < drop.urls.length; i++) {
                                             var urlStr = drop.urls[i].toString()
                                             var path = urlStr.replace(/^file:\/\//, "")
@@ -436,7 +446,11 @@ Item {
                                             var pathToUse = (pane.clipboardHelper && typeof pane.clipboardHelper.copyFileToTemp === "function")
                                                 ? pane.clipboardHelper.copyFileToTemp(path) : path
                                             if (!pathToUse) pathToUse = path
-                                            pane._openEmbedDialogForDescription(pathToUse, filename)
+                                            if (imageExtList.indexOf(ext) >= 0) {
+                                                pane._openEmbedDialogForDescription(pathToUse, filename)
+                                            } else {
+                                                pane._uploadNonImageAndInsertLink(pathToUse, filename)
+                                            }
                                         }
                                     }
 
@@ -453,7 +467,7 @@ Item {
                                             enabled: pane.selectedIssueKey !== "" && !pane.isProcessing
                                             topPadding: Kirigami.Units.smallSpacing
                                             bottomPadding: Kirigami.Units.smallSpacing
-                                            placeholderText: qsTr("Arraste imagens ou use Ctrl+V para colar; o link será inserido em markdown.")
+                                            placeholderText: qsTr("Arraste ficheiros ou use Ctrl+V para colar imagem; imagens têm preview, outros ficheiros ficam como link.")
                                             text: pane.issueModel ? pane.issueModel.description : ""
                                             onTextChanged: if (pane.issueModel) pane.issueModel.description = text
 
@@ -528,6 +542,26 @@ Item {
                             if (embedTarget !== "description") return
                             if (pane._pendingAttachOnly) {
                                 pane._pendingAttachOnly = false
+                                var match = /\/attachment\/content\/(\d+)/.exec(contentUrl || "")
+                                if (match && match[1]) {
+                                    var arrAttach = pane._newAttachmentsThisSession || []
+                                    arrAttach.push({ id: match[1], filename: filename })
+                                    pane._newAttachmentsThisSession = arrAttach
+                                }
+                                return
+                            }
+                            if (pane._pendingInsertAsLink) {
+                                pane._pendingInsertAsLink = false
+                                var linkMarkdown = "[" + filename + "](" + contentUrl + ")"
+                                var insertPos = descriptionFieldTab2.cursorPosition >= 0 ? descriptionFieldTab2.cursorPosition : descriptionFieldTab2.text.length
+                                descriptionFieldTab2.insert(insertPos, linkMarkdown)
+                                if (pane.issueModel) pane.issueModel.description = descriptionFieldTab2.text
+                                var matchLink = /\/attachment\/content\/(\d+)/.exec(contentUrl || "")
+                                if (matchLink && matchLink[1]) {
+                                    var arrLink = pane._newAttachmentsThisSession || []
+                                    arrLink.push({ id: matchLink[1], filename: filename })
+                                    pane._newAttachmentsThisSession = arrLink
+                                }
                                 return
                             }
                             var w = pane._pendingEmbedDisplayWidth > 0 ? pane._pendingEmbedDisplayWidth : 760

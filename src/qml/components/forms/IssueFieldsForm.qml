@@ -46,8 +46,6 @@ ColumnLayout {
     property var plataformasAfetadasValues: []
     /// Lista de anexos pendentes para nova issue: [{ path, filename, placeholderId?, layout?, position? }]
     property var pendingAttachments: []
-    /// Extensões permitidas para anexos (imagens)
-    property var allowedAttachmentExtensions: ["png", "jpg", "jpeg", "gif", "webp"]
     /// Helper de clipboard (passado pelo parent quando disponível)
     property var clipboardHelper: null
     /// Janela principal para centrar dialogs (passado pelo parent quando disponível)
@@ -118,6 +116,20 @@ ColumnLayout {
         dlg.open()
     }
 
+    function _addNonImageAttachment(filePath, filename) {
+        root._placeholderCounter += 1
+        var placeholderId = "p" + root._placeholderCounter
+        root.pendingAttachments = root.pendingAttachments.concat([{
+            path: filePath,
+            filename: filename,
+            placeholderId: placeholderId
+        }])
+        var markdown = "[" + filename + "](pending:" + placeholderId + ")"
+        var insertPos = descriptionField.cursorPosition >= 0 ? descriptionField.cursorPosition : descriptionField.text.length
+        descriptionField.insert(insertPos, markdown)
+        root.fieldChanged("description", descriptionField.text)
+    }
+
     spacing: Kirigami.Units.largeSpacing
 
     // Description (label + input com smallSpacing)
@@ -152,19 +164,24 @@ ColumnLayout {
                 enabled: root.enabled
                 onDropped: function(drop) {
                     if (!drop.urls || drop.urls.length === 0) return
-                    var extList = root.allowedAttachmentExtensions || []
+                    var extList = (root.jiraService && typeof root.jiraService.getAllowedAttachmentExtensions === "function")
+                        ? root.jiraService.getAllowedAttachmentExtensions() : []
+                    var imageExtList = (root.jiraService && typeof root.jiraService.getAllowedImageExtensions === "function")
+                        ? root.jiraService.getAllowedImageExtensions() : []
                     for (var i = 0; i < drop.urls.length; i++) {
                         var urlStr = drop.urls[i].toString()
                         var path = urlStr.replace(/^file:\/\//, "")
                         var filename = path.split("/").pop() || path.split("\\").pop() || "file"
                         var ext = filename.indexOf(".") >= 0 ? filename.split(".").pop().toLowerCase() : ""
                         if (extList.indexOf(ext) < 0) continue
-                        var pathToUse = ""
-                        if (root.clipboardHelper && typeof root.clipboardHelper.copyFileToTemp === "function") {
-                            pathToUse = root.clipboardHelper.copyFileToTemp(path)
+                        var pathToUse = (root.clipboardHelper && typeof root.clipboardHelper.copyFileToTemp === "function")
+                            ? root.clipboardHelper.copyFileToTemp(path) : path
+                        if (!pathToUse) pathToUse = path
+                        if (imageExtList.indexOf(ext) >= 0) {
+                            root._openEmbedDialog(pathToUse, filename)
+                        } else {
+                            root._addNonImageAttachment(pathToUse, filename)
                         }
-                        if (!pathToUse) continue
-                        root._openEmbedDialog(pathToUse, filename)
                     }
                 }
             }
@@ -176,7 +193,7 @@ ColumnLayout {
                 topPadding: 0
                 enabled: root.enabled
                 focus: true
-                placeholderText: qsTr("Arraste imagens ou use Ctrl+V para colar; o link será inserido em markdown.")
+                placeholderText: qsTr("Arraste ficheiros ou use Ctrl+V para colar imagem; imagens têm preview, outros ficheiros ficam como link.")
 
                 Keys.onTabPressed: function(event) {
                     event.accepted = true

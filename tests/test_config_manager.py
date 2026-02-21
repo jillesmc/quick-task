@@ -385,6 +385,55 @@ def test_get_attachments_embed_enabled_true():
             temp_path.unlink()
 
 
+def test_get_allowed_image_extensions_default():
+    """Sem allowed_image_extensions no config, retorna default (png, jpg, jpeg, gif, webp)."""
+    config_minimal = {
+        "project": "TEST",
+        "issue_type": "Task",
+        "assignee": "test@example.com",
+        "custom_fields": {"tipo_atividade": "t", "documentacao_anexa": "d", "utilizacao_ia": "u"},
+        "tipo_atividade_values": [],
+        "status_sequence": [],
+        "attachments": {"max_file_size_mb": 10},
+    }
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+        json.dump(config_minimal, f)
+        temp_path = Path(f.name)
+    try:
+        manager = ConfigManager(config_path=temp_path)
+        result = manager.get_allowed_image_extensions()
+        assert result == ["png", "jpg", "jpeg", "gif", "webp"]
+    finally:
+        if temp_path.exists():
+            temp_path.unlink()
+
+
+def test_get_allowed_image_extensions_from_config():
+    """Com allowed_image_extensions no config, retorna a lista configurada."""
+    config_with_images = {
+        "project": "TEST",
+        "issue_type": "Task",
+        "assignee": "test@example.com",
+        "custom_fields": {"tipo_atividade": "t", "documentacao_anexa": "d", "utilizacao_ia": "u"},
+        "tipo_atividade_values": [],
+        "status_sequence": [],
+        "attachments": {
+            "max_file_size_mb": 10,
+            "allowed_image_extensions": ["png", "gif", "svg"],
+        },
+    }
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+        json.dump(config_with_images, f)
+        temp_path = Path(f.name)
+    try:
+        manager = ConfigManager(config_path=temp_path)
+        result = manager.get_allowed_image_extensions()
+        assert result == ["png", "gif", "svg"]
+    finally:
+        if temp_path.exists():
+            temp_path.unlink()
+
+
 def test_get_development_panel_config_defaults(config_manager: ConfigManager):
     """Sem development_panel no config, retorna defaults."""
     cfg = config_manager.get_development_panel_config()

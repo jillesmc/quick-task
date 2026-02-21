@@ -14,6 +14,7 @@ Este documento ajuda o agente a aplicar o contexto certo em prompts futuros.
 - **qml-kirigami.mdc** — Ao editar QML: imports, estrutura de pastas, Kirigami, `make qml-lint`. Ao concluir: `make qml-lint`.
 - **tests-pytest.mdc** — Ao editar ou pedir testes: fixtures em conftest, rodar com `make dev-test`.
 - **ui-ux-design.mdc** — Princípios de design, acessibilidade, consistência com Kirigami (globs: `**/*.qml`).
+- **docs-plans-mermaid.mdc** — Documentação, planos e diagramas Mermaid: rótulos entre aspas duplas em nós e arestas (globs: `**/*.md`).
 
 ## Skills do projeto (.cursor/skills/)
 

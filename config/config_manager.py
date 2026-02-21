@@ -475,6 +475,26 @@ class ConfigManager:
                 result.append(e)
         return result if result else ["png", "jpg", "jpeg", "gif", "webp"]
 
+    def get_allowed_image_extensions(self) -> List[str]:
+        """
+        Retorna lista de extensões consideradas imagem (para preview/embed).
+        Usado para decidir quando abrir o diálogo de preview vs inserir como link.
+        Valores default: png, jpg, jpeg, gif, webp.
+        """
+        attachments = self._config.get("attachments", {})
+        images = attachments.get(
+            "allowed_image_extensions",
+            ["png", "jpg", "jpeg", "gif", "webp"],
+        )
+        seen = set()
+        result = []
+        for ext in images:
+            e = (ext or "").lower().lstrip(".")
+            if e and e not in seen:
+                seen.add(e)
+                result.append(e)
+        return result if result else ["png", "jpg", "jpeg", "gif", "webp"]
+
     def get_embed_max_display_width(self) -> int:
         """Retorna largura máxima de exibição para imagens embedadas (default: 760)."""
         attachments = self._config.get("attachments", {})

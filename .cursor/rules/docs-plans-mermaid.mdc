@@ -1,0 +1,28 @@
+---
+description: Documentação, planos e diagramas Mermaid no jira-quick-task
+globs: "**/*.md", "**/.cursor/plans/**"
+alwaysApply: false
+---
+
+# Documentação e planos
+
+## Diagramas Mermaid
+
+Ao escrever diagramas Mermaid em planos ou documentação:
+
+- **Rótulos entre aspas duplas**: Use aspas duplas em todos os rótulos de nós e em rótulos de arestas para evitar erros de parsing (caracteres especiais, interrogação, barras, parênteses, colchetes).
+- **Nós**: Preferir forma `id["Texto do rótulo"]` ou `id{"Texto do rótulo"}`. Para subgrafos: `subgraph id ["Título do subgrafo"]`.
+- **Arestas**: Rótulos em arestas: `A -->|"Texto do rótulo"| B`. Qualquer rótulo com espaços, pontuação ou caracteres especiais deve ir entre aspas duplas.
+- **IDs de nós**: Evitar espaços nos IDs; usar camelCase ou underscores (ex.: `drop`, `endNode` em vez de `end`).
+
+Exemplo correto:
+
+```mermaid
+flowchart LR
+  subgraph drop ["Drop de arquivo"]
+    A["Arquivo solto"]
+  end
+  A --> B{"Extensão permitida?"}
+  B -->|"Não"| C["Ignorar"]
+  B -->|"Sim"| D["Próximo passo"]
+```

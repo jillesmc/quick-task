@@ -1817,6 +1817,20 @@ class JiraService(QObject):
             return self._config.get_embed_max_display_width()
         return 760
 
+    @Slot(result=list)
+    def getAllowedAttachmentExtensions(self) -> List[str]:  # NOSONAR - camelCase para QML
+        """Retorna lista de extensões permitidas para anexos (imagens + documentos)."""
+        if self._config:
+            return self._config.get_allowed_attachment_extensions()
+        return ["png", "jpg", "jpeg", "gif", "webp"]
+
+    @Slot(result=list)
+    def getAllowedImageExtensions(self) -> List[str]:  # NOSONAR - camelCase para QML
+        """Retorna extensões consideradas imagem (para preview/embed)."""
+        if self._config:
+            return self._config.get_allowed_image_extensions()
+        return ["png", "jpg", "jpeg", "gif", "webp"]
+
     @Slot(str, str, result=bool)
     @Slot(str, str, str, result=bool)
     def uploadAttachment(  # NOSONAR - camelCase para QML

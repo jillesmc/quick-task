@@ -38,7 +38,6 @@ Kirigami.Page {
     // Contador para placeholders de anexos na descrição (nova issue)
     property int _descriptionPlaceholderCounter: 0
     property bool _descriptionEditMode: true
-    property var _allowedAttachmentExtensions: ["png", "jpg", "jpeg", "gif", "webp"]
 
     // Propriedades compartilhadas para sincronizar epic entre abas
     property string sharedEpicKey: ""
@@ -146,6 +145,19 @@ Kirigami.Page {
         dlg.rejected.connect(function () {})
         dlg.closed.connect(function () { dlg.destroy() })
         dlg.open()
+    }
+
+    function _addNonImageAttachmentCreateFlow(filePath, filename) {
+        if (!page.issueModel) return
+        page._descriptionPlaceholderCounter += 1
+        var placeholderId = "p" + page._descriptionPlaceholderCounter
+        var list = page.issueModel.pendingAttachments || []
+        list.push({ path: filePath, filename: filename, placeholderId: placeholderId })
+        page.issueModel.pendingAttachments = list
+        var markdown = "[" + filename + "](pending:" + placeholderId + ")"
+        var insertPos = descriptionField.cursorPosition >= 0 ? descriptionField.cursorPosition : descriptionField.text.length
+        descriptionField.insert(insertPos, markdown)
+        if (page.issueModel) page.issueModel.description = descriptionField.text
     }
 
     function _openAttachmentsPopover(button) {
@@ -395,7 +407,10 @@ Kirigami.Page {
                                         enabled: !page.isProcessing
                                         onDropped: function(drop) {
                                             if (!drop.urls || drop.urls.length === 0 || !page.issueModel) return
-                                            var extList = page._allowedAttachmentExtensions || []
+                                            var extList = (page.jiraService && typeof page.jiraService.getAllowedAttachmentExtensions === "function")
+                                                ? page.jiraService.getAllowedAttachmentExtensions() : []
+                                            var imageExtList = (page.jiraService && typeof page.jiraService.getAllowedImageExtensions === "function")
+                                                ? page.jiraService.getAllowedImageExtensions() : []
                                             for (var i = 0; i < drop.urls.length; i++) {
                                                 var urlStr = drop.urls[i].toString()
                                                 var path = urlStr.replace(/^file:\/\//, "")
@@ -405,7 +420,11 @@ Kirigami.Page {
                                                 var pathToUse = (page.clipboardHelper && typeof page.clipboardHelper.copyFileToTemp === "function")
                                                     ? page.clipboardHelper.copyFileToTemp(path) : path
                                                 if (!pathToUse) continue
-                                                page._openEmbedDialogCreateFlow(pathToUse, filename)
+                                                if (imageExtList.indexOf(ext) >= 0) {
+                                                    page._openEmbedDialogCreateFlow(pathToUse, filename)
+                                                } else {
+                                                    page._addNonImageAttachmentCreateFlow(pathToUse, filename)
+                                                }
                                             }
                                         }
 
@@ -422,7 +441,7 @@ Kirigami.Page {
                                                 enabled: !page.isProcessing
                                                 topPadding: Kirigami.Units.smallSpacing
                                                 bottomPadding: Kirigami.Units.smallSpacing
-                                                placeholderText: qsTr("Arraste imagens ou use Ctrl+V para colar; o link será inserido em markdown.")
+                                                placeholderText: qsTr("Arraste ficheiros ou use Ctrl+V para colar imagem; imagens têm preview, outros ficheiros ficam como link.")
                                                 text: page.issueModel ? page.issueModel.description : ""
                                                 onTextChanged: if (page.issueModel) page.issueModel.description = text
 

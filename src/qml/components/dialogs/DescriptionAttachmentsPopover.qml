@@ -2,7 +2,7 @@ pragma ComponentBehavior: Bound
 /**
  * DescriptionAttachmentsPopover.qml
  *
- * Popover que lista imagens referenciadas na descrição (pending ou anexos da issue)
+ * Popover que lista anexos referenciados na descrição (pending ou anexos da issue)
  * e permite excluí-las. Create: remove do pendingAttachments e do texto; Edit: chama API DELETE e atualiza descrição.
  */
 import QtQuick
@@ -121,14 +121,14 @@ Controls.Popup {
 
         Controls.Label {
             Layout.fillWidth: true
-            text: qsTr("Imagens na descrição")
+            text: qsTr("Anexos na descrição")
             font.bold: true
         }
 
         Controls.Label {
             visible: root.listCount === 0
             Layout.fillWidth: true
-            text: qsTr("Nenhuma imagem na descrição.")
+            text: qsTr("Nenhum anexo na descrição.")
             font.pixelSize: Kirigami.Theme.smallFont.pixelSize
             color: Kirigami.Theme.disabledTextColor
             wrapMode: Text.WordWrap

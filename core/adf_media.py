@@ -332,6 +332,8 @@ _MD_IMAGE_ATTACHMENT = re.compile(
 _MD_LINK_ATTACHMENT = re.compile(
     r"\[(.*?)\]\(([^)]*?/attachment/content/(\d+)[^)]*)\)"
 )
+# Pattern for pending link (non-image file): [filename](pending:id)
+_MD_LINK_PENDING = re.compile(r"\[(.*?)\]\(pending:(\w+)\)")
 # Regex para attr_list {: width="N" } após imagem
 _RE_ATTR_WIDTH = re.compile(r'\s*\{:\s*width=["\']?(\d+)["\']?\s*\}')
 
@@ -372,10 +374,15 @@ def build_description_adf_with_media(
     def _find_next_match(
         txt: str, start: int
     ) -> Optional[Tuple[int, int, str, str, str]]:
-        """Returns (start, end, alt, key, match_type) or None."""
+        """Returns (start, end, alt, key, match_type) or None. Picks earliest match."""
+        candidates: List[Tuple[int, int, str, str, str]] = []
+
         m = _MD_IMAGE_PENDING.search(txt, start)
         if m:
-            return (m.start(), m.end(), m.group(1) or "", m.group(2), "pending")
+            candidates.append((m.start(), m.end(), m.group(1) or "", m.group(2), "pending"))
+        m = _MD_LINK_PENDING.search(txt, start)
+        if m:
+            candidates.append((m.start(), m.end(), m.group(1) or "", m.group(2), "pending"))
         m = _MD_IMAGE_ATTACHMENT.search(txt, start)
         if m:
             end = m.end()
@@ -383,7 +390,7 @@ def build_description_adf_with_media(
             attr_match = _RE_ATTR_WIDTH.match(rest)
             if attr_match:
                 end += attr_match.end()
-            return (m.start(), end, m.group(1) or "", m.group(3), "attachment")
+            candidates.append((m.start(), end, m.group(1) or "", m.group(3), "attachment"))
         m = _MD_LINK_ATTACHMENT.search(txt, start)
         if m:
             end = m.end()
@@ -391,8 +398,11 @@ def build_description_adf_with_media(
             attr_match = _RE_ATTR_WIDTH.match(rest)
             if attr_match:
                 end += attr_match.end()
-            return (m.start(), end, m.group(1) or "", m.group(3), "attachment")
-        return None
+            candidates.append((m.start(), end, m.group(1) or "", m.group(3), "attachment"))
+
+        if not candidates:
+            return None
+        return min(candidates, key=lambda x: x[0])
 
     def _lookup_attachment(
         key: str, url_part: Optional[str]

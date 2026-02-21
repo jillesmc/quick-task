@@ -357,3 +357,40 @@ class TestBuildDescriptionAdfWithMedia:
         attrs = media_single["content"][0]["attrs"]
         assert attrs["type"] == "external"
         assert "1977806" in attrs["url"]
+
+    def test_pending_link_placeholder_creates_link_when_in_map(self):
+        """[filename](pending:id) with non-image attachment produces link node, not mediaSingle."""
+        attachments_map = {
+            "p1": AttachmentInfo(
+                id="999",
+                filename="doc.pdf",
+                mime_type="application/pdf",
+                size=2048,
+                collection_id="issue-1",
+            ),
+        }
+        md = "See [doc.pdf](pending:p1) for details."
+        result = build_description_adf_with_media(
+            md,
+            attachments_map,
+            "issue-1",
+            "https://example.atlassian.net",
+            self._text_to_adf,
+        )
+        assert result["type"] == "doc"
+        # No mediaSingle for this attachment
+        media_singles = [c for c in result["content"] if c.get("type") == "mediaSingle"]
+        assert len(media_singles) == 0
+        # Paragraph with link (create_link_fallback_node)
+        paras_with_link = [
+            c
+            for c in result["content"]
+            if c.get("type") == "paragraph"
+            and c.get("content")
+            and any(m.get("type") == "link" for m in c["content"][0].get("marks", []))
+        ]
+        assert len(paras_with_link) >= 1
+        link_para = paras_with_link[0]
+        assert link_para["content"][0]["type"] == "text"
+        assert link_para["content"][0]["marks"][0]["type"] == "link"
+        assert "999" in link_para["content"][0]["marks"][0]["attrs"]["href"]

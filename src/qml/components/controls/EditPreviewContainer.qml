@@ -39,9 +39,16 @@ ColumnLayout {
         editTextArea.insert(editTextArea.cursorPosition, markdown)
         contentEdited(editTextArea.text)
     }
+    /** Insere [filename](pending:id) na posição do cursor (link, não imagem). */
+    function insertLinkPlaceholderAtCursor(filename, placeholderId) {
+        var markdown = "[" + filename + "](pending:" + placeholderId + ")"
+        editTextArea.insert(editTextArea.cursorPosition, markdown)
+        contentEdited(editTextArea.text)
+    }
 
     property real _savedScrollPosition: 0
     property bool _pendingAttachOnly: false
+    property bool _pendingInsertAsLink: false
     property int _pendingEmbedDisplayWidth: 760
 
     function _openEmbedDialogEditFlow(filePath, filename) {
@@ -161,18 +168,26 @@ ColumnLayout {
                             enabled: container.acceptDrops
                             onDropped: function(drop) {
                                 if (!drop.urls || drop.urls.length === 0) return
-                                var extList = ["png", "jpg", "jpeg", "gif", "webp"]
+                                var extList = (container.jiraService && typeof container.jiraService.getAllowedAttachmentExtensions === "function")
+                                    ? container.jiraService.getAllowedAttachmentExtensions() : []
+                                var imageExtList = (container.jiraService && typeof container.jiraService.getAllowedImageExtensions === "function")
+                                    ? container.jiraService.getAllowedImageExtensions() : []
                                 for (var i = 0; i < drop.urls.length; i++) {
                                     var urlStr = drop.urls[i].toString()
                                     var path = urlStr.replace(/^file:\/\//, "")
                                     var filename = path.split("/").pop() || path.split("\\").pop() || "file"
                                     var ext = filename.indexOf(".") >= 0 ? filename.split(".").pop().toLowerCase() : ""
                                     if (extList.indexOf(ext) < 0) continue
+                                    var pathToUse = (container.clipboardHelper && typeof container.clipboardHelper.copyFileToTemp === "function")
+                                        ? container.clipboardHelper.copyFileToTemp(path) : path
+                                    if (!pathToUse) pathToUse = path
                                     if (container.issueKey && container.jiraService) {
-                                        var pathToUse = (container.clipboardHelper && typeof container.clipboardHelper.copyFileToTemp === "function")
-                                            ? container.clipboardHelper.copyFileToTemp(path) : path
-                                        if (!pathToUse) pathToUse = path
-                                        container._openEmbedDialogEditFlow(pathToUse, filename)
+                                        if (imageExtList.indexOf(ext) >= 0) {
+                                            container._openEmbedDialogEditFlow(pathToUse, filename)
+                                        } else {
+                                            container._pendingInsertAsLink = true
+                                            container.jiraService.uploadAttachment(container.issueKey, pathToUse, container.embedTarget)
+                                        }
                                     } else {
                                         container.fileDroppedForPlaceholder(path, filename)
                                     }
@@ -300,6 +315,13 @@ ColumnLayout {
             if (embedTarget !== container.embedTarget) return
             if (container._pendingAttachOnly) {
                 container._pendingAttachOnly = false
+                return
+            }
+            if (container._pendingInsertAsLink) {
+                container._pendingInsertAsLink = false
+                var linkMarkdown = "[" + filename + "](" + contentUrl + ")"
+                editTextArea.insert(editTextArea.cursorPosition, linkMarkdown)
+                container.contentEdited(editTextArea.text)
                 return
             }
             var w = container._pendingEmbedDisplayWidth > 0 ? container._pendingEmbedDisplayWidth : 760
