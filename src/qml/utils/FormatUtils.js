@@ -141,3 +141,79 @@ function formatFileSize(bytes) {
     if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + " MB"
     return (bytes / (1024 * 1024 * 1024)).toFixed(1) + " GB"
 }
+
+/**
+ * Extrai da descrição os placeholders de imagens pendentes (create flow).
+ * Procura padrões ![filename](pending:id) ou [filename](pending:id).
+ *
+ * @param {string} descriptionText - Texto da descrição em markdown
+ * @returns {Array} Lista de { placeholderId, filename } (filename pode ser vazio)
+ */
+function getPendingPlaceholdersFromDescription(descriptionText) {
+    if (!descriptionText || typeof descriptionText !== "string") return []
+    var result = []
+    var re = /!?\[([^\]]*)\]\(\s*pending:\s*([a-zA-Z0-9_]+)\s*\)/g
+    var m
+    while ((m = re.exec(descriptionText)) !== null) {
+        result.push({ placeholderId: m[2], filename: (m[1] || "").trim() || ("pending:" + m[2]) })
+    }
+    return result
+}
+
+/**
+ * Remove da descrição o trecho da imagem pendente (create flow).
+ * Remove a linha que contém ![...](pending:placeholderId) e, se existir,
+ * a linha seguinte que contém apenas {: width="..." }.
+ *
+ * @param {string} descriptionText - Texto da descrição em markdown
+ * @param {string} placeholderId - ID do placeholder (ex.: do pendingAttachments)
+ * @returns {string} Novo texto sem o trecho da imagem e do attr de largura
+ */
+function removePendingAttachmentFromDescription(descriptionText, placeholderId) {
+    if (!descriptionText || typeof descriptionText !== "string") return descriptionText || ""
+    if (!placeholderId && placeholderId !== 0) return descriptionText
+    var id = String(placeholderId)
+    var lines = descriptionText.split("\n")
+    var result = []
+    var i = 0
+    while (i < lines.length) {
+        if (lines[i].indexOf("pending:" + id) >= 0) {
+            i += 1
+            if (i < lines.length && /^\s*\{:\s*width\s*=/.test(lines[i])) i += 1
+            continue
+        }
+        result.push(lines[i])
+        i += 1
+    }
+    return result.join("\n")
+}
+
+/**
+ * Remove da descrição o trecho da imagem/ligação do anexo (edit flow).
+ * Remove a linha que contém .../attachment/content/{attachmentId}... e,
+ * se existir, a linha seguinte que contém apenas {: width="..." }.
+ *
+ * @param {string} descriptionText - Texto da descrição em markdown
+ * @param {string} attachmentId - ID do anexo no Jira (ex.: "1982426")
+ * @returns {string} Novo texto sem o trecho do anexo e do attr de largura
+ */
+function removeAttachmentFromDescription(descriptionText, attachmentId) {
+    if (!descriptionText || typeof descriptionText !== "string") return descriptionText || ""
+    if (!attachmentId && attachmentId !== 0) return descriptionText
+    var id = String(attachmentId).replace(/[^0-9]/g, "")
+    if (!id) return descriptionText
+    var pattern = "/attachment/content/" + id
+    var lines = descriptionText.split("\n")
+    var result = []
+    var i = 0
+    while (i < lines.length) {
+        if (lines[i].indexOf(pattern) >= 0) {
+            i += 1
+            if (i < lines.length && /^\s*\{:\s*width\s*=/.test(lines[i])) i += 1
+            continue
+        }
+        result.push(lines[i])
+        i += 1
+    }
+    return result.join("\n")
+}

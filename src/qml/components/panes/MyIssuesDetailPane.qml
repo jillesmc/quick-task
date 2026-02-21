@@ -12,6 +12,7 @@ import org.kde.kirigami as Kirigami
 import "../forms"
 import "../controls"
 import "../../utils/DialogHelpers.js" as DialogHelpers
+import "../../utils/FormatUtils.js" as FormatUtils
 
 Item {
     id: pane
@@ -53,6 +54,21 @@ Item {
     property bool _pendingAttachOnly: false
     property int _pendingEmbedDisplayWidth: 760
     property string _pendingEmbedPosition: "end"
+    /** Anexos da issue vindos do GET (details.attachments). */
+    property var _detailsAttachments: []
+    /** Anexos enviados nesta sessão (upload na descrição) até salvar/recarregar. Itens: { id, filename }. */
+    property var _newAttachmentsThisSession: []
+    /** IDs de anexos excluídos nesta sessão (para esconder da lista até recarregar). */
+    property var _deletedAttachmentIds: []
+
+    function _buildCurrentAttachmentsList() {
+        var deleted = pane._deletedAttachmentIds || []
+        var fromApi = (pane._detailsAttachments || []).filter(function (a) {
+            return a && deleted.indexOf(String(a.id)) < 0
+        })
+        return fromApi.concat(pane._newAttachmentsThisSession || [])
+    }
+    readonly property var _currentAttachmentsList: pane._buildCurrentAttachmentsList()
 
     function _openEmbedDialogForDescription(filePath, filename) {
         if (!filePath || !pane.jiraService || !pane.selectedIssueKey) return
@@ -95,6 +111,52 @@ Item {
         dlg.rejected.connect(function () {})
         dlg.closed.connect(function () { dlg.destroy() })
         dlg.open()
+    }
+
+    function _openAttachmentsPopover(button) {
+        if (!button || !pane.jiraService) return
+        var comp = Qt.createComponent("../dialogs/DescriptionAttachmentsPopover.qml")
+        if (comp.status !== Component.Ready) {
+            if (comp.status === Component.Error) {
+                console.error("MyIssuesDetailPane: DescriptionAttachmentsPopover error:", comp.errorString())
+            }
+            comp.statusChanged.connect(function () {
+                if (comp.status === Component.Ready) {
+                    _openAttachmentsPopover(button)
+                }
+            })
+            return
+        }
+        var popover = comp.createObject(button)
+        if (!popover) return
+        popover.x = 0
+        popover.y = button.height + 2
+        popover.mode = "edit"
+        popover.positionLeftOfButton = true
+        popover.editModePane = pane
+        popover.issueKey = pane.selectedIssueKey
+        popover.jiraService = pane.jiraService
+        popover.onAttachmentDeleted = function (attachmentId) {
+            if (!pane.issueModel) return
+            pane.issueModel.description = FormatUtils.removeAttachmentFromDescription(pane.issueModel.description, attachmentId)
+            var arr = []
+            for (var i = 0; i < (pane._newAttachmentsThisSession || []).length; i++) {
+                if (String((pane._newAttachmentsThisSession)[i].id) !== String(attachmentId)) {
+                    arr.push((pane._newAttachmentsThisSession)[i])
+                }
+            }
+            pane._newAttachmentsThisSession = arr
+            var delIds = pane._deletedAttachmentIds || []
+            if (delIds.indexOf(attachmentId) < 0) delIds.push(attachmentId)
+            pane._deletedAttachmentIds = delIds
+        }
+        popover.onAttachmentDeleteFailed = function (attId, msg) {
+            if (pane.applicationWindow && typeof pane.applicationWindow.showPassiveNotification === "function") {
+                pane.applicationWindow.showPassiveNotification(msg || qsTr("Erro ao excluir anexo."), 4000)
+            }
+        }
+        popover.closed.connect(function () { popover.destroy() })
+        popover.open()
     }
 
     /** Dados de development (branches/PRs) para o painel; preenchido em setDetails. null quando feature desativada. */
@@ -170,12 +232,17 @@ Item {
         pane.developmentData = null;
         pane.enrichedPrs = null;
         pane.enrichedBranches = null;
+        pane._newAttachmentsThisSession = [];
+        pane._deletedAttachmentIds = [];
     }
 
     function setDetails(details) {
         if (!details || !details.key) {
             return;
         }
+        pane._detailsAttachments = details.attachments || [];
+        pane._newAttachmentsThisSession = [];
+        pane._deletedAttachmentIds = [];
         if (issueModel) {
             issueModel.summary = String(details.summary || "");
             issueModel.description = String(details.description || "");
@@ -336,6 +403,13 @@ Item {
                                     pane._descriptionEditMode = editMode
                                 }
                             }
+
+                            Controls.ToolButton {
+                                icon.name: "mail-attachment"
+                                text: qsTr("Anexos na descrição")
+                                display: Controls.AbstractButton.IconOnly
+                                onClicked: pane._openAttachmentsPopover(this)
+                            }
                         }
 
                         Item {
@@ -469,6 +543,12 @@ Item {
                             }
                             descriptionFieldTab2.insert(insertPos, toInsert)
                             if (pane.issueModel) pane.issueModel.description = descriptionFieldTab2.text
+                            var match = /\/attachment\/content\/(\d+)/.exec(contentUrl || "")
+                            if (match && match[1]) {
+                                var arr = pane._newAttachmentsThisSession || []
+                                arr.push({ id: match[1], filename: filename })
+                                pane._newAttachmentsThisSession = arr
+                            }
                         }
                     }
 

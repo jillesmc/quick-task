@@ -32,7 +32,7 @@ jira-quick-task = "src.app:main"
 packages = ["src", "config", "core", "src.models", "src.utils", "src.services", "src.database"]
 
 [tool.setuptools.package-data]
-"src" = ["qml/*.qml"]
+"src" = ["qml/*.qml", "qml/**/*.qml", "qml/**/*.js"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

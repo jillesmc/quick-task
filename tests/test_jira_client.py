@@ -996,6 +996,46 @@ def test_get_attachment_settings_success(mock_request, mock_config_file):
     assert "attachment/meta" in call_args[0][1]
 
 
+@patch("core.jira_client.requests.request")
+def test_delete_attachment_success(mock_request, mock_config_file):
+    """delete_attachment retorna True quando a API retorna 204 No Content."""
+    mock_response = Mock()
+    mock_response.status_code = 204
+    mock_request.return_value = mock_response
+
+    client = JiraClient(jira_cli_config_path=mock_config_file)
+    result = client.delete_attachment("1982426")
+
+    assert result is True
+    mock_request.assert_called_once()
+    call_args = mock_request.call_args
+    assert call_args[0][0] == "DELETE"
+    assert "attachment/1982426" in call_args[0][1]
+
+
+@patch("core.jira_client.requests.request")
+def test_delete_attachment_not_found(mock_request, mock_config_file):
+    """delete_attachment retorna False quando a API retorna 404."""
+    mock_response = Mock()
+    mock_response.status_code = 404
+    mock_response.text = "Not Found"
+    mock_response.json.return_value = {"errorMessages": ["Attachment not found"]}
+    mock_request.return_value = mock_response
+
+    client = JiraClient(jira_cli_config_path=mock_config_file)
+    result = client.delete_attachment("999999")
+
+    assert result is False
+    mock_request.assert_called_once()
+
+
+def test_delete_attachment_empty_id_returns_false(mock_config_file):
+    """delete_attachment retorna False quando attachment_id é vazio."""
+    client = JiraClient(jira_cli_config_path=mock_config_file)
+    assert client.delete_attachment("") is False
+    assert client.delete_attachment(None) is False
+
+
 @patch("core.jira_client.requests.post")
 def test_add_attachment_success(mock_post, mock_config_file, tmp_path):
     """add_attachment envia multipart e retorna lista de anexos."""

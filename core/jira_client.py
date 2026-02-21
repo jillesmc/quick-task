@@ -355,6 +355,34 @@ class JiraClient:
                 f"Erro ao obter configurações de anexos: {str(e)}"
             ) from e
 
+    def delete_attachment(self, attachment_id: str) -> bool:
+        """
+        Remove um anexo de uma issue (DELETE /rest/api/3/attachment/{id}).
+
+        Args:
+            attachment_id: ID do anexo (ex.: "1982426").
+
+        Returns:
+            True se a API retornar 204 No Content, False em caso de erro.
+
+        Permissões Jira: "Delete own attachments" ou "Delete all attachments" no projeto.
+        """
+        if not attachment_id or not str(attachment_id).strip():
+            return False
+        aid = str(attachment_id).strip()
+        try:
+            response = self._make_request(
+                "DELETE", f"attachment/{aid}", timeout=15
+            )
+            return response.status_code == 204
+        except RuntimeError as e:
+            error_msg = str(e)
+            if "403" in error_msg or "404" in error_msg:
+                return False
+            raise
+        except Exception:
+            return False
+
     def add_attachment(self, issue_key: str, file_path: str) -> List[Dict[str, Any]]:
         """
         Adiciona um anexo a uma issue (POST multipart/form-data).
@@ -2333,13 +2361,15 @@ class JiraClient:
         if not issue_key:
             return None
 
-        # Campos necessários: summary, description, status, parent (com summary), priority, e campos customizados
+        # Campos necessários: summary, description, status, parent (com summary), priority,
+        # attachment (lista de anexos da issue), e campos customizados
         fields_list = [
             "summary",
             "description",
             "status",
             "parent",
             "priority",
+            "attachment",
             "customfield_12088",  # tipo_atividade
             "customfield_14840",  # documentacao_anexa
             "customfield_14841",  # utilizacao_ia

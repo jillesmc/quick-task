@@ -148,6 +148,30 @@ Kirigami.Page {
         dlg.open()
     }
 
+    function _openAttachmentsPopover(button) {
+        if (!button || !page.issueModel) return
+        var comp = Qt.createComponent("../components/dialogs/DescriptionAttachmentsPopover.qml")
+        if (comp.status !== Component.Ready) {
+            if (comp.status === Component.Error) {
+                console.error("IssueFormPage: DescriptionAttachmentsPopover error:", comp.errorString())
+            }
+            comp.statusChanged.connect(function () {
+                if (comp.status === Component.Ready) {
+                    _openAttachmentsPopover(button)
+                }
+            })
+            return
+        }
+        var popover = comp.createObject(button)
+        if (!popover) return
+        popover.x = 0
+        popover.y = button.height + 2
+        popover.mode = "create"
+        popover.issueModel = page.issueModel
+        popover.closed.connect(function () { popover.destroy() })
+        popover.open()
+    }
+
     // Definir foco inicial no campo Summary quando a página for carregada
     Component.onCompleted: {
         summaryField.forceActiveFocus();
@@ -345,6 +369,14 @@ Kirigami.Page {
                                     onModeChanged: function(editMode) {
                                         page._descriptionEditMode = editMode
                                     }
+                                }
+
+                                Controls.ToolButton {
+                                    id: attachmentListButton
+                                    icon.name: "mail-attachment"
+                                    text: qsTr("Anexos na descrição")
+                                    display: Controls.AbstractButton.IconOnly
+                                    onClicked: page._openAttachmentsPopover(attachmentListButton)
                                 }
                             }
 

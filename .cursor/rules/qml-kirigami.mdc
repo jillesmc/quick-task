@@ -19,6 +19,10 @@ alwaysApply: false
 - **utils/**: DialogHelpers.js, FormatUtils.js, Validators.js, etc.
 - Cada pasta com componentes tem `qmldir`.
 
+## Dialogs e popovers (`components/dialogs/`)
+
+Não usar import estático no topo (ex.: `import "../components/dialogs/Foo.qml"`). Carregar em runtime com `Qt.createComponent("...")` com caminho relativo ao ficheiro que chama: em **pages/** use `"../components/dialogs/Nome.qml"`, em **components/panes/** ou **components/controls/** use `"../dialogs/Nome.qml"`. Tratar `Component.Ready`/statusChanged, criar com `createObject(parent)`, configurar props, `closed` → `destroy()`, depois `open()`. Ver exemplos: AttachmentEmbedPreviewDialog, DescriptionAttachmentsPopover.
+
 ## Kirigami
 
 - Janela principal: `Kirigami.ApplicationWindow` em Main.qml.

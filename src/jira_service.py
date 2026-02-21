@@ -882,6 +882,9 @@ class JiraService(QObject):
     uploadFailed = Signal(str, str)  # issueKey, errorMessage
     # Fetch assíncrono de attachment para preview (imagens Jira exigem auth)
     attachmentDataUrlReady = Signal(str, str)  # url, dataUrl
+    # Exclusão de anexo (edit flow: DELETE API)
+    attachmentDeleted = Signal(str)  # attachmentId
+    attachmentDeleteFailed = Signal(str, str)  # attachmentId, errorMessage
     # Transição em duas fases: ao atingir IN DEVELOPMENT (para sync worklogs pendentes)
     reachedInDevelopment = Signal(str)  # issueKey
     inDevelopmentReady = Signal(
@@ -956,6 +959,7 @@ class JiraService(QObject):
         )
         self._comments_worker: Optional[QThread] = None
         self._attachment_worker: Optional[QThread] = None
+        self._attachment_delete_worker: Optional[QThread] = None
         self._attachment_fetch_workers: set = set()
         self._development_enrich_worker: Optional[QThread] = None
         self._development_branches_enrich_worker: Optional[QThread] = None
@@ -1898,6 +1902,66 @@ class JiraService(QObject):
         worker.start()
         return True
 
+    @Slot(str, result=bool)
+    def deleteAttachment(self, attachmentId: str) -> bool:  # NOSONAR - camelCase para QML
+        """
+        Remove um anexo da issue no Jira em thread separada.
+        Emite attachmentDeleted(attachmentId) em sucesso ou
+        attachmentDeleteFailed(attachmentId, errorMessage) em falha.
+        """
+        if not self._jira_client:
+            self.attachmentDeleteFailed.emit(
+                attachmentId or "", "Cliente Jira não inicializado"
+            )
+            return False
+        aid = (attachmentId or "").strip()
+        if not aid:
+            return False
+        if self._attachment_delete_worker and self._attachment_delete_worker.isRunning():
+            return False
+
+        class _AttachmentDeleteWorker(QThread):
+            done = Signal(bool, str, str)  # success, attachmentId, errorMessage
+
+            def __init__(self, client: JiraClient, att_id: str, parent=None):
+                super().__init__(parent)
+                self._client = client
+                self._att_id = att_id
+
+            def run(self) -> None:
+                try:
+                    ok = self._client.delete_attachment(self._att_id)
+                    if ok:
+                        self.done.emit(True, self._att_id, "")
+                    else:
+                        self.done.emit(
+                            False,
+                            self._att_id,
+                            "Não foi possível excluir o anexo (permissão ou não encontrado).",
+                        )
+                except RuntimeError as e:
+                    self.done.emit(False, self._att_id, str(e))
+                except Exception as e:
+                    self.done.emit(False, self._att_id, str(e))
+
+        worker = _AttachmentDeleteWorker(self._jira_client, aid)
+        self._attachment_delete_worker = worker
+
+        def on_done(success: bool, att_id: str, err: str) -> None:
+            if success:
+                self.attachmentDeleted.emit(att_id)
+            else:
+                self.attachmentDeleteFailed.emit(att_id, err or "Erro ao excluir anexo.")
+
+        def cleanup() -> None:
+            if self._attachment_delete_worker is worker:
+                self._attachment_delete_worker = None
+
+        worker.done.connect(on_done)
+        worker.finished.connect(cleanup)
+        worker.start()
+        return True
+
     def _get_assets_extra_fields(self) -> List[str]:
         """IDs dos campos Asset (Valor entregue, Plataformas) para incluir no GET issue; filtra placeholders."""
         try:
@@ -2516,6 +2580,7 @@ class JiraService(QObject):
             "plataformasAfetadas": plataformas_afetadas,
             "parentKey": parent_key,
             "parentSummary": parent_summary,
+            "attachments": fields.get("attachment", []) or [],
         }
         # Pass through development info only when it was requested (feature enabled)
         if "development" in issue_data and isinstance(issue_data["development"], dict):

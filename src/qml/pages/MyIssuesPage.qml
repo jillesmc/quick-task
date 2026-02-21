@@ -723,72 +723,99 @@ Kirigami.Page {
         var epicKey = page.detailPane.getEpicKey();
         var originalStatus = page.originalStatus;
         var targetStatus = (fieldData && fieldData.status) ? fieldData.status : "";
-        if (typeof console !== "undefined" && console.log) {
-            console.log("[MyIssuesPage] updateIssue: originalStatus=", originalStatus, "targetStatus=", targetStatus);
-        }
 
-        // Sem mudança de status: atualização direta
-        if (!targetStatus || targetStatus === originalStatus) {
+        function doUpdateBody() {
             if (typeof console !== "undefined" && console.log) {
-                console.log("[MyIssuesPage] updateIssue: no status change, calling controller.updateIssue");
+                console.log("[MyIssuesPage] updateIssue: originalStatus=", originalStatus, "targetStatus=", targetStatus);
             }
-            page.controller.updateIssue(issueKey, fieldData, worklogData, epicKey, originalStatus);
-            return;
-        }
-
-        // Transição em duas fases (current < IN DEVELOPMENT e target > IN DEVELOPMENT)
-        if (page.jiraService.needsTwoPhaseTransition(originalStatus, targetStatus)) {
-            page._pendingTwoPhaseTarget = targetStatus;
-            page._isTwoPhaseTransition = true;
-            page._ensureProcessDialogThen(function (dlg) {
-                dlg.openInProgress(qsTr("Transicionando para IN DEVELOPMENT..."));
-            });
-            page.controller.startTwoPhaseUpdate(issueKey, fieldData, worklogData, epicKey, originalStatus);
-            return;
-        }
-
-        // Uma fase: verificar worklogs pendentes se config ativo
-        var checkEnabled = page.jiraService.worklogCheckEnabled && page.jiraService.worklogCheckEnabled();
-        var requiresCheck = page.jiraService.requiresWorklogCheckBeforeTransition && page.jiraService.requiresWorklogCheckBeforeTransition(originalStatus, targetStatus);
-        if (typeof console !== "undefined" && console.log) {
-            console.log("[MyIssuesPage] updateIssue: checkEnabled=", checkEnabled, "requiresCheck=", requiresCheck, "worklogSyncService=", !!page.worklogSyncService);
-        }
-        if (checkEnabled && requiresCheck && page.worklogSyncService) {
-            var pending = page.worklogSyncService.get_pending_worklogs_for_issue(issueKey) || [];
-            if (typeof console !== "undefined" && console.log) {
-                console.log("[MyIssuesPage] updateIssue: pending worklogs count=", pending.length);
-            }
-            if (pending.length > 0) {
-                var showDialog = page.jiraService.worklogCheckShowDialog && page.jiraService.worklogCheckShowDialog();
+            if (!targetStatus || targetStatus === originalStatus) {
                 if (typeof console !== "undefined" && console.log) {
-                    console.log("[MyIssuesPage] updateIssue: showDialog=", showDialog, "calling _ensureProcessDialogThen(openInConfirm)");
+                    console.log("[MyIssuesPage] updateIssue: no status change, calling controller.updateIssue");
                 }
-                if (showDialog) {
-                    var totalFormatted = page._formatTotalFromPending(pending);
-                    var blockIfPending = page.jiraService.worklogCheckBlockIfPending && page.jiraService.worklogCheckBlockIfPending();
-                    page._pendingUpdateAfterSync = { issueKey: issueKey, fieldData: fieldData, worklogData: worklogData, epicKey: epicKey, originalStatus: originalStatus, isTwoPhase: false };
-                    page._pendingWorklogsList = pending;
-                    page._ensureProcessDialogThen(function (dlg) {
-                        if (typeof console !== "undefined" && console.log) {
-                            console.log("[MyIssuesPage] updateIssue: callback running, calling dlg.openInConfirm");
-                        }
-                        dlg.openInConfirm(pending, totalFormatted, targetStatus, blockIfPending);
-                    });
-                    return;
-                }
-                // Auto-sync: sincronizar e depois chamar updateIssue
-                page._pendingUpdateAfterSync = { issueKey: issueKey, fieldData: fieldData, worklogData: worklogData, epicKey: epicKey, originalStatus: originalStatus, isTwoPhase: false };
-                page.isProcessing = true;
-                page._ensureProcessDialogThen(function (dlg) {
-                    dlg.openInProgress(qsTr("Sincronizando worklogs..."));
-                });
-                var sessionIds = pending.map(function(p) { return p.id; });
-                page.worklogSyncService.sync_pending_worklogs(sessionIds);
+                page.controller.updateIssue(issueKey, fieldData, worklogData, epicKey, originalStatus);
                 return;
             }
+            if (page.jiraService.needsTwoPhaseTransition(originalStatus, targetStatus)) {
+                page._pendingTwoPhaseTarget = targetStatus;
+                page._isTwoPhaseTransition = true;
+                page._ensureProcessDialogThen(function (dlg) {
+                    dlg.openInProgress(qsTr("Transicionando para IN DEVELOPMENT..."));
+                });
+                page.controller.startTwoPhaseUpdate(issueKey, fieldData, worklogData, epicKey, originalStatus);
+                return;
+            }
+            var checkEnabled = page.jiraService.worklogCheckEnabled && page.jiraService.worklogCheckEnabled();
+            var requiresCheck = page.jiraService.requiresWorklogCheckBeforeTransition && page.jiraService.requiresWorklogCheckBeforeTransition(originalStatus, targetStatus);
+            if (typeof console !== "undefined" && console.log) {
+                console.log("[MyIssuesPage] updateIssue: checkEnabled=", checkEnabled, "requiresCheck=", requiresCheck, "worklogSyncService=", !!page.worklogSyncService);
+            }
+            if (checkEnabled && requiresCheck && page.worklogSyncService) {
+                var pending = page.worklogSyncService.get_pending_worklogs_for_issue(issueKey) || [];
+                if (typeof console !== "undefined" && console.log) {
+                    console.log("[MyIssuesPage] updateIssue: pending worklogs count=", pending.length);
+                }
+                if (pending.length > 0) {
+                    var showDialog = page.jiraService.worklogCheckShowDialog && page.jiraService.worklogCheckShowDialog();
+                    if (typeof console !== "undefined" && console.log) {
+                        console.log("[MyIssuesPage] updateIssue: showDialog=", showDialog, "calling _ensureProcessDialogThen(openInConfirm)");
+                    }
+                    if (showDialog) {
+                        var totalFormatted = page._formatTotalFromPending(pending);
+                        var blockIfPending = page.jiraService.worklogCheckBlockIfPending && page.jiraService.worklogCheckBlockIfPending();
+                        page._pendingUpdateAfterSync = { issueKey: issueKey, fieldData: fieldData, worklogData: worklogData, epicKey: epicKey, originalStatus: originalStatus, isTwoPhase: false };
+                        page._pendingWorklogsList = pending;
+                        page._ensureProcessDialogThen(function (dlg) {
+                            if (typeof console !== "undefined" && console.log) {
+                                console.log("[MyIssuesPage] updateIssue: callback running, calling dlg.openInConfirm");
+                            }
+                            dlg.openInConfirm(pending, totalFormatted, targetStatus, blockIfPending);
+                        });
+                        return;
+                    }
+                    page._pendingUpdateAfterSync = { issueKey: issueKey, fieldData: fieldData, worklogData: worklogData, epicKey: epicKey, originalStatus: originalStatus, isTwoPhase: false };
+                    page.isProcessing = true;
+                    page._ensureProcessDialogThen(function (dlg) {
+                        dlg.openInProgress(qsTr("Sincronizando worklogs..."));
+                    });
+                    var sessionIds = pending.map(function(p) { return p.id; });
+                    page.worklogSyncService.sync_pending_worklogs(sessionIds);
+                    return;
+                }
+            }
+            page.controller.updateIssue(issueKey, fieldData, worklogData, epicKey, originalStatus);
         }
 
-        page.controller.updateIssue(issueKey, fieldData, worklogData, epicKey, originalStatus);
+        var deletedIds = (page.detailPane._deletedAttachmentIds || []).slice();
+        if (deletedIds.length > 0) {
+            page.detailPane._deletedAttachmentIds = []
+            var remaining = deletedIds.length
+            function onOneDeleteDone() {
+                remaining--
+                if (remaining <= 0) {
+                    doUpdateBody()
+                }
+            }
+            for (var i = 0; i < deletedIds.length; i++) {
+                (function (id) {
+                    var onDeleted, onFailed
+                    onDeleted = function () {
+                        page.jiraService.attachmentDeleted.disconnect(onDeleted)
+                        page.jiraService.attachmentDeleteFailed.disconnect(onFailed)
+                        onOneDeleteDone()
+                    }
+                    onFailed = function () {
+                        page.jiraService.attachmentDeleted.disconnect(onDeleted)
+                        page.jiraService.attachmentDeleteFailed.disconnect(onFailed)
+                        onOneDeleteDone()
+                    }
+                    page.jiraService.attachmentDeleted.connect(onDeleted)
+                    page.jiraService.attachmentDeleteFailed.connect(onFailed)
+                    page.jiraService.deleteAttachment(id)
+                })(deletedIds[i])
+            }
+        } else {
+            doUpdateBody()
+        }
     }
 
     function _formatTotalFromPending(pending) {

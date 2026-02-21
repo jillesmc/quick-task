@@ -18,6 +18,16 @@ description: QML, Kirigami 6, componentes, bindings, integração com models Pyt
 - **utils/**: DialogHelpers.js, FormatUtils.js, Validators.js, etc.
 - Cada pasta com componentes tem `qmldir`.
 
+## Dialogs e popovers em `components/dialogs/`
+
+- **Não** usar `import "../components/dialogs/Foo.qml"` (ou caminho equivalente) no topo da página. Imports estáticos de ficheiros em subpastas podem falhar no Flatpak (resolução no load) e quebram o padrão do projeto.
+- **Carregar em runtime** com `Qt.createComponent(...)` e caminho **relativo ao ficheiro que chama**:
+  - Chamador em **pages/** (ex.: IssueFormPage.qml): `Qt.createComponent("../components/dialogs/NomeDialog.qml")`.
+  - Chamador em **components/panes/** ou **components/controls/** etc.: `Qt.createComponent("../dialogs/NomeDialog.qml")`.
+- Tratar `comp.status !== Component.Ready` (e.g. conectar `comp.statusChanged` e re-tentar quando `Component.Ready`).
+- Instanciar com `comp.createObject(parent)` (ex.: o botão que abre o popover), configurar propriedades, `closed.connect(function () { obj.destroy() })`, e `open()`.
+- Exemplos no projeto: AttachmentEmbedPreviewDialog, DescriptionAttachmentsPopover, ErrorDialog (via DialogHelpers com path string).
+
 ## Kirigami
 
 - Janela principal: `Kirigami.ApplicationWindow` em Main.qml.

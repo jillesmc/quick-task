@@ -46,6 +46,8 @@
       "buildsystem": "simple",
       "build-commands": [
         "pip3 install --no-build-isolation --prefix=/app .",
+        "rm -rf /app/lib/python3.11/site-packages/src/qml",
+        "cp -r src/qml /app/lib/python3.11/site-packages/src/qml",
         "cp org.kde.jira-quick-task.desktop.in org.kde.jira-quick-task.desktop",
         "install -Dm644 org.kde.jira-quick-task.desktop /app/share/applications/org.kde.jira-quick-task.desktop",
         "mkdir -p /app/share/jira-quick-task/config",
