@@ -128,3 +128,16 @@ function calculateRetroactiveStartTime(durationMinutes) {
         time: Qt.formatDateTime(startTime, "HH:mm:ss")
     }
 }
+
+/**
+ * Formata tamanho de arquivo em bytes para string legível
+ * @param {number} bytes - Tamanho em bytes
+ * @returns {string} String formatada (ex: "1.2 MB", "456 KB")
+ */
+function formatFileSize(bytes) {
+    if (bytes === undefined || bytes === null || bytes < 0) return ""
+    if (bytes < 1024) return bytes + " B"
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB"
+    if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + " MB"
+    return (bytes / (1024 * 1024 * 1024)).toFixed(1) + " GB"
+}

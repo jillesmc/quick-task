@@ -44,16 +44,80 @@ ColumnLayout {
     property var statusSequence: []
     property var valorEntregueValues: []
     property var plataformasAfetadasValues: []
-    /// Lista de anexos pendentes para nova issue: [{ path, filename, placeholderId }]
+    /// Lista de anexos pendentes para nova issue: [{ path, filename, placeholderId?, layout?, position? }]
     property var pendingAttachments: []
     /// Extensões permitidas para anexos (imagens)
     property var allowedAttachmentExtensions: ["png", "jpg", "jpeg", "gif", "webp"]
     /// Helper de clipboard (passado pelo parent quando disponível)
     property var clipboardHelper: null
+    /// Janela principal para centrar dialogs (passado pelo parent quando disponível)
+    property var applicationWindow: null
+    /// JiraService (passado pelo parent quando disponível; usado para getEmbedMaxDisplayWidth)
+    property var jiraService: null
     property int _placeholderCounter: 0
 
     signal fieldChanged(string fieldName, var value)
-    
+
+    /**
+     * Abre AttachmentEmbedPreviewDialog para path/filename.
+     * On acceptedEmbed: insere placeholder e adiciona a pendingAttachments com layout/position.
+     * On acceptedAttachOnly: adiciona a pendingAttachments sem placeholder.
+     * On rejected: não faz nada.
+     */
+    function _openEmbedDialog(filePath, filename) {
+        if (!filePath) return
+        var comp = Qt.createComponent("../dialogs/AttachmentEmbedPreviewDialog.qml")
+        var win = root.parent && root.parent.parent ? root.parent.parent : root
+        if (comp.status !== Component.Ready) {
+            if (comp.status === Component.Error) {
+                console.error("IssueFieldsForm: AttachmentEmbedPreviewDialog error:", comp.errorString())
+            }
+            comp.statusChanged.connect(function () {
+                if (comp.status === Component.Ready) {
+                    _createAndOpenEmbedDialog(comp, win, filePath, filename)
+                }
+            })
+            return
+        }
+        _createAndOpenEmbedDialog(comp, win, filePath, filename)
+    }
+
+    function _createAndOpenEmbedDialog(comp, parent, filePath, filename) {
+        var dlg = comp.createObject(parent)
+        if (!dlg) return
+        dlg.filePath = filePath
+        dlg.showPositionOptions = true
+        dlg.defaultDisplayWidth = (root.jiraService && typeof root.jiraService.getEmbedMaxDisplayWidth === "function")
+            ? root.jiraService.getEmbedMaxDisplayWidth() : 760
+        dlg.applicationWindow = root.applicationWindow
+        dlg.clipboardHelper = root.clipboardHelper
+        dlg.acceptedEmbed.connect(function (layout, position, displayWidth) {
+            root._placeholderCounter += 1
+            var placeholderId = "p" + root._placeholderCounter
+            root.pendingAttachments = root.pendingAttachments.concat([{
+                path: filePath,
+                filename: filename,
+                placeholderId: placeholderId,
+                layout: layout,
+                position: position,
+                displayWidth: displayWidth
+            }])
+            var markdown = "![" + filename + "](pending:" + placeholderId + ")"
+            var insertPos = (position === "start") ? 0 : descriptionField.text.length
+            descriptionField.insert(insertPos, markdown)
+            root.fieldChanged("description", descriptionField.text)
+        })
+        dlg.acceptedAttachOnly.connect(function () {
+            root.pendingAttachments = root.pendingAttachments.concat([{
+                path: filePath,
+                filename: filename
+            }])
+        })
+        dlg.rejected.connect(function () {})
+        dlg.closed.connect(function () { dlg.destroy() })
+        dlg.open()
+    }
+
     spacing: Kirigami.Units.largeSpacing
 
     // Description (label + input com smallSpacing)
@@ -100,16 +164,7 @@ ColumnLayout {
                             pathToUse = root.clipboardHelper.copyFileToTemp(path)
                         }
                         if (!pathToUse) continue
-                        root._placeholderCounter += 1
-                        var placeholderId = "p" + root._placeholderCounter
-                        root.pendingAttachments = root.pendingAttachments.concat([{
-                            path: pathToUse,
-                            filename: filename,
-                            placeholderId: placeholderId
-                        }])
-                        var markdown = "![" + filename + "](pending:" + placeholderId + ")"
-                        descriptionField.insert(descriptionField.cursorPosition, markdown)
-                        root.fieldChanged("description", descriptionField.text)
+                        root._openEmbedDialog(pathToUse, filename)
                     }
                 }
             }
@@ -144,13 +199,7 @@ ColumnLayout {
                         if (root.clipboardHelper && root.clipboardHelper.hasClipboardImage()) {
                             var tempPath = root.clipboardHelper.getClipboardImageAsTempFile()
                             if (tempPath) {
-                                root._placeholderCounter += 1
-                                var pid = "p" + root._placeholderCounter
-                                var list = root.pendingAttachments
-                                list.push({ path: tempPath, filename: "paste.png", placeholderId: pid })
-                                root.pendingAttachments = list
-                                descriptionField.insert(descriptionField.cursorPosition, "![paste.png](pending:" + pid + ")")
-                                root.fieldChanged("description", descriptionField.text)
+                                root._openEmbedDialog(tempPath, "paste.png")
                                 event.accepted = true
                             }
                         }

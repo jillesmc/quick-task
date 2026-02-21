@@ -50,6 +50,52 @@ Item {
     property real topSectionHeight: 300
     property real epicSectionHeight: 250
     property bool _descriptionEditMode: true
+    property bool _pendingAttachOnly: false
+    property int _pendingEmbedDisplayWidth: 760
+    property string _pendingEmbedPosition: "end"
+
+    function _openEmbedDialogForDescription(filePath, filename) {
+        if (!filePath || !pane.jiraService || !pane.selectedIssueKey) return
+        var comp = Qt.createComponent("../dialogs/AttachmentEmbedPreviewDialog.qml")
+        var win = pane.applicationWindow || pane.parent || pane
+        if (comp.status !== Component.Ready) {
+            if (comp.status === Component.Error) {
+                console.error("MyIssuesDetailPane: AttachmentEmbedPreviewDialog error:", comp.errorString())
+            }
+            comp.statusChanged.connect(function () {
+                if (comp.status === Component.Ready) {
+                    _createAndOpenEmbedDialog(comp, win, filePath, filename)
+                }
+            })
+            return
+        }
+        _createAndOpenEmbedDialog(comp, win, filePath, filename)
+    }
+
+    function _createAndOpenEmbedDialog(comp, parent, filePath, filename) {
+        var dlg = comp.createObject(parent)
+        if (!dlg) return
+        dlg.filePath = filePath
+        dlg.showPositionOptions = true
+        dlg.defaultDisplayWidth = (pane.jiraService && typeof pane.jiraService.getEmbedMaxDisplayWidth === "function")
+            ? pane.jiraService.getEmbedMaxDisplayWidth() : 760
+        dlg.applicationWindow = pane.applicationWindow
+        dlg.clipboardHelper = pane.clipboardHelper
+        dlg.embedTarget = "description"
+        dlg.acceptedEmbed.connect(function (layout, position, displayWidth) {
+            pane._pendingAttachOnly = false
+            pane._pendingEmbedDisplayWidth = displayWidth > 0 ? displayWidth : 760
+            pane._pendingEmbedPosition = (position === "start" || position === "end") ? position : "end"
+            pane.jiraService.uploadAttachment(pane.selectedIssueKey, filePath, "description")
+        })
+        dlg.acceptedAttachOnly.connect(function () {
+            pane._pendingAttachOnly = true
+            pane.jiraService.uploadAttachment(pane.selectedIssueKey, filePath, "description")
+        })
+        dlg.rejected.connect(function () {})
+        dlg.closed.connect(function () { dlg.destroy() })
+        dlg.open()
+    }
 
     /** Dados de development (branches/PRs) para o painel; preenchido em setDetails. null quando feature desativada. */
     property var developmentData: null
@@ -312,10 +358,11 @@ Item {
                                             var path = urlStr.replace(/^file:\/\//, "")
                                             var filename = path.split("/").pop() || path.split("\\").pop() || "file"
                                             var ext = filename.indexOf(".") >= 0 ? filename.split(".").pop().toLowerCase() : ""
+                                            if (extList.indexOf(ext) < 0) continue
                                             var pathToUse = (pane.clipboardHelper && typeof pane.clipboardHelper.copyFileToTemp === "function")
                                                 ? pane.clipboardHelper.copyFileToTemp(path) : path
                                             if (!pathToUse) pathToUse = path
-                                            pane.jiraService.uploadAttachment(pane.selectedIssueKey, pathToUse)
+                                            pane._openEmbedDialogForDescription(pathToUse, filename)
                                         }
                                     }
 
@@ -342,7 +389,7 @@ Item {
                                                     if (pane.clipboardHelper.hasClipboardImage()) {
                                                         var tempPath = pane.clipboardHelper.getClipboardImageAsTempFile()
                                                         if (tempPath) {
-                                                            pane.jiraService.uploadAttachment(pane.selectedIssueKey, tempPath)
+                                                            pane._openEmbedDialogForDescription(tempPath, "paste.png")
                                                             event.accepted = true
                                                         }
                                                     }
@@ -389,21 +436,10 @@ Item {
                                         clip: true
                                         contentWidth: availableWidth
 
-                                        Text {
-                                            width: descriptionPreviewScrollTab2.availableWidth - Kirigami.Units.largeSpacing * 2
-                                            x: Kirigami.Units.largeSpacing
-                                            topPadding: Kirigami.Units.smallSpacing
-                                            bottomPadding: Kirigami.Units.smallSpacing
-                                            textFormat: Text.RichText
-                                            color: "#ffffff"
-                                            // qmllint disable unqualified
-                                            text: (typeof markdownPreviewRenderer !== "undefined" && markdownPreviewRenderer)
-                                                ? markdownPreviewRenderer.render(pane.issueModel ? pane.issueModel.description : "")
-                                                : (pane.issueModel ? pane.issueModel.description : "")
-                                            wrapMode: Text.Wrap
-                                            onLinkActivated: function(link) {
-                                                Qt.openUrlExternally(link)
-                                            }
+                                        RichTextWithJiraImages {
+                                            width: descriptionPreviewScrollTab2.availableWidth
+                                            sourceText: pane.issueModel ? pane.issueModel.description : ""
+                                            jiraService: pane.jiraService
                                         }
                                     }
                                 }
@@ -413,12 +449,26 @@ Item {
 
                     Connections {
                         target: pane.jiraService || null
-                        function onAttachmentUploaded(uploadedIssueKey, contentUrl, filename) {
-                            if (uploadedIssueKey === pane.selectedIssueKey && contentUrl && filename && descriptionFieldTab2) {
-                                var markdown = "![" + filename + "](" + contentUrl + ")"
-                                descriptionFieldTab2.insert(descriptionFieldTab2.cursorPosition, markdown)
-                                if (pane.issueModel) pane.issueModel.description = descriptionFieldTab2.text
+                        function onAttachmentUploaded(uploadedIssueKey, contentUrl, filename, embedTarget) {
+                            if (uploadedIssueKey !== pane.selectedIssueKey || !contentUrl || !filename || !descriptionFieldTab2) return
+                            if (embedTarget !== "description") return
+                            if (pane._pendingAttachOnly) {
+                                pane._pendingAttachOnly = false
+                                return
                             }
+                            var w = pane._pendingEmbedDisplayWidth > 0 ? pane._pendingEmbedDisplayWidth : 760
+                            var markdown = "![" + filename + "](" + contentUrl + "){: width=\"" + w + "\" }"
+                            var txt = descriptionFieldTab2.text
+                            var insertPos, toInsert
+                            if (pane._pendingEmbedPosition === "start") {
+                                insertPos = 0
+                                toInsert = markdown + (txt.length > 0 ? "\n\n" : "")
+                            } else {
+                                insertPos = txt.length
+                                toInsert = (txt.length > 0 ? "\n\n" : "") + markdown
+                            }
+                            descriptionFieldTab2.insert(insertPos, toInsert)
+                            if (pane.issueModel) pane.issueModel.description = descriptionFieldTab2.text
                         }
                     }
 

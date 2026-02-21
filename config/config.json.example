@@ -76,7 +76,17 @@
   "attachments": {
     "max_file_size_mb": 10,
     "allowed_image_extensions": ["png", "jpg", "jpeg", "gif", "webp"],
-    "allowed_document_extensions": ["pdf", "txt", "md", "json", "yaml", "xml", "log"]
+    "allowed_document_extensions": ["pdf", "txt", "md", "json", "yaml", "xml", "log"],
+    "embed": {
+      "enabled": true,
+      "images": {
+        "embed_as_media": true,
+        "default_layout": "center",
+        "max_display_width": 760
+      },
+      "videos": { "embed_as_media": true },
+      "other_files": { "embed_as_link": true }
+    }
   },
   "github": {
     "token": "",

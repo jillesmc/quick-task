@@ -4,6 +4,7 @@
  * Edit/Preview mode container for markdown content. Header with label + EditPreviewToggle,
  * body with TextArea (edit) or rendered Text (preview). Supports drop/paste for images
  * when acceptDrops, jiraService, issueKey and clipboardHelper are provided.
+ * Opens AttachmentEmbedPreviewDialog before upload (edit flow) or emits signals (create flow).
  */
 import QtQuick
 import QtQuick.Layouts
@@ -22,8 +23,11 @@ ColumnLayout {
     property bool acceptDrops: false
     property var jiraService: null
     property string issueKey: ""
+    property var applicationWindow: null
     property var clipboardHelper: null
     property bool isEditMode: true
+    /** "description" | "comment" — target do embed; usado para filtrar attachmentUploaded e passar ao uploadAttachment */
+    property string embedTarget: "comment"
 
     /** Emitido quando em modo create (sem issueKey) e usuário faz drop de arquivo. Parent cria placeholder e chama insertPlaceholderAtCursor. */
     signal fileDroppedForPlaceholder(string path, string filename)
@@ -37,6 +41,50 @@ ColumnLayout {
     }
 
     property real _savedScrollPosition: 0
+    property bool _pendingAttachOnly: false
+    property int _pendingEmbedDisplayWidth: 760
+
+    function _openEmbedDialogEditFlow(filePath, filename) {
+        if (!filePath || !container.jiraService || !container.issueKey) return
+        var comp = Qt.createComponent("../dialogs/AttachmentEmbedPreviewDialog.qml")
+        var win = container.applicationWindow || (container.parent && container.parent.parent ? container.parent.parent : container)
+        if (comp.status !== Component.Ready) {
+            if (comp.status === Component.Error) {
+                console.error("EditPreviewContainer: AttachmentEmbedPreviewDialog error:", comp.errorString())
+            }
+            comp.statusChanged.connect(function () {
+                if (comp.status === Component.Ready) {
+                    _createAndOpenEmbedDialog(comp, win, filePath, filename)
+                }
+            })
+            return
+        }
+        _createAndOpenEmbedDialog(comp, win, filePath, filename)
+    }
+
+    function _createAndOpenEmbedDialog(comp, parent, filePath, filename) {
+        var dlg = comp.createObject(parent)
+        if (!dlg) return
+        dlg.filePath = filePath
+        dlg.showPositionOptions = false
+        dlg.defaultDisplayWidth = (container.jiraService && typeof container.jiraService.getEmbedMaxDisplayWidth === "function")
+            ? container.jiraService.getEmbedMaxDisplayWidth() : 760
+        dlg.applicationWindow = container.applicationWindow
+        dlg.clipboardHelper = container.clipboardHelper
+        dlg.embedTarget = container.embedTarget
+        dlg.acceptedEmbed.connect(function (layout, position, displayWidth) {
+            container._pendingAttachOnly = false
+            container._pendingEmbedDisplayWidth = displayWidth > 0 ? displayWidth : 760
+            container.jiraService.uploadAttachment(container.issueKey, filePath, container.embedTarget)
+        })
+        dlg.acceptedAttachOnly.connect(function () {
+            container._pendingAttachOnly = true
+            container.jiraService.uploadAttachment(container.issueKey, filePath, container.embedTarget)
+        })
+        dlg.rejected.connect(function () {})
+        dlg.closed.connect(function () { dlg.destroy() })
+        dlg.open()
+    }
 
     spacing: Kirigami.Units.smallSpacing
 
@@ -124,7 +172,7 @@ ColumnLayout {
                                         var pathToUse = (container.clipboardHelper && typeof container.clipboardHelper.copyFileToTemp === "function")
                                             ? container.clipboardHelper.copyFileToTemp(path) : path
                                         if (!pathToUse) pathToUse = path
-                                        container.jiraService.uploadAttachment(container.issueKey, pathToUse)
+                                        container._openEmbedDialogEditFlow(pathToUse, filename)
                                     } else {
                                         container.fileDroppedForPlaceholder(path, filename)
                                     }
@@ -148,7 +196,7 @@ ColumnLayout {
                                         if (container.issueKey && container.jiraService && container.clipboardHelper.hasClipboardImage()) {
                                             var tempPath = container.clipboardHelper.getClipboardImageAsTempFile()
                                             if (tempPath) {
-                                                container.jiraService.uploadAttachment(container.issueKey, tempPath)
+                                                container._openEmbedDialogEditFlow(tempPath, "paste.png")
                                                 event.accepted = true
                                             }
                                         } else if (!container.issueKey && container.clipboardHelper.hasClipboardImage()) {
@@ -247,12 +295,17 @@ ColumnLayout {
 
     Connections {
         target: container.jiraService || null
-        function onAttachmentUploaded(uploadedIssueKey, contentUrl, filename) {
-            if (uploadedIssueKey === container.issueKey && contentUrl && filename && editTextArea) {
-                var markdown = "![" + filename + "](" + contentUrl + ")"
-                editTextArea.insert(editTextArea.cursorPosition, markdown)
-                container.contentEdited(editTextArea.text)
+        function onAttachmentUploaded(uploadedIssueKey, contentUrl, filename, embedTarget) {
+            if (uploadedIssueKey !== container.issueKey || !contentUrl || !filename || !editTextArea) return
+            if (embedTarget !== container.embedTarget) return
+            if (container._pendingAttachOnly) {
+                container._pendingAttachOnly = false
+                return
             }
+            var w = container._pendingEmbedDisplayWidth > 0 ? container._pendingEmbedDisplayWidth : 760
+            var markdown = "![" + filename + "](" + contentUrl + "){: width=\"" + w + "\" }"
+            editTextArea.insert(editTextArea.cursorPosition, markdown)
+            container.contentEdited(editTextArea.text)
         }
     }
 

@@ -100,6 +100,54 @@ Kirigami.Page {
         }
     }
 
+    function _openEmbedDialogCreateFlow(filePath, filename) {
+        if (!filePath || !page.issueModel) return
+        var comp = Qt.createComponent("../components/dialogs/AttachmentEmbedPreviewDialog.qml")
+        var win = page.applicationWindow || page.parent || page
+        if (comp.status !== Component.Ready) {
+            if (comp.status === Component.Error) {
+                console.error("IssueFormPage: AttachmentEmbedPreviewDialog error:", comp.errorString())
+            }
+            comp.statusChanged.connect(function () {
+                if (comp.status === Component.Ready) {
+                    _createAndOpenEmbedDialog(comp, win, filePath, filename)
+                }
+            })
+            return
+        }
+        _createAndOpenEmbedDialog(comp, win, filePath, filename)
+    }
+
+    function _createAndOpenEmbedDialog(comp, parent, filePath, filename) {
+        var dlg = comp.createObject(parent)
+        if (!dlg) return
+        dlg.filePath = filePath
+        dlg.showPositionOptions = true
+        dlg.defaultDisplayWidth = (page.jiraService && typeof page.jiraService.getEmbedMaxDisplayWidth === "function")
+            ? page.jiraService.getEmbedMaxDisplayWidth() : 760
+        dlg.applicationWindow = page.applicationWindow
+        dlg.clipboardHelper = page.clipboardHelper
+        dlg.acceptedEmbed.connect(function (layout, position, displayWidth) {
+            page._descriptionPlaceholderCounter += 1
+            var placeholderId = "p" + page._descriptionPlaceholderCounter
+            var list = page.issueModel.pendingAttachments || []
+            list.push({ path: filePath, filename: filename, placeholderId: placeholderId, layout: layout, position: position, displayWidth: displayWidth })
+            page.issueModel.pendingAttachments = list
+            var markdown = "![" + filename + "](pending:" + placeholderId + ")"
+            var insertPos = (position === "start") ? 0 : descriptionField.text.length
+            descriptionField.insert(insertPos, markdown)
+            if (page.issueModel) page.issueModel.description = descriptionField.text
+        })
+        dlg.acceptedAttachOnly.connect(function () {
+            var list = page.issueModel.pendingAttachments || []
+            list.push({ path: filePath, filename: filename })
+            page.issueModel.pendingAttachments = list
+        })
+        dlg.rejected.connect(function () {})
+        dlg.closed.connect(function () { dlg.destroy() })
+        dlg.open()
+    }
+
     // Definir foco inicial no campo Summary quando a página for carregada
     Component.onCompleted: {
         summaryField.forceActiveFocus();
@@ -325,14 +373,7 @@ Kirigami.Page {
                                                 var pathToUse = (page.clipboardHelper && typeof page.clipboardHelper.copyFileToTemp === "function")
                                                     ? page.clipboardHelper.copyFileToTemp(path) : path
                                                 if (!pathToUse) continue
-                                                page._descriptionPlaceholderCounter += 1
-                                                var placeholderId = "p" + page._descriptionPlaceholderCounter
-                                                var list = page.issueModel.pendingAttachments || []
-                                                list.push({ path: pathToUse, filename: filename, placeholderId: placeholderId })
-                                                page.issueModel.pendingAttachments = list
-                                                var markdown = "![" + filename + "](pending:" + placeholderId + ")"
-                                                descriptionField.insert(descriptionField.cursorPosition, markdown)
-                                                if (page.issueModel) page.issueModel.description = descriptionField.text
+                                                page._openEmbedDialogCreateFlow(pathToUse, filename)
                                             }
                                         }
 
@@ -359,13 +400,7 @@ Kirigami.Page {
                                                         if (page.clipboardHelper.hasClipboardImage()) {
                                                             var tempPath = page.clipboardHelper.getClipboardImageAsTempFile()
                                                             if (tempPath) {
-                                                                page._descriptionPlaceholderCounter += 1
-                                                                var pid = "p" + page._descriptionPlaceholderCounter
-                                                                var list = page.issueModel.pendingAttachments || []
-                                                                list.push({ path: tempPath, filename: "paste.png", placeholderId: pid })
-                                                                page.issueModel.pendingAttachments = list
-                                                                descriptionField.insert(descriptionField.cursorPosition, "![paste.png](pending:" + pid + ")")
-                                                                if (page.issueModel) page.issueModel.description = descriptionField.text
+                                                                page._openEmbedDialogCreateFlow(tempPath, "paste.png")
                                                                 event.accepted = true
                                                             }
                                                         }

@@ -768,6 +768,59 @@ def test_adf_to_markdown_doc_empty_content():
     assert result.strip() == ""
 
 
+def test_adf_to_markdown_media_single():
+    """mediaSingle com media node → ![alt](/rest/api/3/attachment/content/{id})."""
+    adf = {
+        "type": "mediaSingle",
+        "attrs": {"layout": "center"},
+        "content": [
+            {
+                "type": "media",
+                "attrs": {
+                    "id": "12345",
+                    "type": "file",
+                    "collection": "contentId-1",
+                    "alt": "screenshot.png",
+                    "width": 400,
+                    "height": 300,
+                },
+            }
+        ],
+    }
+    result = JiraClient._adf_to_markdown(adf)
+    assert "![screenshot.png](/rest/api/3/attachment/content/12345)" in result
+
+
+def test_adf_to_markdown_media_single_with_width():
+    """mediaSingle com attrs.width → ![alt](url){: width=\"250\" }."""
+    adf = {
+        "type": "mediaSingle",
+        "attrs": {"layout": "center", "width": 250, "widthType": "pixel"},
+        "content": [
+            {
+                "type": "media",
+                "attrs": {
+                    "id": "12345",
+                    "alt": "screenshot.png",
+                },
+            }
+        ],
+    }
+    result = JiraClient._adf_to_markdown(adf)
+    assert "![screenshot.png](/rest/api/3/attachment/content/12345)" in result
+    assert '{: width="250" }' in result
+
+
+def test_adf_to_markdown_media_node():
+    """media node direto → ![alt](/rest/api/3/attachment/content/{id})."""
+    adf = {
+        "type": "media",
+        "attrs": {"id": "999", "alt": "image", "width": 100, "height": 100},
+    }
+    result = JiraClient._adf_to_markdown(adf)
+    assert "![image](/rest/api/3/attachment/content/999)" in result
+
+
 # --- get_issue_comments, add_comment, update_comment, delete_comment ---
 
 

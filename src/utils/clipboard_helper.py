@@ -3,6 +3,7 @@ ClipboardHelper - Expõe área de transferência (imagem) para QML.
 Usado para colar imagens (Ctrl+V) em descrição e comentários.
 """
 
+import mimetypes
 import tempfile
 from pathlib import Path
 
@@ -127,3 +128,67 @@ class ClipboardHelper(QObject):
         except OSError as e:
             debug_log("ClipboardHelper", "copyFileToTemp", "OSError: %s", e)
             return ""
+
+    @Slot(str, result="QVariantMap")
+    def getFileInfo(self, file_path: str) -> dict:
+        """
+        Returns file metadata for the AttachmentEmbedPreviewDialog.
+        Keys: filename, fileType (e.g. "Imagem PNG"), size (bytes), width, height.
+        width/height are None if not an image or dimensions unavailable.
+        """
+        if not file_path or not file_path.strip():
+            return {}
+        path = Path(file_path.strip())
+        if not path.exists() or not path.is_file():
+            return {}
+        try:
+            filename = path.name
+            size = path.stat().st_size
+            guessed, _ = mimetypes.guess_type(filename)
+            file_type = self._mime_to_display_type(guessed or "", filename)
+            width, height = None, None
+            try:
+                from core.adf_media import get_dimensions
+
+                dims = get_dimensions(str(path))
+                if dims:
+                    width, height = dims
+            except Exception:
+                pass
+            return {
+                "filename": filename,
+                "fileType": file_type,
+                "size": size,
+                "width": width,
+                "height": height,
+            }
+        except OSError:
+            return {}
+
+    def _mime_to_display_type(self, mime: str, filename: str) -> str:
+        """Map MIME/extension to display string like 'Imagem PNG'."""
+        mime_lower = (mime or "").strip().lower()
+        ext_map = {
+            "png": "Imagem PNG",
+            "jpg": "Imagem JPEG",
+            "jpeg": "Imagem JPEG",
+            "gif": "Imagem GIF",
+            "webp": "Imagem WebP",
+            "bmp": "Imagem BMP",
+            "svg": "Imagem SVG",
+        }
+        if mime_lower:
+            if "png" in mime_lower:
+                return "Imagem PNG"
+            if "jpeg" in mime_lower or "jpg" in mime_lower:
+                return "Imagem JPEG"
+            if "gif" in mime_lower:
+                return "Imagem GIF"
+            if "webp" in mime_lower:
+                return "Imagem WebP"
+            if "bmp" in mime_lower:
+                return "Imagem BMP"
+            if "svg" in mime_lower:
+                return "Imagem SVG"
+        ext = (filename or "").split(".")[-1].lower() if "." in filename else ""
+        return ext_map.get(ext, "Arquivo")

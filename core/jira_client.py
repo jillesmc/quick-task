@@ -10,12 +10,25 @@ import sys
 import time
 from datetime import date
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
 import requests
 from requests.auth import HTTPBasicAuth
 
+if TYPE_CHECKING:
+    from config.config_manager import ConfigManager
+
 # Constante para mensagem de erro padrão
 _UNKNOWN_ERROR_MSG = "Erro desconhecido"
+
+# Regex para detectar imagens/links com URL de attachment Jira (! ou [ sem !)
+_RE_ATTACHMENT_URL_DETECT = re.compile(
+    r"[!\[][^\]]*\]\([^)]*?/attachment/content/\d+[^)]*\)"
+)
+_RE_ATTACHMENT_URL_EXTRACT = re.compile(
+    r"!\[[^\]]*\]\([^)]*?/attachment/content/(\d+)[^)]*\)"
+)
+# Regex para attr_list {: width="N" } após imagem
+_RE_ATTR_WIDTH = re.compile(r"\s*\{:\s*width=[\"']?(\d+)[\"']?\s*\}")
 
 
 class JiraClient:
@@ -25,6 +38,7 @@ class JiraClient:
         self,
         jira_cli_config_path: Optional[Path] = None,
         account_id: Optional[str] = None,
+        config_manager: Optional["ConfigManager"] = None,
     ):
         """
         Inicializa o cliente Jira
@@ -34,6 +48,8 @@ class JiraClient:
                                  Usado para obter server URL e email para autenticação REST API.
             account_id: accountId do usuário atual (opcional, obtido do config.json).
                        Se fornecido, será usado quando o assignee for o usuário atual.
+            config_manager: ConfigManager para verificar attachments.embed.enabled.
+                           Se None, embed de mídia na descrição fica desabilitado.
         """
         self._jira_cli_config_path = jira_cli_config_path
         self._server_url = None
@@ -42,6 +58,7 @@ class JiraClient:
             None  # Token do .jira-config.yml (não mais de variável de ambiente)
         )
         self._account_id = account_id  # accountId do usuário atual (do config.json)
+        self._config_manager = config_manager
         self._load_config_for_rest_api()
 
         # Validar que temos o necessário para REST API
@@ -274,6 +291,48 @@ class JiraClient:
                 f"Erro na requisição {method} {url} (HTTP {response.status_code}): {error_msg}"
             )
         return response
+
+    def fetch_attachment_as_bytes(self, url: str) -> Optional[bytes]:
+        """
+        Faz GET autenticado na URL de attachment Jira e retorna os bytes.
+
+        URLs de attachment Jira (ex: .../rest/api/3/attachment/content/12345)
+        exigem autenticação. Usado para converter em data URL e exibir no preview.
+
+        Args:
+            url: URL completa ou relativa (ex: /rest/api/3/attachment/content/12345).
+
+        Returns:
+            Bytes do arquivo ou None em caso de erro.
+        """
+        if not url or not isinstance(url, str) or "/attachment/content/" not in url:
+            return None
+        from core.adf_media import parse_attachment_content_url
+
+        att_id = parse_attachment_content_url(url)
+        if not att_id:
+            return None
+        if not self._server_url:
+            return None
+        # Construir URL absoluta
+        base = self._server_url.rstrip("/")
+        if url.startswith("http"):
+            fetch_url = url
+        else:
+            fetch_url = f"{base}{url}" if url.startswith("/") else f"{base}/rest/api/3/attachment/content/{att_id}"
+        try:
+            auth = self._get_auth()
+            response = requests.get(
+                fetch_url,
+                auth=auth,
+                timeout=30,
+                allow_redirects=True,
+            )
+            if response.status_code >= 400:
+                return None
+            return response.content
+        except Exception:
+            return None
 
     def get_attachment_settings(self) -> Dict[str, Any]:
         """
@@ -1026,6 +1085,37 @@ class JiraClient:
         if node_type == "hardBreak":
             return "\n"
 
+        if node_type == "mediaSingle":
+            single_attrs = adf_node.get("attrs") or {}
+            width = single_attrs.get("width")
+            width_suffix = f'{{: width="{width}" }}' if width is not None else ""
+            for c in content:
+                if isinstance(c, dict) and c.get("type") == "media":
+                    attrs = c.get("attrs") or {}
+                    alt = attrs.get("alt", "") or "attachment"
+                    url = attrs.get("url", "")
+                    if url:
+                        return f"![{alt}]({url}){width_suffix}\n"
+                    mid = attrs.get("id", "")
+                    if mid:
+                        url = f"/rest/api/3/attachment/content/{mid}"
+                        return f"![{alt}]({url}){width_suffix}\n"
+            return ""
+
+        if node_type == "media":
+            attrs = adf_node.get("attrs") or {}
+            alt = attrs.get("alt", "") or "attachment"
+            url = attrs.get("url", "")
+            width = attrs.get("width")
+            width_suffix = f'{{: width="{width}" }}' if width is not None else ""
+            if url:
+                return f"![{alt}]({url}){width_suffix}\n"
+            mid = attrs.get("id", "")
+            if mid:
+                url = f"/rest/api/3/attachment/content/{mid}"
+                return f"![{alt}]({url}){width_suffix}\n"
+            return ""
+
         # Fallback: outros blocos (panel, table, etc.)
         if content:
             return (
@@ -1065,6 +1155,9 @@ class JiraClient:
                 return "`" + text + "`"
             if mark_type == "link":
                 href = (m.get("attrs") or {}).get("href", "")
+                # Links to Jira attachments must use ![alt](url) for images; [text](url) renders as link
+                if "/attachment/content/" in (href or ""):
+                    return "![" + text + "](" + href + ")"
                 return "[" + text + "](" + href + ")"
         return text
 
@@ -1461,9 +1554,81 @@ class JiraClient:
             fields["summary"] = summary.strip()
 
         if description is not None:
+            # Se description for dict (ADF), usar diretamente
+            if isinstance(description, dict):
+                fields["description"] = description
             # Se description for string vazia, usar ADF vazio
-            if description.strip():
-                fields["description"] = self._text_to_adf(description)
+            elif description.strip():
+                embed_enabled = (
+                    self._config_manager is not None
+                    and self._config_manager.get_attachment_embed_enabled()
+                )
+                has_attachment_urls = bool(
+                    _RE_ATTACHMENT_URL_DETECT.search(description)
+                )
+                if embed_enabled and has_attachment_urls:
+                    details = self.get_issue_details(issue_key)
+                    issue_id = str(details.get("id", "")) if details else ""
+                    if issue_id:
+                        from core.adf_media import (
+                            AttachmentInfo,
+                            build_description_adf_with_media,
+                            _MD_IMAGE_ATTACHMENT,
+                            _MD_LINK_ATTACHMENT,
+                        )
+
+                        attachments_map: Dict[str, AttachmentInfo] = {}
+                        default_width = None
+                        if self._config_manager is not None:
+                            default_width = (
+                                self._config_manager.get_embed_max_display_width()
+                            )
+                        for m in _MD_IMAGE_ATTACHMENT.finditer(description):
+                            alt = m.group(1) or ""
+                            att_id = m.group(3)
+                            width_override = default_width
+                            rest = description[m.end() : m.end() + 80]
+                            w_match = _RE_ATTR_WIDTH.match(rest)
+                            if w_match:
+                                width_override = int(w_match.group(1))
+                            if att_id not in attachments_map:
+                                attachments_map[att_id] = AttachmentInfo(
+                                    id=att_id,
+                                    filename=alt,
+                                    mime_type="",
+                                    size=0,
+                                    collection_id=issue_id,
+                                    display_width=width_override,
+                                )
+                        for m in _MD_LINK_ATTACHMENT.finditer(description):
+                            alt = m.group(1) or ""
+                            att_id = m.group(3)
+                            width_override = default_width
+                            rest = description[m.end() : m.end() + 80]
+                            w_match = _RE_ATTR_WIDTH.match(rest)
+                            if w_match:
+                                width_override = int(w_match.group(1))
+                            if att_id not in attachments_map:
+                                attachments_map[att_id] = AttachmentInfo(
+                                    id=att_id,
+                                    filename=alt,
+                                    mime_type="",
+                                    size=0,
+                                    collection_id=issue_id,
+                                    display_width=width_override,
+                                )
+                        base_url = self._server_url or ""
+                        fields["description"] = build_description_adf_with_media(
+                            description,
+                            attachments_map,
+                            issue_id,
+                            base_url,
+                            self._text_to_adf,
+                        )
+                    else:
+                        fields["description"] = self._text_to_adf(description)
+                else:
+                    fields["description"] = self._text_to_adf(description)
             else:
                 # Description vazia - usar ADF mínimo válido
                 fields["description"] = {
@@ -2469,10 +2634,53 @@ class JiraClient:
                 )
             if start + len(comments) >= total:
                 break
+            if len(all_comments) >= max_results:
+                break
             start += len(comments)
             if not comments:
                 break
         return all_comments
+
+    def _build_body_adf_with_media(
+        self, body: str, issue_key: str
+    ) -> Dict[str, Any]:
+        """Build ADF for body/comment with attachment URLs embedded as media."""
+        from core.adf_media import (
+            AttachmentInfo,
+            build_description_adf_with_media,
+        )
+
+        details = self.get_issue_details(issue_key)
+        issue_id = str(details.get("id", "")) if details else ""
+        if not issue_id:
+            return self._text_to_adf(body)
+        default_width = None
+        if self._config_manager is not None:
+            default_width = self._config_manager.get_embed_max_display_width()
+        attachments_map: Dict[str, AttachmentInfo] = {}
+        for m in _RE_ATTACHMENT_URL_EXTRACT.finditer(body):
+            att_id = m.group(1)
+            width_override = default_width
+            rest = body[m.end() : m.end() + 80]
+            w_match = _RE_ATTR_WIDTH.match(rest)
+            if w_match:
+                width_override = int(w_match.group(1))
+            if att_id not in attachments_map:
+                attachments_map[att_id] = AttachmentInfo(
+                    id=att_id,
+                    filename="",
+                    mime_type="",
+                    size=0,
+                    collection_id=issue_id,
+                    display_width=width_override,
+                )
+        return build_description_adf_with_media(
+            body,
+            attachments_map,
+            issue_id,
+            self._server_url or "",
+            self._text_to_adf,
+        )
 
     def add_comment(
         self, issue_key: str, body_markdown: str
@@ -2490,7 +2698,15 @@ class JiraClient:
         """
         if not issue_key:
             return None
-        adf = self._text_to_adf(body_markdown.strip() if body_markdown else "")
+        body = body_markdown.strip() if body_markdown else ""
+        adf = self._text_to_adf(body)
+        embed_enabled = (
+            self._config_manager is not None
+            and self._config_manager.get_attachment_embed_enabled()
+        )
+        has_attachment_urls = bool(_RE_ATTACHMENT_URL_DETECT.search(body))
+        if embed_enabled and has_attachment_urls and body:
+            adf = self._build_body_adf_with_media(body, issue_key)
         payload = {"body": adf}
         try:
             response = self._make_request(
@@ -2534,7 +2750,15 @@ class JiraClient:
         """
         if not issue_key or not comment_id:
             return None
-        adf = self._text_to_adf(body_markdown.strip() if body_markdown else "")
+        body = body_markdown.strip() if body_markdown else ""
+        adf = self._text_to_adf(body)
+        embed_enabled = (
+            self._config_manager is not None
+            and self._config_manager.get_attachment_embed_enabled()
+        )
+        has_attachment_urls = bool(_RE_ATTACHMENT_URL_DETECT.search(body))
+        if embed_enabled and has_attachment_urls and body:
+            adf = self._build_body_adf_with_media(body, issue_key)
         payload = {"body": adf}
         try:
             response = self._make_request(

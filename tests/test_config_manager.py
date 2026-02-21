@@ -330,6 +330,61 @@ def test_save_github_config():
             temp_path.unlink()
 
 
+def test_get_attachments_embed_enabled_default():
+    """Sem attachments.embed no config, retorna False."""
+    config_no_embed = {
+        "project": "TEST",
+        "issue_type": "Task",
+        "assignee": "test@example.com",
+        "custom_fields": {
+            "tipo_atividade": "t",
+            "documentacao_anexa": "d",
+            "utilizacao_ia": "u",
+        },
+        "tipo_atividade_values": [],
+        "status_sequence": [],
+        "attachments": {"max_file_size_mb": 10},
+    }
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+        json.dump(config_no_embed, f)
+        temp_path = Path(f.name)
+    try:
+        manager = ConfigManager(config_path=temp_path)
+        assert manager.get_attachments_embed_enabled() is False
+    finally:
+        if temp_path.exists():
+            temp_path.unlink()
+
+
+def test_get_attachments_embed_enabled_true():
+    """Com attachments.embed.enabled=true, retorna True."""
+    config_with_embed = {
+        "project": "TEST",
+        "issue_type": "Task",
+        "assignee": "test@example.com",
+        "custom_fields": {
+            "tipo_atividade": "t",
+            "documentacao_anexa": "d",
+            "utilizacao_ia": "u",
+        },
+        "tipo_atividade_values": [],
+        "status_sequence": [],
+        "attachments": {
+            "max_file_size_mb": 10,
+            "embed": {"enabled": True},
+        },
+    }
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+        json.dump(config_with_embed, f)
+        temp_path = Path(f.name)
+    try:
+        manager = ConfigManager(config_path=temp_path)
+        assert manager.get_attachments_embed_enabled() is True
+    finally:
+        if temp_path.exists():
+            temp_path.unlink()
+
+
 def test_get_development_panel_config_defaults(config_manager: ConfigManager):
     """Sem development_panel no config, retorna defaults."""
     cfg = config_manager.get_development_panel_config()

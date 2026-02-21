@@ -154,7 +154,9 @@ class WorklogSyncService(QObject):
                 jira_config_path = self._config_manager.get_jira_cli_config_path()
                 account_id = self._config_manager.get_account_id()
                 self._jira_client = JiraClient(
-                    jira_cli_config_path=jira_config_path, account_id=account_id
+                    jira_cli_config_path=jira_config_path,
+                    account_id=account_id,
+                    config_manager=self._config_manager,
                 )
             except Exception as e:
                 debug_log(

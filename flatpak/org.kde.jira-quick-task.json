@@ -38,6 +38,7 @@
     "python3-requests.json",
     "python3-pytz.json",
     "python3-pyyaml.json",
+    "python3-pillow.json",
     "python3-xlib.json",
     "python3-google.json",
     {

@@ -442,6 +442,16 @@ class ConfigManager:
         attachments = self._config.get("attachments", {})
         return attachments.get("max_file_size_mb", 10)
 
+    def get_attachments_embed_enabled(self) -> bool:
+        """Retorna se o embed de imagens/vídeos na descrição está habilitado."""
+        attachments = self._config.get("attachments", {})
+        embed = (
+            attachments.get("embed")
+            if isinstance(attachments.get("embed"), dict)
+            else {}
+        )
+        return bool(embed.get("enabled", False))
+
     def get_allowed_attachment_extensions(self) -> List[str]:
         """
         Retorna lista de extensões permitidas para anexos (imagens + documentos).
@@ -464,6 +474,56 @@ class ConfigManager:
                 seen.add(e)
                 result.append(e)
         return result if result else ["png", "jpg", "jpeg", "gif", "webp"]
+
+    def get_embed_max_display_width(self) -> int:
+        """Retorna largura máxima de exibição para imagens embedadas (default: 760)."""
+        attachments = self._config.get("attachments", {})
+        embed = (
+            attachments.get("embed")
+            if isinstance(attachments.get("embed"), dict)
+            else {}
+        )
+        images = (
+            embed.get("images")
+            if isinstance(embed.get("images"), dict)
+            else {}
+        )
+        val = images.get("max_display_width")
+        if val is None:
+            return 760
+        try:
+            return max(100, min(2000, int(val)))
+        except (TypeError, ValueError):
+            return 760
+
+    def get_attachment_embed_enabled(self) -> bool:
+        """Retorna se o embed de anexos está habilitado (default: True se config presente)."""
+        embed = (self._config.get("attachments") or {}).get("embed")
+        if not isinstance(embed, dict):
+            return True
+        return embed.get("enabled", True)
+
+    def get_embed_default_layout(self) -> str:
+        """Retorna o layout padrão para imagens embed (default: center)."""
+        images = ((self._config.get("attachments") or {}).get("embed") or {}).get(
+            "images"
+        )
+        if not isinstance(images, dict):
+            return "center"
+        return str(images.get("default_layout", "center"))
+
+    def get_embed_max_display_width(self) -> int:
+        """Retorna a largura máxima de exibição para imagens embed (default: 760)."""
+        images = ((self._config.get("attachments") or {}).get("embed") or {}).get(
+            "images"
+        )
+        if not isinstance(images, dict):
+            return 760
+        val = images.get("max_display_width", 760)
+        try:
+            return int(val)
+        except (TypeError, ValueError):
+            return 760
 
     def get_voice_input_config(self) -> Dict[str, Any]:
         """

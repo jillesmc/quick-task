@@ -127,7 +127,9 @@ class MyIssuesModel(QObject):
                 jira_cli_config_path = self._config.get_jira_cli_config_path()
                 account_id = self._config.get_account_id()
             self._jira_client = JiraClient(
-                jira_cli_config_path=jira_cli_config_path, account_id=account_id
+                jira_cli_config_path=jira_cli_config_path,
+                account_id=account_id,
+                config_manager=self._config,
             )
         except RuntimeError as e:  # pragma: no cover - log simples
             # Não é erro crítico - é esperado na primeira inicialização sem config
@@ -171,7 +173,9 @@ class MyIssuesModel(QObject):
 
             try:
                 self._jira_client = JiraClient(
-                    jira_cli_config_path=jira_cli_config_path, account_id=account_id
+                    jira_cli_config_path=jira_cli_config_path,
+                    account_id=account_id,
+                    config_manager=self._config,
                 )
                 debug_log(
                     "MyIssuesModel",

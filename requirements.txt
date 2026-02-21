@@ -13,6 +13,7 @@
 # Não incluímos aqui porque é um pacote do sistema, não um pacote pip
 
 # Dependências para integração com Jira (REST API para worklogs)
+Pillow>=10.0.0
 requests>=2.31.0
 pytz>=2023.3
 pyyaml>=6.0

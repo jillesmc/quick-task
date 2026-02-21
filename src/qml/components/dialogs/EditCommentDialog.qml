@@ -21,6 +21,7 @@ Controls.Dialog {
     property string initialBody: ""
     property string commentText: ""
     property string issueKey: ""
+    property var applicationWindow: null
     property var jiraService: null
     property var clipboardHelper: null
     property var voiceInputService: null
@@ -42,12 +43,14 @@ Controls.Dialog {
     }
 
     function centerDialog() {
-        if (parent && width > 0 && height > 0 && parent.width > 0 && parent.height > 0) {
-            x = Math.max(0, (parent.width - width) / 2)
-            y = Math.max(0, (parent.height - height) / 2)
+        var ref = applicationWindow || parent
+        if (ref && width > 0 && height > 0 && ref.width > 0 && ref.height > 0) {
+            x = Math.max(0, (ref.width - width) / 2)
+            y = Math.max(0, (ref.height - height) / 2)
         }
     }
 
+    onOpened: Qt.callLater(centerDialog)
     Component.onCompleted: Qt.callLater(centerDialog)
     onWidthChanged: Qt.callLater(centerDialog)
     onHeightChanged: Qt.callLater(centerDialog)
@@ -59,6 +62,7 @@ Controls.Dialog {
 
         EditPreviewContainer {
             id: commentEditPreview
+            applicationWindow: dialog.applicationWindow
             content: dialog.commentText
             onContentEdited: function(newContent) {
                 dialog.commentText = newContent

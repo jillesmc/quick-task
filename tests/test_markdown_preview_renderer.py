@@ -47,6 +47,24 @@ def test_render_pending_image_returns_imagem_pendente(renderer):
     assert "pending:" not in result
 
 
+def test_render_jira_attachment_image_returns_placeholder(renderer):
+    """render '![screenshot](.../attachment/content/12345)' retorna placeholder para fetch assíncrono."""
+    md = "![screenshot](https://example.atlassian.net/rest/api/3/attachment/content/12345)"
+    result = renderer.render(md)
+    assert "<img" not in result or "attachment/content" not in result
+    assert "[Imagem:" in result
+    assert "12345" in result
+    assert "data-jira-img=" in result
+
+
+def test_render_jira_attachment_with_width_preserves_data_width(renderer):
+    """render '![alt](url){: width=\"250\" }' retorna placeholder com data-width para displayWidth."""
+    md = "![screenshot](https://example.atlassian.net/rest/api/3/attachment/content/12345){: width=\"250\" }"
+    result = renderer.render(md)
+    assert "data-jira-img=" in result
+    assert "data-width=\"250\"" in result
+
+
 def test_render_valid_markdown_with_code_block(renderer):
     """render markdown válido com code block."""
     md = "```python\nx = 1\n```"

@@ -27,12 +27,32 @@ ColumnLayout {
     property bool voiceInputAvailable: _voiceInputService ? _voiceInputService.isAvailable() : false
     property bool improvingNewComment: false
     property string newCommentText: ""
+    /** Altura preferida do input de comentário (redimensionável via DividerBar) */
+    property real commentInputHeight: 200
 
     signal errorOccurred(string message)
+
+    /** True quando todos os comentários foram carregados (ou não há mais). */
+    property bool _commentsFullyLoaded: false
+    /** Comentários em ordem reversa (mais recente primeiro) para exibição. */
+    property var displayComments: []
+
+    onCommentsChanged: {
+        var c = comments
+        var out = []
+        for (var i = c.length - 1; i >= 0; i--) out.push(c[i])
+        displayComments = out
+    }
 
     onSelectedIssueKeyChanged: {
         comments = []
         commentsRequested = false
+        _commentsFullyLoaded = false
+        if (commentsSectionRoot.selectedIssueKey && commentsSectionRoot.jiraService) {
+            commentsSectionRoot.commentsRequested = true
+            commentsSectionRoot.commentsLoading = true
+            commentsSectionRoot.jiraService.getCommentsAsync(commentsSectionRoot.selectedIssueKey, 0, 50)
+        }
     }
 
     spacing: Kirigami.Units.smallSpacing
@@ -61,12 +81,16 @@ ColumnLayout {
     }
 
     // Estado: carregado — título com contagem, ListView e campo para adicionar (visível após clicar em Carregar)
-    ColumnLayout {
-        id: commentsLoadedColumn
+    Item {
+        id: commentsLoadedWrapper
         Layout.fillWidth: true
         Layout.fillHeight: true
         visible: commentsSectionRoot.commentsRequested
-        spacing: Kirigami.Units.smallSpacing
+
+        ColumnLayout {
+            id: commentsLoadedColumn
+            anchors.fill: parent
+            spacing: Kirigami.Units.smallSpacing
 
         RowLayout {
             Layout.fillWidth: true
@@ -78,7 +102,7 @@ ColumnLayout {
             }
             Item { Layout.fillWidth: true }
             Controls.Button {
-                text: qsTr("Atualizar")
+                text: commentsSectionRoot._commentsFullyLoaded ? qsTr("Atualizar") : qsTr("Carregar comentários")
                 enabled: !commentsSectionRoot.commentsLoading && commentsSectionRoot.jiraService && commentsSectionRoot.selectedIssueKey !== ""
                 onClicked: commentsSectionRoot.loadComments()
             }
@@ -86,14 +110,14 @@ ColumnLayout {
 
         Controls.ScrollView {
             Layout.fillWidth: true
-            Layout.preferredHeight: 220
-            Layout.minimumHeight: 120
+            Layout.fillHeight: true
+            Layout.minimumHeight: 150
             clip: true
             contentWidth: availableWidth
 
             ListView {
                 id: commentsListView
-                model: commentsSectionRoot.comments
+                model: commentsSectionRoot.displayComments
                 spacing: Kirigami.Units.smallSpacing
 
                 delegate: Rectangle {
@@ -156,9 +180,16 @@ ColumnLayout {
             }
         }
 
-        ColumnLayout {
+        DividerBar {
+            id: commentInputDivider
             Layout.fillWidth: true
-            Layout.fillHeight: true
+        }
+
+        ColumnLayout {
+            id: addCommentColumn
+            Layout.fillWidth: true
+            Layout.preferredHeight: commentsSectionRoot.commentInputHeight
+            Layout.minimumHeight: 200
             spacing: Kirigami.Units.smallSpacing
 
             Controls.Label {
@@ -167,6 +198,7 @@ ColumnLayout {
             }
             EditPreviewContainer {
                 id: newCommentEditPreview
+                applicationWindow: commentsSectionRoot.applicationWindow
                 content: commentsSectionRoot.newCommentText
                 onContentEdited: function(newContent) {
                     commentsSectionRoot.newCommentText = newContent
@@ -208,6 +240,47 @@ ColumnLayout {
                 }
             }
         }
+
+        }
+        Item {
+            id: commentResizeOverlay
+            anchors.fill: parent
+            z: 10
+            property int activeDivider: 0
+            property real startGlobalY: 0
+            property real startHeight: 0
+
+            MouseArea {
+                anchors.fill: parent
+                hoverEnabled: false
+                cursorShape: commentResizeOverlay.activeDivider ? Qt.SizeVerCursor : Qt.ArrowCursor
+                onPressed: function (mouse) {
+                    if (!commentsLoadedWrapper.visible) {
+                        mouse.accepted = false
+                        return
+                    }
+                    var margin = 8
+                    var p = commentInputDivider.mapToItem(commentResizeOverlay, 0, 0)
+                    if (mouse.y >= p.y - margin && mouse.y < p.y + commentInputDivider.height + margin) {
+                        commentResizeOverlay.activeDivider = 1
+                        commentResizeOverlay.startGlobalY = commentResizeOverlay.mapToGlobal(mouse.x, mouse.y).y
+                        commentResizeOverlay.startHeight = commentsSectionRoot.commentInputHeight
+                        mouse.accepted = true
+                    } else {
+                        mouse.accepted = false
+                    }
+                }
+                onPositionChanged: function (mouse) {
+                    if (commentResizeOverlay.activeDivider === 0) return
+                    var cur = commentResizeOverlay.mapToGlobal(mouse.x, mouse.y).y
+                    var delta = cur - commentResizeOverlay.startGlobalY
+                    commentsSectionRoot.commentInputHeight = Math.max(200, commentResizeOverlay.startHeight + delta)
+                }
+                onReleased: {
+                    commentResizeOverlay.activeDivider = 0
+                }
+            }
+        }
     }
 
     Connections {
@@ -230,7 +303,13 @@ ColumnLayout {
         }
         commentsSectionRoot.commentsRequested = true
         commentsSectionRoot.commentsLoading = true
-        commentsSectionRoot.jiraService.getCommentsAsync(commentsSectionRoot.selectedIssueKey)
+        var startAt = commentsSectionRoot.comments.length
+        var maxResults = 50
+        commentsSectionRoot.jiraService.getCommentsAsync(
+            commentsSectionRoot.selectedIssueKey,
+            startAt,
+            maxResults
+        )
     }
 
     function openEditDialog(commentId, body) {
@@ -242,6 +321,7 @@ ColumnLayout {
         var dlg = comp.createObject(win)
         if (!dlg) return
         commentsSectionRoot._editCommentDialogOpen = true
+        dlg.applicationWindow = commentsSectionRoot.applicationWindow
         dlg.issueKey = commentsSectionRoot.selectedIssueKey
         dlg.jiraService = commentsSectionRoot.jiraService
         dlg.clipboardHelper = commentsSectionRoot.clipboardHelper
@@ -292,9 +372,15 @@ ColumnLayout {
 
     Connections {
         target: commentsSectionRoot.jiraService || null
-        function onCommentsLoaded(list) {
+        function onCommentsLoaded(list, startAt) {
             commentsSectionRoot.commentsLoading = false
-            commentsSectionRoot.comments = list || []
+            var newList = list || []
+            if (startAt === 0) {
+                commentsSectionRoot.comments = newList
+            } else {
+                commentsSectionRoot.comments = commentsSectionRoot.comments.concat(newList)
+            }
+            commentsSectionRoot._commentsFullyLoaded = (newList.length < 50)
         }
         function onCommentAdded(issueKey, commentDict) {
             if (issueKey === commentsSectionRoot.selectedIssueKey && commentDict) {
@@ -322,7 +408,7 @@ ColumnLayout {
             commentsSectionRoot.commentsLoading = false
             commentsSectionRoot.errorOccurred(message)
         }
-        function onAttachmentUploaded(issueKey, contentUrl, filename) {
+        function onAttachmentUploaded(issueKey, contentUrl, filename, embedTarget) {
             // EditPreviewContainer handles insert for new comment field; EditCommentDialog handles its own
         }
     }

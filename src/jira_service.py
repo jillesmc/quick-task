@@ -195,29 +195,114 @@ class JiraWorker(QThread):
             self.progressUpdated.emit(50, "Issue criada com sucesso!")
 
             # Anexos pendentes: upload e substituir placeholders na descrição
+            # Items com placeholderId vazio são apenas anexados (attach-only), sem embed na descrição
             description_final = self.description
             if self.pending_attachments:
                 self.progressUpdated.emit(52, "Enviando anexos...")
+                embed_enabled = self.config.get_attachment_embed_enabled()
                 placeholder_to_url: Dict[str, str] = {}
-                for i, item in enumerate(self.pending_attachments):
+                attachments_map: Dict[str, Any] = {}
+                issue_id = ""
+                base_url = self.jira_client._server_url or ""
+
+                if embed_enabled:
+                    from core.adf_media import (
+                        AttachmentInfo,
+                        build_description_adf_with_media,
+                        get_dimensions,
+                    )
+
+                    details = self.jira_client.get_issue_details(issue_key)
+                    issue_id = str(details.get("id", "")) if details else ""
+
+                for item in self.pending_attachments:
                     path = (item.get("path") or "").strip()
-                    placeholder_id = (item.get("placeholderId") or "").strip()
-                    if not path or not placeholder_id:
+                    if not path:
                         continue
+                    placeholder_id = (item.get("placeholderId") or "").strip()
+                    layout = (item.get("layout") or "").strip() or None
                     try:
                         att_result = self.jira_client.add_attachment(issue_key, path)
-                        if att_result and len(att_result) > 0:
-                            content_url = att_result[0].get("content", "")
+                        if not att_result or len(att_result) == 0:
+                            continue
+                        a = att_result[0]
+                        if not placeholder_id:
+                            continue  # attach-only, já enviado
+                        if embed_enabled:
+                            att_id = str(a.get("id", ""))
+                            filename = a.get("filename", "")
+                            mime_type = a.get("mimeType", "")
+                            size = int(a.get("size", 0) or 0)
+                            width, height = None, None
+                            dims = get_dimensions(path)
+                            if dims:
+                                width, height = dims
+                            display_width = item.get("displayWidth") or item.get("display_width")
+                            if display_width is not None:
+                                try:
+                                    display_width = int(display_width)
+                                    display_width = max(100, min(2000, display_width))
+                                except (TypeError, ValueError):
+                                    display_width = None
+                            attachments_map[placeholder_id] = AttachmentInfo(
+                                id=att_id,
+                                filename=filename,
+                                mime_type=mime_type,
+                                size=size,
+                                width=width,
+                                height=height,
+                                collection_id=issue_id,
+                                layout=layout,
+                                display_width=display_width,
+                            )
+                        else:
+                            content_url = a.get("content", "")
                             if content_url:
                                 placeholder_to_url[placeholder_id] = content_url
                     except Exception as e:
                         self.errorOccurred.emit(f"Erro ao anexar arquivo: {str(e)}")
-                # Substituir placeholders na descrição
-                for pid, content_url in placeholder_to_url.items():
-                    description_final = description_final.replace(
-                        f"pending:{pid}", content_url
-                    )
-                if placeholder_to_url:
+
+                if embed_enabled and attachments_map:
+                    if issue_id:
+                        adf_doc = build_description_adf_with_media(
+                            self.description,
+                            attachments_map,
+                            issue_id,
+                            base_url,
+                            self.jira_client._text_to_adf,
+                        )
+                        ok = self.jira_client.update_issue(
+                            issue_key=issue_key,
+                            description=adf_doc,
+                        )
+                        if not ok:
+                            # Fallback: embed como link (Jira Cloud rejeita media com attachment ID)
+                            for pid, info in attachments_map.items():
+                                content_url = (
+                                    f"{base_url.rstrip('/')}/rest/api/3/attachment/content/{info.id}"
+                                )
+                                description_final = description_final.replace(
+                                    f"pending:{pid}", content_url
+                                )
+                            self.jira_client.update_issue(
+                                issue_key=issue_key,
+                                description=description_final,
+                            )
+                    else:
+                        for pid, info in attachments_map.items():
+                            content_url = f"{base_url.rstrip('/')}/rest/api/3/attachment/content/{info.id}"
+                            description_final = description_final.replace(
+                                f"pending:{pid}", content_url
+                            )
+                        self.jira_client.update_issue(
+                            issue_key=issue_key,
+                            description=description_final,
+                        )
+                elif placeholder_to_url:
+                    for pid, content_url in placeholder_to_url.items():
+                        description_final = description_final.replace(
+                            f"pending:{pid}", content_url
+                        )
                     self.jira_client.update_issue(
                         issue_key=issue_key,
                         description=description_final,
@@ -717,7 +802,7 @@ class EnsureInDevelopmentWorker(QThread):
 class AttachmentUploadWorker(QThread):
     """Worker para upload de um anexo em thread separada."""
 
-    uploadSucceeded = Signal(str, str, str)  # issueKey, contentUrl, filename
+    uploadSucceeded = Signal(str, str, str, str)  # issueKey, contentUrl, filename, embedTarget
     uploadFailed = Signal(str, str)  # issueKey, errorMessage
     finished = Signal()
 
@@ -726,20 +811,30 @@ class AttachmentUploadWorker(QThread):
         jira_client: JiraClient,
         issue_key: str,
         file_path: str,
+        embed_target: str = "description",
         parent=None,
     ):
         super().__init__(parent)
         self._jira_client = jira_client
         self._issue_key = issue_key
         self._file_path = file_path
+        self._embed_target = embed_target or "description"
 
     def run(self) -> None:
         try:
             result = self._jira_client.add_attachment(self._issue_key, self._file_path)
             if result and len(result) > 0:
-                content_url = result[0].get("content", "")
-                filename = result[0].get("filename", "")
-                self.uploadSucceeded.emit(self._issue_key, content_url, filename)
+                att = result[0]
+                att_id = str(att.get("id", ""))
+                content_url = att.get("content", "")
+                filename = att.get("filename", "")
+                # Garantir URL no formato esperado pelo regex _RE_ATTACHMENT_URL_EXTRACT
+                if att_id and "/attachment/content/" not in (content_url or ""):
+                    base = (self._jira_client._server_url or "").rstrip("/")
+                    content_url = f"{base}/rest/api/3/attachment/content/{att_id}"
+                self.uploadSucceeded.emit(
+                    self._issue_key, content_url, filename, self._embed_target
+                )
             else:
                 self.uploadFailed.emit(
                     self._issue_key, "Resposta vazia ao anexar arquivo"
@@ -778,13 +873,15 @@ class JiraService(QObject):
     # Cache de opções de Assets (Valor entregue, Plataformas afetadas)
     assetsCacheLoaded = Signal(bool, str)  # success, message
     # Comentários de issues
-    commentsLoaded = Signal("QVariantList")  # list of comment dicts
+    commentsLoaded = Signal("QVariantList", int)  # list of comment dicts, startAt (0=replace, >0=append)
     commentAdded = Signal(str, "QVariant")  # issueKey, commentDict
     commentUpdated = Signal(str, str, "QVariant")  # issueKey, commentId, commentDict
     commentDeleted = Signal(str, str)  # issueKey, commentId
     # Anexos: upload imediato (comentário / edição de task)
-    attachmentUploaded = Signal(str, str, str)  # issueKey, contentUrl, filename
+    attachmentUploaded = Signal(str, str, str, str)  # issueKey, contentUrl, filename, embedTarget
     uploadFailed = Signal(str, str)  # issueKey, errorMessage
+    # Fetch assíncrono de attachment para preview (imagens Jira exigem auth)
+    attachmentDataUrlReady = Signal(str, str)  # url, dataUrl
     # Transição em duas fases: ao atingir IN DEVELOPMENT (para sync worklogs pendentes)
     reachedInDevelopment = Signal(str)  # issueKey
     inDevelopmentReady = Signal(
@@ -817,7 +914,9 @@ class JiraService(QObject):
                 jira_cli_config_path = self._config.get_jira_cli_config_path()
                 account_id = self._config.get_account_id()
             self._jira_client = JiraClient(
-                jira_cli_config_path=jira_cli_config_path, account_id=account_id
+                jira_cli_config_path=jira_cli_config_path,
+                account_id=account_id,
+                config_manager=self._config,
             )
         except RuntimeError as e:
             # Não é erro crítico - é esperado na primeira inicialização sem config
@@ -857,6 +956,7 @@ class JiraService(QObject):
         )
         self._comments_worker: Optional[QThread] = None
         self._attachment_worker: Optional[QThread] = None
+        self._attachment_fetch_workers: set = set()
         self._development_enrich_worker: Optional[QThread] = None
         self._development_branches_enrich_worker: Optional[QThread] = None
 
@@ -975,7 +1075,9 @@ class JiraService(QObject):
 
             try:
                 self._jira_client = JiraClient(
-                    jira_cli_config_path=jira_cli_config_path, account_id=account_id
+                    jira_cli_config_path=jira_cli_config_path,
+                    account_id=account_id,
+                    config_manager=self._config,
                 )
                 debug_log(
                     "JiraService",
@@ -1128,7 +1230,7 @@ class JiraService(QObject):
                 if objs:
                     asset_custom_fields[plataformas_field_id] = objs
 
-        # Normalizar pendingAttachments: QML envia lista de mapas { path, filename, placeholderId }
+        # Normalizar pendingAttachments: QML envia lista de mapas { path, filename, placeholderId, layout, displayWidth }
         pending_list: List[Dict[str, Any]] = []
         if pendingAttachments:
             for item in pendingAttachments:
@@ -1138,6 +1240,8 @@ class JiraService(QObject):
                             "path": str(item.get("path", "")).strip(),
                             "filename": str(item.get("filename", "")).strip(),
                             "placeholderId": str(item.get("placeholderId", "")).strip(),
+                            "layout": str(item.get("layout", "")).strip() or None,
+                            "displayWidth": item.get("displayWidth") or item.get("display_width"),
                         }
                     )
                 elif hasattr(item, "get"):
@@ -1148,6 +1252,8 @@ class JiraService(QObject):
                             "placeholderId": str(
                                 getattr(item, "placeholderId", "")
                             ).strip(),
+                            "layout": str(getattr(item, "layout", "")).strip() or None,
+                            "displayWidth": getattr(item, "displayWidth", None) or getattr(item, "display_width", None),
                         }
                     )
 
@@ -1698,13 +1804,23 @@ class JiraService(QObject):
 
         return success
 
+    @Slot(result=int)
+    def getEmbedMaxDisplayWidth(  # NOSONAR - camelCase para QML
+        self,
+    ) -> int:
+        """Retorna largura máxima de exibição para imagens embedadas (config)."""
+        if self._config:
+            return self._config.get_embed_max_display_width()
+        return 760
+
     @Slot(str, str, result=bool)
+    @Slot(str, str, str, result=bool)
     def uploadAttachment(  # NOSONAR - camelCase para QML
-        self, issueKey: str, filePath: str
+        self, issueKey: str, filePath: str, embedTarget: str = "description"
     ) -> bool:
         """
         Envia um anexo para a issue em thread separada.
-        Emite attachmentUploaded(issueKey, contentUrl, filename) ou
+        Emite attachmentUploaded(issueKey, contentUrl, filename, embedTarget) ou
         uploadFailed(issueKey, errorMessage) ao concluir.
         Valida tamanho e extensão antes do upload (config + limite do Jira quando disponível).
         """
@@ -1756,13 +1872,17 @@ class JiraService(QObject):
             return False
         if self._attachment_worker and self._attachment_worker.isRunning():
             return False
+        embed_target = (embedTarget or "description").strip()
         worker = AttachmentUploadWorker(
-            self._jira_client, issueKey.strip(), filePath.strip()
+            self._jira_client,
+            issueKey.strip(),
+            filePath.strip(),
+            embed_target=embed_target,
         )
         self._attachment_worker = worker
 
-        def on_success(ik: str, content_url: str, filename: str):
-            self.attachmentUploaded.emit(ik, content_url, filename)
+        def on_success(ik: str, content_url: str, filename: str, target: str):
+            self.attachmentUploaded.emit(ik, content_url, filename, target)
 
         def on_fail(ik: str, msg: str):
             self.uploadFailed.emit(ik, msg)
@@ -2841,9 +2961,66 @@ class JiraService(QObject):
             return ""
 
     @Slot(str)
-    def getCommentsAsync(self, issueKey: str) -> None:
+    def fetchAttachmentDataUrl(self, url: str) -> None:
         """
-        Carrega comentários da issue em thread. Emite commentsLoaded(list) ou errorOccurred(str).
+        Busca attachment Jira autenticado e emite attachmentDataUrlReady(url, dataUrl).
+        Roda em thread; dataUrl é data:image/...;base64,... para exibir no preview.
+        """
+        if not self._jira_client or not url or "/attachment/content/" not in url:
+            return
+        class _AttachmentFetchWorker(QThread):
+            resultReady = Signal(str, str)  # url, dataUrl
+
+            def __init__(self, jira_client: JiraClient, fetch_url: str):
+                super().__init__()
+                self._client = jira_client
+                self._url = fetch_url
+
+            def run(self) -> None:
+                try:
+                    data = self._client.fetch_attachment_as_bytes(self._url)
+                    if not data:
+                        return
+                    import base64
+                    mime = "image/png"
+                    if data[:8] == b"\x89PNG\r\n\x1a\n":
+                        mime = "image/png"
+                    elif data[:2] == b"\xff\xd8":
+                        mime = "image/jpeg"
+                    elif data[:4] in (b"RIFF",):
+                        mime = "image/webp"
+                    elif data[:6] in (b"GIF87a", b"GIF89a"):
+                        mime = "image/gif"
+                    b64 = base64.b64encode(data).decode("ascii")
+                    data_url = f"data:{mime};base64,{b64}"
+                    self.resultReady.emit(self._url, data_url)
+                except Exception:
+                    pass
+
+        worker = _AttachmentFetchWorker(self._jira_client, url)
+        self._attachment_fetch_workers.add(worker)
+
+        def _on_result(fetch_url: str, data_url: str):
+            self.attachmentDataUrlReady.emit(fetch_url, data_url)
+
+        def _cleanup():
+            self._attachment_fetch_workers.discard(worker)
+
+        worker.resultReady.connect(_on_result)
+        worker.finished.connect(_cleanup)
+        worker.start()
+
+    @Slot(str)
+    @Slot(str, int, int)
+    def getCommentsAsync(
+        self, issueKey: str, startAt: int = 0, maxResults: int = 100
+    ) -> None:
+        """
+        Carrega comentários da issue em thread.
+        Emite commentsLoaded(list, startAt) ou errorOccurred(str).
+        startAt=0, maxResults=1: primeiro comentário (auto-load).
+        startAt=0, maxResults=100: todos (ao clicar "Carregar comentários").
+        startAt>0: carrega restante e append (startAt=len(comments)).
         """
         if not self._jira_client:
             self.errorOccurred.emit("Cliente Jira não inicializado")
@@ -2856,25 +3033,39 @@ class JiraService(QObject):
         key = issueKey.strip()
 
         class _CommentsLoadWorker(QThread):
-            resultReady = Signal("QVariantList")
+            resultReady = Signal("QVariantList", int)
             errorOccurred = Signal(str)
 
-            def __init__(self, jira_client: JiraClient, issue_key: str):
+            def __init__(
+                self,
+                jira_client: JiraClient,
+                issue_key: str,
+                start_at: int = 0,
+                max_results: int = 100,
+            ):
                 super().__init__()
                 self._client = jira_client
                 self._key = issue_key
+                self._start_at = start_at
+                self._max_results = max_results
 
             def run(self) -> None:
                 try:
-                    comments = self._client.get_issue_comments(self._key)
-                    self.resultReady.emit(comments)
+                    comments = self._client.get_issue_comments(
+                        self._key,
+                        start_at=self._start_at,
+                        max_results=self._max_results,
+                    )
+                    self.resultReady.emit(comments, self._start_at)
                 except Exception as e:
                     self.errorOccurred.emit(str(e))
 
-        worker = _CommentsLoadWorker(self._jira_client, key)
+        worker = _CommentsLoadWorker(
+            self._jira_client, key, start_at=startAt, max_results=maxResults
+        )
 
-        def _on_result(comments: list):
-            self.commentsLoaded.emit(comments)
+        def _on_result(comments: list, start: int):
+            self.commentsLoaded.emit(comments, start)
             self._comments_worker = None
 
         def _on_error(msg: str):

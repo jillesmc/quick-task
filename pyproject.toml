@@ -13,6 +13,7 @@ requires-python = ">=3.11"
 # Instalar com: sudo apt install python3-pyside6.qtcore python3-pyside6.qtgui python3-pyside6.qtqml
 # No Flatpak, PySide6 vem do io.qt.PySide.BaseApp.
 dependencies = [
+    "Pillow>=10.0.0",
     "requests>=2.31.0",
     "pytz>=2023.3",
     "pyyaml>=6.0",

@@ -361,6 +361,9 @@ class IssueModel(QObject):
                         "path": str(item.get("path", "")).strip(),
                         "filename": str(item.get("filename", "")).strip(),
                         "placeholderId": str(item.get("placeholderId", "")).strip(),
+                        "layout": str(item.get("layout", "")).strip() or None,
+                        "position": str(item.get("position", "")).strip() or None,
+                        "displayWidth": item.get("displayWidth") or item.get("display_width"),
                     }
                 )
             elif hasattr(item, "get"):
@@ -371,6 +374,9 @@ class IssueModel(QObject):
                         "placeholderId": str(
                             getattr(item, "placeholderId", "")
                         ).strip(),
+                        "layout": str(getattr(item, "layout", "")).strip() or None,
+                        "position": str(getattr(item, "position", "")).strip() or None,
+                        "displayWidth": getattr(item, "displayWidth", None) or getattr(item, "display_width", None),
                     }
                 )
         if normalized != self._pending_attachments:

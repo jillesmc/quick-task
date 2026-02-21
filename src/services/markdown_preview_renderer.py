@@ -20,12 +20,26 @@ _PENDING_IMAGE_PATTERN = re.compile(
     re.IGNORECASE,
 )
 
+# Regex para <img> com src de attachment Jira (exige auth; Qt falha ao carregar)
+_JIRA_ATTACHMENT_IMG = re.compile(
+    r'<img[^>]+src="([^"]*attachment/content/\d+[^"]*)"[^>]*/?>',
+    re.IGNORECASE,
+)
+# Regex para <a href="...attachment/content/..."> (markdown [alt](url) sem !)
+_JIRA_ATTACHMENT_LINK = re.compile(
+    r'<a[^>]+href="([^"]*attachment/content/\d+[^"]*)"[^>]*>([^<]*)</a>',
+    re.IGNORECASE,
+)
+# Regex para extrair width de atributo: width="250" ou width=250
+_JIRA_IMG_WIDTH = re.compile(r'\bwidth=["\']?(\d+)["\']?', re.IGNORECASE)
+
 # Extensões do markdown com codehilite usando noclasses para estilos inline (Qt RichText)
 _MD_EXTENSIONS = [
     "fenced_code",
     "tables",
     "nl2br",
     "codehilite",
+    "attr_list",
 ]
 _MD_EXTENSION_CONFIGS = {
     "codehilite": {"noclasses": True, "pygments_style": "monokai"},
@@ -43,6 +57,56 @@ def _create_markdown_converter() -> markdown.Markdown:
 def _replace_pending_images(text: str) -> str:
     """Substitui placeholders ](pending:xxx) por [Imagem pendente]."""
     return _PENDING_IMAGE_PATTERN.sub("[Imagem pendente]", text)
+
+
+def _replace_jira_attachment_imgs(html: str) -> str:
+    """
+    Substitui <img src="...attachment/content/..."> por placeholder para fetch assíncrono.
+    URLs de attachment Jira exigem auth; o QML chama fetchAttachmentDataUrl e substitui
+    o placeholder por <img src="data:..."> quando attachmentDataUrlReady for emitido.
+    Preserva width quando presente (attr_list); fallback: busca width no contexto pai.
+    """
+    def _replacer(match: re.Match) -> str:
+        full = match.group(0)
+        src = match.group(1)
+        alt_match = re.search(r'alt="([^"]*)"', full)
+        filename = (alt_match.group(1) or "").strip() or "imagem"
+        width_match = _JIRA_IMG_WIDTH.search(full)
+        width_val = width_match.group(1) if width_match else ""
+        if not width_val:
+            ctx_start = max(0, match.start() - 150)
+            ctx = html[ctx_start : match.end()]
+            ctx_width = _JIRA_IMG_WIDTH.search(ctx)
+            if ctx_width:
+                width_val = ctx_width.group(1)
+        # Escapar URL e filename para atributos HTML
+        src_escaped = src.replace("&", "&amp;").replace('"', "&quot;")
+        fn_escaped = _escape_html(filename)
+        width_attr = f' data-width="{width_val}"' if width_val else ""
+        return (
+            f'<span data-jira-img="{src_escaped}" data-filename="{fn_escaped}"{width_attr}>'
+            f"[Imagem: {fn_escaped}]</span>"
+        )
+
+    return _JIRA_ATTACHMENT_IMG.sub(_replacer, html)
+
+
+def _replace_jira_attachment_links(html: str) -> str:
+    """
+    Substitui <a href="...attachment/content/..."> por placeholder de imagem.
+    Markdown [alt](url) sem ! produz link; tratamos como imagem para exibição.
+    """
+    def _replacer(match: re.Match) -> str:
+        href = match.group(1)
+        alt = (match.group(2) or "").strip() or "imagem"
+        src_escaped = href.replace("&", "&amp;").replace('"', "&quot;")
+        fn_escaped = _escape_html(alt)
+        return (
+            f'<span data-jira-img="{src_escaped}" data-filename="{fn_escaped}">'
+            f"[Imagem: {fn_escaped}]</span>"
+        )
+
+    return _JIRA_ATTACHMENT_LINK.sub(_replacer, html)
 
 
 class MarkdownPreviewRenderer(QObject):
@@ -87,6 +151,10 @@ class MarkdownPreviewRenderer(QObject):
             converter.reset()
             html = converter.convert(cleaned)
             raw = html.strip() or "<p><em>Nenhum conteúdo</em></p>"
+            # Substituir img de attachment Jira por placeholder (Qt falha ao carregar sem auth)
+            raw = _replace_jira_attachment_imgs(raw)
+            # Substituir links [alt](url) sem ! para attachment/content por placeholder de imagem
+            raw = _replace_jira_attachment_links(raw)
             # Wrapper com cor branca para legibilidade em tema escuro
             return f'<div style="color: #ffffff;">{raw}</div>'
         except Exception as e:
