@@ -857,14 +857,15 @@ def test_get_issue_comments_success(mock_request, mock_config_file):
     mock_request.return_value = mock_response
 
     client = JiraClient(jira_cli_config_path=mock_config_file)
-    result = client.get_issue_comments("TEST-123")
+    comments, total = client.get_issue_comments("TEST-123")
 
-    assert len(result) == 1
-    assert result[0]["id"] == "10000"
-    assert result[0]["author"]["accountId"] == "user-1"
-    assert result[0]["author"]["displayName"] == "João"
-    assert "Comentário teste" in result[0]["body"]
-    assert result[0]["created"] == "2025-01-20T10:30:00.000+0000"
+    assert total == 1
+    assert len(comments) == 1
+    assert comments[0]["id"] == "10000"
+    assert comments[0]["author"]["accountId"] == "user-1"
+    assert comments[0]["author"]["displayName"] == "João"
+    assert "Comentário teste" in comments[0]["body"]
+    assert comments[0]["created"] == "2025-01-20T10:30:00.000+0000"
     mock_request.assert_called_once()
     call_args = mock_request.call_args
     assert call_args[0][0] == "GET"
@@ -886,9 +887,98 @@ def test_get_issue_comments_empty(mock_request, mock_config_file):
     mock_request.return_value = mock_response
 
     client = JiraClient(jira_cli_config_path=mock_config_file)
-    result = client.get_issue_comments("TEST-123")
+    comments, total = client.get_issue_comments("TEST-123")
 
-    assert result == []
+    assert comments == []
+    assert total == 0
+
+
+@patch("core.jira_client.requests.request")
+def test_get_latest_issue_comment_empty(mock_request, mock_config_file):
+    """get_latest_issue_comment retorna (None, 0) quando não há comentários."""
+    mock_response = Mock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = {
+        "comments": [],
+        "total": 0,
+        "startAt": 0,
+        "maxResults": 1,
+    }
+    mock_request.return_value = mock_response
+
+    client = JiraClient(jira_cli_config_path=mock_config_file)
+    comment, total = client.get_latest_issue_comment("TEST-123")
+
+    assert comment is None
+    assert total == 0
+    assert mock_request.call_count == 1
+
+
+@patch("core.jira_client.requests.request")
+def test_get_latest_issue_comment_one(mock_request, mock_config_file):
+    """get_latest_issue_comment com um comentário retorna esse comentário e total=1."""
+    mock_response = Mock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = {
+        "comments": [
+            {
+                "id": "10000",
+                "author": {"accountId": "u1", "displayName": "User"},
+                "body": {"type": "doc", "content": []},
+                "created": "2025-01-20T10:00:00.000+0000",
+                "updated": "2025-01-20T10:00:00.000+0000",
+            }
+        ],
+        "total": 1,
+        "startAt": 0,
+        "maxResults": 1,
+    }
+    mock_request.return_value = mock_response
+
+    client = JiraClient(jira_cli_config_path=mock_config_file)
+    comment, total = client.get_latest_issue_comment("TEST-123")
+
+    assert comment is not None
+    assert comment["id"] == "10000"
+    assert total == 1
+    assert mock_request.call_count == 1
+
+
+@patch("core.jira_client.requests.request")
+def test_get_latest_issue_comment_multiple(mock_request, mock_config_file):
+    """get_latest_issue_comment com vários comentários faz 2 requests e retorna o último."""
+    first_resp = Mock(status_code=200)
+    first_resp.json.return_value = {
+        "comments": [{"id": "1", "author": {}, "body": {}, "created": "", "updated": ""}],
+        "total": 3,
+        "startAt": 0,
+        "maxResults": 1,
+    }
+    last_resp = Mock(status_code=200)
+    last_resp.json.return_value = {
+        "comments": [
+            {
+                "id": "3",
+                "author": {"accountId": "u3", "displayName": "Last"},
+                "body": {"type": "doc", "content": []},
+                "created": "2025-01-20T12:00:00.000+0000",
+                "updated": "2025-01-20T12:00:00.000+0000",
+            }
+        ],
+        "total": 3,
+        "startAt": 2,
+        "maxResults": 1,
+    }
+    mock_request.side_effect = [first_resp, last_resp]
+
+    client = JiraClient(jira_cli_config_path=mock_config_file)
+    comment, total = client.get_latest_issue_comment("TEST-123")
+
+    assert comment is not None
+    assert comment["id"] == "3"
+    assert comment["author"]["displayName"] == "Last"
+    assert total == 3
+    assert mock_request.call_count == 2
 
 
 @patch("core.jira_client.requests.request")

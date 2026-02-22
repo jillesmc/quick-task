@@ -297,7 +297,11 @@ Item {
         }
     }
 
-    // Mesma hierarquia que IssueFormPage: ScrollView > Item > ColumnLayout (margens no ColumnLayout)
+    // Wrapper para ter ScrollView e resizeOverlay como irmãos (igual IssueFormPage: SplitView e overlay irmãos).
+    Item {
+        id: detailsContentWrapper
+        anchors.fill: parent
+
     Controls.ScrollView {
         id: mainDetailsScrollView
         anchors.fill: parent
@@ -701,6 +705,7 @@ Item {
                 ColumnLayout {
                     id: bottomColumnLayout
                     Layout.fillWidth: true
+                    Layout.fillHeight: true
                     spacing: 0
 
                     ColumnLayout {
@@ -786,6 +791,7 @@ Item {
                         id: commentsSection
                         Layout.fillWidth: true
                         Layout.fillHeight: true
+                        Layout.minimumHeight: 200
                         applicationWindow: pane.applicationWindow
                         jiraService: pane.jiraService
                         clipboardHelper: pane.clipboardHelper
@@ -817,10 +823,11 @@ Item {
         }
     }
 
+    // Overlay único para redimensionar dividers (irmão do ScrollView, cobre a área, hit-test em onPressed).
     Item {
         id: resizeOverlay
         z: 10
-        anchors.fill: parent
+        anchors.fill: detailsContentWrapper
         property int activeDivider: 0
         property real startGlobalY: 0
         property real startHeight: 0
@@ -830,41 +837,51 @@ Item {
             hoverEnabled: false
             cursorShape: parent.activeDivider ? Qt.SizeVerCursor : Qt.ArrowCursor
             onPressed: function (mouse) {
-                var margin = 8;
-                var p1 = divider1.mapToItem(resizeOverlay, 0, 0);
+                var margin = 8
+                var p1 = divider1.mapToItem(resizeOverlay, 0, 0)
                 if (mouse.y >= p1.y - margin && mouse.y < p1.y + divider1.height + margin) {
-                    resizeOverlay.activeDivider = 1;
-                    resizeOverlay.startGlobalY = resizeOverlay.mapToGlobal(mouse.x, mouse.y).y;
-                    resizeOverlay.startHeight = pane.topSectionHeight;
-                    mouse.accepted = true;
-                    return;
+                    resizeOverlay.activeDivider = 1
+                    resizeOverlay.startGlobalY = resizeOverlay.mapToGlobal(mouse.x, mouse.y).y
+                    resizeOverlay.startHeight = pane.topSectionHeight
+                    mouse.accepted = true
+                    return
                 }
-                var p2 = divider2.mapToItem(resizeOverlay, 0, 0);
+                var p2 = divider2.mapToItem(resizeOverlay, 0, 0)
                 if (mouse.y >= p2.y - margin && mouse.y < p2.y + divider2.height + margin) {
-                    resizeOverlay.activeDivider = 2;
-                    resizeOverlay.startGlobalY = resizeOverlay.mapToGlobal(mouse.x, mouse.y).y;
-                    resizeOverlay.startHeight = pane.epicSectionHeight;
-                    mouse.accepted = true;
-                    return;
+                    resizeOverlay.activeDivider = 2
+                    resizeOverlay.startGlobalY = resizeOverlay.mapToGlobal(mouse.x, mouse.y).y
+                    resizeOverlay.startHeight = pane.epicSectionHeight
+                    mouse.accepted = true
+                    return
                 }
-                mouse.accepted = false;
+                var p3 = commentsSection.commentResizeDivider.mapToItem(resizeOverlay, 0, 0)
+                if (mouse.y >= p3.y - margin && mouse.y < p3.y + commentsSection.commentResizeDivider.height + margin) {
+                    resizeOverlay.activeDivider = 3
+                    resizeOverlay.startGlobalY = resizeOverlay.mapToGlobal(mouse.x, mouse.y).y
+                    resizeOverlay.startHeight = commentsSection.commentInputHeight
+                    mouse.accepted = true
+                    return
+                }
+                mouse.accepted = false
             }
             onPositionChanged: function (mouse) {
-                if (resizeOverlay.activeDivider === 0)
-                    return;
-                var cur = resizeOverlay.mapToGlobal(mouse.x, mouse.y).y;
-                var delta = cur - resizeOverlay.startGlobalY;
+                if (resizeOverlay.activeDivider === 0) return
+                var cur = resizeOverlay.mapToGlobal(mouse.x, mouse.y).y
+                var delta = cur - resizeOverlay.startGlobalY
                 if (resizeOverlay.activeDivider === 1) {
-                    pane.topSectionHeight = Math.max(150, resizeOverlay.startHeight + delta);
+                    pane.topSectionHeight = Math.max(150, resizeOverlay.startHeight + delta)
                 } else if (resizeOverlay.activeDivider === 2) {
-                    pane.epicSectionHeight = Math.max(150, resizeOverlay.startHeight + delta);
+                    pane.epicSectionHeight = Math.max(150, resizeOverlay.startHeight + delta)
+                } else if (resizeOverlay.activeDivider === 3) {
+                    commentsSection.commentInputHeight = Math.max(160, resizeOverlay.startHeight + delta)
                 }
             }
             onReleased: {
-                resizeOverlay.activeDivider = 0;
+                resizeOverlay.activeDivider = 0
             }
         }
     }
+    } // detailsContentWrapper
 
     Rectangle {
         anchors.fill: parent

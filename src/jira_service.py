@@ -873,7 +873,8 @@ class JiraService(QObject):
     # Cache de opções de Assets (Valor entregue, Plataformas afetadas)
     assetsCacheLoaded = Signal(bool, str)  # success, message
     # Comentários de issues
-    commentsLoaded = Signal("QVariantList", int)  # list of comment dicts, startAt (0=replace, >0=append)
+    commentsLoaded = Signal("QVariantList", int, int)  # list, startAt, total
+    latestCommentLoaded = Signal(str, "QVariant", int)  # issueKey, commentDict or null, total
     commentAdded = Signal(str, "QVariant")  # issueKey, commentDict
     commentUpdated = Signal(str, str, "QVariant")  # issueKey, commentId, commentDict
     commentDeleted = Signal(str, str)  # issueKey, commentId
@@ -958,6 +959,7 @@ class JiraService(QObject):
             None  # manter referência para não GC antes do thread terminar
         )
         self._comments_worker: Optional[QThread] = None
+        self._latest_comment_worker: Optional[QThread] = None
         self._attachment_worker: Optional[QThread] = None
         self._attachment_delete_worker: Optional[QThread] = None
         self._attachment_fetch_workers: set = set()
@@ -3095,11 +3097,8 @@ class JiraService(QObject):
         self, issueKey: str, startAt: int = 0, maxResults: int = 100
     ) -> None:
         """
-        Carrega comentários da issue em thread.
-        Emite commentsLoaded(list, startAt) ou errorOccurred(str).
-        startAt=0, maxResults=1: primeiro comentário (auto-load).
-        startAt=0, maxResults=100: todos (ao clicar "Carregar comentários").
-        startAt>0: carrega restante e append (startAt=len(comments)).
+        Carrega uma página de comentários da issue em thread.
+        Emite commentsLoaded(list, startAt, total) ou errorOccurred(str).
         """
         if not self._jira_client:
             self.errorOccurred.emit("Cliente Jira não inicializado")
@@ -3112,7 +3111,7 @@ class JiraService(QObject):
         key = issueKey.strip()
 
         class _CommentsLoadWorker(QThread):
-            resultReady = Signal("QVariantList", int)
+            resultReady = Signal("QVariantList", int, int)
             errorOccurred = Signal(str)
 
             def __init__(
@@ -3130,12 +3129,12 @@ class JiraService(QObject):
 
             def run(self) -> None:
                 try:
-                    comments = self._client.get_issue_comments(
+                    comments, total = self._client.get_issue_comments(
                         self._key,
                         start_at=self._start_at,
                         max_results=self._max_results,
                     )
-                    self.resultReady.emit(comments, self._start_at)
+                    self.resultReady.emit(comments, self._start_at, total)
                 except Exception as e:
                     self.errorOccurred.emit(str(e))
 
@@ -3143,8 +3142,8 @@ class JiraService(QObject):
             self._jira_client, key, start_at=startAt, max_results=maxResults
         )
 
-        def _on_result(comments: list, start: int):
-            self.commentsLoaded.emit(comments, start)
+        def _on_result(comments: list, start: int, total: int):
+            self.commentsLoaded.emit(comments, start, total)
             self._comments_worker = None
 
         def _on_error(msg: str):
@@ -3159,6 +3158,60 @@ class JiraService(QObject):
         worker.errorOccurred.connect(_on_error)
         worker.finished.connect(_cleanup)
         self._comments_worker = worker
+        worker.start()
+
+    @Slot(str)
+    def getLatestCommentAsync(self, issueKey: str) -> None:
+        """
+        Carrega apenas o comentário mais recente da issue em thread.
+        Emite latestCommentLoaded(issueKey, commentDict, total) ou errorOccurred(str).
+        commentDict é null quando não há comentários.
+        """
+        if not self._jira_client:
+            self.errorOccurred.emit("Cliente Jira não inicializado")
+            return
+        if not issueKey or not issueKey.strip():
+            return
+        if self._latest_comment_worker and self._latest_comment_worker.isRunning():
+            return
+        key = issueKey.strip()
+
+        class _LatestCommentWorker(QThread):
+            resultReady = Signal(str, "QVariant", int)
+            errorOccurred = Signal(str)
+
+            def __init__(self, jira_client: JiraClient, issue_key: str):
+                super().__init__()
+                self._client = jira_client
+                self._key = issue_key
+
+            def run(self) -> None:
+                try:
+                    comment, total = self._client.get_latest_issue_comment(
+                        self._key
+                    )
+                    self.resultReady.emit(self._key, comment, total)
+                except Exception as e:
+                    self.errorOccurred.emit(str(e))
+
+        worker = _LatestCommentWorker(self._jira_client, key)
+
+        def _on_result(issue_key: str, comment_dict, total: int):
+            self.latestCommentLoaded.emit(issue_key, comment_dict, total)
+            self._latest_comment_worker = None
+
+        def _on_error(msg: str):
+            self.errorOccurred.emit(msg)
+            self._latest_comment_worker = None
+
+        def _cleanup():
+            if self._latest_comment_worker is worker:
+                self._latest_comment_worker = None
+
+        worker.resultReady.connect(_on_result)
+        worker.errorOccurred.connect(_on_error)
+        worker.finished.connect(_cleanup)
+        self._latest_comment_worker = worker
         worker.start()
 
     @Slot(str, str, result=bool)

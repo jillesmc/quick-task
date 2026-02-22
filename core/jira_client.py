@@ -2601,10 +2601,10 @@ class JiraClient:
 
     def get_issue_comments(
         self, issue_key: str, start_at: int = 0, max_results: int = 100
-    ) -> List[Dict[str, Any]]:
+    ) -> tuple:
         """
-        Busca todos os comentários de uma issue (GET /rest/api/3/issue/{key}/comment).
-        Trata paginação e converte body ADF para markdown.
+        Busca uma página de comentários da issue (GET /rest/api/3/issue/{key}/comment).
+        Uma única requisição por chamada; converte body ADF para markdown.
 
         Args:
             issue_key: Chave da issue (ex: PLATFORM-123)
@@ -2612,64 +2612,80 @@ class JiraClient:
             max_results: Máximo de comentários por página
 
         Returns:
-            Lista de dicts normalizados: id, author (accountId, displayName),
-            body (markdown), created, updated. Lista vazia em erro.
+            Tuplo (comments, total): lista de dicts normalizados (id, author, body, created, updated)
+            e total devolvido pela API. Em erro devolve ([], 0).
         """
         if not issue_key:
-            return []
-        all_comments: List[Dict[str, Any]] = []
-        start = start_at
-        while True:
-            params = {"startAt": start, "maxResults": max_results}
-            try:
-                response = self._make_request(
-                    "GET",
-                    f"issue/{issue_key}/comment",
-                    params=params,
-                    timeout=30,
-                )
-                data = response.json()
-            except RuntimeError as e:
-                print(
-                    f"Erro ao buscar comentários da issue '{issue_key}': {e}",
-                    file=sys.stderr,
-                )
-                return all_comments if all_comments else []
-            except json.JSONDecodeError as e:
-                print(
-                    f"Erro ao decodificar JSON de comentários: {e}",
-                    file=sys.stderr,
-                )
-                return all_comments if all_comments else []
-            comments = data.get("comments") or []
-            total = data.get("total", 0)
-            for c in comments:
-                author = c.get("author") or {}
-                body_raw = c.get("body")
-                if isinstance(body_raw, dict):
-                    body_md = JiraClient._adf_to_markdown(body_raw)
-                else:
-                    body_md = str(body_raw) if body_raw else ""
-                all_comments.append(
-                    {
-                        "id": str(c.get("id", "")),
-                        "author": {
-                            "accountId": author.get("accountId", ""),
-                            "displayName": author.get("displayName", ""),
-                        },
-                        "body": body_md,
-                        "created": c.get("created", ""),
-                        "updated": c.get("updated", ""),
-                    }
-                )
-            if start + len(comments) >= total:
-                break
-            if len(all_comments) >= max_results:
-                break
-            start += len(comments)
-            if not comments:
-                break
-        return all_comments
+            return ([], 0)
+        params = {"startAt": start_at, "maxResults": max_results}
+        try:
+            response = self._make_request(
+                "GET",
+                f"issue/{issue_key}/comment",
+                params=params,
+                timeout=30,
+            )
+            data = response.json()
+        except RuntimeError as e:
+            print(
+                f"Erro ao buscar comentários da issue '{issue_key}': {e}",
+                file=sys.stderr,
+            )
+            return ([], 0)
+        except json.JSONDecodeError as e:
+            print(
+                f"Erro ao decodificar JSON de comentários: {e}",
+                file=sys.stderr,
+            )
+            return ([], 0)
+        comments_raw = data.get("comments") or []
+        total = data.get("total", 0)
+        comments: List[Dict[str, Any]] = []
+        for c in comments_raw:
+            author = c.get("author") or {}
+            body_raw = c.get("body")
+            if isinstance(body_raw, dict):
+                body_md = JiraClient._adf_to_markdown(body_raw)
+            else:
+                body_md = str(body_raw) if body_raw else ""
+            comments.append(
+                {
+                    "id": str(c.get("id", "")),
+                    "author": {
+                        "accountId": author.get("accountId", ""),
+                        "displayName": author.get("displayName", ""),
+                    },
+                    "body": body_md,
+                    "created": c.get("created", ""),
+                    "updated": c.get("updated", ""),
+                }
+            )
+        return (comments, total)
+
+    def get_latest_issue_comment(self, issue_key: str) -> tuple:
+        """
+        Devolve apenas o comentário mais recente da issue e o total.
+        Faz duas requisições: uma para obter total, outra para o último comentário.
+
+        Returns:
+            Tuplo (comment_dict ou None, total). (None, 0) se não houver comentários ou em erro.
+        """
+        if not issue_key:
+            return (None, 0)
+        comments_first, total = self.get_issue_comments(
+            issue_key, start_at=0, max_results=1
+        )
+        if total == 0:
+            return (None, 0)
+        if total == 1 and comments_first:
+            return (comments_first[0], 1)
+        # total > 1: fetch last page (one item at index total-1)
+        comments_last, _ = self.get_issue_comments(
+            issue_key, start_at=total - 1, max_results=1
+        )
+        if not comments_last:
+            return (None, total)
+        return (comments_last[0], total)
 
     def _build_body_adf_with_media(
         self, body: str, issue_key: str
