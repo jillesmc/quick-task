@@ -799,6 +799,90 @@ class EnsureInDevelopmentWorker(QThread):
             self.finished.emit()
 
 
+class QuickTransitionWorker(QThread):
+    """
+    Worker para transições rápidas: cancel, block, unblock.
+    Executa transition_issue + add_comment em thread; emite issueUpdated ou errorOccurred.
+    """
+
+    issueUpdated = Signal(str)  # issue_key
+    errorOccurred = Signal(str)
+    finished = Signal()
+
+    def __init__(
+        self,
+        jira_client: JiraClient,
+        action: str,  # "cancel" | "block" | "unblock"
+        issue_key: str,
+        reason_or_comment: str = "",
+        parent=None,
+    ):
+        super().__init__(parent)
+        self._jira_client = jira_client
+        self._action = (action or "").strip().lower()
+        self._issue_key = (issue_key or "").strip()
+        self._reason_or_comment = reason_or_comment or ""
+
+    def run(self):
+        try:
+            if not self._issue_key:
+                self.errorOccurred.emit("Issue key não fornecido")
+                return
+            if self._action == "cancel":
+                self._do_cancel()
+            elif self._action == "block":
+                self._do_block()
+            elif self._action == "unblock":
+                self._do_unblock()
+            else:
+                self.errorOccurred.emit("Ação inválida")
+        except Exception as e:
+            self.errorOccurred.emit(str(e))
+        finally:
+            self.finished.emit()
+
+    def _do_cancel(self):
+        if not self._jira_client.transition_issue(self._issue_key, "CANCELED"):
+            self.errorOccurred.emit(
+                "Transição para CANCELED não disponível para esta issue."
+            )
+            return
+        comment = "**Issue cancelada**\n\n" + (self._reason_or_comment or "")
+        if self._jira_client.add_comment(self._issue_key, comment) is None:
+            pass  # Transição já fez efeito; comentário é best-effort
+        self.issueUpdated.emit(self._issue_key)
+
+    def _do_block(self):
+        if not self._jira_client.transition_issue(self._issue_key, "BLOCKED"):
+            self.errorOccurred.emit(
+                "Transição para BLOCKED não disponível para esta issue."
+            )
+            return
+        comment = "**Issue bloqueada**\n\n" + (self._reason_or_comment or "")
+        if self._jira_client.add_comment(self._issue_key, comment) is None:
+            pass
+        self.issueUpdated.emit(self._issue_key)
+
+    def _do_unblock(self):
+        ok = self._jira_client.transition_issue(self._issue_key, "IN DEVELOPMENT")
+        if not ok:
+            ok = self._jira_client.transition_issue(
+                self._issue_key, "IN PROGRESS"
+            )
+        if not ok:
+            self.errorOccurred.emit(
+                "Transição para IN DEVELOPMENT não disponível. "
+                "A issue pode não estar bloqueada."
+            )
+            return
+        comment = "**Issue desbloqueada**"
+        if self._reason_or_comment.strip():
+            comment += "\n\n" + self._reason_or_comment.strip()
+        if self._jira_client.add_comment(self._issue_key, comment) is None:
+            pass
+        self.issueUpdated.emit(self._issue_key)
+
+
 class AttachmentUploadWorker(QThread):
     """Worker para upload de um anexo em thread separada."""
 
@@ -965,6 +1049,7 @@ class JiraService(QObject):
         self._attachment_fetch_workers: set = set()
         self._development_enrich_worker: Optional[QThread] = None
         self._development_branches_enrich_worker: Optional[QThread] = None
+        self._quick_transition_worker: Optional[QuickTransitionWorker] = None
 
     def get_assets_cache(self) -> Optional[AssetsCacheService]:
         """Retorna o serviço de cache de Assets (para IssueModel e payloads)."""
@@ -2237,6 +2322,59 @@ class JiraService(QObject):
         self._ensure_in_dev_worker.errorOccurred.connect(self.errorOccurred.emit)
         self._ensure_in_dev_worker.start()
         return True
+
+    def _start_quick_transition(
+        self, action: str, issue_key: str, reason_or_comment: str = ""
+    ) -> bool:
+        """Inicia worker de quick transition (cancel/block/unblock). Retorna True se iniciado."""
+        if not self._jira_client or not issue_key or not issue_key.strip():
+            self.errorOccurred.emit("Serviço Jira ou issue key não disponível")
+            return False
+        if (
+            self._quick_transition_worker
+            and self._quick_transition_worker.isRunning()
+        ):
+            self._quick_transition_worker.terminate()
+            self._quick_transition_worker.wait()
+        self._quick_transition_worker = QuickTransitionWorker(
+            jira_client=self._jira_client,
+            action=action,
+            issue_key=issue_key.strip(),
+            reason_or_comment=reason_or_comment or "",
+            parent=self,
+        )
+        self._quick_transition_worker.issueUpdated.connect(
+            self.issueUpdated.emit
+        )
+        self._quick_transition_worker.errorOccurred.connect(
+            self.errorOccurred.emit
+        )
+        self._quick_transition_worker.start()
+        return True
+
+    @Slot(str, str, result=bool)
+    def cancel_issue(self, issue_key: str, reason: str) -> bool:
+        """
+        Cancela a issue (transição para CANCELED) e adiciona comentário com o motivo.
+        Emite issueUpdated(issue_key) ou errorOccurred(mensagem).
+        """
+        return self._start_quick_transition("cancel", issue_key, reason or "")
+
+    @Slot(str, str, result=bool)
+    def block_issue(self, issue_key: str, reason: str) -> bool:
+        """
+        Bloqueia a issue (transição para BLOCKED) e adiciona comentário com o motivo.
+        Emite issueUpdated(issue_key) ou errorOccurred(mensagem).
+        """
+        return self._start_quick_transition("block", issue_key, reason or "")
+
+    @Slot(str, str, result=bool)
+    def unblock_issue(self, issue_key: str, comment: str = "") -> bool:
+        """
+        Desbloqueia a issue (transição para IN DEVELOPMENT ou IN PROGRESS) e opcionalmente adiciona comentário.
+        Emite issueUpdated(issue_key) ou errorOccurred(mensagem).
+        """
+        return self._start_quick_transition("unblock", issue_key, comment or "")
 
     @Slot(
         str,

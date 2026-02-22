@@ -129,6 +129,55 @@ RowLayout {
     }
 
     Controls.ToolButton {
+        id: blockIssueButton
+        text: qsTr("Bloquear")
+        icon.name: "lock"
+        visible: root.currentTabIndex === 1 && root.issuesPage && root.issuesPage.selectedIssueKey !== ""
+            && !(root.issuesPage.isProcessing || false)
+            && (root.issuesPage._quickActionStatus || "") !== "BLOCKED"
+        Controls.ToolTip.visible: hovered
+        Controls.ToolTip.text: qsTr("Bloquear issue")
+        onClicked: {
+            if (root.issuesPage && root.issuesPage.detailPane && typeof root.issuesPage.detailPane.openBlockDialog === "function") {
+                root.issuesPage.detailPane.openBlockDialog();
+            }
+        }
+    }
+
+    Controls.ToolButton {
+        id: unblockIssueButton
+        text: qsTr("Desbloquear")
+        icon.name: "unlock"
+        visible: root.currentTabIndex === 1 && root.issuesPage && root.issuesPage.selectedIssueKey !== ""
+            && !(root.issuesPage.isProcessing || false)
+            && (root.issuesPage._quickActionStatus || "") === "BLOCKED"
+        Controls.ToolTip.visible: hovered
+        Controls.ToolTip.text: qsTr("Desbloquear e retornar para IN DEVELOPMENT")
+        onClicked: {
+            if (root.issuesPage && root.issuesPage.detailPane && typeof root.issuesPage.detailPane.openUnblockDialog === "function") {
+                root.issuesPage.detailPane.openUnblockDialog();
+            }
+        }
+    }
+
+    Controls.ToolButton {
+        id: cancelIssueButton
+        text: qsTr("Cancelar")
+        icon.name: "dialog-cancel"
+        visible: root.currentTabIndex === 1 && root.issuesPage && root.issuesPage.selectedIssueKey !== ""
+            && !(root.issuesPage.isProcessing || false)
+            && (root.issuesPage._quickActionStatus || "") !== "CANCELED"
+            && (root.issuesPage._quickActionStatus || "") !== "DONE"
+        Controls.ToolTip.visible: hovered
+        Controls.ToolTip.text: qsTr("Cancelar issue")
+        onClicked: {
+            if (root.issuesPage && root.issuesPage.detailPane && typeof root.issuesPage.detailPane.openCancelDialog === "function") {
+                root.issuesPage.detailPane.openCancelDialog();
+            }
+        }
+    }
+
+    Controls.ToolButton {
         id: refreshGoogleButton
         text: qsTr("Atualizar")
         icon.name: "view-refresh"
