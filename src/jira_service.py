@@ -419,6 +419,7 @@ class UpdateWorker(QThread):
         worklog_comment: Optional[str] = None,
         assets_cache: Any = None,
         target_status_override: Optional[str] = None,
+        priority: Optional[str] = None,
         parent=None,
     ):
         super().__init__(parent)
@@ -441,6 +442,7 @@ class UpdateWorker(QThread):
         self.worklog_comment = worklog_comment
         self.assets_cache = assets_cache
         self.target_status_override = target_status_override
+        self.priority = priority
 
     def run(self):
         """Executa a atualização da issue e worklog opcional em thread separada"""
@@ -547,6 +549,7 @@ class UpdateWorker(QThread):
                 summary=self.summary,
                 description=self.description,
                 status=None,
+                priority=self.priority,
                 custom_fields=custom_fields if custom_fields else None,
                 parent_issue_key=self.parent_epic_key,
                 asset_field_updates=(
@@ -2174,6 +2177,7 @@ class JiraService(QObject):
         str,
         str,
         str,
+        str,
         list,
         str,
         bool,
@@ -2190,6 +2194,7 @@ class JiraService(QObject):
         description: str,
         tipoAtividade: str,  # NOSONAR
         status: str,
+        prioridade: str,  # NOSONAR
         documentacaoAnexa: str,  # NOSONAR
         utilizacaoIA: str,  # NOSONAR
         valorEntregue: str,  # NOSONAR
@@ -2248,6 +2253,7 @@ class JiraService(QObject):
             worklog_comment=worklogComment.strip() if worklogComment else None,
             assets_cache=self._assets_cache,
             target_status_override="IN DEVELOPMENT",
+            priority=prioridade.strip() if prioridade else None,
         )
         self._update_worker.progressUpdated.connect(self.progressUpdated.emit)
         self._update_worker.reachedInDevelopment.connect(self.reachedInDevelopment.emit)
@@ -2385,6 +2391,7 @@ class JiraService(QObject):
         str,
         str,
         str,
+        str,
         list,
         str,
         bool,
@@ -2401,6 +2408,7 @@ class JiraService(QObject):
         description: str,
         tipoAtividade: str,  # NOSONAR
         status: str,
+        prioridade: str,  # NOSONAR - nome da prioridade (ex: High, Medium)
         documentacaoAnexa: str,  # NOSONAR
         utilizacaoIA: str,  # NOSONAR
         valorEntregue: str,  # NOSONAR
@@ -2488,6 +2496,7 @@ class JiraService(QObject):
             worklog_timezone=worklogTimezone,
             worklog_comment=worklogComment.strip() if worklogComment else None,
             assets_cache=self._assets_cache,
+            priority=prioridade.strip() if prioridade else None,
         )
 
         # Conectar signals do worker

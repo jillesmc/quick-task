@@ -249,6 +249,7 @@ Item {
         if (issueModel) {
             fieldData.tipoAtividade = issueModel.tipoAtividade || "";
             fieldData.status = issueModel.statusInicial || "";
+            fieldData.prioridade = issueModel.prioridade || "";
             fieldData.valorEntregue = issueModel.valorEntregue || "";
             fieldData.plataformasAfetadas = issueModel.plataformasAfetadas || [];
             fieldData.documentacaoAnexa = issueModel.documentacaoAnexa || "Não";

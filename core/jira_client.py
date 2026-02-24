@@ -1550,6 +1550,7 @@ class JiraClient:
         summary: Optional[str] = None,
         description: Optional[str] = None,
         status: Optional[str] = None,
+        priority: Optional[str] = None,
         custom_fields: Optional[Dict[str, Any]] = None,
         parent_issue_key: Optional[str] = None,
         asset_field_updates: Optional[Dict[str, List[Dict[str, Any]]]] = None,
@@ -1562,6 +1563,7 @@ class JiraClient:
             summary: Novo summary (opcional)
             description: Nova description (opcional)
             status: Novo status (opcional) - NÃO use aqui, use transition_issue
+            priority: Nome da prioridade (ex: "High", "Medium") (opcional)
             custom_fields: Dicionário com campos customizados (field_id: valor) (opcional)
             parent_issue_key: Nova chave do parent (opcional, use "" para remover parent)
             asset_field_updates: Campos Asset a atualizar via "update"/"set" (field_id: lista de objetos
@@ -1701,6 +1703,10 @@ class JiraClient:
             else:
                 # Remover parent - usar null diretamente conforme documentação
                 fields["parent"] = None
+
+        # Adicionar prioridade se fornecido
+        if priority and priority.strip():
+            fields["priority"] = {"name": priority.strip()}
 
         # Payload: fields + update (para campos Asset)
         payload: Dict[str, Any] = {}
