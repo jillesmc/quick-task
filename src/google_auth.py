@@ -11,6 +11,25 @@ from typing import Optional
 from src.utils.debug import debug_log
 
 
+def get_ca_bundle_path_for_google_api() -> Optional[str]:
+    """
+    Path to CA bundle for Google API (Calendar/Tasks) HTTP client.
+    Uses same env vars as the rest of the app (Flatpak host certs, Netskope, etc.).
+    httplib2 (used by google-api-python-client) does not use REQUESTS_CA_BUNDLE
+    by default, so we must pass ca_certs explicitly when building the service.
+    """
+    for var in ("SSL_CERT_FILE", "REQUESTS_CA_BUNDLE", "CURL_CA_BUNDLE"):
+        path = os.environ.get(var)
+        if path and os.path.isfile(path):
+            return path
+    try:
+        import certifi
+
+        return certifi.where()
+    except ImportError:
+        return None
+
+
 def _get_token_path(config_path: Path) -> Path:
     """Return path for google_token.json (same directory as config)."""
     if str(config_path).startswith("/app/"):

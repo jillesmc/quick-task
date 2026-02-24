@@ -67,9 +67,19 @@ class GoogleTasksLoadWorker(QThread):
             return
 
         try:
+            from google_auth_httplib2 import AuthorizedHttp
             from googleapiclient.discovery import build
+            import httplib2
 
-            service = build("tasks", "v1", credentials=creds)
+            from src.google_auth import get_ca_bundle_path_for_google_api
+
+            ca_path = get_ca_bundle_path_for_google_api()
+            if ca_path:
+                http = httplib2.Http(ca_certs=ca_path)
+            else:
+                http = httplib2.Http()
+            authorized_http = AuthorizedHttp(creds, http=http)
+            service = build("tasks", "v1", http=authorized_http)
 
             # Paginate task lists
             all_task_lists: List[Dict[str, Any]] = []
