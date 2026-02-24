@@ -102,6 +102,13 @@
     "project_id": "",
     "client_secret": ""
   },
+  "google": {
+    "drive_comments": {
+      "enabled": true,
+      "max_comments": 50,
+      "unresolved_only": true
+    }
+  },
   "voice_input": {
     "enabled": false,
     "localai_base_url": "http://localhost:8080",

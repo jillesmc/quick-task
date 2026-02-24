@@ -711,6 +711,55 @@ class ConfigManager:
         except Exception as e:
             raise RuntimeError(f"Erro ao salvar configuração de Pomodoro: {e}") from e
 
+    def get_google_drive_comments_config(self) -> Dict[str, Any]:
+        """
+        Retorna configuração de comentários do Google Drive (Issue #18).
+
+        Returns:
+            Dict com enabled, max_comments, unresolved_only
+        """
+        default_config = {
+            "enabled": True,
+            "max_comments": 50,
+            "unresolved_only": True,
+        }
+        google_config = self._config.get("google") or {}
+        if not isinstance(google_config, dict):
+            return default_config
+        drive_comments = google_config.get("drive_comments") or {}
+        if not isinstance(drive_comments, dict):
+            return default_config
+        result = dict(default_config)
+        result.update({k: v for k, v in drive_comments.items() if k in result})
+        return result
+
+    def save_google_drive_comments_config(
+        self, drive_comments_config: Dict[str, Any]
+    ) -> None:
+        """
+        Salva configurações de drive_comments (google.drive_comments) no arquivo.
+        """
+        if "google" not in self._config or not isinstance(self._config["google"], dict):
+            self._config["google"] = {}
+        self._config["google"]["drive_comments"] = drive_comments_config
+        if str(self.config_path).startswith("/app/"):
+            xdg_config = os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")
+            self.config_path = Path(xdg_config) / "jira-quick-task" / "config.json"
+        self.config_path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            with open(self.config_path, "w", encoding="utf-8") as f:
+                json.dump(self._config, f, indent=2, ensure_ascii=False)
+                if hasattr(f, "fileno"):
+                    try:
+                        os.fsync(f.fileno())
+                    except OSError:
+                        pass
+            self.load_config()
+        except Exception as e:
+            raise RuntimeError(
+                f"Erro ao salvar configuração de drive_comments: {e}"
+            ) from e
+
     def get_worklog_check_config(self) -> Dict[str, Any]:
         """
         Retorna configuração de verificação de worklogs ao transitar status.

@@ -54,6 +54,9 @@ def _build_client_config(client_id: str, client_secret: str) -> dict:
 SCOPES = [
     "https://www.googleapis.com/auth/calendar.readonly",
     "https://www.googleapis.com/auth/tasks.readonly",
+    # drive (não drive.readonly): listar comentários + comments().update() para resolver
+    "https://www.googleapis.com/auth/drive",
+    "https://www.googleapis.com/auth/chat.spaces.readonly",
 ]
 
 

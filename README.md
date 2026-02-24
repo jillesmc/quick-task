@@ -101,6 +101,7 @@ Ou: `flatpak run org.kde.jira-quick-task --debug`. Ver [DEBUG.md](DEBUG.md).
 | Campos customizados vazios | Verifique IDs em `config.json`; use `GET /rest/api/3/field` no Jira |
 | Erro ao transicionar status | Nome do status em `config.json` deve coincidir exatamente com o Jira |
 | Worklog não registrado | Marque "Registrar worklog"; formato YYYY-MM-DD HH:MM:SS; só após transição para IN DEVELOPMENT |
+| Nome do space nas Google Tasks aparece só "Chat Space" | No projeto Google Cloud (onde criou o OAuth): [Chat API → Configuration](https://console.cloud.google.com/apis/api/chat.googleapis.com/hangouts-chat), preencha **App name**, **Avatar URL** e **Description** e guarde. Reabra a aba Google na app para carregar de novo. |
 
 ## Certificados SSL no Flatpak
 

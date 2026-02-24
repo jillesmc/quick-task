@@ -135,6 +135,11 @@ Kirigami.Page {
                         googleAuthService: page.googleAuthService
                     }
 
+                    GoogleDriveCommentsSettingsBlock {
+                        Layout.fillWidth: true
+                        settingsModel: page.settingsModel
+                    }
+
                     // Recarregar opções de Assets (Valor entregue, Plataformas afetadas)
                     ColumnLayout {
                         Layout.fillWidth: true

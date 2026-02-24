@@ -386,6 +386,117 @@ class JiraWorker(QThread):
             self.finished.emit()
 
 
+def _build_summary_from_drive_comment(comment: Dict[str, Any]) -> str:
+    """Build Jira issue summary from a Drive comment dict (Issue #18)."""
+    content = (comment.get("content") or "").strip()
+    file_name = (comment.get("file_name") or "").strip()
+    import re
+    first_sentence = content.split(".")[0].strip() if content else ""
+    first_sentence = re.sub(r"@\S+", "", first_sentence).strip()
+    first_sentence = first_sentence[:100].strip()
+    if len(first_sentence) < 80 and file_name:
+        return f"{first_sentence} em {file_name}" if first_sentence else file_name
+    return first_sentence or "Comentário do Drive"
+
+
+def _build_description_from_drive_comment(comment: Dict[str, Any]) -> str:
+    """Build plain-text description from a Drive comment dict (Issue #18)."""
+    author = (comment.get("author") or "").strip() or "Unknown"
+    content = (comment.get("content") or "").strip()
+    file_type = (comment.get("file_type") or "").strip() or "Documento"
+    file_name = (comment.get("file_name") or "").strip()
+    file_url = (comment.get("file_url") or "").strip()
+    quoted_text = (comment.get("quoted_text") or "").strip()
+    created_time = (comment.get("createdTime") or "").strip()
+    parts = [
+        f"Comentário de {author} em {file_type}:",
+        "",
+        f'"{content}"',
+        "",
+    ]
+    if quoted_text:
+        parts.extend(["Contexto:", f'"{quoted_text}"', ""])
+    if file_name or file_url:
+        parts.append(f"Documento: {file_name}" if file_name else "Documento")
+        if file_url:
+            parts.append(file_url)
+        parts.append("")
+    if created_time:
+        parts.append(f"Data: {created_time}")
+    return "\n".join(parts)
+
+
+class CreateIssueFromDriveCommentWorker(QThread):
+    """Worker to create a Jira issue from a Google Drive comment and add remotelink (Issue #18)."""
+
+    issueCreatedFromDriveComment = Signal(str, str, str, str)  # issue_key, issue_url, file_id, comment_id
+    errorOccurred = Signal(str)
+    finished = Signal()
+
+    def __init__(
+        self,
+        jira_client: JiraClient,
+        config: ConfigManager,
+        comment: Dict[str, Any],
+        parent=None,
+    ):
+        super().__init__(parent)
+        self._jira_client = jira_client
+        self._config = config
+        self._comment = comment or {}
+
+    def run(self) -> None:
+        try:
+            summary = _build_summary_from_drive_comment(self._comment)
+            description = _build_description_from_drive_comment(self._comment)
+            project = self._config.get_project() if self._config else ""
+            issue_type = self._config.get_issue_type() if self._config else "Task"
+            tipo_values = (
+                self._config.get_tipo_atividade_values() if self._config else []
+            )
+            tipo = (
+                tipo_values[0]
+                if tipo_values
+                else "Melhorias Técnicas/Atualizações Técnicas/Plataforma/Segurança"
+            )
+            custom_fields = {}
+            cf_tipo = self._config.get_custom_field("tipo_atividade") if self._config else None
+            if cf_tipo:
+                custom_fields[cf_tipo] = tipo
+            cf_doc = self._config.get_custom_field("documentacao_anexa") if self._config else None
+            if cf_doc:
+                custom_fields[cf_doc] = "Não"
+            cf_ia = self._config.get_custom_field("utilizacao_ia") if self._config else None
+            if cf_ia:
+                custom_fields[cf_ia] = "Não"
+
+            result = self._jira_client.create_issue(
+                project=project,
+                issue_type=issue_type,
+                summary=summary,
+                description=description,
+                custom_fields=custom_fields if custom_fields else None,
+                priority="Medium",
+            )
+            issue_key = result.get("issue_key", "")
+            issue_url = result.get("issue_url", "")
+            file_id = (self._comment.get("file_id") or "").strip()
+            comment_id = (self._comment.get("id") or "").strip()
+            file_url = (self._comment.get("file_url") or "").strip()
+            file_type = (self._comment.get("file_type") or "").strip()
+            file_name = (self._comment.get("file_name") or "").strip()
+            link_title = f"{file_type}: {file_name}" if file_type and file_name else (file_name or file_url or "Documento")
+            if issue_key and file_url and link_title:
+                self._jira_client.add_remotelink(issue_key, file_url, link_title)
+            self.issueCreatedFromDriveComment.emit(
+                issue_key, issue_url, file_id, comment_id
+            )
+        except Exception as e:
+            self.errorOccurred.emit(str(e))
+        finally:
+            self.finished.emit()
+
+
 class UpdateWorker(QThread):
     """Worker thread para atualização de issues Jira assíncronas"""
 
@@ -980,6 +1091,8 @@ class JiraService(QObject):
     )  # issueKey (para iniciar timer após transição automática)
     # Worklog registrado (para invalidar cache do Timesheet)
     worklogRegistered = Signal()
+    # Issue criada a partir de comentário do Drive (Issue #18): issue_key, issue_url, file_id, comment_id
+    issueCreatedFromDriveComment = Signal(str, str, str, str)
 
     def __init__(self, parent=None, config_manager: Optional[ConfigManager] = None):
         super().__init__(parent)
@@ -1053,6 +1166,7 @@ class JiraService(QObject):
         self._development_enrich_worker: Optional[QThread] = None
         self._development_branches_enrich_worker: Optional[QThread] = None
         self._quick_transition_worker: Optional[QuickTransitionWorker] = None
+        self._drive_comment_worker: Optional[CreateIssueFromDriveCommentWorker] = None
 
     def get_assets_cache(self) -> Optional[AssetsCacheService]:
         """Retorna o serviço de cache de Assets (para IssueModel e payloads)."""
@@ -1458,6 +1572,46 @@ class JiraService(QObject):
             pendingAttachments=None,
             prioridade="Medium",
         )
+
+    @Slot("QVariant", result=bool)
+    def createIssueFromDriveComment(self, comment_variant: Any) -> bool:
+        """
+        Cria issue no Jira a partir de comentário do Google Drive (Issue #18).
+        Adiciona remotelink para o documento. Emite issueCreatedFromDriveComment(issue_key, issue_url, file_id, comment_id).
+        comment_variant: dict com content, author, file_id, file_name, file_type, file_url, quoted_text, createdTime, id.
+        """
+        if not self._jira_client or not self._config:
+            self.errorOccurred.emit("Jira não configurado.")
+            return False
+        comment = (
+            comment_variant
+            if isinstance(comment_variant, dict)
+            else (dict(comment_variant) if hasattr(comment_variant, "keys") else {})
+        )
+        if not comment:
+            self.errorOccurred.emit("Comentário inválido.")
+            return False
+        if self._drive_comment_worker and self._drive_comment_worker.isRunning():
+            return False
+        self._drive_comment_worker = CreateIssueFromDriveCommentWorker(
+            self._jira_client,
+            self._config,
+            comment,
+            parent=self,
+        )
+        self._drive_comment_worker.issueCreatedFromDriveComment.connect(
+            self.issueCreatedFromDriveComment.emit
+        )
+        self._drive_comment_worker.errorOccurred.connect(self.errorOccurred.emit)
+
+        def _on_finished():
+            if self._drive_comment_worker is worker_ref:
+                self._drive_comment_worker = None
+
+        worker_ref = self._drive_comment_worker
+        self._drive_comment_worker.finished.connect(_on_finished)
+        self._drive_comment_worker.start()
+        return True
 
     @Slot(result=bool)
     def isAvailable(self) -> bool:

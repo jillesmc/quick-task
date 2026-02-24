@@ -95,6 +95,11 @@ class SettingsModel(QObject):
             self._google_oauth_project_id = ""
             self._google_oauth_client_secret = ""
 
+            # Propriedades Google Drive Comments (Issue #18)
+            self._drive_comments_enabled = True
+            self._drive_comments_max_comments = 50
+            self._drive_comments_unresolved_only = True
+
             debug_log("SettingsModel", "__init__", "Carregando valores atuais...")
             self._load_current_values()
             debug_log("SettingsModel", "__init__", "Concluído")
@@ -248,6 +253,17 @@ class SettingsModel(QObject):
         self._google_oauth_client_id = goauth.get("client_id", "") or ""
         self._google_oauth_project_id = goauth.get("project_id", "") or ""
         self._google_oauth_client_secret = goauth.get("client_secret", "") or ""
+
+        drive_comments_config = (
+            self._config_manager.get_google_drive_comments_config()
+        )
+        self._drive_comments_enabled = drive_comments_config.get("enabled", True)
+        self._drive_comments_max_comments = drive_comments_config.get(
+            "max_comments", 50
+        )
+        self._drive_comments_unresolved_only = drive_comments_config.get(
+            "unresolved_only", True
+        )
 
         debug_log(
             "SettingsModel",
@@ -691,6 +707,21 @@ class SettingsModel(QObject):
                 "SettingsModel",
                 "save",
                 "Configurações Google OAuth salvas no arquivo",
+            )
+
+            # 4d2. Salvar configurações Google Drive Comments
+            drive_comments_config = {
+                "enabled": self._drive_comments_enabled,
+                "max_comments": self._drive_comments_max_comments,
+                "unresolved_only": self._drive_comments_unresolved_only,
+            }
+            self._config_manager.save_google_drive_comments_config(
+                drive_comments_config
+            )
+            debug_log(
+                "SettingsModel",
+                "save",
+                "Configurações Google Drive Comments salvas no arquivo",
             )
 
             # 4e. Salvar configurações GitHub
@@ -1233,3 +1264,41 @@ class SettingsModel(QObject):
         if self._google_oauth_client_secret != value:
             self._google_oauth_client_secret = value or ""
             self.googleOAuthClientSecretChanged.emit()
+
+    # Drive comments (Issue #18)
+    driveCommentsEnabledChanged = Signal()
+    driveCommentsMaxCommentsChanged = Signal()
+    driveCommentsUnresolvedOnlyChanged = Signal()
+
+    @Property(bool, notify=driveCommentsEnabledChanged)
+    def driveCommentsEnabled(self) -> bool:
+        """Habilitar coluna de comentários do Drive na aba Google"""
+        return self._drive_comments_enabled
+
+    @driveCommentsEnabled.setter
+    def driveCommentsEnabled(self, value: bool):
+        if self._drive_comments_enabled != value:
+            self._drive_comments_enabled = value
+            self.driveCommentsEnabledChanged.emit()
+
+    @Property(int, notify=driveCommentsMaxCommentsChanged)
+    def driveCommentsMaxComments(self) -> int:
+        """Número máximo de comentários do Drive a carregar"""
+        return self._drive_comments_max_comments
+
+    @driveCommentsMaxComments.setter
+    def driveCommentsMaxComments(self, value: int):
+        if self._drive_comments_max_comments != value:
+            self._drive_comments_max_comments = max(1, min(100, int(value)))
+            self.driveCommentsMaxCommentsChanged.emit()
+
+    @Property(bool, notify=driveCommentsUnresolvedOnlyChanged)
+    def driveCommentsUnresolvedOnly(self) -> bool:
+        """Carregar apenas comentários não resolvidos do Drive"""
+        return self._drive_comments_unresolved_only
+
+    @driveCommentsUnresolvedOnly.setter
+    def driveCommentsUnresolvedOnly(self, value: bool):
+        if self._drive_comments_unresolved_only != value:
+            self._drive_comments_unresolved_only = value
+            self.driveCommentsUnresolvedOnlyChanged.emit()

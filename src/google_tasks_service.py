@@ -3,7 +3,7 @@ Google Tasks service: load all todo tasks from all lists, expose to QML.
 Uses QThread for async work and signals for communication.
 """
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from PySide6.QtCore import QObject, Signal, Slot, QThread  # type: ignore[import]
 
@@ -55,6 +55,75 @@ class GoogleTasksLoadWorker(QThread):
             "space_name": space_name,
             "links": links,
         }
+
+    def _enrich_tasks_with_space_display_names(
+        self,
+        creds,
+        ca_path: Optional[str],
+        all_tasks: List[Dict[str, Any]],
+    ) -> List[Dict[str, Any]]:
+        """Resolve Chat Space display names for tasks that came from a Space (Issue #15)."""
+        space_names = set()
+        for t in all_tasks:
+            if (t.get("assignment_source") == "SPACE") and (
+                (t.get("space_name") or "").strip()
+            ):
+                space_names.add((t.get("space_name") or "").strip())
+        if not space_names:
+            return all_tasks
+        # Para obter o nome legível do space (displayName) usamos a Chat API spaces.get().
+        # A API devolve 404 "Google Chat app not found" até o projeto GCP ter a Chat app
+        # configurada (nome, avatar, descrição) em:
+        # https://console.cloud.google.com/apis/api/chat.googleapis.com/hangouts-chat
+        # Fallback quando não há displayName: não usar ID; o QML mostra "Chat Space" se vazio.
+        space_display_names: Dict[str, str] = {}
+        chat_skipped = False  # True após 404 "Chat app not found" para não repetir chamadas
+        try:
+            from google_auth_httplib2 import AuthorizedHttp
+            from googleapiclient.discovery import build
+            import httplib2
+
+            if ca_path:
+                http = httplib2.Http(ca_certs=ca_path)
+            else:
+                http = httplib2.Http()
+            authorized_http = AuthorizedHttp(creds, http=http)
+            chat_service = build("chat", "v1", http=authorized_http)
+            for name in space_names:
+                if chat_skipped:
+                    continue
+                try:
+                    resp = (
+                        chat_service.spaces()
+                        .get(name=name)
+                        .execute()
+                    )
+                    display = (resp.get("displayName") or "").strip()
+                    if display:
+                        space_display_names[name] = display
+                except Exception as e:
+                    err_msg = str(e)
+                    if "404" in err_msg and "Google Chat app not found" in err_msg:
+                        chat_skipped = True
+                        debug_log(
+                            "GoogleTasksLoadWorker",
+                            "_enrich_tasks_with_space_display_names",
+                            "Para ver o nome do space: configure a Chat app no projeto GCP "
+                            "(App name, Avatar URL, Description) em Configuration: %s",
+                            "https://console.cloud.google.com/apis/api/chat.googleapis.com/hangouts-chat",
+                        )
+            for t in all_tasks:
+                sn = (t.get("space_name") or "").strip()
+                if sn and sn in space_display_names:
+                    t["space_display_name"] = space_display_names[sn]
+        except Exception as e:
+            debug_log(
+                "GoogleTasksLoadWorker",
+                "_enrich_tasks_with_space_display_names",
+                "Enrichment falhou: %s",
+                str(e),
+            )
+        return all_tasks
 
     def run(self) -> None:
         try:
@@ -126,6 +195,11 @@ class GoogleTasksLoadWorker(QThread):
                             break
                 except Exception:
                     continue
+
+            # Enrich tasks from Chat Spaces with space display name (Issue #15)
+            all_tasks = self._enrich_tasks_with_space_display_names(
+                creds, ca_path, all_tasks
+            )
 
             self.tasksReady.emit(all_tasks)
         except Exception as e:

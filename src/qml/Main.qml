@@ -95,6 +95,7 @@ Kirigami.ApplicationWindow {
     property var _ctxGoogleAuthService: null
     property var _ctxGoogleCalendarService: null
     property var _ctxGoogleTasksService: null
+    property var _ctxGoogleDriveCommentsService: null
     property var _ctxClipboardHelper: clipboardHelper // qmllint disable unqualified
     property var _ctxGitCommandHelper: gitCommandHelper // qmllint disable unqualified
     property var hideWindowFn: hideWindow // qmllint disable unqualified
@@ -190,6 +191,7 @@ Kirigami.ApplicationWindow {
             id: googlePage
             googleCalendarService: root._ctxGoogleCalendarService
             googleTasksService: root._ctxGoogleTasksService
+            googleDriveCommentsService: root._ctxGoogleDriveCommentsService
             googleAuthService: root._ctxGoogleAuthService
             jiraService: root._ctxJiraService
             issueModel: root._ctxIssueModel

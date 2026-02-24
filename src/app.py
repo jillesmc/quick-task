@@ -1403,17 +1403,21 @@ def main():
         from src.google_auth_service import GoogleAuthService
         from src.google_calendar_service import GoogleCalendarService
         from src.google_tasks_service import GoogleTasksService
+        from src.google_drive_comments_service import GoogleDriveCommentsService
 
         auth_svc = GoogleAuthService(config_manager=app_config_manager)
         cal_svc = GoogleCalendarService(config_manager=app_config_manager)
         tasks_svc = GoogleTasksService(config_manager=app_config_manager)
+        drive_comments_svc = GoogleDriveCommentsService(config_manager=app_config_manager)
         cal_svc.authRequired.connect(auth_svc._update_authorized)
         tasks_svc.authRequired.connect(auth_svc._update_authorized)
+        drive_comments_svc.authRequired.connect(auth_svc._update_authorized)
 
         root_obj = root_objects[0]
         root_obj.setProperty("_ctxGoogleAuthService", auth_svc)
         root_obj.setProperty("_ctxGoogleCalendarService", cal_svc)
         root_obj.setProperty("_ctxGoogleTasksService", tasks_svc)
+        root_obj.setProperty("_ctxGoogleDriveCommentsService", drive_comments_svc)
         debug_log("App", "main", "Serviços Google atribuídos ao root")
     except Exception as e:
         print(f"⚠ Aviso: Erro ao criar serviços Google: {e}", file=sys.stderr)

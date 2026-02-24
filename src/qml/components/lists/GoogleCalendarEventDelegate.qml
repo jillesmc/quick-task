@@ -67,7 +67,9 @@ Rectangle {
         Controls.Button {
             text: qsTr("Importar para Jira")
             icon.name: "document-import"
+            Layout.topMargin: Kirigami.Units.largeSpacing
             Layout.alignment: Qt.AlignRight
+            Accessible.name: qsTr("Importar evento para Jira")
             onClicked: {
                 if (root.itemData) {
                     root.importRequested(root.itemData);

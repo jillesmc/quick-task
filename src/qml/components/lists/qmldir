@@ -5,3 +5,4 @@ EpicListItem EpicListItem.qml
 GitHubItemDelegate GitHubItemDelegate.qml
 GoogleCalendarEventDelegate GoogleCalendarEventDelegate.qml
 GoogleTaskItemDelegate GoogleTaskItemDelegate.qml
+GoogleDriveCommentDelegate GoogleDriveCommentDelegate.qml

@@ -1544,6 +1544,30 @@ class JiraClient:
             debug_log("JiraClient", "create_issue", "ERRO inesperado - %s", e)
             raise RuntimeError(f"Erro inesperado ao criar issue: {str(e)}") from e
 
+    def add_remotelink(
+        self, issue_key: str, url: str, title: str
+    ) -> bool:
+        """
+        Add a remote link to an issue (e.g. link to Google Drive document).
+
+        Args:
+            issue_key: Issue key (e.g. "PROJECT-123")
+            url: URL of the remote object
+            title: Display title for the link
+
+        Returns:
+            True if successful.
+        """
+        if not issue_key or not url or not title:
+            return False
+        endpoint = f"issue/{issue_key.strip()}/remotelink"
+        payload = {"object": {"url": url.strip(), "title": title.strip()}}
+        try:
+            self._make_request("POST", endpoint, json_data=payload, timeout=15)
+            return True
+        except Exception:
+            return False
+
     def update_issue(
         self,
         issue_key: str,
