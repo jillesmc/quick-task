@@ -254,9 +254,7 @@ class SettingsModel(QObject):
         self._google_oauth_project_id = goauth.get("project_id", "") or ""
         self._google_oauth_client_secret = goauth.get("client_secret", "") or ""
 
-        drive_comments_config = (
-            self._config_manager.get_google_drive_comments_config()
-        )
+        drive_comments_config = self._config_manager.get_google_drive_comments_config()
         self._drive_comments_enabled = drive_comments_config.get("enabled", True)
         self._drive_comments_max_comments = drive_comments_config.get(
             "max_comments", 50

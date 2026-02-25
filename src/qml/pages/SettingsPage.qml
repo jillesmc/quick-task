@@ -140,6 +140,51 @@ Kirigami.Page {
                         settingsModel: page.settingsModel
                     }
 
+                    // Metadata do Jira (projetos, issue types, campos) - Issue #25
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: Kirigami.Units.smallSpacing
+                        // qmllint disable unqualified
+                        visible: typeof jiraMetadataConfigModel !== "undefined" && jiraMetadataConfigModel !== null
+
+                        Kirigami.Heading {
+                            text: qsTr("Metadata do Jira")
+                            level: 3
+                            Layout.fillWidth: true
+                        }
+                        Controls.Label {
+                            text: qsTr("Configure quais projetos, tipos de issue e campos usar na aplicação.")
+                            wrapMode: Text.WordWrap
+                            Layout.fillWidth: true
+                        }
+                        Controls.Button {
+                            text: qsTr("Configurar projetos e campos")
+                            Layout.fillWidth: true
+                            enabled: jiraMetadataConfigModel && jiraMetadataConfigModel.isAvailable() // qmllint disable unqualified
+                            onClicked: {
+                                var comp = Qt.createComponent("../components/dialogs/JiraMetadataWizard.qml");
+                                if (comp.status !== Component.Ready) {
+                                    if (comp.status === Component.Error && typeof console !== "undefined")
+                                        console.warn("[SettingsPage] JiraMetadataWizard load error:", comp.errorString());
+                                    return;
+                                }
+                                var parent = (typeof page.applicationWindow !== "undefined" ? page.applicationWindow : null) || page.parent || page; // qmllint disable missing-property
+                                var dlg = comp.createObject(parent, { jiraMetadataConfigModel: jiraMetadataConfigModel }); // qmllint disable unqualified
+                                if (dlg) {
+                                    dlg.closed.connect(function() { dlg.destroy(); });
+                                    dlg.open();
+                                }
+                            }
+                        }
+                        Controls.Label {
+                            visible: jiraMetadataConfigModel && !jiraMetadataConfigModel.isAvailable() // qmllint disable unqualified
+                            text: qsTr("Configure a conexão Jira acima primeiro.")
+                            color: Kirigami.Theme.negativeTextColor
+                            wrapMode: Text.WordWrap
+                            Layout.fillWidth: true
+                        }
+                    }
+
                     // Recarregar opções de Assets (Valor entregue, Plataformas afetadas)
                     ColumnLayout {
                         Layout.fillWidth: true

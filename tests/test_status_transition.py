@@ -226,9 +226,7 @@ def test_needs_two_phase_transition_to_do_to_in_progress():
 
 def test_needs_two_phase_transition_in_progress_to_code_review():
     """IN PROGRESS → Code Review: uma fase (já está em IN PROGRESS)."""
-    assert (
-        needs_two_phase_transition("IN PROGRESS", "CODE REVIEW", SEQUENCE) is False
-    )
+    assert needs_two_phase_transition("IN PROGRESS", "CODE REVIEW", SEQUENCE) is False
 
 
 def test_needs_two_phase_transition_done_to_done():
@@ -247,9 +245,7 @@ def test_needs_two_phase_transition_case_insensitive():
 def test_requires_worklog_check_in_progress_to_code_review():
     """IN PROGRESS → Code Review: deve verificar worklogs."""
     assert (
-        requires_worklog_check_before_transition(
-            "IN PROGRESS", "CODE REVIEW", SEQUENCE
-        )
+        requires_worklog_check_before_transition("IN PROGRESS", "CODE REVIEW", SEQUENCE)
         is True
     )
 

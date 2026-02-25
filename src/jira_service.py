@@ -237,7 +237,9 @@ class JiraWorker(QThread):
                             dims = get_dimensions(path)
                             if dims:
                                 width, height = dims
-                            display_width = item.get("displayWidth") or item.get("display_width")
+                            display_width = item.get("displayWidth") or item.get(
+                                "display_width"
+                            )
                             if display_width is not None:
                                 try:
                                     display_width = int(display_width)
@@ -278,9 +280,7 @@ class JiraWorker(QThread):
                         if not ok:
                             # Fallback: embed como link (Jira Cloud rejeita media com attachment ID)
                             for pid, info in attachments_map.items():
-                                content_url = (
-                                    f"{base_url.rstrip('/')}/rest/api/3/attachment/content/{info.id}"
-                                )
+                                content_url = f"{base_url.rstrip('/')}/rest/api/3/attachment/content/{info.id}"
                                 description_final = description_final.replace(
                                     f"pending:{pid}", content_url
                                 )
@@ -324,9 +324,7 @@ class JiraWorker(QThread):
                     self.registrar_worklog
                     and self.worklog_inicio
                     and self.worklog_duracao
-                    and _is_status_at_or_after_in_progress(
-                        self.target_status, sequence
-                    )
+                    and _is_status_at_or_after_in_progress(self.target_status, sequence)
                 ):
                     worklog_config = WorklogConfig(
                         registrar=True,
@@ -351,9 +349,7 @@ class JiraWorker(QThread):
                     and self.registrar_worklog
                     and self.worklog_inicio
                     and self.worklog_duracao
-                    and _is_status_at_or_after_in_progress(
-                        self.target_status, sequence
-                    )
+                    and _is_status_at_or_after_in_progress(self.target_status, sequence)
                 ):
                     self.progressUpdated.emit(85, "Registrando worklog...")
                     time_spent = self.jira_client._format_duration_minutes(
@@ -391,6 +387,7 @@ def _build_summary_from_drive_comment(comment: Dict[str, Any]) -> str:
     content = (comment.get("content") or "").strip()
     file_name = (comment.get("file_name") or "").strip()
     import re
+
     first_sentence = content.split(".")[0].strip() if content else ""
     first_sentence = re.sub(r"@\S+", "", first_sentence).strip()
     first_sentence = first_sentence[:100].strip()
@@ -429,7 +426,9 @@ def _build_description_from_drive_comment(comment: Dict[str, Any]) -> str:
 class CreateIssueFromDriveCommentWorker(QThread):
     """Worker to create a Jira issue from a Google Drive comment and add remotelink (Issue #18)."""
 
-    issueCreatedFromDriveComment = Signal(str, str, str, str)  # issue_key, issue_url, file_id, comment_id
+    issueCreatedFromDriveComment = Signal(
+        str, str, str, str
+    )  # issue_key, issue_url, file_id, comment_id
     errorOccurred = Signal(str)
     finished = Signal()
 
@@ -460,13 +459,23 @@ class CreateIssueFromDriveCommentWorker(QThread):
                 else "Melhorias Técnicas/Atualizações Técnicas/Plataforma/Segurança"
             )
             custom_fields = {}
-            cf_tipo = self._config.get_custom_field("tipo_atividade") if self._config else None
+            cf_tipo = (
+                self._config.get_custom_field("tipo_atividade")
+                if self._config
+                else None
+            )
             if cf_tipo:
                 custom_fields[cf_tipo] = tipo
-            cf_doc = self._config.get_custom_field("documentacao_anexa") if self._config else None
+            cf_doc = (
+                self._config.get_custom_field("documentacao_anexa")
+                if self._config
+                else None
+            )
             if cf_doc:
                 custom_fields[cf_doc] = "Não"
-            cf_ia = self._config.get_custom_field("utilizacao_ia") if self._config else None
+            cf_ia = (
+                self._config.get_custom_field("utilizacao_ia") if self._config else None
+            )
             if cf_ia:
                 custom_fields[cf_ia] = "Não"
 
@@ -485,7 +494,11 @@ class CreateIssueFromDriveCommentWorker(QThread):
             file_url = (self._comment.get("file_url") or "").strip()
             file_type = (self._comment.get("file_type") or "").strip()
             file_name = (self._comment.get("file_name") or "").strip()
-            link_title = f"{file_type}: {file_name}" if file_type and file_name else (file_name or file_url or "Documento")
+            link_title = (
+                f"{file_type}: {file_name}"
+                if file_type and file_name
+                else (file_name or file_url or "Documento")
+            )
             if issue_key and file_url and link_title:
                 self._jira_client.add_remotelink(issue_key, file_url, link_title)
             self.issueCreatedFromDriveComment.emit(
@@ -567,9 +580,7 @@ class UpdateWorker(QThread):
             # Preparar campos customizados (sem Asset quando transição for IN PROGRESS e tiver cache)
             custom_fields: Dict[str, Any] = {}
             status_normalized = (self.status or "").strip().upper()
-            use_asset_update = (
-                status_normalized == "IN PROGRESS" and self.assets_cache
-            )
+            use_asset_update = status_normalized == "IN PROGRESS" and self.assets_cache
 
             if self.tipo_atividade:
                 tipo_atividade_alias = self.config.get_custom_field("tipo_atividade")
@@ -696,9 +707,7 @@ class UpdateWorker(QThread):
                     self.registrar_worklog
                     and self.worklog_inicio
                     and self.worklog_duracao
-                    and _is_status_at_or_after_in_progress(
-                        transition_target, sequence
-                    )
+                    and _is_status_at_or_after_in_progress(transition_target, sequence)
                 ):
                     worklog_config = WorklogConfig(
                         registrar=True,
@@ -724,9 +733,7 @@ class UpdateWorker(QThread):
                     and self.registrar_worklog
                     and self.worklog_inicio
                     and self.worklog_duracao
-                    and _is_status_at_or_after_in_progress(
-                        transition_target, sequence
-                    )
+                    and _is_status_at_or_after_in_progress(transition_target, sequence)
                 ):
                     self.progressUpdated.emit(85, "Registrando worklog...")
                     time_spent = self.jira_client._format_duration_minutes(
@@ -995,7 +1002,9 @@ class QuickTransitionWorker(QThread):
 class AttachmentUploadWorker(QThread):
     """Worker para upload de um anexo em thread separada."""
 
-    uploadSucceeded = Signal(str, str, str, str)  # issueKey, contentUrl, filename, embedTarget
+    uploadSucceeded = Signal(
+        str, str, str, str
+    )  # issueKey, contentUrl, filename, embedTarget
     uploadFailed = Signal(str, str)  # issueKey, errorMessage
     finished = Signal()
 
@@ -1067,12 +1076,16 @@ class JiraService(QObject):
     assetsCacheLoaded = Signal(bool, str)  # success, message
     # Comentários de issues
     commentsLoaded = Signal("QVariantList", int, int)  # list, startAt, total
-    latestCommentLoaded = Signal(str, "QVariant", int)  # issueKey, commentDict or null, total
+    latestCommentLoaded = Signal(
+        str, "QVariant", int
+    )  # issueKey, commentDict or null, total
     commentAdded = Signal(str, "QVariant")  # issueKey, commentDict
     commentUpdated = Signal(str, str, "QVariant")  # issueKey, commentId, commentDict
     commentDeleted = Signal(str, str)  # issueKey, commentId
     # Anexos: upload imediato (comentário / edição de task)
-    attachmentUploaded = Signal(str, str, str, str)  # issueKey, contentUrl, filename, embedTarget
+    attachmentUploaded = Signal(
+        str, str, str, str
+    )  # issueKey, contentUrl, filename, embedTarget
     uploadFailed = Signal(str, str)  # issueKey, errorMessage
     # Fetch assíncrono de attachment para preview (imagens Jira exigem auth)
     attachmentDataUrlReady = Signal(str, str)  # url, dataUrl
@@ -1444,7 +1457,8 @@ class JiraService(QObject):
                             "filename": str(item.get("filename", "")).strip(),
                             "placeholderId": str(item.get("placeholderId", "")).strip(),
                             "layout": str(item.get("layout", "")).strip() or None,
-                            "displayWidth": item.get("displayWidth") or item.get("display_width"),
+                            "displayWidth": item.get("displayWidth")
+                            or item.get("display_width"),
                         }
                     )
                 elif hasattr(item, "get"):
@@ -1456,7 +1470,8 @@ class JiraService(QObject):
                                 getattr(item, "placeholderId", "")
                             ).strip(),
                             "layout": str(getattr(item, "layout", "")).strip() or None,
-                            "displayWidth": getattr(item, "displayWidth", None) or getattr(item, "display_width", None),
+                            "displayWidth": getattr(item, "displayWidth", None)
+                            or getattr(item, "display_width", None),
                         }
                     )
 
@@ -2057,7 +2072,9 @@ class JiraService(QObject):
         return 760
 
     @Slot(result=list)
-    def getAllowedAttachmentExtensions(self) -> List[str]:  # NOSONAR - camelCase para QML
+    def getAllowedAttachmentExtensions(
+        self,
+    ) -> List[str]:  # NOSONAR - camelCase para QML
         """Retorna lista de extensões permitidas para anexos (imagens + documentos)."""
         if self._config:
             return self._config.get_allowed_attachment_extensions()
@@ -2156,7 +2173,9 @@ class JiraService(QObject):
         return True
 
     @Slot(str, result=bool)
-    def deleteAttachment(self, attachmentId: str) -> bool:  # NOSONAR - camelCase para QML
+    def deleteAttachment(
+        self, attachmentId: str
+    ) -> bool:  # NOSONAR - camelCase para QML
         """
         Remove um anexo da issue no Jira em thread separada.
         Emite attachmentDeleted(attachmentId) em sucesso ou
@@ -2170,7 +2189,10 @@ class JiraService(QObject):
         aid = (attachmentId or "").strip()
         if not aid:
             return False
-        if self._attachment_delete_worker and self._attachment_delete_worker.isRunning():
+        if (
+            self._attachment_delete_worker
+            and self._attachment_delete_worker.isRunning()
+        ):
             return False
 
         class _AttachmentDeleteWorker(QThread):
@@ -2204,7 +2226,9 @@ class JiraService(QObject):
             if success:
                 self.attachmentDeleted.emit(att_id)
             else:
-                self.attachmentDeleteFailed.emit(att_id, err or "Erro ao excluir anexo.")
+                self.attachmentDeleteFailed.emit(
+                    att_id, err or "Erro ao excluir anexo."
+                )
 
         def cleanup() -> None:
             if self._attachment_delete_worker is worker:
@@ -2438,7 +2462,9 @@ class JiraService(QObject):
         self._transition_from_in_progress_worker.progressUpdated.connect(
             self.progressUpdated.emit
         )
-        self._transition_from_in_progress_worker.issueUpdated.connect(self.issueUpdated.emit)
+        self._transition_from_in_progress_worker.issueUpdated.connect(
+            self.issueUpdated.emit
+        )
         self._transition_from_in_progress_worker.errorOccurred.connect(
             self.errorOccurred.emit
         )
@@ -2462,7 +2488,10 @@ class JiraService(QObject):
             if issueKey and issueKey.strip():
                 self.inProgressReady.emit(issueKey.strip())
             return False
-        if self._ensure_in_progress_worker and self._ensure_in_progress_worker.isRunning():
+        if (
+            self._ensure_in_progress_worker
+            and self._ensure_in_progress_worker.isRunning()
+        ):
             return True
         self._ensure_in_progress_worker = EnsureInProgressWorker(
             jira_client=self._jira_client,
@@ -2473,7 +2502,9 @@ class JiraService(QObject):
         self._ensure_in_progress_worker.inProgressReady.connect(
             self.inProgressReady.emit
         )
-        self._ensure_in_progress_worker.progressUpdated.connect(self.progressUpdated.emit)
+        self._ensure_in_progress_worker.progressUpdated.connect(
+            self.progressUpdated.emit
+        )
         self._ensure_in_progress_worker.errorOccurred.connect(self.errorOccurred.emit)
         self._ensure_in_progress_worker.start()
         return True
@@ -2485,10 +2516,7 @@ class JiraService(QObject):
         if not self._jira_client or not issue_key or not issue_key.strip():
             self.errorOccurred.emit("Serviço Jira ou issue key não disponível")
             return False
-        if (
-            self._quick_transition_worker
-            and self._quick_transition_worker.isRunning()
-        ):
+        if self._quick_transition_worker and self._quick_transition_worker.isRunning():
             self._quick_transition_worker.terminate()
             self._quick_transition_worker.wait()
         self._quick_transition_worker = QuickTransitionWorker(
@@ -2498,12 +2526,8 @@ class JiraService(QObject):
             reason_or_comment=reason_or_comment or "",
             parent=self,
         )
-        self._quick_transition_worker.issueUpdated.connect(
-            self.issueUpdated.emit
-        )
-        self._quick_transition_worker.errorOccurred.connect(
-            self.errorOccurred.emit
-        )
+        self._quick_transition_worker.issueUpdated.connect(self.issueUpdated.emit)
+        self._quick_transition_worker.errorOccurred.connect(self.errorOccurred.emit)
         self._quick_transition_worker.start()
         return True
 
@@ -3345,6 +3369,7 @@ class JiraService(QObject):
         """
         if not self._jira_client or not url or "/attachment/content/" not in url:
             return
+
         class _AttachmentFetchWorker(QThread):
             resultReady = Signal(str, str)  # url, dataUrl
 
@@ -3359,6 +3384,7 @@ class JiraService(QObject):
                     if not data:
                         return
                     import base64
+
                     mime = "image/png"
                     if data[:8] == b"\x89PNG\r\n\x1a\n":
                         mime = "image/png"
@@ -3483,9 +3509,7 @@ class JiraService(QObject):
 
             def run(self) -> None:
                 try:
-                    comment, total = self._client.get_latest_issue_comment(
-                        self._key
-                    )
+                    comment, total = self._client.get_latest_issue_comment(self._key)
                     self.resultReady.emit(self._key, comment, total)
                 except Exception as e:
                     self.errorOccurred.emit(str(e))

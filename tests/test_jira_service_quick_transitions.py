@@ -65,7 +65,9 @@ def test_unblock_issue_success_in_progress(service_with_mocks, qtbot, mock_jira_
     assert "**Issue desbloqueada**" in call_args[0][1]
 
 
-def test_cancel_issue_transition_unavailable_emits_error(service_with_mocks, qtbot, mock_jira_client):
+def test_cancel_issue_transition_unavailable_emits_error(
+    service_with_mocks, qtbot, mock_jira_client
+):
     """cancel_issue emite errorOccurred quando transição para CANCELED não existe."""
     mock_jira_client.transition_issue.return_value = False
     service = service_with_mocks
@@ -77,7 +79,9 @@ def test_cancel_issue_transition_unavailable_emits_error(service_with_mocks, qtb
     mock_jira_client.add_comment.assert_not_called()
 
 
-def test_unblock_issue_transition_unavailable_emits_error(service_with_mocks, qtbot, mock_jira_client):
+def test_unblock_issue_transition_unavailable_emits_error(
+    service_with_mocks, qtbot, mock_jira_client
+):
     """unblock_issue emite errorOccurred quando transição para IN PROGRESS não está disponível."""
     mock_jira_client.transition_issue.return_value = False
     service = service_with_mocks

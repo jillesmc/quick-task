@@ -66,6 +66,7 @@ def _replace_jira_attachment_imgs(html: str) -> str:
     o placeholder por <img src="data:..."> quando attachmentDataUrlReady for emitido.
     Preserva width quando presente (attr_list); fallback: busca width no contexto pai.
     """
+
     def _replacer(match: re.Match) -> str:
         full = match.group(0)
         src = match.group(1)
@@ -96,6 +97,7 @@ def _replace_jira_attachment_links(html: str) -> str:
     Substitui <a href="...attachment/content/..."> por placeholder de imagem.
     Markdown [alt](url) sem ! produz link; tratamos como imagem para exibição.
     """
+
     def _replacer(match: re.Match) -> str:
         href = match.group(1)
         alt = (match.group(2) or "").strip() or "imagem"

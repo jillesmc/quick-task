@@ -949,7 +949,9 @@ def test_get_latest_issue_comment_multiple(mock_request, mock_config_file):
     """get_latest_issue_comment com vários comentários faz 2 requests e retorna o último."""
     first_resp = Mock(status_code=200)
     first_resp.json.return_value = {
-        "comments": [{"id": "1", "author": {}, "body": {}, "created": "", "updated": ""}],
+        "comments": [
+            {"id": "1", "author": {}, "body": {}, "created": "", "updated": ""}
+        ],
         "total": 3,
         "startAt": 0,
         "maxResults": 1,
@@ -1300,3 +1302,148 @@ def test_search_issues_with_worklogs_in_period(mock_request, mock_config_file):
     assert "test@example.com" in jql
     assert "2025-01-01" in jql
     assert "2025-01-31" in jql
+
+
+# --- Discovery (metadata) ---
+
+
+@patch("core.jira_client.requests.request")
+def test_get_projects_success(mock_request, mock_config_file):
+    """get_projects retorna lista de JiraProject parseados."""
+    mock_request.return_value.status_code = 200
+    mock_request.return_value.json.return_value = [
+        {
+            "id": "10001",
+            "key": "QTASK",
+            "name": "Quick Task",
+            "projectTypeKey": "software",
+            "avatarUrls": {"48x48": "https://a.png"},
+            "description": "Desc",
+            "lead": {"displayName": "Lead"},
+        }
+    ]
+    from core.jira_metadata import JiraProject
+
+    client = JiraClient(jira_cli_config_path=mock_config_file)
+    result = client.get_projects()
+    assert len(result) == 1
+    assert isinstance(result[0], JiraProject)
+    assert result[0].key == "QTASK"
+    assert result[0].name == "Quick Task"
+    assert result[0].lead == "Lead"
+    call_args = mock_request.call_args
+    assert call_args[0][0] == "GET"
+    assert "project" in call_args[0][1].lower() or call_args[1]["params"]
+
+
+@patch("core.jira_client.requests.request")
+def test_get_project_issue_types_success(mock_request, mock_config_file):
+    """get_project_issue_types retorna lista de JiraIssueType."""
+    mock_request.return_value.status_code = 200
+    mock_request.return_value.json.return_value = [
+        {"id": "1", "name": "Task", "subtask": False, "hierarchyLevel": 0},
+    ]
+    from core.jira_metadata import JiraIssueType
+
+    client = JiraClient(jira_cli_config_path=mock_config_file)
+    result = client.get_project_issue_types("10001")
+    assert len(result) == 1
+    assert isinstance(result[0], JiraIssueType)
+    assert result[0].name == "Task"
+    assert (
+        "issuetype" in mock_request.call_args[0][1].lower()
+        or "project" in mock_request.call_args[0][1].lower()
+    )
+
+
+@patch("core.jira_client.requests.request")
+def test_get_issue_createmeta_success(mock_request, mock_config_file):
+    """get_issue_createmeta retorna dict com projects/issuetypes/fields."""
+    mock_request.return_value.status_code = 200
+    mock_request.return_value.json.return_value = {
+        "projects": [
+            {
+                "key": "X",
+                "issuetypes": [
+                    {
+                        "id": "1",
+                        "name": "Task",
+                        "fields": {
+                            "summary": {
+                                "name": "Summary",
+                                "required": True,
+                                "schema": {"type": "string"},
+                            }
+                        },
+                    },
+                ],
+            }
+        ]
+    }
+    client = JiraClient(jira_cli_config_path=mock_config_file)
+    result = client.get_issue_createmeta(project_keys="X", issuetype_ids="1")
+    assert "projects" in result
+    assert len(result["projects"]) == 1
+    assert "issuetypes" in result["projects"][0]
+    assert len(result["projects"][0]["issuetypes"]) == 1
+    assert "summary" in result["projects"][0]["issuetypes"][0]["fields"]
+
+
+@patch("core.jira_client.requests.request")
+def test_get_createmeta_fields_for_issue_type_returns_parsed_list(
+    mock_request, mock_config_file
+):
+    """get_createmeta_fields_for_issue_type retorna List[JiraFieldMetadata]."""
+    mock_request.return_value.status_code = 200
+    mock_request.return_value.json.return_value = {
+        "projects": [
+            {
+                "key": "X",
+                "issuetypes": [
+                    {
+                        "id": "1",
+                        "fields": {
+                            "summary": {
+                                "fieldId": "summary",
+                                "name": "Summary",
+                                "required": True,
+                                "schema": {"type": "string"},
+                            },
+                        },
+                    },
+                ],
+            }
+        ]
+    }
+    from core.jira_metadata import JiraFieldMetadata
+
+    client = JiraClient(jira_cli_config_path=mock_config_file)
+    result = client.get_createmeta_fields_for_issue_type(
+        project_key="X", issuetype_id="1"
+    )
+    assert len(result) == 1
+    assert isinstance(result[0], JiraFieldMetadata)
+    assert result[0].key == "summary"
+    assert result[0].required is True
+
+
+@patch("core.jira_client.requests.request")
+def test_get_fields_success(mock_request, mock_config_file):
+    """get_fields retorna lista de JiraFieldMetadata."""
+    mock_request.return_value.status_code = 200
+    mock_request.return_value.json.return_value = [
+        {
+            "id": "summary",
+            "name": "Summary",
+            "key": "summary",
+            "custom": False,
+            "schema": {"type": "string"},
+        },
+    ]
+    from core.jira_metadata import JiraFieldMetadata
+
+    client = JiraClient(jira_cli_config_path=mock_config_file)
+    result = client.get_fields()
+    assert len(result) == 1
+    assert isinstance(result[0], JiraFieldMetadata)
+    assert result[0].id == "summary"

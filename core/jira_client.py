@@ -14,6 +14,8 @@ from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
 import requests
 from requests.auth import HTTPBasicAuth
 
+from core import jira_metadata as _jira_meta
+
 if TYPE_CHECKING:
     from config.config_manager import ConfigManager
 
@@ -319,7 +321,11 @@ class JiraClient:
         if url.startswith("http"):
             fetch_url = url
         else:
-            fetch_url = f"{base}{url}" if url.startswith("/") else f"{base}/rest/api/3/attachment/content/{att_id}"
+            fetch_url = (
+                f"{base}{url}"
+                if url.startswith("/")
+                else f"{base}/rest/api/3/attachment/content/{att_id}"
+            )
         try:
             auth = self._get_auth()
             response = requests.get(
@@ -355,6 +361,81 @@ class JiraClient:
                 f"Erro ao obter configurações de anexos: {str(e)}"
             ) from e
 
+    def get_projects(
+        self, expand: Optional[str] = "description,lead,issueTypes"
+    ) -> List["_jira_meta.JiraProject"]:
+        """
+        Lista projetos acessíveis (GET /rest/api/3/project).
+        Retorna lista de JiraProject parseados.
+        """
+        params = {}
+        if expand:
+            params["expand"] = expand
+        response = self._make_request("GET", "project", params=params or None)
+        data = response.json()
+        if isinstance(data, dict) and "values" in data and isinstance(data["values"], list):
+            data = data["values"]
+        return _jira_meta.parse_projects_response(data)
+
+    def get_project_issue_types(
+        self, project_id: str
+    ) -> List["_jira_meta.JiraIssueType"]:
+        """
+        Lista issue types do projeto (GET /rest/api/3/issuetype/project?projectId=).
+        project_id: id do projeto (ex.: "10001"), não a key.
+        """
+        response = self._make_request(
+            "GET", "issuetype/project", params={"projectId": project_id}
+        )
+        data = response.json()
+        return _jira_meta.parse_issue_types_response(data)
+
+    def get_issue_createmeta(
+        self,
+        project_keys: str,
+        issuetype_ids: str,
+        expand: str = "projects.issuetypes.fields",
+    ) -> Dict[str, Any]:
+        """
+        Metadata para criação de issue (GET /rest/api/3/issue/createmeta).
+        Retorna o JSON bruto (projects[].issuetypes[].fields).
+        """
+        params = {
+            "projectKeys": project_keys,
+            "issuetypeIds": issuetype_ids,
+            "expand": expand,
+        }
+        response = self._make_request("GET", "issue/createmeta", params=params)
+        return response.json()
+
+    def get_createmeta_fields_for_issue_type(
+        self, project_key: str, issuetype_id: str
+    ) -> List["_jira_meta.JiraFieldMetadata"]:
+        """
+        Obtém campos disponíveis para criar issue (project_key + issuetype_id).
+        Retorna lista de JiraFieldMetadata.
+        """
+        raw = self.get_issue_createmeta(
+            project_keys=project_key, issuetype_ids=issuetype_id
+        )
+        projects = raw.get("projects") or []
+        if not projects:
+            return []
+        issuetypes = projects[0].get("issuetypes") or []
+        if not issuetypes:
+            return []
+        fields_dict = issuetypes[0].get("fields") or {}
+        return _jira_meta.parse_createmeta_fields(fields_dict)
+
+    def get_fields(self) -> List["_jira_meta.JiraFieldMetadata"]:
+        """
+        Lista todos os campos da instância (GET /rest/api/3/field).
+        Retorna lista de JiraFieldMetadata (sem required/default/allowedValues).
+        """
+        response = self._make_request("GET", "field")
+        data = response.json()
+        return _jira_meta.parse_field_list_response(data)
+
     def delete_attachment(self, attachment_id: str) -> bool:
         """
         Remove um anexo de uma issue (DELETE /rest/api/3/attachment/{id}).
@@ -371,9 +452,7 @@ class JiraClient:
             return False
         aid = str(attachment_id).strip()
         try:
-            response = self._make_request(
-                "DELETE", f"attachment/{aid}", timeout=15
-            )
+            response = self._make_request("DELETE", f"attachment/{aid}", timeout=15)
             return response.status_code == 204
         except RuntimeError as e:
             error_msg = str(e)
@@ -1544,9 +1623,7 @@ class JiraClient:
             debug_log("JiraClient", "create_issue", "ERRO inesperado - %s", e)
             raise RuntimeError(f"Erro inesperado ao criar issue: {str(e)}") from e
 
-    def add_remotelink(
-        self, issue_key: str, url: str, title: str
-    ) -> bool:
+    def add_remotelink(self, issue_key: str, url: str, title: str) -> bool:
         """
         Add a remote link to an issue (e.g. link to Google Drive document).
 
@@ -2717,9 +2794,7 @@ class JiraClient:
             return (None, total)
         return (comments_last[0], total)
 
-    def _build_body_adf_with_media(
-        self, body: str, issue_key: str
-    ) -> Dict[str, Any]:
+    def _build_body_adf_with_media(self, body: str, issue_key: str) -> Dict[str, Any]:
         """Build ADF for body/comment with attachment URLs embedded as media."""
         from core.adf_media import (
             AttachmentInfo,

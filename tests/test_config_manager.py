@@ -391,7 +391,11 @@ def test_get_allowed_image_extensions_default():
         "project": "TEST",
         "issue_type": "Task",
         "assignee": "test@example.com",
-        "custom_fields": {"tipo_atividade": "t", "documentacao_anexa": "d", "utilizacao_ia": "u"},
+        "custom_fields": {
+            "tipo_atividade": "t",
+            "documentacao_anexa": "d",
+            "utilizacao_ia": "u",
+        },
         "tipo_atividade_values": [],
         "status_sequence": [],
         "attachments": {"max_file_size_mb": 10},
@@ -414,7 +418,11 @@ def test_get_allowed_image_extensions_from_config():
         "project": "TEST",
         "issue_type": "Task",
         "assignee": "test@example.com",
-        "custom_fields": {"tipo_atividade": "t", "documentacao_anexa": "d", "utilizacao_ia": "u"},
+        "custom_fields": {
+            "tipo_atividade": "t",
+            "documentacao_anexa": "d",
+            "utilizacao_ia": "u",
+        },
         "tipo_atividade_values": [],
         "status_sequence": [],
         "attachments": {
@@ -537,3 +545,56 @@ def test_save_google_oauth_config():
     finally:
         if temp_path.exists():
             temp_path.unlink()
+
+
+# --- Jira metadata (jira_metadata.json) ---
+
+
+def test_get_jira_metadata_path(config_manager):
+    """get_jira_metadata_path retorna path no mesmo diretório que config.json."""
+    path = config_manager.get_jira_metadata_path()
+    assert path is not None
+    assert path.name == "jira_metadata.json"
+    assert path.parent == config_manager.config_path.parent
+
+
+def test_load_jira_metadata_file_not_found(config_manager):
+    """load_jira_metadata retorna {} quando arquivo não existe."""
+    meta_path = config_manager.get_jira_metadata_path()
+    if meta_path.exists():
+        meta_path.unlink()
+    result = config_manager.load_jira_metadata()
+    assert result == {}
+
+
+def test_load_jira_metadata_invalid_json(config_manager):
+    """load_jira_metadata retorna {} quando JSON é inválido."""
+    meta_path = config_manager.get_jira_metadata_path()
+    meta_path.parent.mkdir(parents=True, exist_ok=True)
+    meta_path.write_text("{ invalid }", encoding="utf-8")
+    try:
+        result = config_manager.load_jira_metadata()
+        assert result == {}
+    finally:
+        if meta_path.exists():
+            meta_path.unlink()
+
+
+def test_save_and_load_jira_metadata(config_manager):
+    """save_jira_metadata persiste e load_jira_metadata recarrega."""
+    meta_path = config_manager.get_jira_metadata_path()
+    if meta_path.exists():
+        meta_path.unlink()
+    data = {
+        "version": "2.0",
+        "jira_instance": "https://example.atlassian.net",
+        "selected_projects": [{"id": "1", "key": "X", "name": "Test", "enabled": True}],
+    }
+    config_manager.save_jira_metadata(data)
+    assert meta_path.exists()
+    loaded = config_manager.load_jira_metadata()
+    assert loaded["version"] == "2.0"
+    assert loaded["jira_instance"] == "https://example.atlassian.net"
+    assert len(loaded["selected_projects"]) == 1
+    assert loaded["selected_projects"][0]["key"] == "X"
+    meta_path.unlink()

@@ -509,11 +509,7 @@ class ConfigManager:
             if isinstance(attachments.get("embed"), dict)
             else {}
         )
-        images = (
-            embed.get("images")
-            if isinstance(embed.get("images"), dict)
-            else {}
-        )
+        images = embed.get("images") if isinstance(embed.get("images"), dict) else {}
         val = images.get("max_display_width")
         if val is None:
             return 760
@@ -1025,6 +1021,38 @@ class ConfigManager:
             return flatpak_example
 
         return None
+
+    def get_jira_metadata_path(self) -> Path:
+        """
+        Retorna o caminho do arquivo de metadata do Jira (jira_metadata.json).
+        Fica no mesmo diretório que config.json (XDG/Flatpak).
+        """
+        return self.config_path.parent / "jira_metadata.json"
+
+    def load_jira_metadata(self) -> Dict[str, Any]:
+        """
+        Carrega o conteúdo de jira_metadata.json.
+        Retorna {} se o arquivo não existir ou o JSON for inválido.
+        """
+        path = self.get_jira_metadata_path()
+        if not path.exists():
+            return {}
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            return data if isinstance(data, dict) else {}
+        except (json.JSONDecodeError, OSError):
+            return {}
+
+    def save_jira_metadata(self, data: Dict[str, Any]) -> None:
+        """
+        Salva o dict em jira_metadata.json (mesmo dir que config.json).
+        Cria o diretório se não existir.
+        """
+        path = self.get_jira_metadata_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
 
     def get_jira_login(self) -> str:
         """

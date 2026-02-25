@@ -512,6 +512,22 @@ def main():
                 worklog_service = None
                 timesheet_model = None
 
+        # JiraMetadataConfigModel para wizard de configuração de metadata (Issue #25)
+        jira_metadata_config_model = None
+        try:
+            from src.models.jira_metadata_config_model import JiraMetadataConfigModel
+
+            jira_metadata_config_model = JiraMetadataConfigModel(
+                jira_client=jira_client,
+                config_manager=app_config_manager,
+            )
+            debug_log("App", "main", "JiraMetadataConfigModel criado")
+        except Exception as e:
+            print(
+                f"⚠ Aviso: Erro ao criar JiraMetadataConfigModel: {e}",
+                file=sys.stderr,
+            )
+
         # Criar TimerTrayManager para ícone separado do timer
         timer_tray_manager = None
         try:
@@ -676,6 +692,19 @@ def main():
     except Exception as e:
         print(f"✗ Erro ao expor settingsModel: {e}", file=sys.stderr)
         raise
+
+    try:
+        engine.rootContext().setContextProperty(
+            "jiraMetadataConfigModel",
+            jira_metadata_config_model if jira_metadata_config_model else None,
+        )
+        if jira_metadata_config_model:
+            debug_log("App", "main", "jiraMetadataConfigModel exposto ao contexto QML")
+    except Exception as e:
+        print(
+            f"⚠ Aviso: Erro ao expor jiraMetadataConfigModel: {e}",
+            file=sys.stderr,
+        )
 
     try:
         engine.rootContext().setContextProperty(
@@ -1408,7 +1437,9 @@ def main():
         auth_svc = GoogleAuthService(config_manager=app_config_manager)
         cal_svc = GoogleCalendarService(config_manager=app_config_manager)
         tasks_svc = GoogleTasksService(config_manager=app_config_manager)
-        drive_comments_svc = GoogleDriveCommentsService(config_manager=app_config_manager)
+        drive_comments_svc = GoogleDriveCommentsService(
+            config_manager=app_config_manager
+        )
         cal_svc.authRequired.connect(auth_svc._update_authorized)
         tasks_svc.authRequired.connect(auth_svc._update_authorized)
         drive_comments_svc.authRequired.connect(auth_svc._update_authorized)

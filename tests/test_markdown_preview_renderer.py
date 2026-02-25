@@ -59,10 +59,10 @@ def test_render_jira_attachment_image_returns_placeholder(renderer):
 
 def test_render_jira_attachment_with_width_preserves_data_width(renderer):
     """render '![alt](url){: width=\"250\" }' retorna placeholder com data-width para displayWidth."""
-    md = "![screenshot](https://example.atlassian.net/rest/api/3/attachment/content/12345){: width=\"250\" }"
+    md = '![screenshot](https://example.atlassian.net/rest/api/3/attachment/content/12345){: width="250" }'
     result = renderer.render(md)
     assert "data-jira-img=" in result
-    assert "data-width=\"250\"" in result
+    assert 'data-width="250"' in result
 
 
 def test_render_valid_markdown_with_code_block(renderer):
