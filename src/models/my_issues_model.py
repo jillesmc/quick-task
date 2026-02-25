@@ -357,16 +357,12 @@ class MyIssuesModel(QObject):
         status_order = {
             "TO DO": 1,
             "BACKLOG": 1,
-            "WAITING DEVELOPMENT": 2,
-            "IN DEVELOPMENT": 3,
-            "IN PROGRESS": 3,
-            "CODE REVIEW": 4,
-            "IN REVIEW": 4,
-            "WAITING FOR HOMOLOG": 5,
-            "IN HOMOLOGATION": 6,
-            "READY FOR DEPLOY": 7,
-            "DONE": 8,
-            "CLOSED": 8,
+            "IN PROGRESS": 2,
+            "IN DEVELOPMENT": 2,
+            "BLOCKED": 3,
+            "DONE": 4,
+            "CANCELED": 5,
+            "CLOSED": 4,
         }
         priority_order = {
             "Highest": 1,

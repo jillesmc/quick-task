@@ -1,6 +1,6 @@
 /**
  * UnblockIssueDialog.qml
- * Diálogo para desbloquear uma issue: comentário opcional, transição para IN DEVELOPMENT.
+ * Diálogo para desbloquear uma issue: comentário opcional, transição para IN PROGRESS.
  * Ao confirmar chama jiraService.unblock_issue(issueKey, comment).
  */
 import QtQuick
@@ -49,7 +49,7 @@ Controls.Dialog {
         }
 
         Controls.Label {
-            text: qsTr("Desbloquear issue e retornar para IN DEVELOPMENT?")
+            text: qsTr("Desbloquear issue e retornar para IN PROGRESS?")
             wrapMode: Text.Wrap
             Layout.fillWidth: true
         }

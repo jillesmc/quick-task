@@ -120,8 +120,8 @@ Item {
     }
 
     /**
-     * Inicia transição em duas fases: emite updateStarted e chama transitionToInDevelopment.
-     * A página deve tratar reachedInDevelopment e depois transitionFromInDevelopmentToTarget.
+     * Inicia transição em duas fases: emite updateStarted e chama transitionToInProgress.
+     * A página deve tratar reachedInProgress e depois transitionFromInProgressToTarget.
      */
     function startTwoPhaseUpdate(issueKey, fieldData, worklogData, epicKey, originalStatus) {
         if (!enabled || !jiraService || !jiraService.isAvailable()) {
@@ -134,7 +134,7 @@ Item {
         }
         updateRequested(issueKey)
         updateStarted()
-        jiraService.transitionToInDevelopment(
+        jiraService.transitionToInProgress(
             issueKey,
             fieldData ? fieldData.summary || "" : "",
             fieldData ? fieldData.description || "" : "",

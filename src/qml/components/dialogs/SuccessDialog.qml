@@ -24,8 +24,8 @@ Controls.Dialog {
     property var timerModel: null
     property var jiraService: null
     property var applicationWindow: null
-    property bool _waitingForInDevelopment: false
-    property string _errorMessage: ""  // Quando preenchido, mostra erro no diálogo (ex.: falha ao transicionar para IN DEVELOPMENT)
+    property bool _waitingForInProgress: false
+    property string _errorMessage: ""  // Quando preenchido, mostra erro no diálogo (ex.: falha ao transicionar para IN PROGRESS)
 
     // Não usar botões padrão, vamos criar botões customizados
     standardButtons: Controls.Dialog.NoButton
@@ -55,7 +55,7 @@ Controls.Dialog {
         anchors.margins: Kirigami.Units.largeSpacing * 1.5  // Padding generoso
         spacing: Kirigami.Units.mediumSpacing
 
-        // Erro (ex.: falha ao transicionar para IN DEVELOPMENT ao clicar Iniciar Timer)
+        // Erro (ex.: falha ao transicionar para IN PROGRESS ao clicar Iniciar Timer)
         Controls.Label {
             visible: dialog._errorMessage !== ""
             text: dialog._errorMessage
@@ -118,18 +118,18 @@ Controls.Dialog {
             visible: dialog._errorMessage === ""
         }
 
-        // Feedback visual enquanto transiciona para IN DEVELOPMENT
+        // Feedback visual enquanto transiciona para IN PROGRESS
         RowLayout {
-            visible: dialog._waitingForInDevelopment && dialog._errorMessage === ""
+            visible: dialog._waitingForInProgress && dialog._errorMessage === ""
             Layout.fillWidth: true
             spacing: Kirigami.Units.smallSpacing
             Controls.BusyIndicator {
-                running: dialog._waitingForInDevelopment
+                running: dialog._waitingForInProgress
                 Layout.preferredWidth: Kirigami.Units.iconSizes.small
                 Layout.preferredHeight: Kirigami.Units.iconSizes.small
             }
             Controls.Label {
-                text: qsTr("Transicionando para IN DEVELOPMENT...")
+                text: qsTr("Transicionando para IN PROGRESS...")
                 wrapMode: Text.Wrap
                 Layout.fillWidth: true
             }
@@ -143,17 +143,20 @@ Controls.Dialog {
             Layout.leftMargin: Kirigami.Units.smallSpacing
             Layout.rightMargin: Kirigami.Units.smallSpacing
             visible: dialog._errorMessage === "" && !dialog.isUpdate && dialog.issueKey !== "" && dialog.timerService && dialog.timerModel
-            enabled: dialog.timerService && dialog.timerModel && !dialog._waitingForInDevelopment
+            enabled: dialog.timerService && dialog.timerModel && !dialog._waitingForInProgress
 
             onClicked: {
                 if (!dialog.timerService || !dialog.issueKey) return
-                if (dialog.jiraService && dialog.jiraService.transitionToInDevelopmentIfNeeded && dialog.jiraService.transitionToInDevelopmentIfNeeded(dialog.issueKey)) {
-                    dialog._waitingForInDevelopment = true
+                if (dialog.jiraService && dialog.jiraService.transitionToInProgressIfNeeded && dialog.jiraService.transitionToInProgressIfNeeded(dialog.issueKey)) {
+                    dialog._waitingForInProgress = true
                     if (dialog.applicationWindow && dialog.applicationWindow._jiraErrorShownInCreateFlow !== undefined) {
                         dialog.applicationWindow._jiraErrorShownInCreateFlow = true
                     }
                 } else {
                     dialog.timerService.start(dialog.issueKey)
+                    if (!dialog.isUpdate && dialog.applicationWindow && typeof dialog.applicationWindow.navigateToIssue === "function") {
+                        dialog.applicationWindow.navigateToIssue(dialog.issueKey)
+                    }
                     dialog.close()
                 }
             }
@@ -161,19 +164,22 @@ Controls.Dialog {
 
         Connections {
             target: dialog.jiraService || null
-            function onInDevelopmentReady(key) {
-                if (dialog._waitingForInDevelopment && key === dialog.issueKey) {
-                    dialog._waitingForInDevelopment = false
+            function onInProgressReady(key) {
+                if (dialog._waitingForInProgress && key === dialog.issueKey) {
+                    dialog._waitingForInProgress = false
                     if (dialog.applicationWindow && dialog.applicationWindow._jiraErrorShownInCreateFlow !== undefined) {
                         dialog.applicationWindow._jiraErrorShownInCreateFlow = false
                     }
                     if (dialog.timerService) dialog.timerService.start(key)
+                    if (!dialog.isUpdate && dialog.applicationWindow && typeof dialog.applicationWindow.navigateToIssue === "function") {
+                        dialog.applicationWindow.navigateToIssue(key)
+                    }
                     dialog.close()
                 }
             }
             function onErrorOccurred(message) {
-                if (dialog._waitingForInDevelopment) {
-                    dialog._waitingForInDevelopment = false
+                if (dialog._waitingForInProgress) {
+                    dialog._waitingForInProgress = false
                     dialog._errorMessage = message || qsTr("Erro ao transicionar")
                     // Erro mostrado neste diálogo; Pane e MyIssuesPage não devem abrir ErrorDialog/ProcessDialog
                 }

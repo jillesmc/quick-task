@@ -361,8 +361,14 @@ class ConfigManager:
         return self._config.get("tipo_atividade_values", [])
 
     def get_status_sequence(self) -> List[str]:
-        """Retorna a sequência de status"""
-        return self._config.get("status_sequence", [])
+        """Retorna a sequência de status (novo workflow: TO DO → IN PROGRESS → DONE)."""
+        raw = self._config.get("status_sequence", [])
+        if not raw:
+            return ["TO DO", "IN PROGRESS", "DONE"]
+        # Migração: se a config ainda tiver o workflow antigo (IN DEVELOPMENT), usar o novo
+        if any((s or "").strip().upper() == "IN DEVELOPMENT" for s in raw):
+            return ["TO DO", "IN PROGRESS", "DONE"]
+        return raw
 
     def get_valor_entregue_values(self) -> List[str]:
         """Retorna a lista de valores para Valor Entregue"""

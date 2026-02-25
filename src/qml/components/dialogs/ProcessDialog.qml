@@ -54,7 +54,7 @@ Controls.Dialog {
     property var timerService: null
     property var timerModel: null
     property var jiraService: null
-    property bool _waitingForInDevelopment: false
+    property bool _waitingForInProgress: false
 
     // ---- Error ----
     property string errorMessage: ""
@@ -118,7 +118,7 @@ Controls.Dialog {
         root.successIssueKey = issueKey || ""
         root.successIssueUrl = issueUrl || ""
         root.successIsUpdate = !!isUpdate
-        root._waitingForInDevelopment = false
+        root._waitingForInProgress = false
         root.state = "success"
         if (!root.opened) root.open()
         Qt.callLater(centerDialog)
@@ -324,16 +324,16 @@ Controls.Dialog {
                     }
                 }
                 RowLayout {
-                    visible: root._waitingForInDevelopment
+                    visible: root._waitingForInProgress
                     Layout.fillWidth: true
                     spacing: Kirigami.Units.smallSpacing
                     Controls.BusyIndicator {
-                        running: root._waitingForInDevelopment
+                        running: root._waitingForInProgress
                         Layout.preferredWidth: Kirigami.Units.iconSizes.small
                         Layout.preferredHeight: Kirigami.Units.iconSizes.small
                     }
                     Controls.Label {
-                        text: qsTr("Transicionando para IN DEVELOPMENT...")
+                        text: qsTr("Transicionando para IN PROGRESS...")
                         wrapMode: Text.Wrap
                         Layout.fillWidth: true
                     }
@@ -344,11 +344,11 @@ Controls.Dialog {
                     icon.name: "chronometer"
                     Layout.fillWidth: true
                     visible: !root.successIsUpdate && root.successIssueKey !== "" && root.timerService && root.timerModel
-                    enabled: root.timerService && root.timerModel && !root._waitingForInDevelopment
+                    enabled: root.timerService && root.timerModel && !root._waitingForInProgress
                     onClicked: {
                         if (!root.timerService || !root.successIssueKey) return
-                        if (root.jiraService && root.jiraService.transitionToInDevelopmentIfNeeded && root.jiraService.transitionToInDevelopmentIfNeeded(root.successIssueKey)) {
-                            root._waitingForInDevelopment = true
+                        if (root.jiraService && root.jiraService.transitionToInProgressIfNeeded && root.jiraService.transitionToInProgressIfNeeded(root.successIssueKey)) {
+                            root._waitingForInProgress = true
                         } else {
                             root.timerService.start(root.successIssueKey)
                             root.close()
@@ -400,15 +400,15 @@ Controls.Dialog {
 
     Connections {
         target: root.jiraService || null
-        function onInDevelopmentReady(key) {
-            if (root._waitingForInDevelopment && key === root.successIssueKey) {
-                root._waitingForInDevelopment = false
+        function onInProgressReady(key) {
+            if (root._waitingForInProgress && key === root.successIssueKey) {
+                root._waitingForInProgress = false
                 if (root.timerService) root.timerService.start(key)
                 root.close()
             }
         }
         function onErrorOccurred(message) {
-            if (root._waitingForInDevelopment) root._waitingForInDevelopment = false
+            if (root._waitingForInProgress) root._waitingForInProgress = false
         }
     }
 }

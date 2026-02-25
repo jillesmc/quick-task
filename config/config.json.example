@@ -18,12 +18,7 @@
   ],
   "status_sequence": [
     "TO DO",
-    "WAITING DEVELOPMENT",
-    "IN DEVELOPMENT",
-    "CODE REVIEW",
-    "WAITING FOR HOMOLOG",
-    "IN HOMOLOGATION",
-    "READY FOR DEPLOY",
+    "IN PROGRESS",
     "DONE"
   ],
   "assets": {

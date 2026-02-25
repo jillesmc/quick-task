@@ -154,7 +154,7 @@ Kirigami.Page {
         page.issueModel.description = event.description || ""
         page.issueModel.worklogInicio = page.formatWorklogStart(event.start)
         page.issueModel.worklogDuracao = event.duration_minutes || 30
-        page.issueModel.statusInicial = "IN DEVELOPMENT"
+        page.issueModel.statusInicial = "IN PROGRESS"
         page.issueModel.registrarWorklog = true
         page.tabBar.currentIndex = 0
     }

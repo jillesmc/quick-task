@@ -59,7 +59,7 @@ def sample_config() -> Dict[str, Any]:
             "utilizacao_ia": "utilizacao-de-ia",
         },
         "tipo_atividade_values": ["Opção 1", "Opção 2", "Opção 3"],
-        "status_sequence": ["TO DO", "WAITING", "IN DEVELOPMENT", "DONE"],
+        "status_sequence": ["TO DO", "IN PROGRESS", "DONE"],
         "worklog_timezone": "America/Sao_Paulo",
     }
 

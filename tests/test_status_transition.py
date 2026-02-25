@@ -121,8 +121,8 @@ def test_transition_sequentially_transition_fails(mock_jira_client):
 
 
 def test_transition_sequentially_with_worklog(mock_jira_client):
-    """Worklog é registrado ao atingir IN DEVELOPMENT durante a sequência."""
-    sequence = ["TO DO", "WAITING", "IN DEVELOPMENT", "DONE"]
+    """Worklog é registrado ao atingir IN PROGRESS durante a sequência."""
+    sequence = ["TO DO", "WAITING", "IN PROGRESS", "DONE"]
     worklog = WorklogConfig(
         registrar=True,
         inicio=datetime(2024, 1, 1, 10, 0, 0),
@@ -131,16 +131,16 @@ def test_transition_sequentially_with_worklog(mock_jira_client):
     )
 
     result = transition_sequentially(
-        mock_jira_client, "TEST-123", "IN DEVELOPMENT", sequence, worklog=worklog
+        mock_jira_client, "TEST-123", "IN PROGRESS", sequence, worklog=worklog
     )
 
     assert result is True
     mock_jira_client.register_worklog.assert_called_once()
 
 
-def test_transition_sequentially_worklog_not_in_development(mock_jira_client):
-    """Testa que worklog não é registrado se não for IN DEVELOPMENT"""
-    sequence = ["TO DO", "IN PROGRESS", "DONE"]
+def test_transition_sequentially_worklog_not_in_progress(mock_jira_client):
+    """Testa que worklog não é registrado se não for IN PROGRESS"""
+    sequence = ["TO DO", "WAITING", "DONE"]
     worklog = WorklogConfig(
         registrar=True,
         inicio=datetime(2024, 1, 1, 10, 0, 0),
@@ -152,19 +152,19 @@ def test_transition_sequentially_worklog_not_in_development(mock_jira_client):
         mock_jira_client, "TEST-123", "DONE", sequence, worklog=worklog
     )
 
-    # Não deve registrar worklog pois não passou por IN DEVELOPMENT
+    # Não deve registrar worklog pois não passou por IN PROGRESS
     mock_jira_client.register_worklog.assert_not_called()
 
 
 def test_transition_sequentially_worklog_missing_data(mock_jira_client):
     """Testa que worklog não é registrado sem dados"""
-    sequence = ["TO DO", "IN DEVELOPMENT", "DONE"]
+    sequence = ["TO DO", "IN PROGRESS", "DONE"]
     worklog = WorklogConfig(
         registrar=True, inicio=None, duracao=60, timezone="UTC"  # Sem data
     )
 
     transition_sequentially(
-        mock_jira_client, "TEST-123", "IN DEVELOPMENT", sequence, worklog=worklog
+        mock_jira_client, "TEST-123", "IN PROGRESS", sequence, worklog=worklog
     )
 
     # Não deve registrar worklog sem data
@@ -182,11 +182,11 @@ def test_register_worklog_if_needed_success(mock_jira_client):
     callback = MagicMock()
 
     _register_worklog_if_needed(
-        mock_jira_client, "TEST-123", "IN DEVELOPMENT", worklog, callback, 50
+        mock_jira_client, "TEST-123", "IN PROGRESS", worklog, callback, 50
     )
 
     mock_jira_client.register_worklog.assert_called_once()
-    callback.assert_called_once_with("IN DEVELOPMENT", 50, "Registrando worklog...")
+    callback.assert_called_once_with("IN PROGRESS", 50, "Registrando worklog...")
 
 
 def test_register_worklog_if_needed_failure(mock_jira_client, capsys):
@@ -201,7 +201,7 @@ def test_register_worklog_if_needed_failure(mock_jira_client, capsys):
 
     # Não deve lançar exceção
     _register_worklog_if_needed(
-        mock_jira_client, "TEST-123", "IN DEVELOPMENT", worklog, None, 50
+        mock_jira_client, "TEST-123", "IN PROGRESS", worklog, None, 50
     )
 
     # Deve imprimir aviso
@@ -211,23 +211,23 @@ def test_register_worklog_if_needed_failure(mock_jira_client, capsys):
 
 # --- needs_two_phase_transition ---
 
-SEQUENCE = ["TO DO", "WAITING DEVELOPMENT", "IN DEVELOPMENT", "CODE REVIEW", "DONE"]
+SEQUENCE = ["TO DO", "WAITING DEVELOPMENT", "IN PROGRESS", "CODE REVIEW", "DONE"]
 
 
 def test_needs_two_phase_transition_to_do_to_code_review():
-    """To Do → Code Review: deve ser duas fases (passa por IN DEVELOPMENT)."""
+    """To Do → Code Review: deve ser duas fases (passa por IN PROGRESS)."""
     assert needs_two_phase_transition("TO DO", "CODE REVIEW", SEQUENCE) is True
 
 
-def test_needs_two_phase_transition_to_do_to_in_development():
-    """To Do → IN DEVELOPMENT: uma fase apenas."""
-    assert needs_two_phase_transition("TO DO", "IN DEVELOPMENT", SEQUENCE) is False
+def test_needs_two_phase_transition_to_do_to_in_progress():
+    """To Do → IN PROGRESS: uma fase apenas."""
+    assert needs_two_phase_transition("TO DO", "IN PROGRESS", SEQUENCE) is False
 
 
-def test_needs_two_phase_transition_in_development_to_code_review():
-    """IN DEVELOPMENT → Code Review: uma fase (já está em IN DEVELOPMENT)."""
+def test_needs_two_phase_transition_in_progress_to_code_review():
+    """IN PROGRESS → Code Review: uma fase (já está em IN PROGRESS)."""
     assert (
-        needs_two_phase_transition("IN DEVELOPMENT", "CODE REVIEW", SEQUENCE) is False
+        needs_two_phase_transition("IN PROGRESS", "CODE REVIEW", SEQUENCE) is False
     )
 
 
@@ -237,35 +237,35 @@ def test_needs_two_phase_transition_done_to_done():
 
 
 def test_needs_two_phase_transition_case_insensitive():
-    """Comparação case-insensitive para IN DEVELOPMENT."""
+    """Comparação case-insensitive para IN PROGRESS."""
     assert needs_two_phase_transition("To Do", "Code Review", SEQUENCE) is True
 
 
 # --- requires_worklog_check_before_transition ---
 
 
-def test_requires_worklog_check_in_dev_to_code_review():
-    """IN DEVELOPMENT → Code Review: deve verificar worklogs."""
+def test_requires_worklog_check_in_progress_to_code_review():
+    """IN PROGRESS → Code Review: deve verificar worklogs."""
     assert (
         requires_worklog_check_before_transition(
-            "IN DEVELOPMENT", "CODE REVIEW", SEQUENCE
+            "IN PROGRESS", "CODE REVIEW", SEQUENCE
         )
         is True
     )
 
 
 def test_requires_worklog_check_to_do_to_code_review():
-    """To Do → Code Review: deve verificar worklogs (target > IN DEVELOPMENT)."""
+    """To Do → Code Review: deve verificar worklogs (target > IN PROGRESS)."""
     assert (
         requires_worklog_check_before_transition("TO DO", "CODE REVIEW", SEQUENCE)
         is True
     )
 
 
-def test_requires_worklog_check_to_do_to_in_development():
-    """To Do → IN DEVELOPMENT: não exige verificação (target = IN DEVELOPMENT)."""
+def test_requires_worklog_check_to_do_to_in_progress():
+    """To Do → IN PROGRESS: não exige verificação (target = IN PROGRESS)."""
     assert (
-        requires_worklog_check_before_transition("TO DO", "IN DEVELOPMENT", SEQUENCE)
+        requires_worklog_check_before_transition("TO DO", "IN PROGRESS", SEQUENCE)
         is False
     )
 

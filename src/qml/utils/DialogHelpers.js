@@ -69,7 +69,7 @@ function hideProgress(dialog) {
  * @param {boolean} isUpdate - true for update, false for create
  * @param {object} timerService - Optional timer service for "Iniciar Timer" button
  * @param {object} timerModel - Optional timer model for "Iniciar Timer" button
- * @param {object} jiraService - Optional Jira service (para transição automática para IN DEVELOPMENT ao iniciar timer)
+ * @param {object} jiraService - Optional Jira service (para transição automática para IN PROGRESS ao iniciar timer)
  * @param {object} applicationWindow - Optional root window (para flag _jiraErrorShownInCreateFlow, evita diálogos duplicados)
  */
 function showSuccess(parent, componentPath, issueKey, issueUrl, isUpdate, timerService, timerModel, jiraService, applicationWindow) {

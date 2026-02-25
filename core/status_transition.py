@@ -80,9 +80,9 @@ def _get_status_index(status: str, status_sequence: List[str]) -> Optional[int]:
     return None
 
 
-def _get_in_development_index(status_sequence: List[str]) -> Optional[int]:
-    """Retorna o índice do status 'IN DEVELOPMENT' na sequência (case-insensitive). None se não existir."""
-    return _get_status_index("IN DEVELOPMENT", status_sequence)
+def _get_in_progress_index(status_sequence: List[str]) -> Optional[int]:
+    """Retorna o índice do status 'IN PROGRESS' na sequência (case-insensitive). None se não existir."""
+    return _get_status_index("IN PROGRESS", status_sequence)
 
 
 def needs_two_phase_transition(
@@ -91,18 +91,18 @@ def needs_two_phase_transition(
     status_sequence: List[str],
 ) -> bool:
     """
-    Retorna True quando a transição deve ser feita em duas fases (parar em IN DEVELOPMENT).
+    Retorna True quando a transição deve ser feita em duas fases (parar em IN PROGRESS).
 
-    Ou seja: current < IN DEVELOPMENT e target > IN DEVELOPMENT na sequência.
+    Ou seja: current < IN PROGRESS e target > IN PROGRESS na sequência.
     """
-    in_dev_idx = _get_in_development_index(status_sequence)
-    if in_dev_idx is None:
+    in_progress_idx = _get_in_progress_index(status_sequence)
+    if in_progress_idx is None:
         return False
     current_idx = _get_status_index(current_status, status_sequence)
     target_idx = _get_status_index(target_status, status_sequence)
     if current_idx is None or target_idx is None:
         return False
-    return current_idx < in_dev_idx and target_idx > in_dev_idx
+    return current_idx < in_progress_idx and target_idx > in_progress_idx
 
 
 def requires_worklog_check_before_transition(
@@ -113,21 +113,21 @@ def requires_worklog_check_before_transition(
     """
     Retorna True se a transição exige verificação de worklogs pendentes (mostrar diálogo ou sync).
 
-    True quando: current >= IN DEVELOPMENT ou target > IN DEVELOPMENT.
+    True quando: current >= IN PROGRESS ou target > IN PROGRESS.
     Retorna False quando não há mudança de status (current == target).
     """
     if not current_status or not target_status:
         return False
     if (current_status or "").strip().upper() == (target_status or "").strip().upper():
         return False
-    in_dev_idx = _get_in_development_index(status_sequence)
-    if in_dev_idx is None:
+    in_progress_idx = _get_in_progress_index(status_sequence)
+    if in_progress_idx is None:
         return False
     current_idx = _get_status_index(current_status, status_sequence)
     target_idx = _get_status_index(target_status, status_sequence)
     if current_idx is None or target_idx is None:
         return False
-    return current_idx >= in_dev_idx or target_idx > in_dev_idx
+    return current_idx >= in_progress_idx or target_idx > in_progress_idx
 
 
 def _register_worklog_if_needed(
@@ -138,8 +138,8 @@ def _register_worklog_if_needed(
     progress_callback: Optional[Callable[[str, int, str], None]],
     percentage: int,
 ) -> None:
-    """Registra worklog se necessário após transição para IN DEVELOPMENT"""
-    if next_status != "IN DEVELOPMENT":
+    """Registra worklog se necessário após transição para IN PROGRESS"""
+    if next_status != "IN PROGRESS":
         return
     if not worklog or not worklog.registrar:
         return
@@ -147,7 +147,7 @@ def _register_worklog_if_needed(
         return
 
     if progress_callback:
-        progress_callback("IN DEVELOPMENT", percentage, "Registrando worklog...")
+        progress_callback("IN PROGRESS", percentage, "Registrando worklog...")
 
     time_spent = jira_client._format_duration_minutes(worklog.duracao)
     started_str = worklog.inicio.strftime("%Y-%m-%d %H:%M:%S")
@@ -212,7 +212,7 @@ def transition_sequentially(
 ) -> bool:
     """
     Transiciona uma issue sequencialmente pelos status até o status desejado.
-    Ao atingir IN DEVELOPMENT, registra worklog imediatamente se worklog estiver configurado.
+    Ao atingir IN PROGRESS, registra worklog imediatamente se worklog estiver configurado.
     Descobre o estado atual da issue antes de começar as transições.
     Lança exceções em caso de erro.
 
@@ -222,11 +222,11 @@ def transition_sequentially(
         target_status: Status alvo desejado
         status_sequence: Lista sequencial de status
         progress_callback: Função callback(status_atual, porcentagem, mensagem)
-        worklog: Configuração para registro de worklog (opcional); registrado ao atingir IN DEVELOPMENT
+        worklog: Configuração para registro de worklog (opcional); registrado ao atingir IN PROGRESS
         transition_fields: Campos a enviar em cada POST de transição (opcional)
 
     Returns:
-        True se o worklog foi registrado ao atingir IN DEVELOPMENT; False caso contrário.
+        True se o worklog foi registrado ao atingir IN PROGRESS; False caso contrário.
 
     Raises:
         ValueError: Se parâmetros inválidos ou status não encontrado
@@ -277,7 +277,7 @@ def transition_sequentially(
         return False
 
     # Transicionar sequencialmente do estado atual até o estado alvo.
-    # Ao atingir IN DEVELOPMENT, registra worklog imediatamente (se worklog configurado) e segue.
+    # Ao atingir IN PROGRESS, registra worklog imediatamente (se worklog configurado) e segue.
     worklog_registered = False
     while current_index < target_index:
         next_index = current_index + 1
@@ -294,10 +294,10 @@ def transition_sequentially(
             transition_fields=transition_fields,
         )
 
-        # Registrar worklog logo após transicionar para IN DEVELOPMENT (primeira opção de uso)
+        # Registrar worklog logo após transicionar para IN PROGRESS (primeira opção de uso)
         if (
             worklog
-            and (next_status or "").upper() == "IN DEVELOPMENT"
+            and (next_status or "").upper() == "IN PROGRESS"
             and worklog.registrar
             and worklog.inicio
             and worklog.duracao > 0

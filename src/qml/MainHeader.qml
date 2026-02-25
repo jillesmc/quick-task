@@ -152,7 +152,7 @@ RowLayout {
             && !(root.issuesPage.isProcessing || false)
             && (root.issuesPage._quickActionStatus || "") === "BLOCKED"
         Controls.ToolTip.visible: hovered
-        Controls.ToolTip.text: qsTr("Desbloquear e retornar para IN DEVELOPMENT")
+        Controls.ToolTip.text: qsTr("Desbloquear e retornar para IN PROGRESS")
         onClicked: {
             if (root.issuesPage && root.issuesPage.detailPane && typeof root.issuesPage.detailPane.openUnblockDialog === "function") {
                 root.issuesPage.detailPane.openUnblockDialog();

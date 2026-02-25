@@ -125,6 +125,14 @@ Kirigami.ApplicationWindow {
     property string sharedEpicKey: ""
     property string sharedEpicSummary: ""
 
+    /** Navega para a aba MyIssues e seleciona/carrega a issue (ex.: ao iniciar timer no diálogo de criação). */
+    function navigateToIssue(issueKey) {
+        if (!issueKey || !issuesPage) return
+        tabBar.currentIndex = 1
+        issuesPage.selectedIssueKey = issueKey
+        issuesPage.loadIssueDetails(issueKey)
+        if (issuesPage.issueList) issuesPage.issueList.selectIssue(issueKey)
+    }
 
     // -----------------------------------------------------------------
     // Conteúdo principal: abas empilhadas

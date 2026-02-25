@@ -25,11 +25,11 @@ Kirigami.Page {
     // Estado do processamento
     property bool isProcessing: false
 
-    // Registrar worklog só permitido quando status inicial é IN DEVELOPMENT ou posterior
+    // Registrar worklog só permitido quando status inicial é IN PROGRESS ou posterior
     property bool registrarWorklogEnabled: {
         if (!issueModel || !issueModel.statusSequence) return false
         var seq = issueModel.statusSequence
-        var inDevIdx = seq.indexOf("IN DEVELOPMENT")
+        var inDevIdx = seq.indexOf("IN PROGRESS")
         if (inDevIdx < 0) return false
         var statusIdx = seq.indexOf(issueModel.statusInicial || "")
         return statusIdx >= inDevIdx
@@ -639,7 +639,7 @@ Kirigami.Page {
                         anchors.rightMargin: Kirigami.Units.largeSpacing
                         spacing: Kirigami.Units.largeSpacing
 
-                        // Worklog (habilitado só quando status inicial é IN DEVELOPMENT ou posterior)
+                        // Worklog (habilitado só quando status inicial é IN PROGRESS ou posterior)
                         Controls.CheckBox {
                             id: worklogCheckbox
                             text: qsTr("Registrar worklog")

@@ -58,7 +58,7 @@ Kirigami.Page {
     property var hideWindowFn: null
     property var githubService: null
 
-    // Estado para fluxo de transição em duas fases (TO DO → … → IN DEVELOPMENT → diálogo → target)
+    // Estado para fluxo de transição em duas fases (TO DO → … → IN PROGRESS → diálogo → target)
     property string _pendingTwoPhaseTarget: ""
     // Estado para "sync depois update" (uma fase ou duas): { issueKey, fieldData?, worklogData?, epicKey?, originalStatus?, isTwoPhase, targetStatus? }
     property var _pendingUpdateAfterSync: null
@@ -66,7 +66,7 @@ Kirigami.Page {
     property var _pendingWorklogsList: []
     // Flag para indicar que estamos em uma transição de duas fases
     property bool _isTwoPhaseTransition: false
-    // Issue key para iniciar timer após transição automática para IN DEVELOPMENT
+    // Issue key para iniciar timer após transição automática para IN PROGRESS
     property string _pendingTimerStartIssueKey: ""
     // Quando true, o erro do jiraService já foi mostrado no ProcessDialog; evita abrir ErrorDialog por cima
     property bool _jiraErrorShownInProcessDialog: false
@@ -130,15 +130,15 @@ Kirigami.Page {
         }
     }
 
-    // Inicia timer para issueKey; só tenta transição para IN DEVELOPMENT se o status atual for *anterior* a IN DEVELOPMENT.
-    // Se já estiver em IN DEVELOPMENT ou posterior (ex.: WAITING FOR HOMOLOG), inicia o timer diretamente.
-    function _startTimerAfterInDevelopment(issueKey) {
+    // Inicia timer para issueKey; só tenta transição para IN PROGRESS se o status atual for *anterior* a IN PROGRESS.
+    // Se já estiver em IN PROGRESS ou posterior, inicia o timer diretamente.
+    function _startTimerAfterInProgress(issueKey) {
         if (!page.timerService || !issueKey) return;
 
-        // Quando temos o status da issue (ex.: issue selecionada e detalhes carregados), evitar transição se já for IN DEVELOPMENT ou depois
+        // Quando temos o status da issue (ex.: issue selecionada e detalhes carregados), evitar transição se já for IN PROGRESS ou depois
         if (page.selectedIssueKey === issueKey && page.issueModel && page.issueModel.statusSequence && page.originalStatus) {
             var seq = page.issueModel.statusSequence;
-            var inDevIdx = seq.indexOf("IN DEVELOPMENT");
+            var inDevIdx = seq.indexOf("IN PROGRESS");
             if (inDevIdx >= 0) {
                 var currentIdx = seq.indexOf(page.originalStatus);
                 if (currentIdx >= inDevIdx) {
@@ -148,15 +148,15 @@ Kirigami.Page {
             }
         }
 
-        if (!page.jiraService || !page.jiraService.transitionToInDevelopmentIfNeeded(issueKey)) {
+        if (!page.jiraService || !page.jiraService.transitionToInProgressIfNeeded(issueKey)) {
             page.timerService.start(issueKey);
             return;
         }
         page._pendingTimerStartIssueKey = issueKey;
         page._jiraErrorShownInProcessDialog = true;  // Erros deste fluxo só no ProcessDialog; evita ErrorDialog duplicado
         page._ensureProcessDialogThen(function (dlg) {
-            if (!dlg.opened) dlg.openInProgress(qsTr("Transicionando para IN DEVELOPMENT..."));
-            else dlg.updateProgress(0, qsTr("Transicionando para IN DEVELOPMENT..."));
+            if (!dlg.opened) dlg.openInProgress(qsTr("Transicionando para IN PROGRESS..."));
+            else dlg.updateProgress(0, qsTr("Transicionando para IN PROGRESS..."));
         });
     }
 
@@ -171,7 +171,7 @@ Kirigami.Page {
             page.timerService.cancelBreak();
             Qt.callLater(function () {
                 if (page.timerService && page.selectedIssueKey) {
-                    page._startTimerAfterInDevelopment(page.selectedIssueKey);
+                    page._startTimerAfterInProgress(page.selectedIssueKey);
                 }
             });
             return;
@@ -188,13 +188,13 @@ Kirigami.Page {
             page.timerService.stop();
             Qt.callLater(function () {
                 if (page.timerService && page.selectedIssueKey) {
-                    page._startTimerAfterInDevelopment(page.selectedIssueKey);
+                    page._startTimerAfterInProgress(page.selectedIssueKey);
                 }
             });
         } else
         // Iniciar novo timer
         {
-            page._startTimerAfterInDevelopment(page.selectedIssueKey);
+            page._startTimerAfterInProgress(page.selectedIssueKey);
         }
     }
 
@@ -526,7 +526,7 @@ Kirigami.Page {
 
                             onStartTimerRequested: function (issueKey) {
                                 if (issueKey && page && page.timerService)
-                                    page._startTimerAfterInDevelopment(issueKey)
+                                    page._startTimerAfterInProgress(issueKey)
                             }
                             onIssueSelected: function (issueKey, issueData) {
                                 page.selectedIssueKey = issueKey || "";
@@ -574,7 +574,7 @@ Kirigami.Page {
         }
 
         function onIssueUpdated(issueKey) {
-            // Quando transitionFromInDevelopmentToTarget completa (fase 2 de duas fases),
+            // Quando transitionFromInProgressToTarget completa (fase 2 de duas fases),
             // mostrar sucesso no mesmo ProcessDialog.
             // qmllint disable missing-property
             if (page._processDialog && page.isProcessing && page._isTwoPhaseTransition) {
@@ -597,7 +597,7 @@ Kirigami.Page {
                 } else if (page._lastQuickActionType === "block") {
                     newStatus = "BLOCKED";
                 } else if (page._lastQuickActionType === "unblock") {
-                    newStatus = "IN DEVELOPMENT";
+                    newStatus = "IN PROGRESS";
                 }
                 if (newStatus && page.myIssuesModel && issueKey && typeof page.myIssuesModel.updateIssueInList === "function") {
                     var summary = (page.issueModel && page.issueModel.summary) ? page.issueModel.summary : "";
@@ -622,12 +622,12 @@ Kirigami.Page {
             }
         }
 
-        function onInDevelopmentReady(issueKey) {
+        function onInProgressReady(issueKey) {
             if (page._pendingTimerStartIssueKey && page._pendingTimerStartIssueKey === issueKey) {
                 page._pendingTimerStartIssueKey = "";
                 if (page._processDialog) page._processDialog.close();
                 if (page.timerService) page.timerService.start(issueKey);
-                // Recarregar dados da issue e a lista para refletir o novo status (IN DEVELOPMENT)
+                // Recarregar dados da issue e a lista para refletir o novo status (IN PROGRESS)
                 if (page.selectedIssueKey === issueKey && page.loadIssueDetails) {
                     page.loadIssueDetails(issueKey);
                 }
@@ -661,7 +661,7 @@ Kirigami.Page {
             }
         }
 
-        function onReachedInDevelopment(issueKey) {
+        function onReachedInProgress(issueKey) {
             if (!issueKey || issueKey !== page.selectedIssueKey) return;
             var checkEnabled = page.jiraService.worklogCheckEnabled && page.jiraService.worklogCheckEnabled();
             var pending = (page.worklogSyncService && page.worklogSyncService.get_pending_worklogs_for_issue(issueKey)) || [];
@@ -686,7 +686,7 @@ Kirigami.Page {
                 var targetStatus = page._pendingTwoPhaseTarget;
                 page._pendingTwoPhaseTarget = "";
                 if (page._processDialog) page._processDialog.updateProgress(0, qsTr("Transicionando para %1...").arg(targetStatus));
-                page.jiraService.transitionFromInDevelopmentToTarget(issueKey, targetStatus);
+                page.jiraService.transitionFromInProgressToTarget(issueKey, targetStatus);
             }
         }
     }
@@ -784,7 +784,7 @@ Kirigami.Page {
                 page._pendingTwoPhaseTarget = targetStatus;
                 page._isTwoPhaseTransition = true;
                 page._ensureProcessDialogThen(function (dlg) {
-                    dlg.openInProgress(qsTr("Transicionando para IN DEVELOPMENT..."));
+                    dlg.openInProgress(qsTr("Transicionando para IN PROGRESS..."));
                 });
                 page.controller.startTwoPhaseUpdate(issueKey, fieldData, worklogData, epicKey, originalStatus);
                 return;
@@ -951,7 +951,7 @@ Kirigami.Page {
             var issueKey = page._pendingUpdateAfterSync.issueKey;
             page._pendingUpdateAfterSync = null;
             page._pendingTwoPhaseTarget = "";
-            page.jiraService.transitionFromInDevelopmentToTarget(issueKey, targetStatus);
+            page.jiraService.transitionFromInProgressToTarget(issueKey, targetStatus);
         } else {
             page._finishPendingUpdateAfterSync();
         }
@@ -982,7 +982,7 @@ Kirigami.Page {
                 }
             }
             page._pendingTwoPhaseTarget = "";
-            page.jiraService.transitionFromInDevelopmentToTarget(p.issueKey, p.targetStatus);
+            page.jiraService.transitionFromInProgressToTarget(p.issueKey, p.targetStatus);
         } else {
             // Fluxo único: sync já terminou; mostrar "Atualizando issue..." no mesmo dialog e depois "Task atualizada com sucesso"
             if (page._processDialog && page._processDialog.opened) {

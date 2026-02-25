@@ -28,11 +28,11 @@ Item {
     property string selectedIssueKey: ""
     property bool isProcessing: false
 
-    // Registrar worklog só permitido quando status alvo é IN DEVELOPMENT ou posterior
+    // Registrar worklog só permitido quando status alvo é IN PROGRESS ou posterior
     property bool registrarWorklogEnabled: {
         if (!issueModel || !issueModel.statusSequence) return false
         var seq = issueModel.statusSequence
-        var inDevIdx = seq.indexOf("IN DEVELOPMENT")
+        var inDevIdx = seq.indexOf("IN PROGRESS")
         if (inDevIdx < 0) return false
         var statusIdx = seq.indexOf(issueModel.statusInicial || "")
         return statusIdx >= inDevIdx
@@ -768,14 +768,11 @@ Item {
                     id: bottomColumnLayout
                     Layout.fillWidth: true
                     Layout.fillHeight: true
-                    spacing: 0
+                    spacing: Kirigami.Units.largeSpacing
 
                     ColumnLayout {
                         Layout.fillWidth: true
-                        // Layout.margins: 20
-                        // Layout.topMargin: 10
-                        // Layout.bottomMargin: 10
-                        spacing: Kirigami.Units.smallSpacing
+                        spacing: Kirigami.Units.largeSpacing
 
                         Controls.CheckBox {
                             id: worklogCheckboxTab2

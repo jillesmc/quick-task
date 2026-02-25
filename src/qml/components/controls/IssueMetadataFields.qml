@@ -104,7 +104,10 @@ ColumnLayout {
             IssueRadioGroup {
                 id: statusRadioGroup
                 Layout.fillWidth: true
-                model: metadataFieldsRoot.issueModel ? metadataFieldsRoot.issueModel.statusSequence : []
+                // Novo workflow: TO DO → IN PROGRESS → DONE; fallback quando config ainda não carregou
+                model: (metadataFieldsRoot.issueModel && metadataFieldsRoot.issueModel.statusSequence && metadataFieldsRoot.issueModel.statusSequence.length > 0)
+                    ? metadataFieldsRoot.issueModel.statusSequence
+                    : ["TO DO", "IN PROGRESS", "DONE"]
                 enabled: metadataFieldsRoot.enabled
                 selectedValue: metadataFieldsRoot.issueModel ? metadataFieldsRoot.issueModel.statusInicial : ""
                 minEnabledIndex: metadataFieldsRoot._statusMinEnabledIndex
