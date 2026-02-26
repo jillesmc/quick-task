@@ -69,6 +69,80 @@ class JiraFieldMetadata:
     schema_type: str = ""
     schema_system: Optional[str] = None
     schema_custom: Optional[str] = None
+    schema_raw: Optional[Dict[str, Any]] = None  # full schema from GET /field (for real_type)
+
+
+def schema_to_real_type(schema: Optional[Dict[str, Any]]) -> str:
+    """
+    Mapeia schema da API (GET /rest/api/3/field) para o rótulo de tipo real do Jira.
+
+    Ex.: "Select List (single choice)", "Assets objects", "Text", etc.
+    """
+    if not schema or not isinstance(schema, dict):
+        return "Unknown"
+    stype = (schema.get("type") or "").strip()
+    custom = (schema.get("custom") or "") or ""
+    custom_str = str(custom).lower()
+    items = schema.get("items")
+    items_str = str(items).lower() if items is not None else ""
+    system = (schema.get("system") or "").strip()
+
+    # Select List (single choice): type option + custom select
+    if stype == "option" and "customfieldtypes:select" in custom_str:
+        return "Select List (single choice)"
+
+    # Select List (multiple choices): type array, items option, custom multiselect
+    if stype == "array" and items_str == "option" and "multiselect" in custom_str:
+        return "Select List (multiple choices)"
+
+    # Assets objects: array + items cmdb-object-field + custom cmdb
+    if stype == "array" and "cmdb-object-field" in items_str and "cmdb-object-cftype" in custom_str:
+        return "Assets objects"
+
+    # System fields
+    if system:
+        system_labels = {
+            "summary": "Summary",
+            "description": "Description",
+            "priority": "Priority",
+            "status": "Status",
+            "resolution": "Resolution",
+            "issuetype": "Issue Type",
+            "project": "Project",
+            "parent": "Parent",
+        }
+        if system in system_labels:
+            return system_labels[system]
+
+    # Generic type labels
+    type_labels = {
+        "string": "Text",
+        "number": "Number",
+        "date": "Date",
+        "datetime": "Date Time",
+        "user": "User",
+        "option": "Option",
+        "array": "Array",
+        "priority": "Priority",
+    }
+    if stype in type_labels:
+        return type_labels[stype]
+
+    # Custom text fields etc.
+    if "textfield" in custom_str or (stype == "string" and custom_str):
+        return "Text"
+    if "textarea" in custom_str:
+        return "Paragraph"
+    if "datepicker" in custom_str:
+        return "Date Picker"
+    if "datetime" in custom_str:
+        return "Date Time"
+    if "multicheckboxes" in custom_str:
+        return "Multi-Checkboxes"
+    if "radio" in custom_str or "cascadingselect" in custom_str:
+        return "Select List (single choice)"  # fallback
+
+    return "Unknown"
 
 
 def _infer_field_type(schema: Optional[Dict[str, Any]]) -> JiraFieldType:
@@ -265,6 +339,7 @@ def parse_field_list_response(data: List[Dict[str, Any]]) -> List[JiraFieldMetad
                 schema_type=str(schema.get("type", "")),
                 schema_system=schema.get("system"),
                 schema_custom=schema.get("custom"),
+                schema_raw=dict(schema) if schema else None,
             )
         )
     return result

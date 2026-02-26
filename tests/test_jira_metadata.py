@@ -14,6 +14,7 @@ from core.jira_metadata import (
     parse_issue_types_response,
     parse_createmeta_fields,
     parse_field_list_response,
+    schema_to_real_type,
 )
 
 # --- Fixtures: respostas da API (estrutura real/documentada) ---
@@ -429,3 +430,79 @@ def test_field_metadata_to_dict():
     assert d["name"] == "Priority"
     assert d["required"] is True
     assert len(d["allowed_values"]) == 2
+
+
+# --- schema_to_real_type ---
+
+
+def test_schema_to_real_type_select_list_single():
+    """Select List (single choice): type option + custom select."""
+    schema = {
+        "type": "option",
+        "custom": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+        "customId": 10001,
+    }
+    assert schema_to_real_type(schema) == "Select List (single choice)"
+
+
+def test_schema_to_real_type_select_list_multiple():
+    """Select List (multiple choices): array + items option + multiselect."""
+    schema = {
+        "type": "array",
+        "items": "option",
+        "custom": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect",
+        "customId": 10002,
+    }
+    assert schema_to_real_type(schema) == "Select List (multiple choices)"
+
+
+def test_schema_to_real_type_assets_objects():
+    """Assets objects: array + items cmdb-object-field + custom cmdb."""
+    schema = {
+        "type": "array",
+        "items": "cmdb-object-field",
+        "custom": "com.atlassian.jira.plugins.cmdb:cmdb-object-cftype",
+        "customId": 10003,
+    }
+    assert schema_to_real_type(schema) == "Assets objects"
+
+
+def test_schema_to_real_type_string_text():
+    """Plain string schema maps to Text."""
+    assert schema_to_real_type({"type": "string"}) == "Text"
+
+
+def test_schema_to_real_type_system_priority():
+    """System priority maps to Priority."""
+    assert schema_to_real_type({"type": "priority", "system": "priority"}) == "Priority"
+
+
+def test_schema_to_real_type_system_summary():
+    """System summary maps to Summary."""
+    assert schema_to_real_type({"type": "string", "system": "summary"}) == "Summary"
+
+
+def test_schema_to_real_type_number():
+    """Number type maps to Number."""
+    assert schema_to_real_type({"type": "number"}) == "Number"
+
+
+def test_schema_to_real_type_date():
+    """Date type maps to Date."""
+    assert schema_to_real_type({"type": "date"}) == "Date"
+
+
+def test_schema_to_real_type_empty_unknown():
+    """Empty or None schema returns Unknown."""
+    assert schema_to_real_type(None) == "Unknown"
+    assert schema_to_real_type({}) == "Unknown"
+
+
+def test_schema_to_real_type_option_generic():
+    """Generic option without select custom returns Option."""
+    assert schema_to_real_type({"type": "option", "custom": "other:thing"}) == "Option"
+
+
+def test_schema_to_real_type_array_generic():
+    """Generic array without multiselect/cmdb returns Array."""
+    assert schema_to_real_type({"type": "array", "items": "string"}) == "Array"

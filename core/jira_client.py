@@ -413,19 +413,60 @@ class JiraClient:
     ) -> List["_jira_meta.JiraFieldMetadata"]:
         """
         Obtém campos disponíveis para criar issue (project_key + issuetype_id).
+        Localiza projeto por key e issue type por id na resposta (não usa [0]).
         Retorna lista de JiraFieldMetadata.
         """
         raw = self.get_issue_createmeta(
             project_keys=project_key, issuetype_ids=issuetype_id
         )
         projects = raw.get("projects") or []
-        if not projects:
+        project_key_str = str(project_key) if project_key is not None else ""
+        issuetype_id_str = str(issuetype_id) if issuetype_id is not None else ""
+        for project in projects:
+            if str(project.get("key", "")) != project_key_str:
+                continue
+            issuetypes = project.get("issuetypes") or []
+            for it in issuetypes:
+                if str(it.get("id", "")) != issuetype_id_str:
+                    continue
+                fields_dict = it.get("fields") or {}
+                return _jira_meta.parse_createmeta_fields(fields_dict)
+        return []
+
+    def get_editmeta_fields(self, issue_id_or_key: str) -> List["_jira_meta.JiraFieldMetadata"]:
+        """
+        Obtém campos editáveis de uma issue (GET /rest/api/3/issue/{idOrKey}/editmeta).
+        Retorna lista de JiraFieldMetadata (mesma estrutura de createmeta).
+        """
+        if not (issue_id_or_key and str(issue_id_or_key).strip()):
             return []
-        issuetypes = projects[0].get("issuetypes") or []
-        if not issuetypes:
-            return []
-        fields_dict = issuetypes[0].get("fields") or {}
+        path = f"issue/{str(issue_id_or_key).strip()}/editmeta"
+        response = self._make_request("GET", path, timeout=15)
+        data = response.json()
+        fields_dict = data.get("fields") or {}
         return _jira_meta.parse_createmeta_fields(fields_dict)
+
+    def get_fields_for_issue_type(
+        self, project_key: str, issuetype_id: str
+    ) -> List["_jira_meta.JiraFieldMetadata"]:
+        """
+        Obtém campos para (project_key, issuetype_id): tenta editmeta via JQL (1 issue),
+        fallback para createmeta se não houver issue.
+        """
+        if not (project_key and issuetype_id):
+            return []
+        it_id = str(issuetype_id).strip()
+        issuetype_jql = it_id if it_id.isdigit() else f'"{it_id}"'
+        jql = f'project = "{project_key}" AND issuetype = {issuetype_jql}'
+        issues = self.search_issues(jql, max_results=1)
+        if issues:
+            key = issues[0].get("key")
+            if key:
+                try:
+                    return self.get_editmeta_fields(key)
+                except Exception:
+                    pass
+        return self.get_createmeta_fields_for_issue_type(project_key, issuetype_id)
 
     def get_fields(self) -> List["_jira_meta.JiraFieldMetadata"]:
         """
@@ -435,6 +476,114 @@ class JiraClient:
         response = self._make_request("GET", "field")
         data = response.json()
         return _jira_meta.parse_field_list_response(data)
+
+    def get_field_contexts(self, field_id: str) -> List[Dict[str, Any]]:
+        """
+        Lista contextos de um custom field (GET /rest/api/3/field/{fieldId}/context).
+        Requer permissão Administer Jira ou read:custom-field-contextual-configuration.
+        """
+        fid = str(field_id).strip()
+        if not fid:
+            return []
+        response = self._make_request("GET", f"field/{fid}/context", timeout=15)
+        data = response.json()
+        values = data.get("values") if isinstance(data, dict) else []
+        return list(values) if isinstance(values, list) else []
+
+    def get_field_context_mapping(
+        self,
+        field_id: str,
+        project_ids: List[str],
+        issue_type_ids: List[str],
+    ) -> List[Dict[str, Any]]:
+        """
+        Obtém contextId aplicável a pares (projectId, issueTypeId) (POST context/mapping).
+        project_ids e issue_type_ids devem ter o mesmo comprimento (pares 1:1).
+        Retorna lista de {"projectId", "issueTypeId", "contextId"}.
+        """
+        fid = str(field_id).strip()
+        if not fid or not project_ids or not issue_type_ids:
+            return []
+        if len(project_ids) != len(issue_type_ids):
+            return []
+        mappings = [
+            {"projectId": str(pid), "issueTypeId": str(iid)}
+            for pid, iid in zip(project_ids, issue_type_ids)
+        ]
+        payload = {"mappings": mappings}
+        response = self._make_request(
+            "POST", f"field/{fid}/context/mapping", json_data=payload, timeout=15
+        )
+        data = response.json()
+        values = data.get("values") if isinstance(data, dict) else []
+        return list(values) if isinstance(values, list) else []
+
+    def get_field_context_default_value(
+        self,
+        field_id: str,
+        context_id: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """
+        Obtém default values do custom field (GET context/defaultValue).
+        Se context_id for passado, filtra por esse contexto.
+        Retorno varia por tipo (option.single com optionId, etc.).
+        Para campos Assets a API retorna 400; retorna [] em vez de exceção.
+        """
+        fid = str(field_id).strip()
+        if not fid:
+            return []
+        params = {}
+        if context_id:
+            params["contextId"] = [str(context_id)]
+        try:
+            response = self._make_request(
+                "GET",
+                f"field/{fid}/context/defaultValue",
+                params=params or None,
+                timeout=15,
+            )
+        except RuntimeError:
+            return []  # 400 (e.g. Assets "not supported") or other client error
+        data = response.json()
+        values = data.get("values") if isinstance(data, dict) else []
+        return list(values) if isinstance(values, list) else []
+
+    def get_field_context_options(
+        self,
+        field_id: str,
+        context_id: str,
+        max_results: int = 100,
+    ) -> List[Dict[str, Any]]:
+        """
+        Obtém opções (valores possíveis) do custom field para um contexto
+        (GET /rest/api/3/field/{fieldId}/context/{contextId}/option).
+        Paginado; retorna lista de { id, value, ... } (optionId, disabled opcionais).
+        Aplica-se a Select List (single/multiple/cascading), Radio, Checkboxes.
+        """
+        fid = str(field_id).strip()
+        cid = str(context_id).strip()
+        if not fid or not cid:
+            return []
+        result: List[Dict[str, Any]] = []
+        start_at = 0
+        while True:
+            params = {"startAt": start_at, "maxResults": max_results}
+            response = self._make_request(
+                "GET",
+                f"field/{fid}/context/{cid}/option",
+                params=params,
+                timeout=15,
+            )
+            data = response.json()
+            values = data.get("values") if isinstance(data, dict) else []
+            if not isinstance(values, list):
+                break
+            result.extend(values)
+            if data.get("isLast", True) or len(values) < max_results:
+                break
+            start_at = data.get("startAt", 0) + len(values)
+
+        return result
 
     def delete_attachment(self, attachment_id: str) -> bool:
         """
@@ -741,6 +890,142 @@ class JiraClient:
                 "total": 0,
                 "isLast": True,
             }
+
+    def get_assets_object_schemas(
+        self,
+        cloud_id: str,
+        workspace_id: str,
+        start_at: int = 0,
+        max_results: int = 100,
+    ) -> List[Dict[str, Any]]:
+        """
+        Lista object schemas do Jira Assets via GET objectschema/list.
+        Requer cloud_id e workspace_id. Retorna lista de dicts com id, name, objectSchemaKey.
+        """
+        if not cloud_id or not workspace_id:
+            return []
+        url = (
+            f"https://api.atlassian.com/ex/jira/{cloud_id}/jsm/assets/workspace/"
+            f"{workspace_id}/v1/objectschema/list"
+        )
+        params = {"startAt": start_at, "maxResults": max_results}
+        try:
+            resp = self._request_raw("GET", url, params=params, timeout=15)
+            data = resp.json()
+            values = data.get("values") if isinstance(data, dict) else []
+            if not isinstance(values, list):
+                return []
+            return [
+                {
+                    "id": str(v.get("id", "")),
+                    "name": str(v.get("name", "")),
+                    "objectSchemaKey": str(v.get("objectSchemaKey", "")),
+                }
+                for v in values
+                if isinstance(v, dict)
+            ]
+        except (
+            RuntimeError,
+            requests.exceptions.RequestException,
+            json.JSONDecodeError,
+        ):
+            return []
+
+    def get_assets_object_types(
+        self,
+        cloud_id: str,
+        workspace_id: str,
+        schema_id: str,
+    ) -> List[Dict[str, Any]]:
+        """
+        Lista object types de um schema via GET objectschema/{id}/objecttypes.
+        Retorna lista de dicts com id, name.
+        """
+        if not cloud_id or not workspace_id or not schema_id:
+            return []
+        schema_id = str(schema_id).strip()
+        if not schema_id:
+            return []
+        url = (
+            f"https://api.atlassian.com/ex/jira/{cloud_id}/jsm/assets/workspace/"
+            f"{workspace_id}/v1/objectschema/{schema_id}/objecttypes"
+        )
+        try:
+            from src.utils.debug import debug_log
+
+            debug_log(
+                "JiraClient",
+                "get_assets_object_types",
+                "url=%s schema_id=%s",
+                url,
+                schema_id,
+            )
+            resp = self._request_raw("GET", url, timeout=15)
+            raw_text = (resp.text or "")[:500]
+            try:
+                data = resp.json()
+            except json.JSONDecodeError:
+                debug_log(
+                    "JiraClient",
+                    "get_assets_object_types",
+                    "response not JSON status=%s body_preview=%s",
+                    getattr(resp, "status_code", None),
+                    raw_text,
+                )
+                return []
+            if isinstance(data, list):
+                entries = data
+            elif isinstance(data, dict):
+                entries = data.get("entries") or data.get("values") or []
+            else:
+                entries = []
+            data_keys = list(data.keys()) if isinstance(data, dict) else []
+            first_entry_keys = []
+            if isinstance(entries, list) and entries and isinstance(entries[0], dict):
+                first_entry_keys = list(entries[0].keys())
+            debug_log(
+                "JiraClient",
+                "get_assets_object_types",
+                "status=%s data_keys=%s len(entries)=%s first_entry_keys=%s",
+                getattr(resp, "status_code", None),
+                data_keys,
+                len(entries) if isinstance(entries, list) else 0,
+                first_entry_keys,
+            )
+            if not data_keys and isinstance(data, dict) and not entries:
+                debug_log(
+                    "JiraClient",
+                    "get_assets_object_types",
+                    "empty data_keys body_preview=%s",
+                    raw_text,
+                )
+            if not isinstance(entries, list):
+                return []
+            return [
+                {
+                    "id": str(e.get("id", "")),
+                    "name": str(e.get("name", "")),
+                }
+                for e in entries
+                if isinstance(e, dict)
+            ]
+        except (
+            RuntimeError,
+            requests.exceptions.RequestException,
+            json.JSONDecodeError,
+        ) as e:
+            try:
+                from src.utils.debug import debug_log
+
+                debug_log(
+                    "JiraClient",
+                    "get_assets_object_types",
+                    "exception: %s",
+                    e,
+                )
+            except Exception:
+                pass
+            return []
 
     def get_current_user(self) -> Optional[str]:
         """
