@@ -53,15 +53,17 @@ def test_check_connection_false_on_error(monkeypatch):
 
 
 def test_process_task_from_voice_heuristic_fallback(client, monkeypatch):
-    """Quando LocalAI não responde, usa fallback heurístico."""
+    """Quando LocalAI retorna HTTP não-200, _process_task_sync usa fallback heurístico."""
     if not REQUESTS_AVAILABLE:
         pytest.skip("requests não instalado")
 
-    def post_fail(*args, **kwargs):
-        raise OSError("connection refused")
+    def post_non_200(*args, **kwargs):
+        r = __import__("requests").Response()
+        r.status_code = 503
+        return r
 
-    monkeypatch.setattr("src.services.localai_client.requests.post", post_fail)
-    out = client.process_task_from_voice("Corrigir bug no login.", TIPO_VALUES)
+    monkeypatch.setattr("src.services.localai_client.requests.post", post_non_200)
+    out = client._process_task_sync("Corrigir bug no login.", TIPO_VALUES)
     assert "summary" in out
     assert "description" in out
     assert out["tipo_atividade"] in TIPO_VALUES
@@ -70,15 +72,17 @@ def test_process_task_from_voice_heuristic_fallback(client, monkeypatch):
 
 
 def test_process_task_from_voice_empty_transcription(client, monkeypatch):
-    """Transcrição vazia retorna estrutura válida (heurística)."""
+    """Transcrição vazia em _process_task_sync retorna estrutura válida (heurística)."""
     if not REQUESTS_AVAILABLE:
         pytest.skip("requests não instalado")
 
-    def post_fail(*args, **kwargs):
-        raise OSError("connection refused")
+    def post_non_200(*args, **kwargs):
+        r = __import__("requests").Response()
+        r.status_code = 503
+        return r
 
-    monkeypatch.setattr("src.services.localai_client.requests.post", post_fail)
-    out = client.process_task_from_voice("", TIPO_VALUES)
+    monkeypatch.setattr("src.services.localai_client.requests.post", post_non_200)
+    out = client._process_task_sync("", TIPO_VALUES)
     assert "summary" in out
     assert "description" in out
     assert out["tipo_atividade"] == TIPO_VALUES[0]

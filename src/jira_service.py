@@ -24,6 +24,7 @@ from core.status_transition import (
     _get_status_index,
 )
 from config.config_manager import ConfigManager
+from src.constants import SUMMARY_MAX_LENGTH
 from src.services.assets_cache import AssetsCacheService
 from src.utils.field_utils import is_placeholder_custom_field_id
 
@@ -1385,6 +1386,11 @@ class JiraService(QObject):
         if not summary.strip():
             self.errorOccurred.emit("Summary é obrigatório")
             return False
+        if len(summary.strip()) > SUMMARY_MAX_LENGTH:
+            self.errorOccurred.emit(
+                f"Summary deve ter no máximo {SUMMARY_MAX_LENGTH} caracteres"
+            )
+            return False
 
         # Description não é obrigatório
 
@@ -2598,7 +2604,7 @@ class JiraService(QObject):
 
         Args:
             issueKey: Chave da issue (ex: PLATFORM-123)
-            summary: Novo summary (opcional, pode ser vazio para não atualizar)
+            summary: Novo summary (obrigatório; não pode ser vazio nem exceder 255 caracteres)
             description: Nova description (opcional, pode ser vazio para não atualizar)
             tipoAtividade: Novo tipo de atividade (opcional, pode ser vazio)
             status: Novo status (opcional, pode ser vazio para não atualizar)
@@ -2624,6 +2630,16 @@ class JiraService(QObject):
 
         if not issueKey or not issueKey.strip():
             self.errorOccurred.emit("Issue key é obrigatório")
+            return False
+
+        summary_clean = (summary or "").strip()
+        if not summary_clean:
+            self.errorOccurred.emit("Summary é obrigatório")
+            return False
+        if len(summary_clean) > SUMMARY_MAX_LENGTH:
+            self.errorOccurred.emit(
+                f"Summary deve ter no máximo {SUMMARY_MAX_LENGTH} caracteres"
+            )
             return False
 
         # Cancelar worker anterior se existir
@@ -2654,7 +2670,7 @@ class JiraService(QObject):
             jira_client=self._jira_client,
             config=self._config,
             issue_key=issueKey.strip(),
-            summary=summary.strip() if summary else None,
+            summary=summary_clean,
             description=description.strip() if description else None,
             tipo_atividade=tipoAtividade if tipoAtividade else None,
             status=status if status else None,

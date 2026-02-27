@@ -11,6 +11,7 @@ import QtQuick.Controls as Controls
 import org.kde.kirigami as Kirigami
 import "../components/forms"
 import "../components/controls"
+import "../components/fields"
 import "../utils/DialogHelpers.js" as DialogHelpers
 Kirigami.Page {
     id: page
@@ -27,17 +28,13 @@ Kirigami.Page {
 
     // Registrar worklog só permitido quando status inicial é IN PROGRESS ou posterior
     property bool registrarWorklogEnabled: {
-        if (!issueModel || !issueModel.statusSequence) return false
-        var seq = issueModel.statusSequence
+        if (!workItemModel || !workItemModel.statusSequence) return false
+        var seq = workItemModel.statusSequence
         var inDevIdx = seq.indexOf("IN PROGRESS")
         if (inDevIdx < 0) return false
-        var statusIdx = seq.indexOf(issueModel.statusInicial || "")
+        var statusIdx = seq.indexOf(workItemModel.statusInicial || "")
         return statusIdx >= inDevIdx
     }
-
-    // Contador para placeholders de anexos na descrição (nova issue)
-    property int _descriptionPlaceholderCounter: 0
-    property bool _descriptionEditMode: true
 
     // Propriedades compartilhadas para sincronizar epic entre abas
     property string sharedEpicKey: ""
@@ -52,7 +49,7 @@ Kirigami.Page {
     property var controller: null
 
     // Recebidos do Main (passados explicitamente)
-    property var issueModel: null
+    property var workItemModel: null
     property var jiraService: null
     property var clipboardHelper: null
     property var hideWindowFn: null
@@ -102,112 +99,25 @@ Kirigami.Page {
         }
     }
 
-    function _openEmbedDialogCreateFlow(filePath, filename) {
-        if (!filePath || !page.issueModel) return
-        var comp = Qt.createComponent("../components/dialogs/AttachmentEmbedPreviewDialog.qml")
-        var win = page.applicationWindow || page.parent || page
-        if (comp.status !== Component.Ready) {
-            if (comp.status === Component.Error) {
-                console.error("CreateWorkItemPage: AttachmentEmbedPreviewDialog error:", comp.errorString())
-            }
-            comp.statusChanged.connect(function () {
-                if (comp.status === Component.Ready) {
-                    _createAndOpenEmbedDialog(comp, win, filePath, filename)
-                }
-            })
-            return
-        }
-        _createAndOpenEmbedDialog(comp, win, filePath, filename)
-    }
-
-    function _createAndOpenEmbedDialog(comp, parent, filePath, filename) {
-        var dlg = comp.createObject(parent)
-        if (!dlg) return
-        dlg.filePath = filePath
-        dlg.showPositionOptions = true
-        dlg.defaultDisplayWidth = (page.jiraService && typeof page.jiraService.getEmbedMaxDisplayWidth === "function")
-            ? page.jiraService.getEmbedMaxDisplayWidth() : 760
-        dlg.applicationWindow = page.applicationWindow
-        dlg.clipboardHelper = page.clipboardHelper
-        dlg.acceptedEmbed.connect(function (layout, position, displayWidth) {
-            page._descriptionPlaceholderCounter += 1
-            var placeholderId = "p" + page._descriptionPlaceholderCounter
-            var list = page.issueModel.pendingAttachments || []
-            list.push({ path: filePath, filename: filename, placeholderId: placeholderId, layout: layout, position: position, displayWidth: displayWidth })
-            page.issueModel.pendingAttachments = list
-            var markdown = "![" + filename + "](pending:" + placeholderId + ")"
-            var insertPos = (position === "start") ? 0 : descriptionField.text.length
-            descriptionField.insert(insertPos, markdown)
-            if (page.issueModel) page.issueModel.description = descriptionField.text
-        })
-        dlg.acceptedAttachOnly.connect(function () {
-            var list = page.issueModel.pendingAttachments || []
-            list.push({ path: filePath, filename: filename })
-            page.issueModel.pendingAttachments = list
-        })
-        dlg.rejected.connect(function () {})
-        dlg.closed.connect(function () { dlg.destroy() })
-        dlg.open()
-    }
-
-    function _addNonImageAttachmentCreateFlow(filePath, filename) {
-        if (!page.issueModel) return
-        page._descriptionPlaceholderCounter += 1
-        var placeholderId = "p" + page._descriptionPlaceholderCounter
-        var list = page.issueModel.pendingAttachments || []
-        list.push({ path: filePath, filename: filename, placeholderId: placeholderId })
-        page.issueModel.pendingAttachments = list
-        var markdown = "[" + filename + "](pending:" + placeholderId + ")"
-        var insertPos = descriptionField.cursorPosition >= 0 ? descriptionField.cursorPosition : descriptionField.text.length
-        descriptionField.insert(insertPos, markdown)
-        if (page.issueModel) page.issueModel.description = descriptionField.text
-    }
-
-    function _openAttachmentsPopover(button) {
-        if (!button || !page.issueModel) return
-        var comp = Qt.createComponent("../components/dialogs/DescriptionAttachmentsPopover.qml")
-        if (comp.status !== Component.Ready) {
-            if (comp.status === Component.Error) {
-                console.error("CreateWorkItemPage: DescriptionAttachmentsPopover error:", comp.errorString())
-            }
-            comp.statusChanged.connect(function () {
-                if (comp.status === Component.Ready) {
-                    _openAttachmentsPopover(button)
-                }
-            })
-            return
-        }
-        var popover = comp.createObject(button)
-        if (!popover) return
-        popover.x = 0
-        popover.y = button.height + 2
-        popover.mode = "create"
-        popover.issueModel = page.issueModel
-        popover.closed.connect(function () { popover.destroy() })
-        popover.open()
-    }
-
-    // Definir foco inicial no campo Summary quando a página for carregada
+    // Definir foco inicial no campo Summary (SummaryAndDescriptionBlock usa requestSummaryFocus: true)
     Component.onCompleted: {
-        summaryField.forceActiveFocus();
-
         // Pré-carregar ProgressDialog para que createComponent em showProgress esteja em cache quando o utilizador clicar
         Qt.createComponent("../components/dialogs/ProgressDialog.qml");
 
         // Inicializar worklog com data/hora atual se não estiver definido
-        if (page.issueModel && (!page.issueModel.worklogInicio || page.issueModel.worklogInicio === "")) {
+        if (page.workItemModel && (!page.workItemModel.worklogInicio || page.workItemModel.worklogInicio === "")) {
             var now = new Date();
             var dateStr = Qt.formatDateTime(now, "yyyy-MM-dd");
             var timeStr = Qt.formatDateTime(now, "HH:mm:ss");
-            page.issueModel.worklogInicio = dateStr + " " + timeStr;
+            page.workItemModel.worklogInicio = dateStr + " " + timeStr;
         }
 
         // Criar controller
-        var component = Qt.createComponent("../controllers/IssueFormController.qml");
+        var component = Qt.createComponent("../controllers/WorkItemFormController.qml");
         if (component.status === Component.Ready) {
             page.controller = component.createObject(page, {
                 jiraService: page.jiraService,
-                issueModel: page.issueModel,
+                workItemModel: page.workItemModel,
                 enabled: true
             });
 
@@ -302,226 +212,24 @@ Kirigami.Page {
                             Layout.fillWidth: true
                             Layout.preferredHeight: leftScrollView.topSectionHeight
                             Layout.minimumHeight: 250
-                        spacing: Kirigami.Units.largeSpacing
+                            spacing: Kirigami.Units.largeSpacing
 
-                        ColumnLayout {
-                            Layout.fillWidth: true
-                            // Layout.margins: 20
-                            // Layout.bottomMargin: 10
-                            spacing: Kirigami.Units.smallSpacing
-
-                            RowLayout {
-                                Layout.fillWidth: true
-                                spacing: Kirigami.Units.smallSpacing
-
-                                Controls.Label {
-                                    text: qsTr("Summary:")
-                                    font.bold: true
-                                    Layout.fillWidth: true
-                                }
-
-                                Controls.ToolButton {
-                                    visible: page._effectiveVoiceInputService !== null && page._effectiveVoiceInputService.isAvailable()
-                                    icon.name: "audio-input-microphone"
-                                    text: qsTr("Criar por voz")
-                                    onClicked: {
-                                        if (voiceDialogLoader.item) {
-                                            voiceDialogLoader.item.open() // qmllint disable missing-property
-                                        }
-                                    }
-                                }
-                            }
-
-                            RowLayout {
-                                Layout.fillWidth: true
-                                spacing: Kirigami.Units.smallSpacing
-
-                                Controls.TextField {
-                                    id: summaryField
-                                    Layout.fillWidth: true
-                                    enabled: !page.isProcessing
-                                    text: page.issueModel ? page.issueModel.summary : ""
-                                    onTextChanged: if (page.issueModel) page.issueModel.summary = text
-                                }
-
-                                Controls.ToolButton {
-                                    visible: page._effectiveVoiceInputService !== null && page._effectiveVoiceInputService.isAvailable()
-                                    icon.name: "tools-wizard"
-                                    text: qsTr("Expandir com IA")
-                                    enabled: !page.isProcessing && page.issueModel && (page.issueModel.summary || page.issueModel.description)
-                                    onClicked: {
-                                        if (page._effectiveVoiceInputService && page.issueModel) {
-                                            page._effectiveVoiceInputService.expandFromSummaryAndDescription(
-                                                page.issueModel.summary || "",
-                                                page.issueModel.description || "",
-                                                false
-                                            );
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        ColumnLayout {
-                            Layout.fillWidth: true
-                            Layout.fillHeight: true
-                            // Layout.margins: 20
-                            // Layout.topMargin: 0
-                            spacing: Kirigami.Units.smallSpacing
-
-                            RowLayout {
-                                Layout.fillWidth: true
-                                spacing: Kirigami.Units.smallSpacing
-
-                                Controls.Label {
-                                    text: qsTr("Description:")
-                                    font.bold: true
-                                    Layout.fillWidth: true
-                                }
-
-                                EditPreviewToggle {
-                                    isEditMode: page._descriptionEditMode
-                                    onModeChanged: function(editMode) {
-                                        page._descriptionEditMode = editMode
-                                    }
-                                }
-
-                                Controls.ToolButton {
-                                    id: attachmentListButton
-                                    icon.name: "mail-attachment"
-                                    text: qsTr("Anexos na descrição")
-                                    display: Controls.AbstractButton.IconOnly
-                                    onClicked: page._openAttachmentsPopover(attachmentListButton)
-                                }
-                            }
-
-                            // DropArea como container: cliques vão para o filho (ScrollView/TextArea), drops para o DropArea.
-                            Item {
-                                id: descriptionContainer
+                            SummaryAndDescriptionBlock {
                                 Layout.fillWidth: true
                                 Layout.fillHeight: true
-
-                                StackLayout {
-                                    anchors.fill: parent
-                                    currentIndex: page._descriptionEditMode ? 0 : 1
-
-                                    // Edit mode: estrutura original (DropArea > ScrollView > TextArea)
-                                    DropArea {
-                                        enabled: !page.isProcessing
-                                        onDropped: function(drop) {
-                                            if (!drop.urls || drop.urls.length === 0 || !page.issueModel) return
-                                            var extList = (page.jiraService && typeof page.jiraService.getAllowedAttachmentExtensions === "function")
-                                                ? page.jiraService.getAllowedAttachmentExtensions() : []
-                                            var imageExtList = (page.jiraService && typeof page.jiraService.getAllowedImageExtensions === "function")
-                                                ? page.jiraService.getAllowedImageExtensions() : []
-                                            for (var i = 0; i < drop.urls.length; i++) {
-                                                var urlStr = drop.urls[i].toString()
-                                                var path = urlStr.replace(/^file:\/\//, "")
-                                                var filename = path.split("/").pop() || path.split("\\").pop() || "file"
-                                                var ext = filename.indexOf(".") >= 0 ? filename.split(".").pop().toLowerCase() : ""
-                                                if (extList.indexOf(ext) < 0) continue
-                                                var pathToUse = (page.clipboardHelper && typeof page.clipboardHelper.copyFileToTemp === "function")
-                                                    ? page.clipboardHelper.copyFileToTemp(path) : path
-                                                if (!pathToUse) continue
-                                                if (imageExtList.indexOf(ext) >= 0) {
-                                                    page._openEmbedDialogCreateFlow(pathToUse, filename)
-                                                } else {
-                                                    page._addNonImageAttachmentCreateFlow(pathToUse, filename)
-                                                }
-                                            }
-                                        }
-
-                                        Controls.ScrollView {
-                                            id: descriptionScrollView
-                                            anchors.fill: parent
-                                            clip: true
-                                            contentWidth: descriptionField.implicitWidth
-
-                                            Controls.TextArea {
-                                                id: descriptionField
-                                                width: descriptionContainer.width
-                                                wrapMode: Controls.TextArea.Wrap
-                                                enabled: !page.isProcessing
-                                                topPadding: Kirigami.Units.smallSpacing
-                                                bottomPadding: Kirigami.Units.smallSpacing
-                                                placeholderText: qsTr("Arraste ficheiros ou use Ctrl+V para colar imagem; imagens têm preview, outros ficheiros ficam como link.")
-                                                text: page.issueModel ? page.issueModel.description : ""
-                                                onTextChanged: if (page.issueModel) page.issueModel.description = text
-
-                                                Keys.onPressed: function(event) {
-                                                    if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_V) {
-                                                        if (!page.clipboardHelper || !page.issueModel) return
-                                                        if (page.clipboardHelper.hasClipboardImage()) {
-                                                            var tempPath = page.clipboardHelper.getClipboardImageAsTempFile()
-                                                            if (tempPath) {
-                                                                page._openEmbedDialogCreateFlow(tempPath, "paste.png")
-                                                                event.accepted = true
-                                                            }
-                                                        }
-                                                    } else if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_E) {
-                                                        page._descriptionEditMode = true
-                                                        event.accepted = true
-                                                    } else if ((event.modifiers & (Qt.ControlModifier | Qt.ShiftModifier)) === (Qt.ControlModifier | Qt.ShiftModifier) && event.key === Qt.Key_P) {
-                                                        page._descriptionEditMode = false
-                                                        event.accepted = true
-                                                    } else if (event.key === Qt.Key_Escape) {
-                                                        page._descriptionEditMode = true
-                                                        event.accepted = true
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-
-                                    // Preview mode
-                                    Rectangle {
-                                        focus: !page._descriptionEditMode
-                                        color: "transparent"
-                                        border.color: Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g, Kirigami.Theme.textColor.b, 0.15)
-                                        border.width: 0.5
-                                        radius: Kirigami.Units.smallSpacing
-
-                                        Keys.onPressed: function(event) {
-                                            if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_E) {
-                                                page._descriptionEditMode = true
-                                                event.accepted = true
-                                            } else if ((event.modifiers & (Qt.ControlModifier | Qt.ShiftModifier)) === (Qt.ControlModifier | Qt.ShiftModifier) && event.key === Qt.Key_P) {
-                                                page._descriptionEditMode = false
-                                                event.accepted = true
-                                            } else if (event.key === Qt.Key_Escape) {
-                                                page._descriptionEditMode = true
-                                                event.accepted = true
-                                            }
-                                        }
-
-                                        Controls.ScrollView {
-                                            id: descriptionPreviewScroll
-                                            anchors.fill: parent
-                                            anchors.margins: 1
-                                            clip: true
-                                            contentWidth: availableWidth
-
-                                            Text {
-                                                width: descriptionPreviewScroll.availableWidth - Kirigami.Units.largeSpacing * 2
-                                                x: Kirigami.Units.largeSpacing
-                                                topPadding: Kirigami.Units.smallSpacing
-                                                bottomPadding: Kirigami.Units.smallSpacing
-                                                textFormat: Text.RichText
-                                                color: "#ffffff"
-                                                // qmllint disable unqualified
-                                                text: (typeof markdownPreviewRenderer !== "undefined" && markdownPreviewRenderer)
-                                                    ? markdownPreviewRenderer.render(page.issueModel ? page.issueModel.description : "")
-                                                    : (page.issueModel ? page.issueModel.description : "")
-                                                wrapMode: Text.Wrap
-                                                onLinkActivated: function(link) {
-                                                    Qt.openUrlExternally(link)
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
+                                workItemModel: page.workItemModel
+                                mode: "create"
+                                enabled: !page.isProcessing
+                                jiraService: page.jiraService
+                                clipboardHelper: page.clipboardHelper
+                                voiceInputService: page._effectiveVoiceInputService
+                                showVoiceCreateButton: true
+                                showExpandWithAIButton: true
+                                requestSummaryFocus: true
+                                summaryRequired: true
+                                applicationWindow: page.applicationWindow
+                                onOpenVoiceRequested: page.openVoiceDialog()
                             }
-                        }
 
                         Item {
                             Layout.fillHeight: true
@@ -562,23 +270,23 @@ Kirigami.Page {
                                 }
 
                                 Binding {
-                                    target: page.issueModel
+                                    target: page.workItemModel
                                     property: "epicParentKey"
                                     value: epicSearchForm.selectedEpicKey
-                                    when: page.issueModel
+                                    when: page.workItemModel
                                 }
 
                                 Binding {
-                                    target: page.issueModel
+                                    target: page.workItemModel
                                     property: "epicParentSummary"
                                     value: epicSearchForm.selectedEpicSummary
-                                    when: page.issueModel
+                                    when: page.workItemModel
                                 }
 
                                 onEpicSelected: function (key, summary) {
-                                    if (page.issueModel) {
-                                        page.issueModel.epicParentKey = key;
-                                        page.issueModel.epicParentSummary = summary;
+                                    if (page.workItemModel) {
+                                        page.workItemModel.epicParentKey = key;
+                                        page.workItemModel.epicParentSummary = summary;
                                     }
                                     page.epicSelected(key, summary);
                                 }
@@ -586,26 +294,26 @@ Kirigami.Page {
                                 onEpicCleared: {
                                     page.sharedEpicKey = "";
                                     page.sharedEpicSummary = "";
-                                    if (page.issueModel) {
-                                        page.issueModel.epicParentKey = "";
-                                        page.issueModel.epicParentSummary = "";
+                                    if (page.workItemModel) {
+                                        page.workItemModel.epicParentKey = "";
+                                        page.workItemModel.epicParentSummary = "";
                                     }
                                 }
 
-                                // Epic no formulário de criação vem apenas do modelo de criação (issueModel),
+                                // Epic no formulário de criação vem apenas do modelo de criação (workItemModel),
                                 // não de sharedEpicKey (que é atualizado pela aba Minhas Issues)
                                 Binding {
                                     target: epicSearchForm
                                     property: "selectedEpicKey"
-                                    value: page.issueModel ? page.issueModel.epicParentKey : ""
-                                    when: page.issueModel
+                                    value: page.workItemModel ? page.workItemModel.epicParentKey : ""
+                                    when: page.workItemModel
                                 }
 
                                 Binding {
                                     target: epicSearchForm
                                     property: "selectedEpicSummary"
-                                    value: page.issueModel ? page.issueModel.epicParentSummary : ""
-                                    when: page.issueModel
+                                    value: page.workItemModel ? page.workItemModel.epicParentSummary : ""
+                                    when: page.workItemModel
                                 }
                             }
                         }
@@ -648,18 +356,18 @@ Kirigami.Page {
                             text: qsTr("Registrar worklog")
                             Layout.fillWidth: true
                             enabled: !page.isProcessing && page.registrarWorklogEnabled
-                            checked: page.issueModel ? page.issueModel.registrarWorklog : false
+                            checked: page.workItemModel ? page.workItemModel.registrarWorklog : false
                             onCheckedChanged: {
-                                if (page.issueModel) {
-                                    page.issueModel.registrarWorklog = checked;
+                                if (page.workItemModel) {
+                                    page.workItemModel.registrarWorklog = checked;
                                 }
                             }
                         }
                         Binding {
-                            target: page.issueModel
+                            target: page.workItemModel
                             property: "registrarWorklog"
                             value: false
-                            when: page.issueModel && !page.registrarWorklogEnabled
+                            when: page.workItemModel && !page.registrarWorklogEnabled
                         }
 
                         // WorklogForm (oculto quando checkbox não está marcado)
@@ -671,72 +379,72 @@ Kirigami.Page {
                             visible: worklogCheckbox.checked
                             showCheckbox: false  // Não mostrar checkbox aqui, já temos acima
 
-                            // Bindings bidirecionais com issueModel
+                            // Bindings bidirecionais com workItemModel
                             Binding {
-                                target: page.issueModel
+                                target: page.workItemModel
                                 property: "worklogInicio"
                                 value: worklogForm.date && worklogForm.time ? worklogForm.date + " " + worklogForm.time : ""
-                                when: page.issueModel && worklogForm.date && worklogForm.time
+                                when: page.workItemModel && worklogForm.date && worklogForm.time
                             }
 
                             Binding {
-                                target: page.issueModel
+                                target: page.workItemModel
                                 property: "worklogDuracao"
                                 value: Math.round(worklogForm.duration)
-                                when: page.issueModel
+                                when: page.workItemModel
                             }
 
                             Binding {
-                                target: page.issueModel
+                                target: page.workItemModel
                                 property: "worklogComment"
                                 value: worklogForm.comment
-                                when: page.issueModel
+                                when: page.workItemModel
                             }
 
                             // Binding reverso: inicializar e manter sincronizado quando model muda (ex.: import do Google Calendar)
                             Component.onCompleted: {
-                                if (page.issueModel && page.issueModel.worklogInicio) {
-                                    var parts = page.issueModel.worklogInicio.split(" ");
+                                if (page.workItemModel && page.workItemModel.worklogInicio) {
+                                    var parts = page.workItemModel.worklogInicio.split(" ");
                                     if (parts.length >= 2) {
                                         worklogForm.setWorklogData({
                                             date: parts[0],
                                             time: parts[1],
-                                            duration: page.issueModel.worklogDuracao || 30,
-                                            comment: page.issueModel.worklogComment || ""
+                                            duration: page.workItemModel.worklogDuracao || 30,
+                                            comment: page.workItemModel.worklogComment || ""
                                         });
                                     } else {
                                         worklogForm.setWorklogData({
-                                            duration: page.issueModel.worklogDuracao || 30,
-                                            comment: page.issueModel.worklogComment || ""
+                                            duration: page.workItemModel.worklogDuracao || 30,
+                                            comment: page.workItemModel.worklogComment || ""
                                         });
                                     }
-                                } else if (page.issueModel) {
+                                } else if (page.workItemModel) {
                                     worklogForm.setWorklogData({
-                                        duration: page.issueModel.worklogDuracao || 30,
-                                        comment: page.issueModel.worklogComment || ""
+                                        duration: page.workItemModel.worklogDuracao || 30,
+                                        comment: page.workItemModel.worklogComment || ""
                                     });
                                 }
                             }
                             Connections {
-                                target: page.issueModel || null
+                                target: page.workItemModel || null
                                 function onWorklogInicioChanged() {
-                                    if (!page.issueModel || !worklogForm) return;
-                                    var inicio = page.issueModel.worklogInicio || "";
+                                    if (!page.workItemModel || !worklogForm) return;
+                                    var inicio = page.workItemModel.worklogInicio || "";
                                     if (!inicio) return;
                                     var parts = inicio.split(" ");
                                     if (parts.length >= 2) {
                                         worklogForm.setWorklogData({
                                             date: parts[0],
                                             time: parts[1],
-                                            duration: page.issueModel.worklogDuracao || 30,
-                                            comment: page.issueModel.worklogComment || ""
+                                            duration: page.workItemModel.worklogDuracao || 30,
+                                            comment: page.workItemModel.worklogComment || ""
                                         });
                                     }
                                 }
                                 function onWorklogDuracaoChanged() {
-                                    if (!page.issueModel || !worklogForm) return;
+                                    if (!page.workItemModel || !worklogForm) return;
                                     worklogForm.setWorklogData({
-                                        duration: page.issueModel.worklogDuracao || 30
+                                        duration: page.workItemModel.worklogDuracao || 30
                                     });
                                 }
                             }
@@ -744,7 +452,7 @@ Kirigami.Page {
 
                         IssueMetadataFields {
                             Layout.fillWidth: true
-                            issueModel: page.issueModel
+                            issueModel: page.workItemModel  // IssueMetadataFields partilha prop issueModel (abas 0/1)
                             enabled: !page.isProcessing
                             restrictStatusBySequence: false
                         }
@@ -849,6 +557,8 @@ Kirigami.Page {
         source: "../components/dialogs/VoiceInputDialog.qml"
         onLoaded: {
             if (item) {
+                item.voiceInputService = page._effectiveVoiceInputService
+                item.settingsModel = (page.applicationWindow && typeof page.applicationWindow._ctxSettingsModel !== "undefined") ? page.applicationWindow._ctxSettingsModel : null
                 // qmllint disable missing-property
                 item.fieldsFilled.connect(function() { item.close(); })
                 item.errorMessage.connect(function(msg) {
@@ -862,61 +572,60 @@ Kirigami.Page {
     // Funções auxiliares
     function resetForm() {
         // Resetar campos para valores padrão
-        if (page.issueModel) {
-            page.issueModel.summary = "";
-            page.issueModel.description = "";
+        if (page.workItemModel) {
+            page.workItemModel.summary = "";
+            page.workItemModel.description = "";
 
             // Tipo de atividade padrão
             var defaultTipo = "Suporte Dúvidas/Suporte uso incorreto";
-            var tipoValues = page.issueModel.tipoAtividadeValues;
+            var tipoValues = page.workItemModel.tipoAtividadeValues;
             if (tipoValues.indexOf(defaultTipo) >= 0) {
-                page.issueModel.tipoAtividade = defaultTipo;
+                page.workItemModel.tipoAtividade = defaultTipo;
             } else if (tipoValues.length > 0) {
-                page.issueModel.tipoAtividade = tipoValues[0];
+                page.workItemModel.tipoAtividade = tipoValues[0];
             }
 
             // Status inicial padrão
-            if (page.issueModel.statusSequence && page.issueModel.statusSequence.length > 0) {
-                page.issueModel.statusInicial = page.issueModel.statusSequence[0];
+            if (page.workItemModel.statusSequence && page.workItemModel.statusSequence.length > 0) {
+                page.workItemModel.statusInicial = page.workItemModel.statusSequence[0];
             }
 
             // Prioridade padrão
-            page.issueModel.prioridade = "Medium";
+            page.workItemModel.prioridade = "Medium";
 
             // Valores padrão
-            page.issueModel.documentacaoAnexa = "Não";
-            page.issueModel.utilizacaoIA = "Não";
+            page.workItemModel.documentacaoAnexa = "Não";
+            page.workItemModel.utilizacaoIA = "Não";
 
             // Resetar Valor Entregue e Plataformas afetadas
-            var valorEntregueValues = page.issueModel.valorEntregueValues;
+            var valorEntregueValues = page.workItemModel.valorEntregueValues;
             if (valorEntregueValues && valorEntregueValues.length > 0) {
-                page.issueModel.valorEntregue = valorEntregueValues[0];
+                page.workItemModel.valorEntregue = valorEntregueValues[0];
             } else {
-                page.issueModel.valorEntregue = "";
+                page.workItemModel.valorEntregue = "";
             }
-            page.issueModel.plataformasAfetadas = [];
+            page.workItemModel.plataformasAfetadas = [];
 
             // Limpar Epic Parent
-            page.issueModel.epicParentKey = "";
-            page.issueModel.epicParentSummary = "";
+            page.workItemModel.epicParentKey = "";
+            page.workItemModel.epicParentSummary = "";
             if (epicSearchForm) {
                 epicSearchForm.reset();
             }
 
             // Resetar worklog
-            page.issueModel.registrarWorklog = false;
+            page.workItemModel.registrarWorklog = false;
             var now = new Date();
             var dateStr = Qt.formatDateTime(now, "yyyy-MM-dd");
             var timeStr = Qt.formatDateTime(now, "HH:mm:ss");
-            page.issueModel.worklogInicio = dateStr + " " + timeStr;
-            page.issueModel.worklogDuracao = 30;
+            page.workItemModel.worklogInicio = dateStr + " " + timeStr;
+            page.workItemModel.worklogDuracao = 30;
             if (worklogForm) {
                 worklogForm.reset();
             }
 
             // Limpar anexos pendentes da descrição
-            page.issueModel.pendingAttachments = [];
-            page._descriptionPlaceholderCounter = 0;
+            page.workItemModel.pendingAttachments = [];
         }
     }
 

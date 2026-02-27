@@ -16,6 +16,7 @@ import "../components/panes"
 import "../utils/DialogHelpers.js" as DialogHelpers
 import "../utils/FormatUtils.js" as FormatUtils
 import "../utils/MyIssuesPageLogic.js" as MyIssuesPageLogic
+import "../utils/Validators.js" as Validators
 
 Kirigami.Page {
     id: page
@@ -47,7 +48,7 @@ Kirigami.Page {
     property bool hasCachedData: false
 
     // Recebidos do Main (passados explicitamente)
-    property var issueModel: null
+    property var workItemModel: null
     property var jiraService: null
     property var clipboardHelper: null
     property var gitCommandHelper: null
@@ -104,7 +105,7 @@ Kirigami.Page {
 
     // Status atual da issue selecionada (para visibilidade dos botões de quick action no header)
     readonly property string _quickActionStatus: {
-        var s = (page.originalStatus || "").trim() || (page.issueModel ? (page.issueModel.statusInicial || "").trim() : "");
+        var s = (page.originalStatus || "").trim() || (page.workItemModel ? (page.workItemModel.statusInicial || "").trim() : "");
         return String(s).toUpperCase();
     }
 
@@ -139,8 +140,8 @@ Kirigami.Page {
         if (!page.timerService || !issueKey) return;
 
         // Quando temos o status da issue (ex.: issue selecionada e detalhes carregados), evitar transição se já for IN PROGRESS ou depois
-        if (page.selectedIssueKey === issueKey && page.issueModel && page.issueModel.statusSequence && page.originalStatus) {
-            var seq = page.issueModel.statusSequence;
+        if (page.selectedIssueKey === issueKey && page.workItemModel && page.workItemModel.statusSequence && page.originalStatus) {
+            var seq = page.workItemModel.statusSequence;
             var inDevIdx = seq.indexOf("IN PROGRESS");
             if (inDevIdx >= 0) {
                 var currentIdx = seq.indexOf(page.originalStatus);
@@ -383,12 +384,12 @@ Kirigami.Page {
             });
         }
 
-        var component = Qt.createComponent("../controllers/MyIssuesController.qml");
+        var component = Qt.createComponent("../controllers/MyWorkItemsController.qml");
         if (component.status === Component.Ready) {
             page.controller = component.createObject(page, {
                 jiraService: page.jiraService,
-                myIssuesModel: page.myIssuesModel,
-                issueModel: page.issueModel,
+                myWorkItemsModel: page.myIssuesModel,
+                workItemModel: page.workItemModel,
                 enabled: true
             });
 
@@ -410,9 +411,9 @@ Kirigami.Page {
                         page._processDialog.transitionToSuccess(issueKey, "", true);
                     }
                     // Atualizar item na lista em memória (não refazer busca)
-                    var summary = (page.issueModel && page.issueModel.summary) ? page.issueModel.summary : "";
-                    var status = (page.issueModel && page.issueModel.statusInicial) ? page.issueModel.statusInicial : "";
-                    var prioridade = (page.issueModel && page.issueModel.prioridade) ? page.issueModel.prioridade : "";
+                    var summary = (page.workItemModel && page.workItemModel.summary) ? page.workItemModel.summary : "";
+                    var status = (page.workItemModel && page.workItemModel.statusInicial) ? page.workItemModel.statusInicial : "";
+                    var prioridade = (page.workItemModel && page.workItemModel.prioridade) ? page.workItemModel.prioridade : "";
                     if (page.myIssuesModel && issueKey && typeof page.myIssuesModel.updateIssueInList === "function") {
                         page.myIssuesModel.updateIssueInList(issueKey, summary, status, prioridade, "");
                     }
@@ -547,7 +548,7 @@ Kirigami.Page {
             id: detailPane
             myIssuesPage: page
             applicationWindow: page.applicationWindow
-            issueModel: page.issueModel
+            issueModel: page.workItemModel
             selectedIssueKey: page.selectedIssueKey
             isProcessing: page.isProcessing
             isDetailsLoading: page.isDetailsLoading
@@ -562,6 +563,17 @@ Kirigami.Page {
 
             onEpicSelected: function (key, summary) {
                 page.epicSelected(key, summary);
+            }
+        }
+    }
+
+    // Log do fluxo Expandir com IA (voiceTranscriptionService)
+    Connections {
+        target: page._effectiveVoiceInputService || null
+        function onFieldsFilled() {
+            if (typeof console !== "undefined" && console.log) {
+                var m = page.workItemModel
+                console.log("[MyWorkItemsPage] fieldsFilled received; workItemModel=", !!m, "summaryLen=", m ? (m.summary || "").length : 0, "descriptionLen=", m ? (m.description || "").length : 0)
             }
         }
     }
@@ -586,9 +598,9 @@ Kirigami.Page {
                 page._isTwoPhaseTransition = false;
                 page._processDialog.transitionToSuccess(issueKey, "", true);
                 // Atualizar item na lista em memória (não refazer busca)
-                var summary = (page.issueModel && page.issueModel.summary) ? page.issueModel.summary : "";
-                var status = (page.issueModel && page.issueModel.statusInicial) ? page.issueModel.statusInicial : "";
-                var prioridade = (page.issueModel && page.issueModel.prioridade) ? page.issueModel.prioridade : "";
+                var summary = (page.workItemModel && page.workItemModel.summary) ? page.workItemModel.summary : "";
+                var status = (page.workItemModel && page.workItemModel.statusInicial) ? page.workItemModel.statusInicial : "";
+                var prioridade = (page.workItemModel && page.workItemModel.prioridade) ? page.workItemModel.prioridade : "";
                 if (page.myIssuesModel && issueKey && typeof page.myIssuesModel.updateIssueInList === "function") {
                     page.myIssuesModel.updateIssueInList(issueKey, summary, status, prioridade, "");
                 }
@@ -603,14 +615,14 @@ Kirigami.Page {
                     newStatus = "IN PROGRESS";
                 }
                 if (newStatus && page.myIssuesModel && issueKey && typeof page.myIssuesModel.updateIssueInList === "function") {
-                    var summary = (page.issueModel && page.issueModel.summary) ? page.issueModel.summary : "";
-                    var prioridade = (page.issueModel && page.issueModel.prioridade) ? page.issueModel.prioridade : "";
+                    var summary = (page.workItemModel && page.workItemModel.summary) ? page.workItemModel.summary : "";
+                    var prioridade = (page.workItemModel && page.workItemModel.prioridade) ? page.workItemModel.prioridade : "";
                     page.myIssuesModel.updateIssueInList(issueKey, summary, newStatus, prioridade, "");
                 }
                 if (page.selectedIssueKey === issueKey) {
                     page.originalStatus = newStatus;
-                    if (page.issueModel) {
-                        page.issueModel.statusInicial = newStatus;
+                    if (page.workItemModel) {
+                        page.workItemModel.statusInicial = newStatus;
                     }
                 }
                 page._lastQuickActionType = "";
@@ -771,6 +783,16 @@ Kirigami.Page {
         var epicKey = page.detailPane.getEpicKey();
         var originalStatus = page.originalStatus;
         var targetStatus = (fieldData && fieldData.status) ? fieldData.status : "";
+
+        var updateValidation = Validators.validateWorkItemUpdate(page.workItemModel);
+        if (!updateValidation.isValid) {
+            var errMsg = (updateValidation.errors && updateValidation.errors.length > 0)
+                ? updateValidation.errors.join("\n") : qsTr("Dados inválidos");
+            page._ensureProcessDialogThen(function (dlg) {
+                dlg.transitionToError(errMsg);
+            });
+            return;
+        }
 
         function doUpdateBody() {
             if (typeof console !== "undefined" && console.log) {
@@ -1015,7 +1037,7 @@ Kirigami.Page {
         if (createBranchDialogLoader.item && typeof createBranchDialogLoader.item.openWith === "function") {
             createBranchDialogLoader.item.openWith(
                 page.selectedIssueKey,
-                page.issueModel ? page.issueModel.summary : "",
+                page.workItemModel ? page.workItemModel.summary : "",
                 singleRepo,
                 page.githubService
             )

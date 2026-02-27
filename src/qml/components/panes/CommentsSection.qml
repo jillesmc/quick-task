@@ -31,8 +31,9 @@ Item {
     /** Issue key do pedido "load more" em curso; ao receber commentsLoaded, só aplicar se for a issue atual. */
     property string _pendingCommentsIssueKey: ""
     property bool _editCommentDialogOpen: false
-    property var _voiceInputService: (typeof voiceInputService !== "undefined" ? voiceInputService : null) // qmllint disable unqualified
-    property bool voiceInputAvailable: _voiceInputService ? _voiceInputService.isAvailable() : false
+    /** Serviço de voz injetado pelo pai (pane); não usa contexto global. */
+    property var voiceInputService: null
+    property bool voiceInputAvailable: voiceInputService ? voiceInputService.isAvailable() : false
     property bool improvingNewComment: false
     property string newCommentText: ""
     property real commentInputHeight: 200
@@ -260,9 +261,9 @@ Item {
                     visible: commentsSectionRoot.voiceInputAvailable
                     enabled: !commentsSectionRoot.improvingNewComment && (commentsSectionRoot.newCommentText || "").trim() !== ""
                     onClicked: {
-                        if (commentsSectionRoot._voiceInputService && (commentsSectionRoot.newCommentText || "").trim() !== "") {
+                        if (commentsSectionRoot.voiceInputService && (commentsSectionRoot.newCommentText || "").trim() !== "") {
                             commentsSectionRoot.improvingNewComment = true
-                            commentsSectionRoot._voiceInputService.improveCommentText(commentsSectionRoot.newCommentText)
+                            commentsSectionRoot.voiceInputService.improveCommentText(commentsSectionRoot.newCommentText)
                         }
                     }
                 }
@@ -430,8 +431,8 @@ Item {
     }
 
     Connections {
-        target: commentsSectionRoot._voiceInputService || null
-        enabled: commentsSectionRoot._voiceInputService !== null
+        target: commentsSectionRoot.voiceInputService || null
+        enabled: commentsSectionRoot.voiceInputService !== null
         function onCommentTextImproved(text) {
             commentsSectionRoot.improvingNewComment = false
             if (text)
@@ -508,7 +509,7 @@ Item {
         dlg.issueKey = commentsSectionRoot.selectedIssueKey
         dlg.jiraService = commentsSectionRoot.jiraService
         dlg.clipboardHelper = commentsSectionRoot.clipboardHelper
-        dlg.voiceInputService = commentsSectionRoot._voiceInputService
+        dlg.voiceInputService = commentsSectionRoot.voiceInputService
         dlg.voiceInputAvailable = commentsSectionRoot.voiceInputAvailable
         dlg.accepted.connect(function (cid, newBody) {
             if (commentsSectionRoot.jiraService && commentsSectionRoot.selectedIssueKey) {

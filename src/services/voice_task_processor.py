@@ -7,6 +7,8 @@ import json
 import re
 from typing import Any, Dict, List, Optional
 
+from src.constants import SUMMARY_MAX_LENGTH
+
 try:
     import requests
 
@@ -137,7 +139,7 @@ class VoiceTaskProcessor:
             if response:
                 parsed = self._extract_json_from_response(response)
                 if parsed:
-                    summary = (parsed.get("summary") or "").strip()[:255]
+                    summary = (parsed.get("summary") or "").strip()[:SUMMARY_MAX_LENGTH]
                     description = (parsed.get("description") or transcription).strip()
                     tipo = (parsed.get("tipo_atividade") or "").strip()
                     if tipo not in tipo_atividade_values:
@@ -149,8 +151,8 @@ class VoiceTaskProcessor:
                         "utilizacaoIA": "Sim",
                     }
 
-        # Fallback heurístico
-        summary = self._heuristic_summary(transcription)
+        # Fallback heurístico (cap summary ao limite único da app)
+        summary = (self._heuristic_summary(transcription))[:SUMMARY_MAX_LENGTH]
         tipo = self._heuristic_tipo_atividade(transcription, tipo_atividade_values)
         return {
             "summary": summary,

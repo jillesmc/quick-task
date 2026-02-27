@@ -11,6 +11,7 @@ import QtQuick.Controls as Controls
 import org.kde.kirigami as Kirigami
 import "../forms"
 import "../controls"
+import "../fields"
 import "../../utils/DialogHelpers.js" as DialogHelpers
 import "../../utils/FormatUtils.js" as FormatUtils
 
@@ -240,10 +241,8 @@ Item {
 
     function getFieldData() {
         var fieldData = {};
-        if (summaryFieldTab2) {
-            fieldData.summary = summaryFieldTab2.text || "";
-        }
         if (pane.issueModel) {
+            fieldData.summary = pane.issueModel.summary || "";
             fieldData.description = pane.issueModel.description || "";
         }
         if (issueModel) {
@@ -406,250 +405,20 @@ Item {
                         }
                     }
 
-                    ColumnLayout {
-                        Layout.fillWidth: true
-                        // Layout.margins: 20
-                        // Layout.topMargin: 0
-                        // Layout.bottomMargin: 10
-                        spacing: Kirigami.Units.smallSpacing
-
-                        RowLayout {
-                            Layout.fillWidth: true
-                            spacing: Kirigami.Units.smallSpacing
-
-                            Controls.Label {
-                                text: qsTr("Summary:")
-                                font.bold: true
-                                Layout.fillWidth: true
-                            }
-                        }
-
-                        RowLayout {
-                            Layout.fillWidth: true
-                            spacing: Kirigami.Units.smallSpacing
-
-                            Controls.TextField {
-                                id: summaryFieldTab2
-                                Layout.fillWidth: true
-                                enabled: pane.selectedIssueKey !== "" && !pane.isProcessing
-                                text: pane.issueModel ? pane.issueModel.summary : ""
-                                onTextChanged: if (pane.issueModel)
-                                    pane.issueModel.summary = text
-                            }
-
-                            Controls.ToolButton {
-                                visible: pane.voiceInputAvailable && pane.selectedIssueKey !== ""
-                                icon.name: "tools-wizard"
-                                text: qsTr("Expandir com IA")
-                                enabled: !pane.isProcessing && !(pane.voiceInputService && pane.voiceInputService.isExpanding) && (summaryFieldTab2.text || (pane.issueModel ? pane.issueModel.description : ""))
-                                onClicked: {
-                                    if (pane.voiceInputService && summaryFieldTab2) {
-                                        pane.voiceInputService.expandFromSummaryAndDescription(
-                                            summaryFieldTab2.text || "",
-                                            (pane.issueModel ? pane.issueModel.description : "") || "",
-                                            true
-                                        );
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    ColumnLayout {
+                    SummaryAndDescriptionBlock {
                         Layout.fillWidth: true
                         Layout.fillHeight: true
-                        spacing: Kirigami.Units.smallSpacing
-
-                        RowLayout {
-                            Layout.fillWidth: true
-                            spacing: Kirigami.Units.smallSpacing
-
-                            Controls.Label {
-                                text: qsTr("Description:")
-                                font.bold: true
-                                Layout.fillWidth: true
-                            }
-
-                            EditPreviewToggle {
-                                isEditMode: pane._descriptionEditMode
-                                onModeChanged: function(editMode) {
-                                    pane._descriptionEditMode = editMode
-                                }
-                            }
-
-                            Controls.ToolButton {
-                                icon.name: "mail-attachment"
-                                text: qsTr("Anexos na descrição")
-                                display: Controls.AbstractButton.IconOnly
-                                onClicked: pane._openAttachmentsPopover(this)
-                            }
-                        }
-
-                        Item {
-                            id: descriptionContainerTab2
-                            Layout.fillWidth: true
-                            Layout.fillHeight: true
-
-                            StackLayout {
-                                anchors.fill: parent
-                                currentIndex: pane._descriptionEditMode ? 0 : 1
-
-                                // Edit mode: estrutura original (DropArea > ScrollView > TextArea)
-                                DropArea {
-                                    enabled: pane.selectedIssueKey !== "" && !pane.isProcessing && pane.jiraService
-                                    onDropped: function(drop) {
-                                        if (!pane.jiraService || !pane.selectedIssueKey || !drop.urls || drop.urls.length === 0) return
-                                        var extList = (typeof pane.jiraService.getAllowedAttachmentExtensions === "function")
-                                            ? pane.jiraService.getAllowedAttachmentExtensions() : []
-                                        var imageExtList = (typeof pane.jiraService.getAllowedImageExtensions === "function")
-                                            ? pane.jiraService.getAllowedImageExtensions() : []
-                                        for (var i = 0; i < drop.urls.length; i++) {
-                                            var urlStr = drop.urls[i].toString()
-                                            var path = urlStr.replace(/^file:\/\//, "")
-                                            var filename = path.split("/").pop() || path.split("\\").pop() || "file"
-                                            var ext = filename.indexOf(".") >= 0 ? filename.split(".").pop().toLowerCase() : ""
-                                            if (extList.indexOf(ext) < 0) continue
-                                            var pathToUse = (pane.clipboardHelper && typeof pane.clipboardHelper.copyFileToTemp === "function")
-                                                ? pane.clipboardHelper.copyFileToTemp(path) : path
-                                            if (!pathToUse) pathToUse = path
-                                            if (imageExtList.indexOf(ext) >= 0) {
-                                                pane._openEmbedDialogForDescription(pathToUse, filename)
-                                            } else {
-                                                pane._uploadNonImageAndInsertLink(pathToUse, filename)
-                                            }
-                                        }
-                                    }
-
-                                    Controls.ScrollView {
-                                        id: descriptionScrollView
-                                        anchors.fill: parent
-                                        clip: true
-                                        contentWidth: descriptionFieldTab2.implicitWidth
-
-                                        Controls.TextArea {
-                                            id: descriptionFieldTab2
-                                            width: descriptionContainerTab2.width
-                                            wrapMode: Controls.TextArea.Wrap
-                                            enabled: pane.selectedIssueKey !== "" && !pane.isProcessing
-                                            topPadding: Kirigami.Units.smallSpacing
-                                            bottomPadding: Kirigami.Units.smallSpacing
-                                            placeholderText: qsTr("Arraste ficheiros ou use Ctrl+V para colar imagem; imagens têm preview, outros ficheiros ficam como link.")
-                                            text: pane.issueModel ? pane.issueModel.description : ""
-                                            onTextChanged: if (pane.issueModel) pane.issueModel.description = text
-
-                                            Keys.onPressed: function(event) {
-                                                if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_V) {
-                                                    if (!pane.clipboardHelper || !pane.jiraService || !pane.selectedIssueKey) return
-                                                    if (pane.clipboardHelper.hasClipboardImage()) {
-                                                        var tempPath = pane.clipboardHelper.getClipboardImageAsTempFile()
-                                                        if (tempPath) {
-                                                            pane._openEmbedDialogForDescription(tempPath, "paste.png")
-                                                            event.accepted = true
-                                                        }
-                                                    }
-                                                } else if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_E) {
-                                                    pane._descriptionEditMode = true
-                                                    event.accepted = true
-                                                } else if ((event.modifiers & (Qt.ControlModifier | Qt.ShiftModifier)) === (Qt.ControlModifier | Qt.ShiftModifier) && event.key === Qt.Key_P) {
-                                                    pane._descriptionEditMode = false
-                                                    event.accepted = true
-                                                } else if (event.key === Qt.Key_Escape) {
-                                                    pane._descriptionEditMode = true
-                                                    event.accepted = true
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-
-                                // Preview mode
-                                Rectangle {
-                                    focus: !pane._descriptionEditMode
-                                    color: "transparent"
-                                    border.color: Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g, Kirigami.Theme.textColor.b, 0.15)
-                                    border.width: 0.5
-                                    radius: Kirigami.Units.smallSpacing
-
-                                    Keys.onPressed: function(event) {
-                                        if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_E) {
-                                            pane._descriptionEditMode = true
-                                            event.accepted = true
-                                        } else if ((event.modifiers & (Qt.ControlModifier | Qt.ShiftModifier)) === (Qt.ControlModifier | Qt.ShiftModifier) && event.key === Qt.Key_P) {
-                                            pane._descriptionEditMode = false
-                                            event.accepted = true
-                                        } else if (event.key === Qt.Key_Escape) {
-                                            pane._descriptionEditMode = true
-                                            event.accepted = true
-                                        }
-                                    }
-
-                                    Controls.ScrollView {
-                                        id: descriptionPreviewScrollTab2
-                                        anchors.fill: parent
-                                        anchors.margins: 1
-                                        clip: true
-                                        contentWidth: availableWidth
-
-                                        RichTextWithJiraImages {
-                                            width: descriptionPreviewScrollTab2.availableWidth
-                                            sourceText: pane.issueModel ? pane.issueModel.description : ""
-                                            jiraService: pane.jiraService
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    Connections {
-                        target: pane.jiraService || null
-                        function onAttachmentUploaded(uploadedIssueKey, contentUrl, filename, embedTarget) {
-                            if (uploadedIssueKey !== pane.selectedIssueKey || !contentUrl || !filename || !descriptionFieldTab2) return
-                            if (embedTarget !== "description") return
-                            if (pane._pendingAttachOnly) {
-                                pane._pendingAttachOnly = false
-                                var match = /\/attachment\/content\/(\d+)/.exec(contentUrl || "")
-                                if (match && match[1]) {
-                                    var arrAttach = pane._newAttachmentsThisSession || []
-                                    arrAttach.push({ id: match[1], filename: filename })
-                                    pane._newAttachmentsThisSession = arrAttach
-                                }
-                                return
-                            }
-                            if (pane._pendingInsertAsLink) {
-                                pane._pendingInsertAsLink = false
-                                var linkMarkdown = "[" + filename + "](" + contentUrl + ")"
-                                var insertPos = descriptionFieldTab2.cursorPosition >= 0 ? descriptionFieldTab2.cursorPosition : descriptionFieldTab2.text.length
-                                descriptionFieldTab2.insert(insertPos, linkMarkdown)
-                                if (pane.issueModel) pane.issueModel.description = descriptionFieldTab2.text
-                                var matchLink = /\/attachment\/content\/(\d+)/.exec(contentUrl || "")
-                                if (matchLink && matchLink[1]) {
-                                    var arrLink = pane._newAttachmentsThisSession || []
-                                    arrLink.push({ id: matchLink[1], filename: filename })
-                                    pane._newAttachmentsThisSession = arrLink
-                                }
-                                return
-                            }
-                            var w = pane._pendingEmbedDisplayWidth > 0 ? pane._pendingEmbedDisplayWidth : 760
-                            var markdown = "![" + filename + "](" + contentUrl + "){: width=\"" + w + "\" }"
-                            var txt = descriptionFieldTab2.text
-                            var insertPos, toInsert
-                            if (pane._pendingEmbedPosition === "start") {
-                                insertPos = 0
-                                toInsert = markdown + (txt.length > 0 ? "\n\n" : "")
-                            } else {
-                                insertPos = txt.length
-                                toInsert = (txt.length > 0 ? "\n\n" : "") + markdown
-                            }
-                            descriptionFieldTab2.insert(insertPos, toInsert)
-                            if (pane.issueModel) pane.issueModel.description = descriptionFieldTab2.text
-                            var match = /\/attachment\/content\/(\d+)/.exec(contentUrl || "")
-                            if (match && match[1]) {
-                                var arr = pane._newAttachmentsThisSession || []
-                                arr.push({ id: match[1], filename: filename })
-                                pane._newAttachmentsThisSession = arr
-                            }
-                        }
+                        workItemModel: pane.issueModel
+                        mode: "edit"
+                        enabled: pane.selectedIssueKey !== "" && !pane.isProcessing
+                        jiraService: pane.jiraService
+                        clipboardHelper: pane.clipboardHelper
+                        voiceInputService: pane.voiceInputService
+                        showVoiceCreateButton: false
+                        showExpandWithAIButton: true
+                        requestSummaryFocus: false
+                        summaryRequired: true
+                        applicationWindow: pane.applicationWindow
                     }
 
                     Item {
@@ -854,6 +623,7 @@ Item {
                         applicationWindow: pane.applicationWindow
                         jiraService: pane.jiraService
                         clipboardHelper: pane.clipboardHelper
+                        voiceInputService: pane.voiceInputService
                         selectedIssueKey: pane.selectedIssueKey
                         onErrorOccurred: function (message) {
                             if (typeof console !== "undefined" && console.log) {

@@ -701,7 +701,10 @@ def main():
 
         _vts_config = _VoiceTranscriptionConfig()
         voice_transcription_service = _VoiceInputServiceClass(
-            work_item_model, _vts_config, editing_issue_model=editing_work_item_model
+            work_item_model,
+            _vts_config,
+            editing_issue_model=editing_work_item_model,
+            expand_overlay_on_process_transcription=True,
         )
         if voice_transcription_service.isAvailable():
             debug_log("App", "main", "voiceTranscriptionService criado com sucesso")

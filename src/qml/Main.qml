@@ -250,7 +250,7 @@ Kirigami.ApplicationWindow {
         CreateWorkItemPage {
             id: createWorkItemPage
             applicationWindow: root
-            issueModel: root._ctxWorkItemModel
+            workItemModel: root._ctxWorkItemModel
             jiraService: root._ctxAtlassianService
             clipboardHelper: root._ctxClipboardHelper
             hideWindowFn: root.hideWindowFn
@@ -278,7 +278,7 @@ Kirigami.ApplicationWindow {
         MyWorkItemsPage {
             id: myWorkItemsPage
             applicationWindow: root
-            issueModel: root._ctxEditingWorkItemModel
+            workItemModel: root._ctxEditingWorkItemModel
             jiraService: root._ctxAtlassianService
             clipboardHelper: root._ctxClipboardHelper
             gitCommandHelper: root._ctxGitCommandHelper

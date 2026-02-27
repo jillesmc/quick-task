@@ -566,6 +566,17 @@ Kirigami.Page {
         }
     }
 
+    // Log do fluxo Expandir com IA (voiceInputService)
+    Connections {
+        target: page._effectiveVoiceInputService || null
+        function onFieldsFilled() {
+            if (typeof console !== "undefined" && console.log) {
+                var m = page.issueModel
+                console.log("[MyIssuesPage] fieldsFilled received; issueModel=", !!m, "summaryLen=", m ? (m.summary || "").length : 0, "descriptionLen=", m ? (m.description || "").length : 0)
+            }
+        }
+    }
+
     // Conectar signals do jiraService
     Connections {
         target: page.jiraService

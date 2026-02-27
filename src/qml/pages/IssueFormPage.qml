@@ -849,6 +849,8 @@ Kirigami.Page {
         source: "../components/dialogs/VoiceInputDialog.qml"
         onLoaded: {
             if (item) {
+                item.voiceInputService = page._effectiveVoiceInputService
+                item.settingsModel = (page.applicationWindow && typeof page.applicationWindow._ctxSettingsModel !== "undefined") ? page.applicationWindow._ctxSettingsModel : null
                 // qmllint disable missing-property
                 item.fieldsFilled.connect(function() { item.close(); })
                 item.errorMessage.connect(function(msg) {
