@@ -14,6 +14,8 @@ Item {
     property var tabBar: null
     property var createPage: null
     property var issuesPage: null
+    property var createWorkItemPage: null
+    property var myWorkItemsPage: null
     property var settingsPage: null
     property var pendingWorklogsPage: null
     property var timesheetPage: null
@@ -43,6 +45,14 @@ Item {
             } else if (root.stack.currentIndex === 1) {
                 if (root.issuesPage && root.issuesPage.updateIssue) {
                     root.issuesPage.updateIssue();
+                }
+            } else if (root.stack.currentIndex === 7) {
+                if (root.createWorkItemPage && root.createWorkItemPage.createIssueFromToolbar) {
+                    root.createWorkItemPage.createIssueFromToolbar();
+                }
+            } else if (root.stack.currentIndex === 8) {
+                if (root.myWorkItemsPage && root.myWorkItemsPage.updateIssue) {
+                    root.myWorkItemsPage.updateIssue();
                 }
             }
         }
@@ -118,6 +128,24 @@ Item {
             }
         }
     }
+    Shortcut {
+        sequence: "Alt+8"
+        onActivated: {
+            if (root.stack && root.tabBar) {
+                root.stack.currentIndex = 7
+                root.tabBar.currentIndex = 7
+            }
+        }
+    }
+    Shortcut {
+        sequence: "Alt+9"
+        onActivated: {
+            if (root.stack && root.tabBar) {
+                root.stack.currentIndex = 8
+                root.tabBar.currentIndex = 8
+            }
+        }
+    }
 
     Shortcut {
         id: shortcutSwitchTab
@@ -141,6 +169,8 @@ Item {
         onActivated: {
             if (root.stack && root.stack.currentIndex === 0 && root.createPage && root.createPage.openVoiceDialog) {
                 root.createPage.openVoiceDialog();
+            } else if (root.stack && root.stack.currentIndex === 7 && root.createWorkItemPage && root.createWorkItemPage.openVoiceDialog) {
+                root.createWorkItemPage.openVoiceDialog();
             }
         }
     }

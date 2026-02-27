@@ -44,6 +44,7 @@ except ImportError:
 
 from config.config_manager import ConfigManager
 from core.jira_client import JiraClient
+from core.atlassian_client import AtlassianClient
 
 
 @pytest.fixture
@@ -98,6 +99,23 @@ def mock_jira_client() -> MagicMock:
         }
     )
     client._format_duration_minutes = JiraClient._format_duration_minutes
+    return client
+
+
+@pytest.fixture
+def mock_atlassian_client() -> MagicMock:
+    """Fixture para AtlassianClient mockado (mesma interface que JiraClient para testes)."""
+    client = MagicMock(spec=AtlassianClient)
+    client._acli_path = "/usr/bin/acli"
+    client.transition_issue = MagicMock(return_value=True)
+    client.register_worklog = MagicMock(return_value=True)
+    client.create_issue = MagicMock(
+        return_value={
+            "issue_key": "TEST-123",
+            "issue_url": "https://jira.example.com/browse/TEST-123",
+        }
+    )
+    client._format_duration_minutes = AtlassianClient._format_duration_minutes
     return client
 
 

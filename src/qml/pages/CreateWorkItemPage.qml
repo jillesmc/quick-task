@@ -1,7 +1,7 @@
 /**
- * IssueFormPage.qml
+ * CreateWorkItemPage.qml
  *
- * Página do formulário de criação de issue
+ * Página do formulário de criação de work item
  * Refatorado seguindo Clean Code e SOLID
  * Usa componentes reutilizáveis e controllers
  */
@@ -15,7 +15,7 @@ import "../utils/DialogHelpers.js" as DialogHelpers
 Kirigami.Page {
     id: page
 
-    title: "Preencha os dados da issue abaixo:"
+    title: qsTr("Preencha os dados do work item abaixo:")
 
     property var applicationWindow: null
 
@@ -108,7 +108,7 @@ Kirigami.Page {
         var win = page.applicationWindow || page.parent || page
         if (comp.status !== Component.Ready) {
             if (comp.status === Component.Error) {
-                console.error("IssueFormPage: AttachmentEmbedPreviewDialog error:", comp.errorString())
+                console.error("CreateWorkItemPage: AttachmentEmbedPreviewDialog error:", comp.errorString())
             }
             comp.statusChanged.connect(function () {
                 if (comp.status === Component.Ready) {
@@ -168,7 +168,7 @@ Kirigami.Page {
         var comp = Qt.createComponent("../components/dialogs/DescriptionAttachmentsPopover.qml")
         if (comp.status !== Component.Ready) {
             if (comp.status === Component.Error) {
-                console.error("IssueFormPage: DescriptionAttachmentsPopover error:", comp.errorString())
+                console.error("CreateWorkItemPage: DescriptionAttachmentsPopover error:", comp.errorString())
             }
             comp.statusChanged.connect(function () {
                 if (comp.status === Component.Ready) {
@@ -231,7 +231,7 @@ Kirigami.Page {
                 page.isProcessing = false;
                 DialogHelpers.hideProgress(page.progressDialog);
                 page.progressDialog = null;
-                DialogHelpers.showError(page, "../components/dialogs/ErrorDialog.qml", errorMessage, "IssueFormPage.jiraService");
+                DialogHelpers.showError(page, "../components/dialogs/ErrorDialog.qml", errorMessage, "CreateWorkItemPage.jiraService");
             });
         }
     }
@@ -852,7 +852,7 @@ Kirigami.Page {
                 // qmllint disable missing-property
                 item.fieldsFilled.connect(function() { item.close(); })
                 item.errorMessage.connect(function(msg) {
-                    DialogHelpers.showError(page, "../components/dialogs/ErrorDialog.qml", msg, "IssueFormPage.voiceOrOther");
+                    DialogHelpers.showError(page, "../components/dialogs/ErrorDialog.qml", msg, "CreateWorkItemPage.voiceOrOther");
                 })
                 // qmllint enable missing-property
             }

@@ -178,8 +178,11 @@ sys.path.insert(0, str(ROOT_DIR))
 
 from src.models.issue_model import IssueModel
 from src.models.my_issues_model import MyIssuesModel
+from src.models.work_item_model import WorkItemModel
+from src.models.my_work_items_model import MyWorkItemsModel
 from src.models.settings_model import SettingsModel
 from src.jira_service import JiraService
+from src.atlassian_service import AtlassianService
 from src.github_service import GitHubService
 from src.single_instance_manager import SingleInstanceManager
 from src.system_tray_manager import SystemTrayManager
@@ -288,6 +291,7 @@ def main():
     # Registrar tipos Python no QML
     qmlRegisterType(IssueModel, "JiraQuickTask", 1, 0, "IssueModel")
     qmlRegisterType(JiraService, "JiraQuickTask", 1, 0, "JiraService")
+    qmlRegisterType(AtlassianService, "JiraQuickTask", 1, 0, "AtlassianService")
 
     # Criar instâncias do modelo e serviço
     debug_log("App", "main", "Criando modelos e serviços...")
@@ -326,6 +330,20 @@ def main():
         traceback.print_exc(file=sys.stderr)
         raise
 
+    # Modelos workItem isolados (abas 7 e 8)
+    try:
+        debug_log("App", "main", "Criando work_item_model (formulário criação work item)...")
+        work_item_model = WorkItemModel()
+        editing_work_item_model = WorkItemModel()
+        my_work_items_model = MyWorkItemsModel()
+        debug_log("App", "main", "work_item_model, editing_work_item_model, my_work_items_model criados")
+    except Exception as e:
+        print(f"✗ Erro ao criar modelos workItem: {e}", file=sys.stderr)
+        import traceback
+
+        traceback.print_exc(file=sys.stderr)
+        raise
+
     try:
         debug_log("App", "main", "Criando JiraService...")
         jira_service = JiraService()
@@ -335,6 +353,15 @@ def main():
         import traceback
 
         traceback.print_exc(file=sys.stderr)
+        raise
+
+    atlassian_service = None
+    try:
+        debug_log("App", "main", "Criando AtlassianService...")
+        atlassian_service = AtlassianService()
+        debug_log("App", "main", "AtlassianService criado com sucesso")
+    except Exception as e:
+        print(f"✗ Erro ao criar AtlassianService: {e}", file=sys.stderr)
         raise
 
     # Conectar cache de Assets aos modelos de issue (Valor entregue / Plataformas afetadas)
@@ -357,6 +384,12 @@ def main():
         # #endregion
         issue_model.set_assets_cache(assets_cache)
         editing_issue_model.set_assets_cache(assets_cache)
+        work_item_model.set_assets_cache(assets_cache)
+        editing_work_item_model.set_assets_cache(assets_cache)
+    assets_cache_atlassian = atlassian_service.get_assets_cache() if atlassian_service else None
+    if assets_cache_atlassian:
+        work_item_model.set_assets_cache(assets_cache_atlassian)
+        editing_work_item_model.set_assets_cache(assets_cache_atlassian)
         # #region agent log
         _write_debug_ndjson(
             "app.main:after_set_assets_cache",
@@ -371,17 +404,34 @@ def main():
         def update_models():
             issue_model.on_assets_cache_loaded()
             editing_issue_model.on_assets_cache_loaded()
+            work_item_model.on_assets_cache_loaded()
+            editing_work_item_model.on_assets_cache_loaded()
 
         QTimer.singleShot(0, update_models)
 
+    def on_atlassian_assets_cache_loaded(success, message):
+        def update_work_item_models():
+            work_item_model.on_assets_cache_loaded()
+            editing_work_item_model.on_assets_cache_loaded()
+        QTimer.singleShot(0, update_work_item_models)
+        if success and atlassian_service:
+            cache = atlassian_service.get_assets_cache()
+            if cache:
+                work_item_model.set_assets_cache(cache)
+                editing_work_item_model.set_assets_cache(cache)
+
     jira_service.assetsCacheLoaded.connect(on_assets_cache_loaded)
+    if atlassian_service:
+        atlassian_service.assetsCacheLoaded.connect(on_atlassian_assets_cache_loaded)
 
     # ConfigManager único: mesmo config em memória para JiraService, GitHubService, SettingsModel e TimerService
     from config.config_manager import ConfigManager as AppConfigManager
 
     app_config_manager = AppConfigManager()
-    # Injetar config compartilhado no JiraService (para enrichment refletir configurações salvas)
+    # Injetar config compartilhado no JiraService e no AtlassianService (para enrichment refletir configurações salvas)
     jira_service._config = app_config_manager
+    if atlassian_service:
+        atlassian_service._config = app_config_manager
     try:
         debug_log("App", "main", "Criando GitHubService...")
         github_service = GitHubService(config_manager=app_config_manager)
@@ -643,6 +693,27 @@ def main():
         print(f"⚠ Aviso: Erro ao criar VoiceInputService: {e}", file=sys.stderr)
         voice_input_service = None
 
+    # voiceTranscriptionService: segunda instância para abas work item (7 e 8)
+    voice_transcription_service = None
+    try:
+        from config.config_manager import ConfigManager as _VoiceTranscriptionConfig
+        from src.services.voice_input_service import VoiceInputService as _VoiceInputServiceClass
+
+        _vts_config = _VoiceTranscriptionConfig()
+        voice_transcription_service = _VoiceInputServiceClass(
+            work_item_model, _vts_config, editing_issue_model=editing_work_item_model
+        )
+        if voice_transcription_service.isAvailable():
+            debug_log("App", "main", "voiceTranscriptionService criado com sucesso")
+        else:
+            debug_log(
+                "App", "main",
+                "voiceTranscriptionService criado (deps de voz não instaladas)",
+            )
+    except Exception as e:
+        print(f"⚠ Aviso: Erro ao criar voiceTranscriptionService: {e}", file=sys.stderr)
+        voice_transcription_service = None
+
     # Expor ao contexto QML
     debug_log("App", "main", "Expondo modelos ao contexto QML...")
     try:
@@ -669,10 +740,40 @@ def main():
         raise
 
     try:
+        engine.rootContext().setContextProperty("workItemModel", work_item_model)
+        debug_log("App", "main", "workItemModel exposto ao contexto QML")
+    except Exception as e:
+        print(f"✗ Erro ao expor workItemModel: {e}", file=sys.stderr)
+        raise
+
+    try:
+        engine.rootContext().setContextProperty(
+            "editingWorkItemModel", editing_work_item_model
+        )
+        debug_log("App", "main", "editingWorkItemModel exposto ao contexto QML")
+    except Exception as e:
+        print(f"✗ Erro ao expor editingWorkItemModel: {e}", file=sys.stderr)
+        raise
+
+    try:
+        engine.rootContext().setContextProperty("myWorkItemsModel", my_work_items_model)
+        debug_log("App", "main", "myWorkItemsModel exposto ao contexto QML")
+    except Exception as e:
+        print(f"✗ Erro ao expor myWorkItemsModel: {e}", file=sys.stderr)
+        raise
+
+    try:
         engine.rootContext().setContextProperty("jiraService", jira_service)
         debug_log("App", "main", "jiraService exposto ao contexto QML")
     except Exception as e:
         print(f"✗ Erro ao expor jiraService: {e}", file=sys.stderr)
+        raise
+
+    try:
+        engine.rootContext().setContextProperty("atlassianService", atlassian_service)
+        debug_log("App", "main", "atlassianService exposto ao contexto QML")
+    except Exception as e:
+        print(f"✗ Erro ao expor atlassianService: {e}", file=sys.stderr)
         raise
 
     try:
@@ -734,6 +835,16 @@ def main():
             debug_log("App", "main", "voiceInputService exposto ao contexto QML")
     except Exception as e:
         print(f"⚠ Aviso: Erro ao expor voiceInputService: {e}", file=sys.stderr)
+
+    try:
+        engine.rootContext().setContextProperty(
+            "voiceTranscriptionService",
+            voice_transcription_service if voice_transcription_service else None,
+        )
+        if voice_transcription_service:
+            debug_log("App", "main", "voiceTranscriptionService exposto ao contexto QML")
+    except Exception as e:
+        print(f"⚠ Aviso: Erro ao expor voiceTranscriptionService: {e}", file=sys.stderr)
 
     # MarkdownPreviewRenderer para modo Edit/Preview em description e comentários
     try:

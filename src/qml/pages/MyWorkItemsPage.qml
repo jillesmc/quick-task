@@ -1,7 +1,7 @@
 /**
- * MyIssuesPage.qml
+ * MyWorkItemsPage.qml
  *
- * Página para listar issues do usuário e atualizar issues selecionadas
+ * Página para listar work items do usuário e atualizar work items selecionados
  * Refatorado seguindo Clean Code e SOLID
  * Usa componentes reutilizáveis e controllers
  */
@@ -20,7 +20,7 @@ import "../utils/MyIssuesPageLogic.js" as MyIssuesPageLogic
 Kirigami.Page {
     id: page
 
-    title: qsTr("Minhas Issues")
+    title: qsTr("Minhas Work Items")
 
     // Habilitar foco para capturar atalhos de teclado
     focus: true
@@ -330,24 +330,24 @@ Kirigami.Page {
     Component.onCompleted: {
         var dialogComp = Qt.createComponent("../components/dialogs/ProcessDialog.qml");
         if (typeof console !== "undefined" && console.log) {
-            console.log("[MyIssuesPage] ProcessDialog createComponent status:", dialogComp.status, "error:", dialogComp.status === Component.Error ? dialogComp.errorString() : "");
+            console.log("[MyWorkItemsPage] ProcessDialog createComponent status:", dialogComp.status, "error:", dialogComp.status === Component.Error ? dialogComp.errorString() : "");
         }
         function onProcessDialogComponentReady() {
             if (dialogComp.status !== Component.Ready) return;
             if (typeof console !== "undefined" && console.log) {
-                console.log("[MyIssuesPage] ProcessDialog component Ready, creating instance");
+                console.log("[MyWorkItemsPage] ProcessDialog component Ready, creating instance");
             }
             page._processDialogComponent = dialogComp;
             if (page._processDialog) {
                 if (typeof console !== "undefined" && console.log) {
-                    console.log("[MyIssuesPage] ProcessDialog already exists, running pending if any");
+                    console.log("[MyWorkItemsPage] ProcessDialog already exists, running pending if any");
                 }
                 page._runPendingProcessDialogAction();
                 return;
             }
             var parent = page.parent || page;
             if (typeof console !== "undefined" && console.log) {
-                console.log("[MyIssuesPage] createObject parent:", parent ? "set" : "null", "page.parent:", page.parent ? "set" : "null");
+                console.log("[MyWorkItemsPage] createObject parent:", parent ? "set" : "null", "page.parent:", page.parent ? "set" : "null");
             }
             var dlg = dialogComp.createObject(parent, { applicationWindow: page.applicationWindow });
             if (dlg) {
@@ -360,12 +360,12 @@ Kirigami.Page {
                 });
                 page._processDialog = dlg;
                 if (typeof console !== "undefined" && console.log) {
-                    console.log("[MyIssuesPage] ProcessDialog instance created, running pending action");
+                    console.log("[MyWorkItemsPage] ProcessDialog instance created, running pending action");
                 }
                 page._runPendingProcessDialogAction();
             } else {
                 if (typeof console !== "undefined" && console.warn) {
-                    console.warn("[MyIssuesPage] ProcessDialog createObject returned null");
+                    console.warn("[MyWorkItemsPage] ProcessDialog createObject returned null");
                 }
             }
         }
@@ -373,11 +373,11 @@ Kirigami.Page {
             onProcessDialogComponentReady();
         } else {
             if (typeof console !== "undefined" && console.log) {
-                console.log("[MyIssuesPage] ProcessDialog component not Ready, connecting statusChanged");
+                console.log("[MyWorkItemsPage] ProcessDialog component not Ready, connecting statusChanged");
             }
             dialogComp.statusChanged.connect(function () {
                 if (typeof console !== "undefined" && console.log) {
-                    console.log("[MyIssuesPage] ProcessDialog statusChanged:", dialogComp.status);
+                    console.log("[MyWorkItemsPage] ProcessDialog statusChanged:", dialogComp.status);
                 }
                 if (dialogComp.status === Component.Ready) onProcessDialogComponentReady();
             });
@@ -423,7 +423,7 @@ Kirigami.Page {
                         return;
                     }
                     if (typeof console !== "undefined" && console.log) {
-                        console.log("[MyIssuesPage] controller.updateFailed -> ProcessDialog.transitionToError");
+                        console.log("[MyWorkItemsPage] controller.updateFailed -> ProcessDialog.transitionToError");
                     }
                     page.isProcessing = false;
                     if (page._processDialog) {
@@ -643,16 +643,16 @@ Kirigami.Page {
 
         function onErrorOccurred(errorMessage) {
             if (typeof console !== "undefined" && console.log) {
-                console.log("[MyIssuesPage] jiraService.onErrorOccurred. _pendingTimerStartIssueKey=", page._pendingTimerStartIssueKey || "");
+                console.log("[MyWorkItemsPage] jiraService.onErrorOccurred. _pendingTimerStartIssueKey=", page._pendingTimerStartIssueKey || "");
             }
             if (page._quickActionInProgress || page._lastQuickActionType !== "") {
                 page._quickActionInProgress = false;
                 page._lastQuickActionType = "";
-                DialogHelpers.showError(page, "../components/dialogs/ErrorDialog.qml", errorMessage || qsTr("Erro ao transicionar"), "MyIssuesPage.quickAction");
+                DialogHelpers.showError(page, "../components/dialogs/ErrorDialog.qml", errorMessage || qsTr("Erro ao transicionar"), "MyWorkItemsPage.quickAction");
             } else if (page._pendingTimerStartIssueKey) {
                 page._pendingTimerStartIssueKey = "";
                 if (typeof console !== "undefined" && console.log) {
-                    console.log("[MyIssuesPage] jiraService.onErrorOccurred -> ProcessDialog.transitionToError");
+                    console.log("[MyWorkItemsPage] jiraService.onErrorOccurred -> ProcessDialog.transitionToError");
                 }
                 if (page._processDialog) {
                     page._processDialog.transitionToError(errorMessage || qsTr("Erro ao transicionar"));
@@ -719,20 +719,20 @@ Kirigami.Page {
 
         function onErrorOccurred(errorMessage) {
             if (typeof console !== "undefined" && console.log) {
-                console.log("[MyIssuesPage] myIssuesModel.onErrorOccurred. _jiraErrorShownInProcessDialog=", page._jiraErrorShownInProcessDialog);
+                console.log("[MyWorkItemsPage] myIssuesModel.onErrorOccurred. _jiraErrorShownInProcessDialog=", page._jiraErrorShownInProcessDialog);
             }
             if (page._jiraErrorShownInProcessDialog) {
                 if (typeof console !== "undefined" && console.log) {
-                    console.log("[MyIssuesPage] myIssuesModel.onErrorOccurred -> SKIP (erro já no ProcessDialog)");
+                    console.log("[MyWorkItemsPage] myIssuesModel.onErrorOccurred -> SKIP (erro já no ProcessDialog)");
                 }
                 return;
             }
             if (typeof console !== "undefined" && console.log) {
-                console.log("[MyIssuesPage] myIssuesModel.onErrorOccurred -> DialogHelpers.showError (erro na busca de issues)");
+                console.log("[MyWorkItemsPage] myIssuesModel.onErrorOccurred -> DialogHelpers.showError (erro na busca de issues)");
             }
             DialogHelpers.hideProgress(page.searchProgressDialog);
             page.searchProgressDialog = null;
-            DialogHelpers.showError(page, "../components/dialogs/ErrorDialog.qml", errorMessage, "MyIssuesPage.myIssuesModel");
+            DialogHelpers.showError(page, "../components/dialogs/ErrorDialog.qml", errorMessage, "MyWorkItemsPage.myIssuesModel");
         }
     }
 
@@ -750,7 +750,7 @@ Kirigami.Page {
     // Função pública para atualizar issue (chamada pelo botão global / atalho)
     function updateIssue() {
         if (typeof console !== "undefined" && console.log) {
-            console.log("[MyIssuesPage] updateIssue called, selectedIssueKey=", page.selectedIssueKey || "");
+            console.log("[MyWorkItemsPage] updateIssue called, selectedIssueKey=", page.selectedIssueKey || "");
         }
         if (!page.selectedIssueKey || page.selectedIssueKey === "") {
             page._ensureProcessDialogThen(function (dlg) {
@@ -774,11 +774,11 @@ Kirigami.Page {
 
         function doUpdateBody() {
             if (typeof console !== "undefined" && console.log) {
-                console.log("[MyIssuesPage] updateIssue: originalStatus=", originalStatus, "targetStatus=", targetStatus);
+                console.log("[MyWorkItemsPage] updateIssue: originalStatus=", originalStatus, "targetStatus=", targetStatus);
             }
             if (!targetStatus || targetStatus === originalStatus) {
                 if (typeof console !== "undefined" && console.log) {
-                    console.log("[MyIssuesPage] updateIssue: no status change, calling controller.updateIssue");
+                    console.log("[MyWorkItemsPage] updateIssue: no status change, calling controller.updateIssue");
                 }
                 page.controller.updateIssue(issueKey, fieldData, worklogData, epicKey, originalStatus);
                 return;
@@ -795,17 +795,17 @@ Kirigami.Page {
             var checkEnabled = page.jiraService.worklogCheckEnabled && page.jiraService.worklogCheckEnabled();
             var requiresCheck = page.jiraService.requiresWorklogCheckBeforeTransition && page.jiraService.requiresWorklogCheckBeforeTransition(originalStatus, targetStatus);
             if (typeof console !== "undefined" && console.log) {
-                console.log("[MyIssuesPage] updateIssue: checkEnabled=", checkEnabled, "requiresCheck=", requiresCheck, "worklogSyncService=", !!page.worklogSyncService);
+                console.log("[MyWorkItemsPage] updateIssue: checkEnabled=", checkEnabled, "requiresCheck=", requiresCheck, "worklogSyncService=", !!page.worklogSyncService);
             }
             if (checkEnabled && requiresCheck && page.worklogSyncService) {
                 var pending = page.worklogSyncService.get_pending_worklogs_for_issue(issueKey) || [];
                 if (typeof console !== "undefined" && console.log) {
-                    console.log("[MyIssuesPage] updateIssue: pending worklogs count=", pending.length);
+                    console.log("[MyWorkItemsPage] updateIssue: pending worklogs count=", pending.length);
                 }
                 if (pending.length > 0) {
                     var showDialog = page.jiraService.worklogCheckShowDialog && page.jiraService.worklogCheckShowDialog();
                     if (typeof console !== "undefined" && console.log) {
-                        console.log("[MyIssuesPage] updateIssue: showDialog=", showDialog, "calling _ensureProcessDialogThen(openInConfirm)");
+                        console.log("[MyWorkItemsPage] updateIssue: showDialog=", showDialog, "calling _ensureProcessDialogThen(openInConfirm)");
                     }
                     if (showDialog) {
                         var totalFormatted = page._formatTotalFromPending(pending);
@@ -814,7 +814,7 @@ Kirigami.Page {
                         page._pendingWorklogsList = pending;
                         page._ensureProcessDialogThen(function (dlg) {
                             if (typeof console !== "undefined" && console.log) {
-                                console.log("[MyIssuesPage] updateIssue: callback running, calling dlg.openInConfirm");
+                                console.log("[MyWorkItemsPage] updateIssue: callback running, calling dlg.openInConfirm");
                             }
                             dlg.openInConfirm(pending, totalFormatted, targetStatus, blockIfPending);
                         });
@@ -877,18 +877,18 @@ Kirigami.Page {
     function _ensureProcessDialogThen(callback) {
         if (typeof callback !== "function") return;
         if (typeof console !== "undefined" && console.log) {
-            console.log("[MyIssuesPage] _ensureProcessDialogThen: _processDialog=", !!page._processDialog, "_processDialogComponent=", !!page._processDialogComponent, "componentStatus=", page._processDialogComponent ? page._processDialogComponent.status : "n/a");
+            console.log("[MyWorkItemsPage] _ensureProcessDialogThen: _processDialog=", !!page._processDialog, "_processDialogComponent=", !!page._processDialogComponent, "componentStatus=", page._processDialogComponent ? page._processDialogComponent.status : "n/a");
         }
         if (page._processDialog) {
             if (typeof console !== "undefined" && console.log) {
-                console.log("[MyIssuesPage] _ensureProcessDialogThen: using existing dialog");
+                console.log("[MyWorkItemsPage] _ensureProcessDialogThen: using existing dialog");
             }
             callback(page._processDialog);
             return;
         }
         if (page._processDialogComponent && page._processDialogComponent.status === Component.Ready) {
             if (typeof console !== "undefined" && console.log) {
-                console.log("[MyIssuesPage] _ensureProcessDialogThen: creating dialog from component, parent=", page.parent ? "set" : "null");
+                console.log("[MyWorkItemsPage] _ensureProcessDialogThen: creating dialog from component, parent=", page.parent ? "set" : "null");
             }
             var parent = page.parent || page;
             var dlg = page._processDialogComponent.createObject(parent, { applicationWindow: page.applicationWindow });
@@ -902,25 +902,25 @@ Kirigami.Page {
                 });
                 page._processDialog = dlg;
                 if (typeof console !== "undefined" && console.log) {
-                    console.log("[MyIssuesPage] _ensureProcessDialogThen: dialog created, calling callback");
+                    console.log("[MyWorkItemsPage] _ensureProcessDialogThen: dialog created, calling callback");
                 }
                 callback(dlg);
             } else {
                 if (typeof console !== "undefined" && console.warn) {
-                    console.warn("[MyIssuesPage] _ensureProcessDialogThen: createObject returned null");
+                    console.warn("[MyWorkItemsPage] _ensureProcessDialogThen: createObject returned null");
                 }
             }
             return;
         }
         if (typeof console !== "undefined" && console.log) {
-            console.log("[MyIssuesPage] _ensureProcessDialogThen: queuing callback (component not ready)");
+            console.log("[MyWorkItemsPage] _ensureProcessDialogThen: queuing callback (component not ready)");
         }
         page._pendingProcessDialogAction = callback;
     }
 
     function _runPendingProcessDialogAction() {
         if (typeof console !== "undefined" && console.log) {
-            console.log("[MyIssuesPage] _runPendingProcessDialogAction: _processDialog=", !!page._processDialog, "pending=", !!page._pendingProcessDialogAction);
+            console.log("[MyWorkItemsPage] _runPendingProcessDialogAction: _processDialog=", !!page._processDialog, "pending=", !!page._pendingProcessDialogAction);
         }
         if (!page._processDialog || !page._pendingProcessDialogAction) return;
         var fn = page._pendingProcessDialogAction;

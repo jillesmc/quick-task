@@ -44,6 +44,8 @@ Kirigami.ApplicationWindow {
             mainHeader.stack = root.stack
             mainHeader.createPage = createPage
             mainHeader.issuesPage = issuesPage
+            mainHeader.createWorkItemPage = createWorkItemPage
+            mainHeader.myWorkItemsPage = myWorkItemsPage
             mainHeader.settingsPage = settingsPage
             mainHeader.pendingWorklogsPage = pendingWorklogsPage
             mainHeader.timesheetPage = timesheetPage
@@ -84,6 +86,7 @@ Kirigami.ApplicationWindow {
     property var _ctxIssueModel: issueModel // qmllint disable unqualified
     property var _ctxEditingIssueModel: editingIssueModel // qmllint disable unqualified
     property var _ctxJiraService: jiraService // qmllint disable unqualified
+    property var _ctxAtlassianService: atlassianService // qmllint disable unqualified
     property var _ctxTimerModel: timerModel // qmllint disable unqualified
     property var _ctxTimerService: timerService // qmllint disable unqualified
     property var _ctxSettingsModel: settingsModel // qmllint disable unqualified
@@ -100,6 +103,9 @@ Kirigami.ApplicationWindow {
     property var _ctxGitCommandHelper: gitCommandHelper // qmllint disable unqualified
     property var hideWindowFn: hideWindow // qmllint disable unqualified
     property var _ctxDebugLog: debugLog // qmllint disable unqualified
+    property var _ctxWorkItemModel: workItemModel // qmllint disable unqualified
+    property var _ctxEditingWorkItemModel: editingWorkItemModel // qmllint disable unqualified
+    property var _ctxMyWorkItemsModel: myWorkItemsModel // qmllint disable unqualified
 
     // Quando true, o erro de transição (ex.: ao clicar "Iniciar Timer" no SuccessDialog) já está a ser mostrado no diálogo de criação; evita ErrorDialog/ProcessDialog duplicados
     property bool _jiraErrorShownInCreateFlow: false
@@ -112,6 +118,7 @@ Kirigami.ApplicationWindow {
         pendingWorklogsPage: pendingWorklogsPage
         githubPage: githubPage
         issueModel: root._ctxIssueModel
+        workItemModel: root._ctxWorkItemModel
         jiraService: root._ctxJiraService
         timerModel: root._ctxTimerModel
         timerService: root._ctxTimerService
@@ -124,6 +131,9 @@ Kirigami.ApplicationWindow {
     // Propriedade compartilhada para sincronizar epic selecionado entre abas
     property string sharedEpicKey: ""
     property string sharedEpicSummary: ""
+    // Estado partilhado epic/parent para abas work item (7 e 8)
+    property string sharedParentKey: ""
+    property string sharedParentSummary: ""
 
     /** Navega para a aba MyIssues e seleciona/carrega a issue (ex.: ao iniciar timer no diálogo de criação). */
     function navigateToIssue(issueKey) {
@@ -235,6 +245,57 @@ Kirigami.ApplicationWindow {
             myIssuesModel: root._ctxMyIssuesModel
             googleAuthService: root._ctxGoogleAuthService
         }
+
+        // Índice 7: Criar work item (cópia de Criar Issue, modelos isolados)
+        CreateWorkItemPage {
+            id: createWorkItemPage
+            applicationWindow: root
+            issueModel: root._ctxWorkItemModel
+            jiraService: root._ctxAtlassianService
+            clipboardHelper: root._ctxClipboardHelper
+            hideWindowFn: root.hideWindowFn
+            timerService: root._ctxTimerService
+            timerModel: root._ctxTimerModel
+            sharedEpicKey: root.sharedParentKey
+            sharedEpicSummary: root.sharedParentSummary
+            voiceInputServiceOverride: typeof voiceTranscriptionService !== "undefined" ? voiceTranscriptionService : null // qmllint disable unqualified
+            onEpicSelected: function(key, summary) {
+                root.sharedParentKey = key
+                root.sharedParentSummary = summary
+            }
+            onIssueCreated: function(issueKey) {
+                if (myWorkItemsPage) {
+                    var query = ""
+                    if (myWorkItemsPage.issueSearchForm) {
+                        query = myWorkItemsPage.issueSearchForm.getQuery()
+                    }
+                    myWorkItemsPage.refreshIssues(query, false)
+                }
+            }
+        }
+
+        // Índice 8: Minhas work items (cópia de Minhas Issues, modelos isolados)
+        MyWorkItemsPage {
+            id: myWorkItemsPage
+            applicationWindow: root
+            issueModel: root._ctxEditingWorkItemModel
+            jiraService: root._ctxAtlassianService
+            clipboardHelper: root._ctxClipboardHelper
+            gitCommandHelper: root._ctxGitCommandHelper
+            myIssuesModel: root._ctxMyWorkItemsModel
+            timerService: root._ctxTimerService
+            timerModel: root._ctxTimerModel
+            worklogSyncService: root._ctxWorklogSyncService
+            githubService: root._ctxGitHubService
+            hideWindowFn: root.hideWindowFn
+            sharedEpicKey: root.sharedParentKey
+            sharedEpicSummary: root.sharedParentSummary
+            voiceInputServiceOverride: typeof voiceTranscriptionService !== "undefined" ? voiceTranscriptionService : null // qmllint disable unqualified
+            onEpicSelected: function(key, summary) {
+                root.sharedParentKey = key
+                root.sharedParentSummary = summary
+            }
+        }
     }
 
     Connections {
@@ -245,6 +306,12 @@ Kirigami.ApplicationWindow {
                 if (!issuesPage.hasCachedData) {
                     var query = issuesPage.issueSearchForm ? issuesPage.issueSearchForm.getQuery() : ""
                     issuesPage.refreshIssues(query)
+                }
+            }
+            if (root.tabBar.currentIndex === 8 && myWorkItemsPage) {
+                if (!myWorkItemsPage.hasCachedData) {
+                    var query8 = myWorkItemsPage.issueSearchForm ? myWorkItemsPage.issueSearchForm.getQuery() : ""
+                    myWorkItemsPage.refreshIssues(query8)
                 }
             }
             if (root.tabBar.currentIndex === 2 && googlePage) {
@@ -274,6 +341,8 @@ Kirigami.ApplicationWindow {
         tabBar: root.tabBar
         createPage: createPage
         issuesPage: issuesPage
+        createWorkItemPage: createWorkItemPage // qmllint disable missing-property
+        myWorkItemsPage: myWorkItemsPage // qmllint disable missing-property
         settingsPage: settingsPage
         pendingWorklogsPage: pendingWorklogsPage
         timesheetPage: timesheetPage
