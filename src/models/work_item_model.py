@@ -38,6 +38,8 @@ class WorkItemModel(QObject):
     plataformasAfetadasValuesChanged = Signal()
     epicParentKeyChanged = Signal(str)
     epicParentSummaryChanged = Signal(str)
+    parentWorkItemKeyChanged = Signal(str)
+    parentWorkItemSummaryChanged = Signal(str)
     pendingAttachmentsChanged = Signal()
     prioridadeChanged = Signal(str)
 
@@ -332,6 +334,7 @@ class WorkItemModel(QObject):
         if self._epicParentKey != value:
             self._epicParentKey = value
             self.epicParentKeyChanged.emit(value)
+            self.parentWorkItemKeyChanged.emit(value)
 
     @Property(str, notify=epicParentSummaryChanged)
     def epicParentSummary(self) -> str:
@@ -343,6 +346,32 @@ class WorkItemModel(QObject):
         if self._epicParentSummary != value:
             self._epicParentSummary = value
             self.epicParentSummaryChanged.emit(value)
+            self.parentWorkItemSummaryChanged.emit(value)
+
+    # Propriedades: Parent Work Item (alias para epic parent; mesmo estado interno)
+    @Property(str, notify=parentWorkItemKeyChanged)
+    def parentWorkItemKey(self) -> str:
+        """Chave do work item pai na hierarquia (ex: PLATFORM-123)."""
+        return self._epicParentKey
+
+    @parentWorkItemKey.setter
+    def parentWorkItemKey(self, value: str) -> None:
+        if self._epicParentKey != value:
+            self._epicParentKey = value
+            self.epicParentKeyChanged.emit(value)
+            self.parentWorkItemKeyChanged.emit(value)
+
+    @Property(str, notify=parentWorkItemSummaryChanged)
+    def parentWorkItemSummary(self) -> str:
+        """Resumo do parent work item (para exibição na UI)."""
+        return self._epicParentSummary
+
+    @parentWorkItemSummary.setter
+    def parentWorkItemSummary(self, value: str) -> None:
+        if self._epicParentSummary != value:
+            self._epicParentSummary = value
+            self.epicParentSummaryChanged.emit(value)
+            self.parentWorkItemSummaryChanged.emit(value)
 
     # Propriedade: pendingAttachments — lista de { path, filename, placeholderId } para nova issue
     @Property(list, notify=pendingAttachmentsChanged)

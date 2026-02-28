@@ -2,5 +2,6 @@ WorklogForm WorklogForm.qml
 WorklogPresetButton WorklogPresetButton.qml
 WorklogFiltersBar WorklogFiltersBar.qml
 EpicSearchForm EpicSearchForm.qml
+ParentWorkItemSearchForm ParentWorkItemSearchForm.qml
 IssueFieldsForm IssueFieldsForm.qml
 IssueSearchForm IssueSearchForm.qml

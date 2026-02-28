@@ -812,6 +812,19 @@ def main():
 
     try:
         engine.rootContext().setContextProperty(
+            "atlassianMetadataConfigModel",
+            jira_metadata_config_model if jira_metadata_config_model else None,
+        )
+        if jira_metadata_config_model:
+            debug_log("App", "main", "atlassianMetadataConfigModel exposto ao contexto QML")
+    except Exception as e:
+        print(
+            f"⚠ Aviso: Erro ao expor atlassianMetadataConfigModel: {e}",
+            file=sys.stderr,
+        )
+
+    try:
+        engine.rootContext().setContextProperty(
             "clipboardHelper", clipboard_helper if clipboard_helper else None
         )
         if clipboard_helper:

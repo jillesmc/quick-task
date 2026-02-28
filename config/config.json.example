@@ -55,6 +55,13 @@
     "project_platform": true,
     "exclude_done": true
   },
+  "parent_work_item_filters": {
+    "created_by_me": false,
+    "assigned_to_me": false,
+    "project_platform": true,
+    "exclude_done": true,
+    "selected_project_keys": []
+  },
   "status_transitions": {
     "worklog_check": {
       "enabled": true,

@@ -1062,6 +1062,10 @@ class AtlassianService(QObject):
     epicSearchPageCompleted = Signal(
         "QVariant", str
     )  # lista de epics para paginação incremental (list[dict], nextPageToken)
+    # Signals genéricos para busca de parent work item (incluem tipo para não misturar buscas)
+    parentSearchStarted = Signal(str)  # parent_issue_type
+    parentSearchCompleted = Signal(str, "QVariant", str)  # parent_issue_type, results, next_token
+    parentSearchPageCompleted = Signal(str, "QVariant", str)  # parent_issue_type, results, next_token
     # Signals específicos para carregamento de detalhes de issue (modo assíncrono)
     issueDetailsStarted = Signal(str)  # issueKey
     issueDetailsLoaded = Signal("QVariant")  # dict com detalhes da issue
@@ -1760,7 +1764,7 @@ class AtlassianService(QObject):
                 query_text: str,
                 created_by_me_flag: bool,
                 assigned_to_me_flag: bool,
-                project_filter: Optional[str],
+                project_filter: Optional[Any],  # str or list of str
                 exclude_done_flag: bool,
                 next_token: Optional[str],
                 is_pag: bool,
@@ -1823,7 +1827,14 @@ class AtlassianService(QObject):
                         self.resultsReady.emit([], "")
 
         project_key = self._config.get_project()
-        project_filter = "PLATFORM" if project_platform else None
+        filters = self._config.get_parent_work_item_filters()
+        selected_keys = filters.get("selected_project_keys") or []
+        if isinstance(selected_keys, list) and len(selected_keys) > 0:
+            project_filter = selected_keys
+        elif project_platform and project_key:
+            project_filter = project_key
+        else:
+            project_filter = None
         is_pagination = bool(next_page_token)
 
         worker = _EpicSearchWorker(
@@ -1839,11 +1850,17 @@ class AtlassianService(QObject):
         )
         self._epic_search_worker = worker
 
-        # Propagar resultados/erros para QML
+        # Propagar resultados/erros para QML (epic + parent genérico com tipo "Epic")
         if is_pagination:
             worker.pageReady.connect(self.epicSearchPageCompleted.emit)
+            worker.pageReady.connect(
+                lambda results, token: self.parentSearchPageCompleted.emit("Epic", results, token)
+            )
         else:
             worker.resultsReady.connect(self.epicSearchCompleted.emit)
+            worker.resultsReady.connect(
+                lambda results, token: self.parentSearchCompleted.emit("Epic", results, token)
+            )
         worker.errorOccurred.connect(self.errorOccurred.emit)
 
         # Limpar referência quando terminar
@@ -1858,6 +1875,7 @@ class AtlassianService(QObject):
         # Mas ainda precisamos indicar que está carregando mais
         if not is_pagination:
             self.epicSearchStarted.emit()
+            self.parentSearchStarted.emit("Epic")
         worker.start()
         return True
 
@@ -1920,8 +1938,10 @@ class AtlassianService(QObject):
                 "created_by_me": False,
                 "assigned_to_me": False,
                 "project_platform": True,
+                "exclude_done": True,
+                "selected_project_keys": [],
             }
-        return self._config.get_epic_filters()
+        return self._config.get_parent_work_item_filters()
 
     @Slot(bool, bool, bool, bool, result=bool)
     def setEpicFilters(
@@ -1937,7 +1957,7 @@ class AtlassianService(QObject):
         Args:
             created_by_me: Filtrar apenas epics criados por mim.
             assigned_to_me: Filtrar apenas epics atribuídos a mim.
-            project_platform: Filtrar por projeto PLATFORM.
+            project_platform: Filtrar por projeto PLATFORM (legado).
             exclude_done: Excluir epics com status DONE.
 
         Returns:
@@ -1953,11 +1973,94 @@ class AtlassianService(QObject):
                 "project_platform": project_platform,
                 "exclude_done": exclude_done,
             }
-            self._config.set_epic_filters(filters)
+            self._config.set_parent_work_item_filters(filters)
             return True
         except Exception as e:
-            print(f"Erro ao salvar filtros de épicos: {e}", file=sys.stderr)
+            print(f"Erro ao salvar filtros de parent work item: {e}", file=sys.stderr)
             return False
+
+    @Slot("QVariantList", result=bool)
+    def setEpicFilterProjectKeys(self, selected_project_keys: list) -> bool:
+        """
+        Atualiza apenas a lista de chaves de projeto do filtro de parent work item (abas 7/8).
+
+        Args:
+            selected_project_keys: Lista de chaves (ex: ["PLATFORM", "OTHER"]).
+
+        Returns:
+            True se salvou com sucesso.
+        """
+        if not self._config:
+            return False
+        try:
+            keys = [str(k) for k in (selected_project_keys or []) if str(k).strip()]
+            self._config.set_parent_work_item_filters({"selected_project_keys": keys})
+            return True
+        except Exception as e:
+            print(f"Erro ao salvar filtro de projetos: {e}", file=sys.stderr)
+            return False
+
+    # API genérica por tipo de parent (delega para Epic quando parent_issue_type == "Epic")
+    @Slot(str, str, bool, bool, bool, bool, str, result=bool)
+    def searchParentsAsync(
+        self,
+        query: str,
+        parent_issue_type: str,
+        created_by_me: bool = False,
+        assigned_to_me: bool = False,
+        project_platform: bool = True,
+        exclude_done: bool = True,
+        next_page_token: str = "",
+    ) -> bool:
+        """Busca assíncrona de parent por tipo. Para "Epic" delega a searchEpicsAsync e emite parentSearch*."""
+        if parent_issue_type != "Epic":
+            return False
+        return self.searchEpicsAsync(
+            query=query,
+            created_by_me=created_by_me,
+            assigned_to_me=assigned_to_me,
+            project_platform=project_platform,
+            exclude_done=exclude_done,
+            next_page_token=next_page_token,
+        )
+
+    @Slot(str, str, result="QVariant")
+    def fetchParentByKey(self, key: str, parent_issue_type: str) -> Dict[str, str]:
+        """Obtém parent por chave e tipo. Para "Epic" delega a searchEpicByKey."""
+        if parent_issue_type != "Epic":
+            return {}
+        return self.searchEpicByKey(key)
+
+    @Slot(str, result="QVariant")
+    def getParentFilters(self, parent_issue_type: str) -> Dict[str, bool]:
+        """Filtros de busca por tipo de parent. Para "Epic" delega a getEpicFilters."""
+        if parent_issue_type != "Epic":
+            return {
+                "created_by_me": False,
+                "assigned_to_me": False,
+                "project_platform": True,
+                "exclude_done": True,
+            }
+        return self.getEpicFilters()
+
+    @Slot(str, bool, bool, bool, bool, result=bool)
+    def setParentFilters(
+        self,
+        parent_issue_type: str,
+        created_by_me: bool,
+        assigned_to_me: bool,
+        project_platform: bool,
+        exclude_done: bool,
+    ) -> bool:
+        """Persiste filtros por tipo de parent. Para "Epic" delega a setEpicFilters."""
+        if parent_issue_type != "Epic":
+            return False
+        return self.setEpicFilters(
+            created_by_me=created_by_me,
+            assigned_to_me=assigned_to_me,
+            project_platform=project_platform,
+            exclude_done=exclude_done,
+        )
 
     @Slot(result=list)
     def getMyIssues(self) -> List[Dict[str, str]]:

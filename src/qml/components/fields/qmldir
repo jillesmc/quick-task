@@ -1,3 +1,4 @@
 SummaryField SummaryField.qml
 DescriptionField DescriptionField.qml
 SummaryAndDescriptionBlock SummaryAndDescriptionBlock.qml
+ParentWorkItemBlock ParentWorkItemBlock.qml

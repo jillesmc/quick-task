@@ -1116,6 +1116,54 @@ class ConfigManager:
         except Exception as e:
             raise RuntimeError(f"Erro ao salvar configuração: {e}") from e
 
+    def get_parent_work_item_filters(self) -> Dict[str, Any]:
+        """
+        Retorna os filtros de busca de parent work item (abas 7/8).
+        Isolado de epic_filters (abas 0/1); usa a chave parent_work_item_filters.
+
+        Returns:
+            Dict com created_by_me, assigned_to_me, exclude_done, selected_project_keys (lista).
+        """
+        default_filters: Dict[str, Any] = {
+            "created_by_me": False,
+            "assigned_to_me": False,
+            "project_platform": True,
+            "exclude_done": True,
+            "selected_project_keys": [],
+        }
+        filters = self._config.get("parent_work_item_filters", {})
+        merged = {**default_filters, **filters}
+        keys = merged.get("selected_project_keys")
+        if not isinstance(keys, list):
+            merged["selected_project_keys"] = []
+        return merged
+
+    def set_parent_work_item_filters(self, filters: Dict[str, Any]) -> None:
+        """
+        Salva os filtros de parent work item (abas 7/8) no arquivo de configuração.
+        Usa a chave parent_work_item_filters (isolado de epic_filters).
+        """
+        if "parent_work_item_filters" not in self._config:
+            self._config["parent_work_item_filters"] = {}
+
+        update: Dict[str, Any] = {}
+        for k, v in filters.items():
+            if k == "selected_project_keys":
+                update[k] = list(v) if isinstance(v, list) else []
+            elif k in ("created_by_me", "assigned_to_me", "project_platform", "exclude_done"):
+                update[k] = bool(v)
+        self._config["parent_work_item_filters"].update(update)
+
+        if str(self.config_path).startswith("/app/"):
+            xdg_config = os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")
+            self.config_path = Path(xdg_config) / "jira-quick-task" / "config.json"
+        self.config_path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            with open(self.config_path, "w", encoding="utf-8") as f:
+                json.dump(self._config, f, indent=2, ensure_ascii=False)
+        except Exception as e:
+            raise RuntimeError(f"Erro ao salvar parent_work_item_filters: {e}") from e
+
     def set_account_id(self, account_id: str) -> None:
         """
         Salva o accountId do usuário no arquivo de configuração.

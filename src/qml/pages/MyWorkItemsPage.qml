@@ -50,6 +50,8 @@ Kirigami.Page {
     // Recebidos do Main (passados explicitamente)
     property var workItemModel: null
     property var jiraService: null
+    /** Serviço Atlassian para abas 7/8; usado pelo painel para Parent Work Item. Se null, o painel usa jiraService. */
+    property var atlassianService: null
     property var clipboardHelper: null
     property var gitCommandHelper: null
     property var myIssuesModel: null
@@ -544,15 +546,15 @@ Kirigami.Page {
         }
 
         // Coluna Direita (60% - Detail)
-        MyIssuesDetailPane {
+        WorkItemDetailPane {
             id: detailPane
-            myIssuesPage: page
+            workItemsPage: page
             applicationWindow: page.applicationWindow
-            issueModel: page.workItemModel
+            workItemModel: page.workItemModel
             selectedIssueKey: page.selectedIssueKey
             isProcessing: page.isProcessing
             isDetailsLoading: page.isDetailsLoading
-            jiraService: page.jiraService
+            atlassianService: page.atlassianService || page.jiraService
             clipboardHelper: page.clipboardHelper
             gitCommandHelper: page.gitCommandHelper
             voiceInputService: page._effectiveVoiceInputService

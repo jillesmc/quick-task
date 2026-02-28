@@ -10,7 +10,7 @@ import sys
 import time
 from datetime import date
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
+from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING, Union
 import requests
 from requests.auth import HTTPBasicAuth
 
@@ -2587,7 +2587,7 @@ class AtlassianClient:
         max_results: int = 50,
         created_by_me: bool = False,
         assigned_to_me: bool = False,
-        project_filter: Optional[str] = None,
+        project_filter: Optional[Union[str, List[str]]] = None,
         exclude_done: bool = True,
         next_page_token: Optional[str] = None,
     ) -> Tuple[List[Dict[str, Any]], Optional[str]]:
@@ -2600,7 +2600,7 @@ class AtlassianClient:
             max_results: Número máximo de epics por página.
             created_by_me: Se True, filtra apenas epics criados pelo usuário atual.
             assigned_to_me: Se True, filtra apenas epics atribuídos ao usuário atual.
-            project_filter: Chave do projeto para filtrar (ex: PLATFORM). Se None, usa project.
+            project_filter: Chave(s) de projeto para filtrar: str, lista de str, ou None (buscar em todos).
             exclude_done: Se True, exclui epics com status DONE.
             next_page_token: Token para buscar próxima página (paginação).
 
@@ -2612,13 +2612,13 @@ class AtlassianClient:
         # Construir JQL base
         jql_parts = ["issuetype = Epic"]
 
-        # Filtro de projeto
-        # Se project_filter foi explicitamente passado (não None), usar ele
-        # Se project_filter é None, não adicionar filtro de projeto (buscar em todos)
-        # project (parâmetro) é usado apenas como fallback se project_filter não for fornecido na chamada
-        if project_filter is not None:
-            jql_parts.append(f'project = "{project_filter}"')
-        # Se project_filter é None, não adicionamos filtro de projeto (busca em todos os projetos)
+        # Filtro de projeto: lista não vazia -> project in (...); string -> project = "..."; None/vazio -> sem filtro
+        if isinstance(project_filter, list) and len(project_filter) > 0:
+            keys = [str(k).strip() for k in project_filter if str(k).strip()]
+            if keys:
+                jql_parts.append("project in (%s)" % ", ".join(f'"{k}"' for k in keys))
+        elif isinstance(project_filter, str) and project_filter.strip():
+            jql_parts.append(f'project = "{project_filter.strip()}"')
 
         # Filtro: criados por mim
         if created_by_me:

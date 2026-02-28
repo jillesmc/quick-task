@@ -242,79 +242,25 @@ Kirigami.Page {
                             Layout.fillWidth: true
                         }
 
-                        // Seção Epic Parent
-                        ColumnLayout {
-                            id: epicSection
-                            Layout.fillWidth: true
-                            Layout.preferredHeight: leftScrollView.epicSectionHeight
-                            Layout.minimumHeight: 250
-                            spacing: Kirigami.Units.smallSpacing
+                        // Seção Parent Work Item (bloco reutilizável)
+                        ParentWorkItemBlock {
+                            id: parentWorkItemBlock
+                            model: page.workItemModel
+                            atlassianService: page.jiraService
+                            parentIssueType: "Epic"
+                            enabled: !page.isProcessing
+                            mode: "create"
+                            sharedParentWorkItemKey: page.sharedEpicKey
+                            sharedParentWorkItemSummary: page.sharedEpicSummary
+                            preferredHeight: leftScrollView.epicSectionHeight
+                            minimumHeight: 250
 
-                            Controls.Label {
-                                text: qsTr("Epic Parent:")
-                                font.bold: true
-                                Layout.fillWidth: true
+                            onParentWorkItemSelected: function (key, summary) {
+                                page.epicSelected(key, summary);
                             }
-
-                            EpicSearchForm {
-                                id: epicSearchForm
-                                Layout.fillWidth: true
-                                Layout.fillHeight: true
-                                enabled: !page.isProcessing
-
-                                Binding {
-                                    target: epicSearchForm
-                                    property: "jiraService"
-                                    value: typeof page.jiraService !== "undefined" ? page.jiraService : null
-                                    when: typeof page.jiraService !== "undefined"
-                                }
-
-                                Binding {
-                                    target: page.workItemModel
-                                    property: "epicParentKey"
-                                    value: epicSearchForm.selectedEpicKey
-                                    when: page.workItemModel
-                                }
-
-                                Binding {
-                                    target: page.workItemModel
-                                    property: "epicParentSummary"
-                                    value: epicSearchForm.selectedEpicSummary
-                                    when: page.workItemModel
-                                }
-
-                                onEpicSelected: function (key, summary) {
-                                    if (page.workItemModel) {
-                                        page.workItemModel.epicParentKey = key;
-                                        page.workItemModel.epicParentSummary = summary;
-                                    }
-                                    page.epicSelected(key, summary);
-                                }
-
-                                onEpicCleared: {
-                                    page.sharedEpicKey = "";
-                                    page.sharedEpicSummary = "";
-                                    if (page.workItemModel) {
-                                        page.workItemModel.epicParentKey = "";
-                                        page.workItemModel.epicParentSummary = "";
-                                    }
-                                }
-
-                                // Epic no formulário de criação vem apenas do modelo de criação (workItemModel),
-                                // não de sharedEpicKey (que é atualizado pela aba Minhas Issues)
-                                Binding {
-                                    target: epicSearchForm
-                                    property: "selectedEpicKey"
-                                    value: page.workItemModel ? page.workItemModel.epicParentKey : ""
-                                    when: page.workItemModel
-                                }
-
-                                Binding {
-                                    target: epicSearchForm
-                                    property: "selectedEpicSummary"
-                                    value: page.workItemModel ? page.workItemModel.epicParentSummary : ""
-                                    when: page.workItemModel
-                                }
+                            onParentWorkItemCleared: {
+                                page.sharedEpicKey = "";
+                                page.sharedEpicSummary = "";
                             }
                         }
 
@@ -606,11 +552,12 @@ Kirigami.Page {
             }
             page.workItemModel.plataformasAfetadas = [];
 
-            // Limpar Epic Parent
-            page.workItemModel.epicParentKey = "";
-            page.workItemModel.epicParentSummary = "";
-            if (epicSearchForm) {
-                epicSearchForm.reset();
+            // Limpar Parent Work Item
+            if (parentWorkItemBlock && typeof parentWorkItemBlock.clearParent === "function") {
+                parentWorkItemBlock.clearParent();
+            } else {
+                page.workItemModel.parentWorkItemKey = "";
+                page.workItemModel.parentWorkItemSummary = "";
             }
 
             // Resetar worklog
