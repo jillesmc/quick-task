@@ -485,7 +485,9 @@ def main():
         from src.database.worklog_db import WorklogDatabase
 
         debug_log("App", "main", "Criando WorklogDatabase...")
-        worklog_db = WorklogDatabase()
+        worklog_db = WorklogDatabase(
+            db_path=app_config_manager.get_config_dir() / "worklogs.db"
+        )
         debug_log("App", "main", "WorklogDatabase criado com sucesso")
 
         debug_log("App", "main", "Criando TimerModel...")

@@ -17,10 +17,7 @@ class ConfigManager:
 
         Args:
             config_path: Caminho para o arquivo de configuração.
-                        Se None, procura em múltiplos locais:
-                        1. ~/.config/jira-quick-task/config.json (usuário)
-                        2. /app/share/jira-quick-task/config/config.json (Flatpak)
-                        3. config/config.json relativo ao módulo (fallback)
+                        Se None, usa $XDG_CONFIG_HOME/jira-quick-task/config.json.
         """
         if config_path is None:
             config_path = self._find_config_file()
@@ -31,30 +28,15 @@ class ConfigManager:
 
     def _find_config_file(self) -> Path:
         """
-        Procura o arquivo config.json em múltiplos locais
-
-        Returns:
-            Path do arquivo encontrado ou do fallback (pode não existir)
+        Retorna o path do config.json (único local: XDG_CONFIG_HOME/jira-quick-task/).
+        O ficheiro pode não existir; load_config() trata esse caso.
         """
-        # 1. Configuração do usuário (XDG_CONFIG_HOME)
         xdg_config = os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")
-        user_config = Path(xdg_config) / "jira-quick-task" / "config.json"
-        if user_config.exists():
-            return user_config
+        return Path(xdg_config) / "jira-quick-task" / "config.json"
 
-        # 2. Configuração padrão do Flatpak
-        flatpak_config = Path("/app/share/jira-quick-task/config/config.json")
-        if flatpak_config.exists():
-            return flatpak_config
-
-        # 2b. Fallback: arquivo .example no Flatpak
-        flatpak_example = Path("/app/share/jira-quick-task/config/config.json.example")
-        if flatpak_example.exists():
-            return flatpak_example
-
-        # 3. Fallback: relativo ao módulo
-        module_dir = Path(__file__).parent
-        return module_dir / "config.json"
+    def get_config_dir(self) -> Path:
+        """Retorna o diretório de configuração (mesmo dir que config.json)."""
+        return self.config_path.parent
 
     def _get_example_config_path(self) -> Optional[Path]:
         """Retorna o path do config.json.example (template); None se não existir."""
@@ -212,10 +194,6 @@ class ConfigManager:
     def save_config(self) -> bool:
         """Persiste a configuração atual no arquivo JSON. Retorna True se salvou com sucesso."""
         try:
-            # No Flatpak, config em /app é somente leitura; redirecionar para XDG
-            if str(self.config_path).startswith("/app/"):
-                xdg_config = os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")
-                self.config_path = Path(xdg_config) / "jira-quick-task" / "config.json"
             self.config_path.parent.mkdir(parents=True, exist_ok=True)
             with open(self.config_path, "w", encoding="utf-8") as f:
                 json.dump(self._config, f, indent=2, ensure_ascii=False)
@@ -630,9 +608,6 @@ class ConfigManager:
             voice_config: Dict com as configurações de voice_input a salvar
         """
         self._config["voice_input"] = voice_config
-        if str(self.config_path).startswith("/app/"):
-            xdg_config = os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")
-            self.config_path = Path(xdg_config) / "jira-quick-task" / "config.json"
         self.config_path.parent.mkdir(parents=True, exist_ok=True)
         try:
             with open(self.config_path, "w", encoding="utf-8") as f:
@@ -690,11 +665,6 @@ class ConfigManager:
         # Atualizar configuração em memória
         self._config["pomodoro"] = pomodoro_config
 
-        # Se o config_path atual está em /app (somente leitura no Flatpak), usar XDG_CONFIG_HOME
-        if str(self.config_path).startswith("/app/"):
-            xdg_config = os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")
-            self.config_path = Path(xdg_config) / "jira-quick-task" / "config.json"
-
         # Garantir que o diretório existe
         self.config_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -744,9 +714,6 @@ class ConfigManager:
         if "google" not in self._config or not isinstance(self._config["google"], dict):
             self._config["google"] = {}
         self._config["google"]["drive_comments"] = drive_comments_config
-        if str(self.config_path).startswith("/app/"):
-            xdg_config = os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")
-            self.config_path = Path(xdg_config) / "jira-quick-task" / "config.json"
         self.config_path.parent.mkdir(parents=True, exist_ok=True)
         try:
             with open(self.config_path, "w", encoding="utf-8") as f:
@@ -789,9 +756,6 @@ class ConfigManager:
         if "status_transitions" not in self._config:
             self._config["status_transitions"] = {}
         self._config["status_transitions"]["worklog_check"] = worklog_check_config
-        if str(self.config_path).startswith("/app/"):
-            xdg_config = os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")
-            self.config_path = Path(xdg_config) / "jira-quick-task" / "config.json"
         self.config_path.parent.mkdir(parents=True, exist_ok=True)
         try:
             with open(self.config_path, "w", encoding="utf-8") as f:
@@ -844,9 +808,6 @@ class ConfigManager:
         Salva configurações do painel de Development no arquivo de configuração.
         """
         self._config["development_panel"] = development_panel_config
-        if str(self.config_path).startswith("/app/"):
-            xdg_config = os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")
-            self.config_path = Path(xdg_config) / "jira-quick-task" / "config.json"
         self.config_path.parent.mkdir(parents=True, exist_ok=True)
         try:
             with open(self.config_path, "w", encoding="utf-8") as f:
@@ -894,9 +855,6 @@ class ConfigManager:
     def save_timesheet_config(self, timesheet_config: Dict[str, Any]) -> None:
         """Salva configurações do Timesheet no arquivo de configuração."""
         self._config["timesheet"] = timesheet_config
-        if str(self.config_path).startswith("/app/"):
-            xdg_config = os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")
-            self.config_path = Path(xdg_config) / "jira-quick-task" / "config.json"
         self.config_path.parent.mkdir(parents=True, exist_ok=True)
         try:
             with open(self.config_path, "w", encoding="utf-8") as f:
@@ -926,9 +884,6 @@ class ConfigManager:
             self._config["github"] = {}
         self._config["github"]["token"] = token
         self._config["github"]["username"] = username
-        if str(self.config_path).startswith("/app/"):
-            xdg_config = os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")
-            self.config_path = Path(xdg_config) / "jira-quick-task" / "config.json"
         self.config_path.parent.mkdir(parents=True, exist_ok=True)
         try:
             with open(self.config_path, "w", encoding="utf-8") as f:
@@ -958,9 +913,6 @@ class ConfigManager:
         self._config["google_oauth"]["client_id"] = client_id
         self._config["google_oauth"]["project_id"] = project_id
         self._config["google_oauth"]["client_secret"] = client_secret
-        if str(self.config_path).startswith("/app/"):
-            xdg_config = os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")
-            self.config_path = Path(xdg_config) / "jira-quick-task" / "config.json"
         self.config_path.parent.mkdir(parents=True, exist_ok=True)
         try:
             with open(self.config_path, "w", encoding="utf-8") as f:
@@ -996,31 +948,9 @@ class ConfigManager:
                 else None
             )
 
-        # Caminho padrão: procurar em múltiplos locais
-        # 1. No mesmo diretório do config.json
+        # Caminho padrão: mesmo diretório que config.json
         default_path = self.config_path.parent / ".jira-config.yml"
-        if default_path.exists():
-            return default_path
-
-        # 2. Configuração do usuário (XDG_CONFIG_HOME)
-        xdg_config = os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")
-        user_config = Path(xdg_config) / "jira-quick-task" / ".jira-config.yml"
-        if user_config.exists():
-            return user_config
-
-        # 3. Configuração padrão do Flatpak
-        flatpak_config = Path("/app/share/jira-quick-task/config/.jira-config.yml")
-        if flatpak_config.exists():
-            return flatpak_config
-
-        # 3b. Fallback: arquivo .example no Flatpak
-        flatpak_example = Path(
-            "/app/share/jira-quick-task/config/.jira-config.yml.example"
-        )
-        if flatpak_example.exists():
-            return flatpak_example
-
-        return None
+        return default_path if default_path.exists() else None
 
     def get_jira_metadata_path(self) -> Path:
         """
@@ -1031,17 +961,28 @@ class ConfigManager:
 
     def load_jira_metadata(self) -> Dict[str, Any]:
         """
-        Carrega o conteúdo de jira_metadata.json.
+        Carrega o conteúdo de jira_metadata.json do mesmo diretório que config.json
+        (get_jira_metadata_path() = config_path.parent / "jira_metadata.json").
         Retorna {} se o arquivo não existir ou o JSON for inválido.
         """
+        try:
+            from src.utils.debug import debug_log
+        except ImportError:
+            def debug_log(*a, **k):
+                pass
         path = self.get_jira_metadata_path()
+        debug_log("ConfigManager", "load_jira_metadata", "path=%s exists=%s", path, path.exists())
         if not path.exists():
             return {}
         try:
             with open(path, "r", encoding="utf-8") as f:
                 data = json.load(f)
-            return data if isinstance(data, dict) else {}
-        except (json.JSONDecodeError, OSError):
+            result = data if isinstance(data, dict) else {}
+            sp = (result.get("selected_projects") or []) if isinstance(result, dict) else []
+            debug_log("ConfigManager", "load_jira_metadata", "loaded keys=%s selected_projects len=%s", list(result.keys()) if isinstance(result, dict) else [], len(sp))
+            return result
+        except (json.JSONDecodeError, OSError) as e:
+            debug_log("ConfigManager", "load_jira_metadata", "error: %s", e)
             return {}
 
     def save_jira_metadata(self, data: Dict[str, Any]) -> None:
@@ -1101,11 +1042,6 @@ class ConfigManager:
 
         self._config["epic_filters"].update(filters)
 
-        # Se o config_path atual está em /app (somente leitura no Flatpak), usar XDG_CONFIG_HOME
-        if str(self.config_path).startswith("/app/"):
-            xdg_config = os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")
-            self.config_path = Path(xdg_config) / "jira-quick-task" / "config.json"
-
         # Garantir que o diretório existe
         self.config_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -1154,9 +1090,6 @@ class ConfigManager:
                 update[k] = bool(v)
         self._config["parent_work_item_filters"].update(update)
 
-        if str(self.config_path).startswith("/app/"):
-            xdg_config = os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")
-            self.config_path = Path(xdg_config) / "jira-quick-task" / "config.json"
         self.config_path.parent.mkdir(parents=True, exist_ok=True)
         try:
             with open(self.config_path, "w", encoding="utf-8") as f:
@@ -1175,11 +1108,6 @@ class ConfigManager:
         """
         # Atualizar configuração em memória
         self._config["account_id"] = account_id
-
-        # Se o config_path atual está em /app (somente leitura no Flatpak), usar XDG_CONFIG_HOME
-        if str(self.config_path).startswith("/app/"):
-            xdg_config = os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")
-            self.config_path = Path(xdg_config) / "jira-quick-task" / "config.json"
 
         # Garantir que o arquivo existe
         if not self.config_path.exists():
@@ -1204,16 +1132,11 @@ class ConfigManager:
             login: Email do usuário
             token: Token de API do Jira
 
-        Nota: No Flatpak, sempre salva em XDG_CONFIG_HOME (~/.var/app/.../config/)
-              para evitar erro de "read-only file system" em /app
         """
         import yaml
         import shutil
 
-        # SEMPRE usar XDG_CONFIG_HOME para salvar (especialmente importante no Flatpak)
-        # No Flatpak, XDG_CONFIG_HOME aponta para ~/.var/app/org.kde.jira-quick-task/config/
-        xdg_config = os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")
-        config_dir = Path(xdg_config) / "jira-quick-task"
+        config_dir = self.config_path.parent
         config_dir.mkdir(parents=True, exist_ok=True)
         jira_config_path = config_dir / ".jira-config.yml"
 

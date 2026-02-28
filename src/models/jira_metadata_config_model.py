@@ -565,16 +565,33 @@ class JiraMetadataConfigModel(QObject):
     def loadConfiguration(self):
         """Carrega jira_metadata.json e armazena em memória; emite loadFinished(True)."""
         if not self._config_manager:
+            debug_log("JiraMetadataConfigModel", "loadConfiguration", "no config_manager")
             self._loaded_metadata = {}
             self.loadFinished.emit(False)
             return
         try:
+            path = self._config_manager.get_jira_metadata_path()
+            debug_log("JiraMetadataConfigModel", "loadConfiguration", "loading path=%s", path)
             self._loaded_metadata = self._config_manager.load_jira_metadata()
+            sp = self._loaded_metadata.get("selected_projects") or []
+            debug_log("JiraMetadataConfigModel", "loadConfiguration", "success selected_projects len=%s", len(sp))
             self.loadFinished.emit(True)
-        except Exception:
+        except Exception as e:
+            debug_log("JiraMetadataConfigModel", "loadConfiguration", "error: %s", e)
             self._loaded_metadata = {}
             self.loadFinished.emit(False)
 
+    @Slot(result="QVariantMap")
     def getLoadedMetadata(self) -> Dict[str, Any]:
-        """Retorna o último dict carregado por loadConfiguration (para testes e QML)."""
+        """Retorna o último dict carregado por loadConfiguration (para testes e QML). Exposto como Slot para QML."""
         return dict(self._loaded_metadata)
+
+    @Slot(result="QVariantList")
+    def getLoadedSelectedProjects(self) -> List[Dict[str, str]]:
+        """Retorna lista de projetos para o QML, cada um com key e name como string (evita problemas de QVariant no Repeater)."""
+        sp = self._loaded_metadata.get("selected_projects") or []
+        return [
+            {"key": str(p.get("key", "")), "name": str(p.get("name", ""))}
+            for p in sp
+            if isinstance(p, dict)
+        ]

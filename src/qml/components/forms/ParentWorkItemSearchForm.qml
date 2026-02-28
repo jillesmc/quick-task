@@ -53,17 +53,32 @@ ColumnLayout {
     signal epicSearchRequested(string query)
     signal epicCleared
 
+    function _itemKey(it) {
+        if (!it) return "";
+        var k = it["key"] !== undefined ? it["key"] : it.key;
+        return (k !== undefined && k !== null) ? String(k) : "";
+    }
+    function _itemNameOrKey(it) {
+        if (!it) return "";
+        var n = it["name"] !== undefined ? it["name"] : it.name;
+        var k = it["key"] !== undefined ? it["key"] : it.key;
+        if (n !== undefined && n !== null && String(n).length > 0) return String(n);
+        if (k !== undefined && k !== null && String(k).length > 0) return String(k);
+        return "";
+    }
+
     spacing: Kirigami.Units.smallSpacing
 
     component ProjectFilterCheckBox : Controls.CheckBox {
-        required property var item
+        required property int index
         required property var formRoot
+        readonly property var item: formRoot._availableProjects[index] || null
         Layout.fillWidth: true
-        text: (item && item.name) ? item.name : (item && item.key ? item.key : "")
-        checked: formRoot.filterSelectedProjectKeys.indexOf(item && item.key ? item.key : "") >= 0
+        text: formRoot._itemNameOrKey(item)
+        checked: formRoot.filterSelectedProjectKeys.indexOf(formRoot._itemKey(item)) >= 0
         enabled: formRoot.enabled
         onToggled: {
-            var key = item && item.key ? item.key : "";
+            var key = formRoot._itemKey(item);
             if (!key)
                 return;
             var idx = formRoot.filterSelectedProjectKeys.indexOf(key);
@@ -139,7 +154,7 @@ ColumnLayout {
             Repeater {
                 model: root._availableProjects
                 delegate: ProjectFilterCheckBox {
-                    item: modelData // qmllint disable unqualified
+                    index: index
                     formRoot: root
                 }
             }
@@ -402,17 +417,37 @@ ColumnLayout {
         if (root.service) {
             loadFilters();
         }
-        if (root.metadataConfigModel && typeof root.metadataConfigModel.loadConfiguration === "function") {
+        var hasModel = root.metadataConfigModel && typeof root.metadataConfigModel.loadConfiguration === "function";
+        console.log("[ParentWorkItemSearchForm] onCompleted metadataConfigModel=" + !!root.metadataConfigModel + " loadConfiguration=" + hasModel);
+        if (hasModel) {
+            // Se o modelo já tiver metadata em memória (ex.: outra aba carregou), preencher já
+            var listGetter = root.metadataConfigModel.getLoadedSelectedProjects;
+            if (listGetter && typeof listGetter === "function") {
+                var arr = root.metadataConfigModel.getLoadedSelectedProjects() || [];
+                if (arr.length > 0) {
+                    root._availableProjects = arr;
+                    console.log("[ParentWorkItemSearchForm] onCompleted: using existing getLoadedSelectedProjects len=" + arr.length);
+                }
+            }
             root.metadataConfigModel.loadConfiguration();
+        } else {
+            console.log("[ParentWorkItemSearchForm] onCompleted: not calling loadConfiguration (model missing or no method)");
         }
     }
 
     Connections {
         target: root.metadataConfigModel
         function onLoadFinished(success) {
-            if (success && root.metadataConfigModel && typeof root.metadataConfigModel.getLoadedMetadata === "function") {
-                var meta = root.metadataConfigModel.getLoadedMetadata();
-                root._availableProjects = (meta && meta.selected_projects) ? meta.selected_projects : [];
+            console.log("[ParentWorkItemSearchForm] onLoadFinished success=" + success + " hasModel=" + !!root.metadataConfigModel + " getLoadedMetadata type=" + (root.metadataConfigModel ? typeof root.metadataConfigModel.getLoadedMetadata : "no model"));
+            if (!success || !root.metadataConfigModel)
+                return;
+            try {
+                var listGetter = root.metadataConfigModel.getLoadedSelectedProjects;
+                var arr = (listGetter && typeof listGetter === "function") ? (root.metadataConfigModel.getLoadedSelectedProjects() || []) : [];
+                root._availableProjects = arr;
+                console.log("[ParentWorkItemSearchForm] onLoadFinished _availableProjects.length=" + (arr ? arr.length : 0));
+            } catch (e) {
+                console.log("[ParentWorkItemSearchForm] onLoadFinished error: " + (e && e.message ? e.message : String(e)));
             }
         }
     }

@@ -598,3 +598,33 @@ def test_save_and_load_jira_metadata(config_manager):
     assert len(loaded["selected_projects"]) == 1
     assert loaded["selected_projects"][0]["key"] == "X"
     meta_path.unlink()
+
+
+# --- Config path resolution (XDG only) ---
+
+
+def test_find_config_file_returns_xdg_path(monkeypatch, tmp_path):
+    """_find_config_file retorna $XDG_CONFIG_HOME/jira-quick-task/config.json quando config_path não é passado."""
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    manager = ConfigManager()
+    assert manager.config_path == tmp_path / "jira-quick-task" / "config.json"
+
+
+def test_get_config_dir_returns_config_path_parent(config_manager):
+    """get_config_dir retorna o mesmo que config_path.parent."""
+    assert config_manager.get_config_dir() == config_manager.config_path.parent
+
+
+def test_get_jira_cli_config_path_default_is_config_dir(config_manager):
+    """get_jira_cli_config_path retorna path no config dir quando ficheiro existe; None quando não existe."""
+    default_path = config_manager.config_path.parent / ".jira-config.yml"
+    if default_path.exists():
+        default_path.unlink()
+    assert config_manager.get_jira_cli_config_path() is None
+    default_path.parent.mkdir(parents=True, exist_ok=True)
+    default_path.write_text("login: a@b.com\nserver: https://jira.example.com\n", encoding="utf-8")
+    try:
+        assert config_manager.get_jira_cli_config_path() == default_path
+    finally:
+        if default_path.exists():
+            default_path.unlink()
