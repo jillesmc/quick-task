@@ -103,7 +103,7 @@ ColumnLayout {
 
     GridLayout {
         Layout.fillWidth: true
-        columns: 2
+        columns: 3
         columnSpacing: Kirigami.Units.largeSpacing
         rowSpacing: Kirigami.Units.smallSpacing
 
@@ -141,31 +141,6 @@ ColumnLayout {
             }
         }
 
-        Controls.Label {
-            Layout.columnSpan: 2
-            text: qsTr("Projetos:")
-            font.bold: true
-        }
-        ColumnLayout {
-            Layout.columnSpan: 2
-            Layout.fillWidth: true
-            spacing: Kirigami.Units.smallSpacing
-            visible: root._availableProjects.length > 0
-            Repeater {
-                model: root._availableProjects
-                delegate: ProjectFilterCheckBox {
-                    index: index
-                    formRoot: root
-                }
-            }
-        }
-        Controls.Label {
-            Layout.columnSpan: 2
-            visible: root.metadataConfigModel && root._availableProjects.length === 0
-            text: qsTr("Nenhum projeto configurado em Metadados")
-            font.italic: true
-        }
-
         Controls.CheckBox {
             id: filterExcludeDoneCheckbox
             text: qsTr("Excluir status category DONE")
@@ -181,6 +156,31 @@ ColumnLayout {
                     root.performSearch(q, false);
                 }
             }
+        }
+
+        Controls.Label {
+            Layout.columnSpan: 3
+            text: qsTr("Projetos:")
+            font.bold: true
+        }
+        ColumnLayout {
+            Layout.columnSpan: 3
+            Layout.fillWidth: true
+            spacing: Kirigami.Units.smallSpacing
+            visible: root._availableProjects.length > 0
+            Repeater {
+                model: root._availableProjects
+                delegate: ProjectFilterCheckBox {
+                    index: index
+                    formRoot: root
+                }
+            }
+        }
+        Controls.Label {
+            Layout.columnSpan: 3
+            visible: root.metadataConfigModel && root._availableProjects.length === 0
+            text: qsTr("Nenhum projeto configurado em Metadados")
+            font.italic: true
         }
     }
 
