@@ -43,6 +43,9 @@ Kirigami.Page {
     property string sharedEpicKey: ""
     property string sharedEpicSummary: ""
 
+    /** Definido ao redimensionar pelo drag nos dividers; evita sobrescrever com fórmula ao mudar availableHeight. */
+    property bool _userAdjustedLeftHeights: false
+
     signal epicSelected(string key, string summary)
     signal issueCreated(string issueKey)  // Emitido quando uma issue é criada com sucesso
 
@@ -183,26 +186,34 @@ Kirigami.Page {
                 property real topSectionHeight: 300
                 property real epicSectionHeight: 300
 
+                function updateSectionHeightsFromViewport() {
+                    if (leftScrollView.availableHeight <= 200)
+                        return;
+                    var spacing = Kirigami.Units.largeSpacing;
+                    var dividerApprox = 24;
+                    var total = leftScrollView.availableHeight - 2 * dividerApprox - 2 * spacing;
+                    var half = Math.max(250, total / 2);
+                    leftScrollView.topSectionHeight = half;
+                    leftScrollView.epicSectionHeight = half;
+                }
+
                 Item {
                     width: leftScrollView.availableWidth
-                    implicitHeight: leftColumn.implicitHeight
+                    // Garantir altura mínima = viewport para o layout preencher o pane (como MyIssuesPage/MyWorkItemsPage)
+                    implicitHeight: Math.max(leftColumn.implicitHeight, leftScrollView.availableHeight)
 
                     Component.onCompleted: {
-                        function initSectionHeights() {
-                            if (leftScrollView.availableHeight > 200) {
-                                var spacing = Kirigami.Units.largeSpacing;
-                                var dividerApprox = 24;
-                                var total = leftScrollView.availableHeight - 2 * dividerApprox - 2 * spacing;
-                                var half = Math.max(250, total / 2);
-                                leftScrollView.topSectionHeight = half;
-                                leftScrollView.epicSectionHeight = half;
+                        leftScrollView.updateSectionHeightsFromViewport();
+                        Qt.callLater(leftScrollView.updateSectionHeightsFromViewport);
+                    }
+
+                    Connections {
+                        target: leftScrollView
+                        function onAvailableHeightChanged() {
+                            if (leftScrollView.availableHeight > 200 && !page._userAdjustedLeftHeights) {
+                                leftScrollView.updateSectionHeightsFromViewport();
                             }
                         }
-                        Qt.callLater(initSectionHeights);
-                        // Fallback: viewport pode não estar pronto no primeiro frame
-                        Qt.callLater(function () {
-                            Qt.callLater(initSectionHeights);
-                        });
                     }
 
                     ColumnLayout {
@@ -236,11 +247,6 @@ Kirigami.Page {
                                 applicationWindow: page.applicationWindow
                                 onOpenVoiceRequested: page.openVoiceDialog()
                             }
-
-                            Item {
-                                Layout.fillHeight: true
-                                Layout.fillWidth: true
-                            }
                         }
 
                         DividerBar {
@@ -248,26 +254,36 @@ Kirigami.Page {
                             Layout.fillWidth: true
                         }
 
-                        // Seção Parent Work Item (bloco reutilizável)
-                        ParentWorkItemBlock {
-                            id: parentWorkItemBlock
-                            model: page.workItemModel
-                            atlassianService: page.jiraService
-                            metadataConfigModel: page.atlassianMetadataConfigModel
-                            parentIssueType: "Epic"
-                            enabled: !page.isProcessing
-                            mode: "create"
-                            sharedParentWorkItemKey: page.sharedEpicKey
-                            sharedParentWorkItemSummary: page.sharedEpicSummary
-                            preferredHeight: leftScrollView.epicSectionHeight
-                            minimumHeight: 250
+                        // Seção Parent Work Item (wrapper com Layout.preferredHeight para dividir o left pane ao meio, como em IssueFormPage)
+                        ColumnLayout {
+                            id: epicSection
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: leftScrollView.epicSectionHeight
+                            Layout.minimumHeight: 250
+                            spacing: Kirigami.Units.smallSpacing
 
-                            onParentWorkItemSelected: function (key, summary) {
-                                page.epicSelected(key, summary);
-                            }
-                            onParentWorkItemCleared: {
-                                page.sharedEpicKey = "";
-                                page.sharedEpicSummary = "";
+                            ParentWorkItemBlock {
+                                id: parentWorkItemBlock
+                                Layout.fillWidth: true
+                                Layout.fillHeight: true
+                                model: page.workItemModel
+                                atlassianService: page.jiraService
+                                metadataConfigModel: page.atlassianMetadataConfigModel
+                                parentIssueType: "Epic"
+                                enabled: !page.isProcessing
+                                mode: "create"
+                                sharedParentWorkItemKey: page.sharedEpicKey
+                                sharedParentWorkItemSummary: page.sharedEpicSummary
+                                preferredHeight: leftScrollView.epicSectionHeight
+                                minimumHeight: 250
+
+                                onParentWorkItemSelected: function (key, summary) {
+                                    page.epicSelected(key, summary);
+                                }
+                                onParentWorkItemCleared: {
+                                    page.sharedEpicKey = "";
+                                    page.sharedEpicSummary = "";
+                                }
                             }
                         }
 
@@ -446,6 +462,7 @@ Kirigami.Page {
                         resizeOverlay.activeDivider = 1;
                         resizeOverlay.startGlobalY = resizeOverlay.mapToGlobal(mouse.x, mouse.y).y;
                         resizeOverlay.startHeight = leftScrollView.topSectionHeight;
+                        page._userAdjustedLeftHeights = true;
                         mouse.accepted = true;
                         return;
                     }
@@ -454,6 +471,7 @@ Kirigami.Page {
                         resizeOverlay.activeDivider = 2;
                         resizeOverlay.startGlobalY = resizeOverlay.mapToGlobal(mouse.x, mouse.y).y;
                         resizeOverlay.startHeight = leftScrollView.epicSectionHeight;
+                        page._userAdjustedLeftHeights = true;
                         mouse.accepted = true;
                         return;
                     }
