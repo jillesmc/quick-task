@@ -32,34 +32,36 @@ ColumnLayout {
     property int _placeholderCounter: 0
 
     function _openEmbedDialog(filePath, filename) {
-        if (!filePath || !root.workItemModel) return
-        var comp = Qt.createComponent("../dialogs/AttachmentEmbedPreviewDialog.qml")
-        var win = root.applicationWindow || root.parent || root
+        if (!filePath || !root.workItemModel)
+            return;
+        var comp = Qt.createComponent("../dialogs/AttachmentEmbedPreviewDialog.qml");
+        var win = root.applicationWindow || root.parent || root;
         if (comp.status !== Component.Ready) {
             if (comp.status === Component.Error) {
-                console.error("DescriptionField: AttachmentEmbedPreviewDialog error:", comp.errorString())
+                console.error("DescriptionField: AttachmentEmbedPreviewDialog error:", comp.errorString());
             }
             comp.statusChanged.connect(function () {
-                if (comp.status === Component.Ready) root._createAndOpenEmbedDialog(comp, win, filePath, filename)
-            })
-            return
+                if (comp.status === Component.Ready)
+                    root._createAndOpenEmbedDialog(comp, win, filePath, filename);
+            });
+            return;
         }
-        root._createAndOpenEmbedDialog(comp, win, filePath, filename)
+        root._createAndOpenEmbedDialog(comp, win, filePath, filename);
     }
 
     function _createAndOpenEmbedDialog(comp, parent, filePath, filename) {
-        var dlg = comp.createObject(parent)
-        if (!dlg) return
-        dlg.filePath = filePath
-        dlg.showPositionOptions = true
-        dlg.defaultDisplayWidth = (root.jiraService && typeof root.jiraService.getEmbedMaxDisplayWidth === "function")
-            ? root.jiraService.getEmbedMaxDisplayWidth() : 760
-        dlg.applicationWindow = root.applicationWindow
-        dlg.clipboardHelper = root.clipboardHelper
+        var dlg = comp.createObject(parent);
+        if (!dlg)
+            return;
+        dlg.filePath = filePath;
+        dlg.showPositionOptions = true;
+        dlg.defaultDisplayWidth = (root.jiraService && typeof root.jiraService.getEmbedMaxDisplayWidth === "function") ? root.jiraService.getEmbedMaxDisplayWidth() : 760;
+        dlg.applicationWindow = root.applicationWindow;
+        dlg.clipboardHelper = root.clipboardHelper;
         dlg.acceptedEmbed.connect(function (layout, position, displayWidth) {
-            root._placeholderCounter += 1
-            var placeholderId = "p" + root._placeholderCounter
-            var list = root.workItemModel.pendingAttachments || []
+            root._placeholderCounter += 1;
+            var placeholderId = "p" + root._placeholderCounter;
+            var list = root.workItemModel.pendingAttachments || [];
             list.push({
                 path: filePath,
                 filename: filename,
@@ -67,60 +69,76 @@ ColumnLayout {
                 layout: layout,
                 position: position,
                 displayWidth: displayWidth
-            })
-            root.workItemModel.pendingAttachments = list
-            var markdown = "![" + filename + "](pending:" + placeholderId + ")"
-            var pos = (position === "start") ? 0 : descriptionTextArea.text.length
-            descriptionTextArea.insert(pos, markdown)
-            var newText = descriptionTextArea.text
-            if (root.workItemModel) root.workItemModel.description = newText
-            root.fieldTextChanged(newText)
-        })
+            });
+            root.workItemModel.pendingAttachments = list;
+            var markdown = "![" + filename + "](pending:" + placeholderId + ")";
+            var pos = (position === "start") ? 0 : descriptionTextArea.text.length;
+            descriptionTextArea.insert(pos, markdown);
+            var newText = descriptionTextArea.text;
+            if (root.workItemModel)
+                root.workItemModel.description = newText;
+            root.fieldTextChanged(newText);
+        });
         dlg.acceptedAttachOnly.connect(function () {
-            var list = root.workItemModel.pendingAttachments || []
-            list.push({ path: filePath, filename: filename })
-            root.workItemModel.pendingAttachments = list
-        })
-        dlg.rejected.connect(function () {})
-        dlg.closed.connect(function () { dlg.destroy() })
-        dlg.open()
+            var list = root.workItemModel.pendingAttachments || [];
+            list.push({
+                path: filePath,
+                filename: filename
+            });
+            root.workItemModel.pendingAttachments = list;
+        });
+        dlg.rejected.connect(function () {});
+        dlg.closed.connect(function () {
+            dlg.destroy();
+        });
+        dlg.open();
     }
 
     function _addNonImageAttachment(filePath, filename) {
-        if (!root.workItemModel) return
-        root._placeholderCounter += 1
-        var placeholderId = "p" + root._placeholderCounter
-        var list = root.workItemModel.pendingAttachments || []
-        list.push({ path: filePath, filename: filename, placeholderId: placeholderId })
-        root.workItemModel.pendingAttachments = list
-        var markdown = "[" + filename + "](pending:" + placeholderId + ")"
-        var pos = descriptionTextArea.cursorPosition >= 0 ? descriptionTextArea.cursorPosition : descriptionTextArea.text.length
-        descriptionTextArea.insert(pos, markdown)
-        var newText = descriptionTextArea.text
-        root.workItemModel.description = newText
-        root.fieldTextChanged(newText)
+        if (!root.workItemModel)
+            return;
+        root._placeholderCounter += 1;
+        var placeholderId = "p" + root._placeholderCounter;
+        var list = root.workItemModel.pendingAttachments || [];
+        list.push({
+            path: filePath,
+            filename: filename,
+            placeholderId: placeholderId
+        });
+        root.workItemModel.pendingAttachments = list;
+        var markdown = "[" + filename + "](pending:" + placeholderId + ")";
+        var pos = descriptionTextArea.cursorPosition >= 0 ? descriptionTextArea.cursorPosition : descriptionTextArea.text.length;
+        descriptionTextArea.insert(pos, markdown);
+        var newText = descriptionTextArea.text;
+        root.workItemModel.description = newText;
+        root.fieldTextChanged(newText);
     }
 
     function _openAttachmentsPopover(button) {
-        if (!button || !root.workItemModel) return
-        var comp = Qt.createComponent("../dialogs/DescriptionAttachmentsPopover.qml")
+        if (!button || !root.workItemModel)
+            return;
+        var comp = Qt.createComponent("../dialogs/DescriptionAttachmentsPopover.qml");
         if (comp.status !== Component.Ready) {
             if (comp.status === Component.Error) {
-                console.error("DescriptionField: DescriptionAttachmentsPopover error:", comp.errorString())
+                console.error("DescriptionField: DescriptionAttachmentsPopover error:", comp.errorString());
             }
             comp.statusChanged.connect(function () {
-                if (comp.status === Component.Ready) root._openAttachmentsPopover(button)
-            })
-            return
+                if (comp.status === Component.Ready)
+                    root._openAttachmentsPopover(button);
+            });
+            return;
         }
-        var popover = comp.createObject(button)
-        if (!popover) return
-        popover.x = 0
-        popover.y = button.height + 2
-        popover.mode = root.mode
-        popover.issueModel = root.workItemModel
-        popover.closed.connect(function () { popover.destroy() })
-        popover.open()
+        var popover = comp.createObject(button);
+        if (!popover)
+            return;
+        popover.x = 0;
+        popover.y = button.height + 2;
+        popover.mode = root.mode;
+        popover.issueModel = root.workItemModel;
+        popover.closed.connect(function () {
+            popover.destroy();
+        });
+        popover.open();
     }
 
     spacing: Kirigami.Units.smallSpacing
@@ -139,8 +157,8 @@ ColumnLayout {
             visible: root.showEditPreviewToggle
             isEditMode: root.editMode
             onModeChanged: function (editMode) {
-                root.editMode = editMode
-                root.fieldEditModeChanged(editMode)
+                root.editMode = editMode;
+                root.fieldEditModeChanged(editMode);
             }
         }
 
@@ -166,24 +184,24 @@ ColumnLayout {
             DropArea {
                 enabled: root.enabled
                 onDropped: function (drop) {
-                    if (!drop.urls || drop.urls.length === 0 || !root.workItemModel) return
-                    var extList = (root.jiraService && typeof root.jiraService.getAllowedAttachmentExtensions === "function")
-                        ? root.jiraService.getAllowedAttachmentExtensions() : []
-                    var imageExtList = (root.jiraService && typeof root.jiraService.getAllowedImageExtensions === "function")
-                        ? root.jiraService.getAllowedImageExtensions() : []
+                    if (!drop.urls || drop.urls.length === 0 || !root.workItemModel)
+                        return;
+                    var extList = (root.jiraService && typeof root.jiraService.getAllowedAttachmentExtensions === "function") ? root.jiraService.getAllowedAttachmentExtensions() : [];
+                    var imageExtList = (root.jiraService && typeof root.jiraService.getAllowedImageExtensions === "function") ? root.jiraService.getAllowedImageExtensions() : [];
                     for (var i = 0; i < drop.urls.length; i++) {
-                        var urlStr = drop.urls[i].toString()
-                        var path = urlStr.replace(/^file:\/\//, "")
-                        var filename = path.split("/").pop() || path.split("\\").pop() || "file"
-                        var ext = filename.indexOf(".") >= 0 ? filename.split(".").pop().toLowerCase() : ""
-                        if (extList.indexOf(ext) < 0) continue
-                        var pathToUse = (root.clipboardHelper && typeof root.clipboardHelper.copyFileToTemp === "function")
-                            ? root.clipboardHelper.copyFileToTemp(path) : path
-                        if (!pathToUse) continue
+                        var urlStr = drop.urls[i].toString();
+                        var path = urlStr.replace(/^file:\/\//, "");
+                        var filename = path.split("/").pop() || path.split("\\").pop() || "file";
+                        var ext = filename.indexOf(".") >= 0 ? filename.split(".").pop().toLowerCase() : "";
+                        if (extList.indexOf(ext) < 0)
+                            continue;
+                        var pathToUse = (root.clipboardHelper && typeof root.clipboardHelper.copyFileToTemp === "function") ? root.clipboardHelper.copyFileToTemp(path) : path;
+                        if (!pathToUse)
+                            continue;
                         if (imageExtList.indexOf(ext) >= 0) {
-                            root._openEmbedDialog(pathToUse, filename)
+                            root._openEmbedDialog(pathToUse, filename);
                         } else {
-                            root._addNonImageAttachment(pathToUse, filename)
+                            root._addNonImageAttachment(pathToUse, filename);
                         }
                     }
                 }
@@ -202,27 +220,28 @@ ColumnLayout {
                         placeholderText: root.placeholderText
                         text: root.text
                         onTextChanged: function () {
-                            root.fieldTextChanged(descriptionTextArea.text)
+                            root.fieldTextChanged(descriptionTextArea.text);
                         }
                         Keys.onPressed: function (event) {
                             if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_V) {
-                                if (!root.clipboardHelper || !root.workItemModel) return
+                                if (!root.clipboardHelper || !root.workItemModel)
+                                    return;
                                 if (root.clipboardHelper.hasClipboardImage()) {
-                                    var tempPath = root.clipboardHelper.getClipboardImageAsTempFile()
+                                    var tempPath = root.clipboardHelper.getClipboardImageAsTempFile();
                                     if (tempPath) {
-                                        root._openEmbedDialog(tempPath, "paste.png")
-                                        event.accepted = true
+                                        root._openEmbedDialog(tempPath, "paste.png");
+                                        event.accepted = true;
                                     }
                                 }
                             } else if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_E) {
-                                root.editMode = true
-                                event.accepted = true
+                                root.editMode = true;
+                                event.accepted = true;
                             } else if ((event.modifiers & (Qt.ControlModifier | Qt.ShiftModifier)) === (Qt.ControlModifier | Qt.ShiftModifier) && event.key === Qt.Key_P) {
-                                root.editMode = false
-                                event.accepted = true
+                                root.editMode = false;
+                                event.accepted = true;
                             } else if (event.key === Qt.Key_Escape) {
-                                root.editMode = true
-                                event.accepted = true
+                                root.editMode = true;
+                                event.accepted = true;
                             }
                         }
                     }
@@ -238,14 +257,14 @@ ColumnLayout {
 
                 Keys.onPressed: function (event) {
                     if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_E) {
-                        root.editMode = true
-                        event.accepted = true
+                        root.editMode = true;
+                        event.accepted = true;
                     } else if ((event.modifiers & (Qt.ControlModifier | Qt.ShiftModifier)) === (Qt.ControlModifier | Qt.ShiftModifier) && event.key === Qt.Key_P) {
-                        root.editMode = false
-                        event.accepted = true
+                        root.editMode = false;
+                        event.accepted = true;
                     } else if (event.key === Qt.Key_Escape) {
-                        root.editMode = true
-                        event.accepted = true
+                        root.editMode = true;
+                        event.accepted = true;
                     }
                 }
 

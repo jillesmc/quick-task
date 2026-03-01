@@ -39,7 +39,9 @@ def mock_jira_client_for_discovery():
             [],
         ),
     ]
-    client.get_fields_for_issue_type.return_value = client.get_createmeta_fields_for_issue_type.return_value
+    client.get_fields_for_issue_type.return_value = (
+        client.get_createmeta_fields_for_issue_type.return_value
+    )
     return client
 
 
@@ -333,7 +335,9 @@ def test_enrichment_worker_adds_real_type_and_default_value(
 
     payload = {
         "version": "2.0",
-        "selected_projects": [{"id": "10000", "key": "PROJ", "name": "Proj", "enabled": True}],
+        "selected_projects": [
+            {"id": "10000", "key": "PROJ", "name": "Proj", "enabled": True}
+        ],
         "selected_fields": {
             "PROJ": {
                 "10001": [
@@ -406,8 +410,21 @@ def test_enrichment_worker_assets_sets_placeholders(mock_jira_client_for_enrichm
     ]
     payload = {
         "version": "2.0",
-        "selected_projects": [{"id": "10000", "key": "P", "name": "P", "enabled": True}],
-        "selected_fields": {"P": {"10001": [{"id": "customfield_10002", "key": "customfield_10002", "name": "Platforms", "enabled": True}]}},
+        "selected_projects": [
+            {"id": "10000", "key": "P", "name": "P", "enabled": True}
+        ],
+        "selected_fields": {
+            "P": {
+                "10001": [
+                    {
+                        "id": "customfield_10002",
+                        "key": "customfield_10002",
+                        "name": "Platforms",
+                        "enabled": True,
+                    }
+                ]
+            }
+        },
     }
     worker = EnrichmentWorker(
         payload=payload,
@@ -456,7 +473,9 @@ def test_enrichment_worker_assets_does_not_overwrite_when_already_set(
     ]
     payload = {
         "version": "2.0",
-        "selected_projects": [{"id": "10000", "key": "P", "name": "P", "enabled": True}],
+        "selected_projects": [
+            {"id": "10000", "key": "P", "name": "P", "enabled": True}
+        ],
         "selected_fields": {
             "P": {
                 "10001": [

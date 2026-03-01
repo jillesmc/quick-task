@@ -31,41 +31,41 @@ Controls.Dialog {
     property bool _isTranscribing: false
     property string transcriptionText: ""
 
-    signal fieldsFilled()
+    signal fieldsFilled
     signal errorMessage(string message)
 
     onOpened: {
-        recordingSeconds = 0
-        transcriptionText = ""
-        _isTranscribing = false
+        recordingSeconds = 0;
+        transcriptionText = "";
+        _isTranscribing = false;
     }
 
     Connections {
         target: root.voiceInputService || null
         function onRecordingStarted() {
-            root.isRecording = true
-            root.recordingSeconds = 0
+            root.isRecording = true;
+            root.recordingSeconds = 0;
         }
         function onRecordingStopped() {
-            root.isRecording = false
-            root._isTranscribing = true
+            root.isRecording = false;
+            root._isTranscribing = true;
         }
         function onRecordingProgress(seconds) {
-            root.recordingSeconds = seconds
+            root.recordingSeconds = seconds;
         }
         function onTranscriptionReady(text) {
-            root._isTranscribing = false
-            root.transcriptionText = text || ""
+            root._isTranscribing = false;
+            root.transcriptionText = text || "";
             if (root.settingsModel && root.settingsModel.voiceInputAutoProcessAfterStop) {
-                root.close()
+                root.close();
             }
         }
         function onFieldsFilled() {
-            root.fieldsFilled()
-            root.close()
+            root.fieldsFilled();
+            root.close();
         }
         function onError(message) {
-            root.errorMessage(message || "")
+            root.errorMessage(message || "");
         }
     }
 
@@ -91,17 +91,19 @@ Controls.Dialog {
                     SequentialAnimation on opacity {
                         running: root.isRecording
                         loops: Animation.Infinite
-                        NumberAnimation { to: 0.3; duration: 500 }
-                        NumberAnimation { to: 1.0; duration: 500 }
+                        NumberAnimation {
+                            to: 0.3
+                            duration: 500
+                        }
+                        NumberAnimation {
+                            to: 1.0
+                            duration: 500
+                        }
                     }
                 }
 
                 Controls.Label {
-                    text: root._isTranscribing
-                        ? qsTr("Transcrevendo o áudio...")
-                        : (root.isRecording
-                            ? qsTr("Gravando… (%1)").arg(Math.floor(root.recordingSeconds))
-                            : qsTr("Pronto para gravar"))
+                    text: root._isTranscribing ? qsTr("Transcrevendo o áudio...") : (root.isRecording ? qsTr("Gravando… (%1)").arg(Math.floor(root.recordingSeconds)) : qsTr("Pronto para gravar"))
                 }
             }
 
@@ -122,9 +124,9 @@ Controls.Dialog {
                     wrapMode: Controls.TextArea.Wrap
                     placeholderText: qsTr("Transcrição aparecerá aqui após gravar…")
                     text: root.transcriptionText
-                    onTextChanged: function() {
+                    onTextChanged: function () {
                         if (root.transcriptionText !== text) {
-                            root.transcriptionText = text
+                            root.transcriptionText = text;
                         }
                     }
                 }
@@ -140,9 +142,9 @@ Controls.Dialog {
                     onClicked: {
                         if (root.voiceInputService) {
                             if (root.isRecording) {
-                                root.voiceInputService.stopRecording()
+                                root.voiceInputService.stopRecording();
                             } else {
-                                root.voiceInputService.startRecording()
+                                root.voiceInputService.startRecording();
                             }
                         }
                     }
@@ -155,7 +157,7 @@ Controls.Dialog {
                     enabled: root.transcriptionText.length > 0
                     onClicked: {
                         if (root.voiceInputService && root.transcriptionText.length > 0) {
-                            root.voiceInputService.processTranscription(root.transcriptionText)
+                            root.voiceInputService.processTranscription(root.transcriptionText);
                         }
                     }
                 }

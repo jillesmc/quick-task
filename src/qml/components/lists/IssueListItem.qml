@@ -21,36 +21,53 @@ Controls.ItemDelegate {
 
     // Status: texto abreviado (compatível com qualquer fonte/tema)
     property string statusDisplay: {
-        var s = (root.status || "").toUpperCase()
-        if (!s) return "—"
-        if (s.indexOf("DONE") >= 0 || s.indexOf("CLOSED") >= 0) return "Done"
-        if (s.indexOf("REVIEW") >= 0 || s.indexOf("CODE REVIEW") >= 0) return "Review"
-        if (s.indexOf("DEVELOPMENT") >= 0 || s.indexOf("PROGRESS") >= 0) return "Dev"
-        if (s.indexOf("HOMOLOG") >= 0 || s.indexOf("TEST") >= 0) return "Homolog"
-        if (s.indexOf("TO DO") >= 0 || s.indexOf("BACKLOG") >= 0) return "To Do"
-        if (s.indexOf("BLOCKED") >= 0 || s.indexOf("WAITING") >= 0) return "Wait"
-        return s.length > 8 ? s.substring(0, 8) + "…" : s
+        var s = (root.status || "").toUpperCase();
+        if (!s)
+            return "—";
+        if (s.indexOf("DONE") >= 0 || s.indexOf("CLOSED") >= 0)
+            return "Done";
+        if (s.indexOf("REVIEW") >= 0 || s.indexOf("CODE REVIEW") >= 0)
+            return "Review";
+        if (s.indexOf("DEVELOPMENT") >= 0 || s.indexOf("PROGRESS") >= 0)
+            return "Dev";
+        if (s.indexOf("HOMOLOG") >= 0 || s.indexOf("TEST") >= 0)
+            return "Homolog";
+        if (s.indexOf("TO DO") >= 0 || s.indexOf("BACKLOG") >= 0)
+            return "To Do";
+        if (s.indexOf("BLOCKED") >= 0 || s.indexOf("WAITING") >= 0)
+            return "Wait";
+        return s.length > 8 ? s.substring(0, 8) + "…" : s;
     }
     // Prioridade: ícone Breeze ou fallback em texto abreviado (Jira Cloud usa IDs como 10000, não 1-5)
     property string priorityIcon: {
-        var p = (root.priority || "").toLowerCase()
-        var id = root.priorityId
-        if (p.includes("highest") || id === "1" || id === "10000") return "flag-red"
-        if ((p.includes("high") && !p.includes("lowest")) || id === "2" || id === "10001") return "flag-yellow"
-        if (p.includes("medium") || p.includes("médio") || id === "3" || id === "10002") return "flag"
-        if ((p.includes("low") && !p.includes("lowest")) || id === "4" || id === "10003") return "flag-green"
-        if (p.includes("lowest") || id === "5" || id === "10004") return "flag-blue"
-        return ""
+        var p = (root.priority || "").toLowerCase();
+        var id = root.priorityId;
+        if (p.includes("highest") || id === "1" || id === "10000")
+            return "flag-red";
+        if ((p.includes("high") && !p.includes("lowest")) || id === "2" || id === "10001")
+            return "flag-yellow";
+        if (p.includes("medium") || p.includes("médio") || id === "3" || id === "10002")
+            return "flag";
+        if ((p.includes("low") && !p.includes("lowest")) || id === "4" || id === "10003")
+            return "flag-green";
+        if (p.includes("lowest") || id === "5" || id === "10004")
+            return "flag-blue";
+        return "";
     }
     property string priorityDisplay: {
-        var p = (root.priority || "").toLowerCase()
-        var id = root.priorityId
-        if (p.includes("highest") || id === "1" || id === "10000") return "Máx"
-        if ((p.includes("high") && !p.includes("lowest")) || id === "2" || id === "10001") return "Alta"
-        if (p.includes("medium") || p.includes("médio") || id === "3" || id === "10002") return "Média"
-        if ((p.includes("low") && !p.includes("lowest")) || id === "4" || id === "10003") return "Baixa"
-        if (p.includes("lowest") || id === "5" || id === "10004") return "Mín"
-        return p ? (p.length > 6 ? p.substring(0, 6) + "…" : p) : "Média"
+        var p = (root.priority || "").toLowerCase();
+        var id = root.priorityId;
+        if (p.includes("highest") || id === "1" || id === "10000")
+            return "Máx";
+        if ((p.includes("high") && !p.includes("lowest")) || id === "2" || id === "10001")
+            return "Alta";
+        if (p.includes("medium") || p.includes("médio") || id === "3" || id === "10002")
+            return "Média";
+        if ((p.includes("low") && !p.includes("lowest")) || id === "4" || id === "10003")
+            return "Baixa";
+        if (p.includes("lowest") || id === "5" || id === "10004")
+            return "Mín";
+        return p ? (p.length > 6 ? p.substring(0, 6) + "…" : p) : "Média";
     }
 
     property var timerModel: null
@@ -74,15 +91,15 @@ Controls.ItemDelegate {
         Controls.Label {
             text: {
                 if (root.issueType && root.issueType.toLowerCase().includes("task")) {
-                    return "✓"
+                    return "✓";
                 } else if (root.issueType && root.issueType.toLowerCase().includes("bug")) {
-                    return "🐛"
+                    return "🐛";
                 } else if (root.issueType && root.issueType.toLowerCase().includes("story")) {
-                    return "📖"
+                    return "📖";
                 } else if (root.issueType && root.issueType.toLowerCase().includes("epic")) {
-                    return "📋"
+                    return "📋";
                 }
-                return "○"
+                return "○";
             }
             font.pointSize: Kirigami.Theme.defaultFont.pointSize + 2
             Layout.preferredWidth: 30
@@ -147,8 +164,7 @@ Controls.ItemDelegate {
 
             Controls.Label {
                 text: "⏱"
-                visible: root.timerModel && root.timerModel.issueKey === root.issueKey &&
-                         (root.timerModel.state === "running" || root.timerModel.state === "paused")
+                visible: root.timerModel && root.timerModel.issueKey === root.issueKey && (root.timerModel.state === "running" || root.timerModel.state === "paused")
                 color: root.timerModel && root.timerModel.state === "running" ? "#3daee9" : "#808080"
                 Layout.preferredWidth: 30
                 Layout.alignment: Qt.AlignLeft
@@ -158,38 +174,38 @@ Controls.ItemDelegate {
             Controls.ToolButton {
                 icon.name: {
                     if (root.timerModel && root.timerModel.issueKey === root.issueKey && root.timerModel.state === "running") {
-                        return "media-playback-stop"
+                        return "media-playback-stop";
                     } else if (root.timerModel && root.timerModel.issueKey === root.issueKey && root.timerModel.state === "paused") {
-                        return "media-playback-start"
+                        return "media-playback-start";
                     } else if (root.timerModel && root.timerModel.isOnBreak) {
-                        return "media-playback-start"
+                        return "media-playback-start";
                     }
-                    return "chronometer"
+                    return "chronometer";
                 }
                 Layout.preferredWidth: 40
                 enabled: root.timerService && root.timerModel
 
                 onClicked: {
                     if (!root.timerModel || !root.issueKey) {
-                        return
+                        return;
                     }
                     function doStart() {
-                        root.startTimerRequested(root.issueKey)
+                        root.startTimerRequested(root.issueKey);
                     }
                     if (root.timerService && root.timerModel && root.timerModel.isOnBreak) {
-                        root.timerService.cancelBreak()
-                        Qt.callLater(doStart)
-                        return
+                        root.timerService.cancelBreak();
+                        Qt.callLater(doStart);
+                        return;
                     }
                     if (root.timerModel.issueKey === root.issueKey && root.timerModel.state !== "idle") {
                         if (root.timerModel.state === "running" && root.timerService) {
-                            root.timerService.stop()
+                            root.timerService.stop();
                         }
                     } else if (root.timerModel.state !== "idle" && root.timerModel.issueKey !== root.issueKey && root.timerService) {
-                        root.timerService.stop()
-                        Qt.callLater(doStart)
+                        root.timerService.stop();
+                        Qt.callLater(doStart);
                     } else {
-                        doStart()
+                        doStart();
                     }
                 }
             }

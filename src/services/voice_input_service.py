@@ -48,7 +48,9 @@ class VoiceInputService(QObject):
         self._config = config_manager
         self._last_expand_for_editing = False
         self._expanding = False
-        self._expand_overlay_on_process_transcription = expand_overlay_on_process_transcription
+        self._expand_overlay_on_process_transcription = (
+            expand_overlay_on_process_transcription
+        )
         AudioRecorderCls, ClientCls, audio_ok = _load_voice_components()
         self._AudioRecorderCls = AudioRecorderCls
         self._ClientCls = ClientCls
@@ -113,7 +115,12 @@ class VoiceInputService(QObject):
         if not target:
             try:
                 from src.utils.debug import debug_log
-                debug_log("VoiceInputService", "_on_processing_complete", "no target, skipping")
+
+                debug_log(
+                    "VoiceInputService",
+                    "_on_processing_complete",
+                    "no target, skipping",
+                )
             except Exception:
                 pass
             return
@@ -121,6 +128,7 @@ class VoiceInputService(QObject):
         description_val = result.get("description", "")
         try:
             from src.utils.debug import debug_log
+
             debug_log(
                 "VoiceInputService",
                 "_on_processing_complete",
@@ -147,7 +155,12 @@ class VoiceInputService(QObject):
             self.expandingChanged.emit()
             try:
                 from src.utils.debug import debug_log
-                debug_log("VoiceInputService", "_on_processing_complete", "isExpanding=False, expandingChanged.emit()")
+
+                debug_log(
+                    "VoiceInputService",
+                    "_on_processing_complete",
+                    "isExpanding=False, expandingChanged.emit()",
+                )
             except Exception:
                 pass
         self.fieldsFilled.emit()
@@ -201,12 +214,14 @@ class VoiceInputService(QObject):
         if self._config:
             task_prompt = self._config.get_localai_task_system_prompt()
         transcription = (text or "").strip()
+
         # Defer start so the UI can process expandingChanged and show the overlay
         # before the worker runs (avoids overlay never appearing if dialog just closed).
         def start_process() -> None:
             self._client.process_task_from_voice(
                 transcription, tipo_values, task_system_prompt=task_prompt
             )
+
         QTimer.singleShot(0, start_process)
 
     @Slot(str, str, bool)
@@ -237,11 +252,17 @@ class VoiceInputService(QObject):
             return
         try:
             from src.utils.debug import debug_log
+
             debug_log(
                 "VoiceInputService",
                 "expandFromSummaryAndDescription",
                 "for_editing=%s target=%s (editing=%s issue=%s)"
-                % (for_editing, type(target).__name__, self._editing_issue_model is target, self._issue_model is target),
+                % (
+                    for_editing,
+                    type(target).__name__,
+                    self._editing_issue_model is target,
+                    self._issue_model is target,
+                ),
             )
         except Exception:
             pass
@@ -249,7 +270,12 @@ class VoiceInputService(QObject):
         self.expandingChanged.emit()
         try:
             from src.utils.debug import debug_log
-            debug_log("VoiceInputService", "expandFromSummaryAndDescription", "isExpanding=True, expandingChanged.emit()")
+
+            debug_log(
+                "VoiceInputService",
+                "expandFromSummaryAndDescription",
+                "isExpanding=True, expandingChanged.emit()",
+            )
         except Exception:
             pass
         self._last_expand_for_editing = for_editing

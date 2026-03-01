@@ -36,17 +36,17 @@ Controls.Dialog {
     height: implicitHeight
 
     function openWith(commentIdValue, body) {
-        commentId = commentIdValue || ""
-        initialBody = body || ""
-        commentText = initialBody
-        open()
+        commentId = commentIdValue || "";
+        initialBody = body || "";
+        commentText = initialBody;
+        open();
     }
 
     function centerDialog() {
-        var ref = applicationWindow || parent
+        var ref = applicationWindow || parent;
         if (ref && width > 0 && height > 0 && ref.width > 0 && ref.height > 0) {
-            x = Math.max(0, (ref.width - width) / 2)
-            y = Math.max(0, (ref.height - height) / 2)
+            x = Math.max(0, (ref.width - width) / 2);
+            y = Math.max(0, (ref.height - height) / 2);
         }
     }
 
@@ -64,8 +64,8 @@ Controls.Dialog {
             id: commentEditPreview
             applicationWindow: dialog.applicationWindow
             content: dialog.commentText
-            onContentEdited: function(newContent) {
-                dialog.commentText = newContent
+            onContentEdited: function (newContent) {
+                dialog.commentText = newContent;
             }
             label: qsTr("Comentário")
             placeholderText: qsTr("Digite o comentário (Markdown suportado). Arraste imagens ou use Ctrl+V para colar.")
@@ -88,12 +88,14 @@ Controls.Dialog {
                 enabled: !dialog.improvingComment && (dialog.commentText || "").trim() !== ""
                 onClicked: {
                     if (dialog.voiceInputService && (dialog.commentText || "").trim() !== "") {
-                        dialog.improvingComment = true
-                        dialog.voiceInputService.improveCommentText(dialog.commentText)
+                        dialog.improvingComment = true;
+                        dialog.voiceInputService.improveCommentText(dialog.commentText);
                     }
                 }
             }
-            Item { Layout.fillWidth: true }
+            Item {
+                Layout.fillWidth: true
+            }
             Controls.Button {
                 text: qsTr("Cancelar")
                 onClicked: dialog.close()
@@ -101,8 +103,8 @@ Controls.Dialog {
             Controls.Button {
                 text: qsTr("Salvar")
                 onClicked: {
-                    dialog.accepted(dialog.commentId, dialog.commentText || "")
-                    dialog.close()
+                    dialog.accepted(dialog.commentId, dialog.commentText || "");
+                    dialog.close();
                 }
             }
         }
@@ -112,12 +114,12 @@ Controls.Dialog {
         target: dialog.voiceInputService || null
         enabled: dialog.voiceInputService !== null
         function onCommentTextImproved(text) {
-            dialog.improvingComment = false
+            dialog.improvingComment = false;
             if (text)
-                dialog.commentText = text
+                dialog.commentText = text;
         }
         function onError(message) {
-            dialog.improvingComment = false
+            dialog.improvingComment = false;
         }
     }
 }

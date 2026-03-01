@@ -32,15 +32,18 @@ Item {
 
     // Registrar worklog só permitido quando status alvo é IN PROGRESS ou posterior
     property bool registrarWorklogEnabled: {
-        if (!workItemModel || !workItemModel.statusSequence) return false
-        var seq = workItemModel.statusSequence
-        var inDevIdx = seq.indexOf("IN PROGRESS")
-        if (inDevIdx < 0) return false
-        var statusIdx = seq.indexOf(workItemModel.statusInicial || "")
-        return statusIdx >= inDevIdx
+        if (!workItemModel || !workItemModel.statusSequence)
+            return false;
+        var seq = workItemModel.statusSequence;
+        var inDevIdx = seq.indexOf("IN PROGRESS");
+        if (inDevIdx < 0)
+            return false;
+        var statusIdx = seq.indexOf(workItemModel.statusInicial || "");
+        return statusIdx >= inDevIdx;
     }
     property bool isDetailsLoading: false
     property var atlassianService: null
+    property var atlassianMetadataConfigModel: null
     property var clipboardHelper: null
     property var gitCommandHelper: null
     property var voiceInputService: null
@@ -65,167 +68,179 @@ Item {
     property var _deletedAttachmentIds: []
 
     function _buildCurrentAttachmentsList() {
-        var deleted = pane._deletedAttachmentIds || []
+        var deleted = pane._deletedAttachmentIds || [];
         var fromApi = (pane._detailsAttachments || []).filter(function (a) {
-            return a && deleted.indexOf(String(a.id)) < 0
-        })
-        return fromApi.concat(pane._newAttachmentsThisSession || [])
+            return a && deleted.indexOf(String(a.id)) < 0;
+        });
+        return fromApi.concat(pane._newAttachmentsThisSession || []);
     }
     readonly property var _currentAttachmentsList: pane._buildCurrentAttachmentsList()
 
     function _openEmbedDialogForDescription(filePath, filename) {
-        if (!filePath || !pane.atlassianService || !pane.selectedIssueKey) return
-        var comp = Qt.createComponent("../dialogs/AttachmentEmbedPreviewDialog.qml")
-        var win = pane.applicationWindow || pane.parent || pane
+        if (!filePath || !pane.atlassianService || !pane.selectedIssueKey)
+            return;
+        var comp = Qt.createComponent("../dialogs/AttachmentEmbedPreviewDialog.qml");
+        var win = pane.applicationWindow || pane.parent || pane;
         if (comp.status !== Component.Ready) {
             if (comp.status === Component.Error) {
-                console.error("WorkItemDetailPane: AttachmentEmbedPreviewDialog error:", comp.errorString())
+                console.error("WorkItemDetailPane: AttachmentEmbedPreviewDialog error:", comp.errorString());
             }
             comp.statusChanged.connect(function () {
                 if (comp.status === Component.Ready) {
-                    _createAndOpenEmbedDialog(comp, win, filePath, filename)
+                    _createAndOpenEmbedDialog(comp, win, filePath, filename);
                 }
-            })
-            return
+            });
+            return;
         }
-        _createAndOpenEmbedDialog(comp, win, filePath, filename)
+        _createAndOpenEmbedDialog(comp, win, filePath, filename);
     }
 
     function _createAndOpenEmbedDialog(comp, parent, filePath, filename) {
-        var dlg = comp.createObject(parent)
-        if (!dlg) return
-        dlg.filePath = filePath
-        dlg.showPositionOptions = true
-        dlg.defaultDisplayWidth = (pane.atlassianService && typeof pane.atlassianService.getEmbedMaxDisplayWidth === "function")
-            ? pane.atlassianService.getEmbedMaxDisplayWidth() : 760
-        dlg.applicationWindow = pane.applicationWindow
-        dlg.clipboardHelper = pane.clipboardHelper
-        dlg.embedTarget = "description"
+        var dlg = comp.createObject(parent);
+        if (!dlg)
+            return;
+        dlg.filePath = filePath;
+        dlg.showPositionOptions = true;
+        dlg.defaultDisplayWidth = (pane.atlassianService && typeof pane.atlassianService.getEmbedMaxDisplayWidth === "function") ? pane.atlassianService.getEmbedMaxDisplayWidth() : 760;
+        dlg.applicationWindow = pane.applicationWindow;
+        dlg.clipboardHelper = pane.clipboardHelper;
+        dlg.embedTarget = "description";
         dlg.acceptedEmbed.connect(function (layout, position, displayWidth) {
-            pane._pendingAttachOnly = false
-            pane._pendingEmbedDisplayWidth = displayWidth > 0 ? displayWidth : 760
-            pane._pendingEmbedPosition = (position === "start" || position === "end") ? position : "end"
-            pane.atlassianService.uploadAttachment(pane.selectedIssueKey, filePath, "description")
-        })
+            pane._pendingAttachOnly = false;
+            pane._pendingEmbedDisplayWidth = displayWidth > 0 ? displayWidth : 760;
+            pane._pendingEmbedPosition = (position === "start" || position === "end") ? position : "end";
+            pane.atlassianService.uploadAttachment(pane.selectedIssueKey, filePath, "description");
+        });
         dlg.acceptedAttachOnly.connect(function () {
-            pane._pendingAttachOnly = true
-            pane.atlassianService.uploadAttachment(pane.selectedIssueKey, filePath, "description")
-        })
-        dlg.rejected.connect(function () {})
-        dlg.closed.connect(function () { dlg.destroy() })
-        dlg.open()
+            pane._pendingAttachOnly = true;
+            pane.atlassianService.uploadAttachment(pane.selectedIssueKey, filePath, "description");
+        });
+        dlg.rejected.connect(function () {});
+        dlg.closed.connect(function () {
+            dlg.destroy();
+        });
+        dlg.open();
     }
 
     function _uploadNonImageAndInsertLink(filePath, filename) {
-        if (!pane.atlassianService || !pane.selectedIssueKey) return
-        pane._pendingInsertAsLink = true
-        pane.atlassianService.uploadAttachment(pane.selectedIssueKey, filePath, "description")
+        if (!pane.atlassianService || !pane.selectedIssueKey)
+            return;
+        pane._pendingInsertAsLink = true;
+        pane.atlassianService.uploadAttachment(pane.selectedIssueKey, filePath, "description");
     }
 
     function _openAttachmentsPopover(button) {
-        if (!button || !pane.atlassianService) return
-        var comp = Qt.createComponent("../dialogs/DescriptionAttachmentsPopover.qml")
+        if (!button || !pane.atlassianService)
+            return;
+        var comp = Qt.createComponent("../dialogs/DescriptionAttachmentsPopover.qml");
         if (comp.status !== Component.Ready) {
             if (comp.status === Component.Error) {
-                console.error("WorkItemDetailPane: DescriptionAttachmentsPopover error:", comp.errorString())
+                console.error("WorkItemDetailPane: DescriptionAttachmentsPopover error:", comp.errorString());
             }
             comp.statusChanged.connect(function () {
                 if (comp.status === Component.Ready) {
-                    _openAttachmentsPopover(button)
+                    _openAttachmentsPopover(button);
                 }
-            })
-            return
+            });
+            return;
         }
-        var popover = comp.createObject(button)
-        if (!popover) return
-        popover.x = 0
-        popover.y = button.height + 2
-        popover.mode = "edit"
-        popover.positionLeftOfButton = true
-        popover.editModePane = pane
-        popover.issueKey = pane.selectedIssueKey
-        popover.jiraService = pane.atlassianService
+        var popover = comp.createObject(button);
+        if (!popover)
+            return;
+        popover.x = 0;
+        popover.y = button.height + 2;
+        popover.mode = "edit";
+        popover.positionLeftOfButton = true;
+        popover.editModePane = pane;
+        popover.issueKey = pane.selectedIssueKey;
+        popover.jiraService = pane.atlassianService;
         popover.onAttachmentDeleted = function (attachmentId) {
-            if (!pane.workItemModel) return
-            pane.workItemModel.description = FormatUtils.removeAttachmentFromDescription(pane.workItemModel.description, attachmentId)
-            var arr = []
+            if (!pane.workItemModel)
+                return;
+            pane.workItemModel.description = FormatUtils.removeAttachmentFromDescription(pane.workItemModel.description, attachmentId);
+            var arr = [];
             for (var i = 0; i < (pane._newAttachmentsThisSession || []).length; i++) {
                 if (String((pane._newAttachmentsThisSession)[i].id) !== String(attachmentId)) {
-                    arr.push((pane._newAttachmentsThisSession)[i])
+                    arr.push((pane._newAttachmentsThisSession)[i]);
                 }
             }
-            pane._newAttachmentsThisSession = arr
-            var delIds = pane._deletedAttachmentIds || []
-            if (delIds.indexOf(attachmentId) < 0) delIds.push(attachmentId)
-            pane._deletedAttachmentIds = delIds
-        }
+            pane._newAttachmentsThisSession = arr;
+            var delIds = pane._deletedAttachmentIds || [];
+            if (delIds.indexOf(attachmentId) < 0)
+                delIds.push(attachmentId);
+            pane._deletedAttachmentIds = delIds;
+        };
         popover.onAttachmentDeleteFailed = function (attId, msg) {
             if (pane.applicationWindow && typeof pane.applicationWindow.showPassiveNotification === "function") {
-                pane.applicationWindow.showPassiveNotification(msg || qsTr("Erro ao excluir anexo."), 4000)
+                pane.applicationWindow.showPassiveNotification(msg || qsTr("Erro ao excluir anexo."), 4000);
             }
-        }
-        popover.closed.connect(function () { popover.destroy() })
-        popover.open()
+        };
+        popover.closed.connect(function () {
+            popover.destroy();
+        });
+        popover.open();
     }
 
     function _openQuickActionDialog(componentPath) {
-        if (!pane.selectedIssueKey || !pane.atlassianService) return
-        var comp = Qt.createComponent(componentPath)
+        if (!pane.selectedIssueKey || !pane.atlassianService)
+            return;
+        var comp = Qt.createComponent(componentPath);
         // Usar sempre a janela principal como parent para o diálogo aparecer ao centro
-        var win = pane.applicationWindow || (pane.workItemsPage ? pane.workItemsPage.applicationWindow : null) || pane.parent
+        var win = pane.applicationWindow || (pane.workItemsPage ? pane.workItemsPage.applicationWindow : null) || pane.parent;
         if (comp.status !== Component.Ready) {
             if (comp.status === Component.Error) {
-                console.error("WorkItemDetailPane: quick action dialog error:", comp.errorString())
+                console.error("WorkItemDetailPane: quick action dialog error:", comp.errorString());
             }
             comp.statusChanged.connect(function () {
                 if (comp.status === Component.Ready) {
-                    _openQuickActionDialog(componentPath)
+                    _openQuickActionDialog(componentPath);
                 }
-            })
-            return
+            });
+            return;
         }
-        var dlg = comp.createObject(win)
-        if (!dlg) return
-        dlg.jiraService = pane.atlassianService
-        dlg.issueKey = pane.selectedIssueKey
-        dlg.issueSummary = (pane.workItemModel && pane.workItemModel.summary) ? pane.workItemModel.summary : ""
+        var dlg = comp.createObject(win);
+        if (!dlg)
+            return;
+        dlg.jiraService = pane.atlassianService;
+        dlg.issueKey = pane.selectedIssueKey;
+        dlg.issueSummary = (pane.workItemModel && pane.workItemModel.summary) ? pane.workItemModel.summary : "";
         if (typeof dlg.openWith === "function") {
-            dlg.openWith(dlg.issueKey, dlg.issueSummary)
+            dlg.openWith(dlg.issueKey, dlg.issueSummary);
         } else {
-            dlg.open()
+            dlg.open();
         }
         if (pane.workItemsPage && typeof pane.workItemsPage._quickActionInProgress !== "undefined") {
-            pane.workItemsPage._quickActionInProgress = true
+            pane.workItemsPage._quickActionInProgress = true;
         }
         dlg.closed.connect(function () {
             if (pane.workItemsPage) {
                 Qt.callLater(function () {
                     if (pane.workItemsPage && typeof pane.workItemsPage._quickActionInProgress !== "undefined") {
-                        pane.workItemsPage._quickActionInProgress = false
+                        pane.workItemsPage._quickActionInProgress = false;
                     }
-                })
+                });
             }
-            dlg.destroy()
-        })
+            dlg.destroy();
+        });
     }
 
     function openCancelDialog() {
         if (pane.workItemsPage && typeof pane.workItemsPage._lastQuickActionType !== "undefined") {
-            pane.workItemsPage._lastQuickActionType = "cancel"
+            pane.workItemsPage._lastQuickActionType = "cancel";
         }
-        _openQuickActionDialog("../dialogs/CancelIssueDialog.qml")
+        _openQuickActionDialog("../dialogs/CancelIssueDialog.qml");
     }
     function openBlockDialog() {
         if (pane.workItemsPage && typeof pane.workItemsPage._lastQuickActionType !== "undefined") {
-            pane.workItemsPage._lastQuickActionType = "block"
+            pane.workItemsPage._lastQuickActionType = "block";
         }
-        _openQuickActionDialog("../dialogs/BlockIssueDialog.qml")
+        _openQuickActionDialog("../dialogs/BlockIssueDialog.qml");
     }
     function openUnblockDialog() {
         if (pane.workItemsPage && typeof pane.workItemsPage._lastQuickActionType !== "undefined") {
-            pane.workItemsPage._lastQuickActionType = "unblock"
+            pane.workItemsPage._lastQuickActionType = "unblock";
         }
-        _openQuickActionDialog("../dialogs/UnblockIssueDialog.qml")
+        _openQuickActionDialog("../dialogs/UnblockIssueDialog.qml");
     }
 
     /** Dados de development (branches/PRs) para o painel; preenchido em setDetails. null quando feature desativada. */
@@ -272,8 +287,7 @@ Item {
     }
 
     function getParentWorkItemKey() {
-        return parentWorkItemBlockRef && typeof parentWorkItemBlockRef.getParentWorkItemKey === "function"
-            ? parentWorkItemBlockRef.getParentWorkItemKey() : "";
+        return parentWorkItemBlockRef && typeof parentWorkItemBlockRef.getParentWorkItemKey === "function" ? parentWorkItemBlockRef.getParentWorkItemKey() : "";
     }
 
     function resetFields() {
@@ -358,293 +372,295 @@ Item {
         id: detailsContentWrapper
         anchors.fill: parent
 
-    Controls.ScrollView {
-        id: mainDetailsScrollView
-        anchors.fill: parent
-        clip: true
-        contentWidth: availableWidth
+        Controls.ScrollView {
+            id: mainDetailsScrollView
+            anchors.fill: parent
+            clip: true
+            contentWidth: availableWidth
 
-        Item {
-            width: mainDetailsScrollView.availableWidth
-            implicitHeight: contentColumn.implicitHeight
-
-            ColumnLayout {
-                id: contentColumn
-                anchors.fill: parent
-                anchors.leftMargin: Kirigami.Units.largeSpacing
-                anchors.rightMargin: Kirigami.Units.largeSpacing
-                spacing: Kirigami.Units.largeSpacing
+            Item {
+                width: mainDetailsScrollView.availableWidth
+                implicitHeight: contentColumn.implicitHeight
 
                 ColumnLayout {
-                    id: topSection
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: pane.topSectionHeight
-                    Layout.minimumHeight: 150
-                    spacing: Kirigami.Units.largeSpacing
-
-                    DevelopmentHeaderBar {
-                        Layout.fillWidth: true
-                        developmentData: pane.developmentData
-                        enrichedPrs: pane.enrichedPrs
-                        enrichedBranches: pane.enrichedBranches
-                        issueKey: pane.selectedIssueKey
-                        issueSummary: pane.workItemModel ? pane.workItemModel.summary : ""
-                        jiraService: pane.atlassianService
-                        clipboardHelper: pane.clipboardHelper
-                        applicationWindow: pane.applicationWindow
-                        gitCommandHelper: pane.gitCommandHelper
-                        onReloadRequested: {
-                            if (pane.workItemsPage && pane.selectedIssueKey && typeof pane.workItemsPage.loadIssueDetails === "function") {
-                                pane.workItemsPage.loadIssueDetails(pane.selectedIssueKey)
-                            }
-                        }
-                    }
-
-                    SummaryAndDescriptionBlock {
-                        Layout.fillWidth: true
-                        Layout.fillHeight: true
-                        workItemModel: pane.workItemModel
-                        mode: "edit"
-                        enabled: pane.selectedIssueKey !== "" && !pane.isProcessing
-                        jiraService: pane.atlassianService
-                        clipboardHelper: pane.clipboardHelper
-                        voiceInputService: pane.voiceInputService
-                        showVoiceCreateButton: false
-                        showExpandWithAIButton: true
-                        requestSummaryFocus: false
-                        summaryRequired: true
-                        applicationWindow: pane.applicationWindow
-                    }
-
-                    Item {
-                        Layout.fillHeight: true
-                        Layout.fillWidth: true
-                    }
-                }
-
-                DividerBar {
-                    id: divider1
-                    Layout.fillWidth: true
-                }
-
-                ColumnLayout {
-                    id: epicSection
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: pane.epicSectionHeight
-                    Layout.minimumHeight: 150
-                    spacing: Kirigami.Units.smallSpacing
-
-                    ParentWorkItemBlock {
-                        id: parentWorkItemBlockRef
-                        Layout.fillWidth: true
-                        Layout.fillHeight: true
-                        model: pane.workItemModel
-                        atlassianService: pane.atlassianService
-                        parentIssueType: "Epic"
-                        enabled: pane.selectedIssueKey !== "" && !pane.isProcessing
-                        mode: "edit"
-                        sharedParentWorkItemKey: pane.sharedEpicKey
-                        sharedParentWorkItemSummary: pane.sharedEpicSummary
-                        preferredHeight: pane.epicSectionHeight
-                        minimumHeight: 150
-
-                        onParentWorkItemSelected: function (key, summary) {
-                            pane.epicSelected(key, summary);
-                        }
-                        onParentWorkItemCleared: {
-                            pane.sharedEpicKey = "";
-                            pane.sharedEpicSummary = "";
-                        }
-                    }
-
-                    Item {
-                        Layout.fillHeight: true
-                        Layout.fillWidth: true
-                    }
-                }
-
-                DividerBar {
-                    id: divider2
-                    Layout.fillWidth: true
-                }
-
-                ColumnLayout {
-                    id: bottomColumnLayout
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
+                    id: contentColumn
+                    anchors.fill: parent
+                    anchors.leftMargin: Kirigami.Units.largeSpacing
+                    anchors.rightMargin: Kirigami.Units.largeSpacing
                     spacing: Kirigami.Units.largeSpacing
 
                     ColumnLayout {
+                        id: topSection
                         Layout.fillWidth: true
+                        Layout.preferredHeight: pane.topSectionHeight
+                        Layout.minimumHeight: 150
                         spacing: Kirigami.Units.largeSpacing
 
-                        Controls.CheckBox {
-                            id: worklogCheckboxTab2
-                            text: qsTr("Registrar worklog")
+                        DevelopmentHeaderBar {
                             Layout.fillWidth: true
-                            enabled: pane.selectedIssueKey !== "" && !pane.isProcessing && pane.registrarWorklogEnabled
-                            checked: pane.workItemModel ? pane.workItemModel.registrarWorklog : false
-                            onCheckedChanged: {
-                                if (pane.workItemModel) {
-                                    pane.workItemModel.registrarWorklog = checked;
-                                }
-                            }
-                        }
-                        Binding {
-                            target: pane.workItemModel
-                            property: "registrarWorklog"
-                            value: false
-                            when: pane.workItemModel && !pane.registrarWorklogEnabled
-                        }
-
-                        WorklogForm {
-                            id: worklogForm
+                            developmentData: pane.developmentData
+                            enrichedPrs: pane.enrichedPrs
+                            enrichedBranches: pane.enrichedBranches
+                            issueKey: pane.selectedIssueKey
+                            issueSummary: pane.workItemModel ? pane.workItemModel.summary : ""
                             jiraService: pane.atlassianService
-                            Layout.fillWidth: true
-                            enabled: pane.selectedIssueKey !== "" && !pane.isProcessing && worklogCheckboxTab2.checked
-                            visible: worklogCheckboxTab2.checked
-                            showCheckbox: false
-
-                            Binding {
-                                target: pane.workItemModel
-                                property: "worklogInicio"
-                                value: worklogForm.date && worklogForm.time ? worklogForm.date + " " + worklogForm.time : ""
-                                when: pane.workItemModel && worklogForm.date && worklogForm.time
-                            }
-
-                            Binding {
-                                target: pane.workItemModel
-                                property: "worklogDuracao"
-                                value: Math.round(worklogForm.duration)
-                                when: pane.workItemModel
-                            }
-
-                            Binding {
-                                target: pane.workItemModel
-                                property: "worklogComment"
-                                value: worklogForm.comment
-                                when: pane.workItemModel
-                            }
-
-                            Component.onCompleted: {
-                                if (pane.workItemModel && pane.workItemModel.worklogInicio) {
-                                    var parts = pane.workItemModel.worklogInicio.split(" ");
-                                    if (parts.length >= 2) {
-                                        worklogForm.date = parts[0];
-                                        worklogForm.time = parts[1];
-                                    }
-                                }
-                                if (pane.workItemModel) {
-                                    worklogForm.duration = pane.workItemModel.worklogDuracao || 30;
-                                    worklogForm.comment = pane.workItemModel.worklogComment || "";
+                            clipboardHelper: pane.clipboardHelper
+                            applicationWindow: pane.applicationWindow
+                            gitCommandHelper: pane.gitCommandHelper
+                            onReloadRequested: {
+                                if (pane.workItemsPage && pane.selectedIssueKey && typeof pane.workItemsPage.loadIssueDetails === "function") {
+                                    pane.workItemsPage.loadIssueDetails(pane.selectedIssueKey);
                                 }
                             }
                         }
+
+                        SummaryAndDescriptionBlock {
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+                            workItemModel: pane.workItemModel
+                            mode: "edit"
+                            enabled: pane.selectedIssueKey !== "" && !pane.isProcessing
+                            jiraService: pane.atlassianService
+                            clipboardHelper: pane.clipboardHelper
+                            voiceInputService: pane.voiceInputService
+                            showVoiceCreateButton: false
+                            showExpandWithAIButton: true
+                            requestSummaryFocus: false
+                            summaryRequired: true
+                            applicationWindow: pane.applicationWindow
+                        }
+
+                        Item {
+                            Layout.fillHeight: true
+                            Layout.fillWidth: true
+                        }
                     }
 
-                    IssueMetadataFields {
+                    DividerBar {
+                        id: divider1
                         Layout.fillWidth: true
-                        issueModel: pane.workItemModel
-                        enabled: pane.selectedIssueKey !== "" && !pane.isProcessing
-                        restrictStatusBySequence: true
-                        statusForRestriction: pane.savedStatus
                     }
 
-                    CommentsSection {
-                        id: commentsSection
+                    ColumnLayout {
+                        id: epicSection
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: pane.epicSectionHeight
+                        Layout.minimumHeight: 150
+                        spacing: Kirigami.Units.smallSpacing
+
+                        ParentWorkItemBlock {
+                            id: parentWorkItemBlockRef
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+                            model: pane.workItemModel
+                            atlassianService: pane.atlassianService
+                            metadataConfigModel: pane.atlassianMetadataConfigModel
+                            parentIssueType: "Epic"
+                            enabled: pane.selectedIssueKey !== "" && !pane.isProcessing
+                            mode: "edit"
+                            sharedParentWorkItemKey: pane.sharedEpicKey
+                            sharedParentWorkItemSummary: pane.sharedEpicSummary
+                            preferredHeight: pane.epicSectionHeight
+                            minimumHeight: 150
+
+                            onParentWorkItemSelected: function (key, summary) {
+                                pane.epicSelected(key, summary);
+                            }
+                            onParentWorkItemCleared: {
+                                pane.sharedEpicKey = "";
+                                pane.sharedEpicSummary = "";
+                            }
+                        }
+
+                        Item {
+                            Layout.fillHeight: true
+                            Layout.fillWidth: true
+                        }
+                    }
+
+                    DividerBar {
+                        id: divider2
+                        Layout.fillWidth: true
+                    }
+
+                    ColumnLayout {
+                        id: bottomColumnLayout
                         Layout.fillWidth: true
                         Layout.fillHeight: true
-                        Layout.minimumHeight: 200
-                        applicationWindow: pane.applicationWindow
-                        jiraService: pane.atlassianService
-                        clipboardHelper: pane.clipboardHelper
-                        voiceInputService: pane.voiceInputService
-                        selectedIssueKey: pane.selectedIssueKey
-                        onErrorOccurred: function (message) {
-                            if (typeof console !== "undefined" && console.log) {
-                                console.log("[WorkItemDetailPane] CommentsSection.onErrorOccurred. _jiraErrorShownInProcessDialog=", (pane.workItemsPage && pane.workItemsPage._jiraErrorShownInProcessDialog) || false, "_jiraErrorShownInCreateFlow=", (pane.workItemsPage && pane.workItemsPage.applicationWindow && pane.workItemsPage.applicationWindow._jiraErrorShownInCreateFlow) || false);
-                            }
-                            if (pane.workItemsPage && pane.workItemsPage._jiraErrorShownInProcessDialog) {
-                                if (typeof console !== "undefined" && console.log) {
-                                    console.log("[WorkItemDetailPane] CommentsSection.onErrorOccurred -> SKIP (erro já no ProcessDialog)");
+                        spacing: Kirigami.Units.largeSpacing
+
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: Kirigami.Units.largeSpacing
+
+                            Controls.CheckBox {
+                                id: worklogCheckboxTab2
+                                text: qsTr("Registrar worklog")
+                                Layout.fillWidth: true
+                                enabled: pane.selectedIssueKey !== "" && !pane.isProcessing && pane.registrarWorklogEnabled
+                                checked: pane.workItemModel ? pane.workItemModel.registrarWorklog : false
+                                onCheckedChanged: {
+                                    if (pane.workItemModel) {
+                                        pane.workItemModel.registrarWorklog = checked;
+                                    }
                                 }
-                                return;
                             }
-                            if (pane.workItemsPage && pane.workItemsPage.applicationWindow && pane.workItemsPage.applicationWindow._jiraErrorShownInCreateFlow) {
-                                if (typeof console !== "undefined" && console.log) {
-                                    console.log("[WorkItemDetailPane] CommentsSection.onErrorOccurred -> SKIP (erro já no SuccessDialog/ fluxo criar issue)");
+                            Binding {
+                                target: pane.workItemModel
+                                property: "registrarWorklog"
+                                value: false
+                                when: pane.workItemModel && !pane.registrarWorklogEnabled
+                            }
+
+                            WorklogForm {
+                                id: worklogForm
+                                jiraService: pane.atlassianService
+                                Layout.fillWidth: true
+                                enabled: pane.selectedIssueKey !== "" && !pane.isProcessing && worklogCheckboxTab2.checked
+                                visible: worklogCheckboxTab2.checked
+                                showCheckbox: false
+
+                                Binding {
+                                    target: pane.workItemModel
+                                    property: "worklogInicio"
+                                    value: worklogForm.date && worklogForm.time ? worklogForm.date + " " + worklogForm.time : ""
+                                    when: pane.workItemModel && worklogForm.date && worklogForm.time
                                 }
-                                return;
+
+                                Binding {
+                                    target: pane.workItemModel
+                                    property: "worklogDuracao"
+                                    value: Math.round(worklogForm.duration)
+                                    when: pane.workItemModel
+                                }
+
+                                Binding {
+                                    target: pane.workItemModel
+                                    property: "worklogComment"
+                                    value: worklogForm.comment
+                                    when: pane.workItemModel
+                                }
+
+                                Component.onCompleted: {
+                                    if (pane.workItemModel && pane.workItemModel.worklogInicio) {
+                                        var parts = pane.workItemModel.worklogInicio.split(" ");
+                                        if (parts.length >= 2) {
+                                            worklogForm.date = parts[0];
+                                            worklogForm.time = parts[1];
+                                        }
+                                    }
+                                    if (pane.workItemModel) {
+                                        worklogForm.duration = pane.workItemModel.worklogDuracao || 30;
+                                        worklogForm.comment = pane.workItemModel.worklogComment || "";
+                                    }
+                                }
                             }
-                            if (typeof console !== "undefined" && console.log) {
-                                console.log("[WorkItemDetailPane] CommentsSection.onErrorOccurred -> DialogHelpers.showError (ErrorDialog com OK)");
+                        }
+
+                        IssueMetadataFields {
+                            Layout.fillWidth: true
+                            issueModel: pane.workItemModel
+                            enabled: pane.selectedIssueKey !== "" && !pane.isProcessing
+                            restrictStatusBySequence: true
+                            statusForRestriction: pane.savedStatus
+                        }
+
+                        CommentsSection {
+                            id: commentsSection
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+                            Layout.minimumHeight: 200
+                            applicationWindow: pane.applicationWindow
+                            jiraService: pane.atlassianService
+                            clipboardHelper: pane.clipboardHelper
+                            voiceInputService: pane.voiceInputService
+                            selectedIssueKey: pane.selectedIssueKey
+                            onErrorOccurred: function (message) {
+                                if (typeof console !== "undefined" && console.log) {
+                                    console.log("[WorkItemDetailPane] CommentsSection.onErrorOccurred. _jiraErrorShownInProcessDialog=", (pane.workItemsPage && pane.workItemsPage._jiraErrorShownInProcessDialog) || false, "_jiraErrorShownInCreateFlow=", (pane.workItemsPage && pane.workItemsPage.applicationWindow && pane.workItemsPage.applicationWindow._jiraErrorShownInCreateFlow) || false);
+                                }
+                                if (pane.workItemsPage && pane.workItemsPage._jiraErrorShownInProcessDialog) {
+                                    if (typeof console !== "undefined" && console.log) {
+                                        console.log("[WorkItemDetailPane] CommentsSection.onErrorOccurred -> SKIP (erro já no ProcessDialog)");
+                                    }
+                                    return;
+                                }
+                                if (pane.workItemsPage && pane.workItemsPage.applicationWindow && pane.workItemsPage.applicationWindow._jiraErrorShownInCreateFlow) {
+                                    if (typeof console !== "undefined" && console.log) {
+                                        console.log("[WorkItemDetailPane] CommentsSection.onErrorOccurred -> SKIP (erro já no SuccessDialog/ fluxo criar issue)");
+                                    }
+                                    return;
+                                }
+                                if (typeof console !== "undefined" && console.log) {
+                                    console.log("[WorkItemDetailPane] CommentsSection.onErrorOccurred -> DialogHelpers.showError (ErrorDialog com OK)");
+                                }
+                                DialogHelpers.showError(pane, "../components/dialogs/ErrorDialog.qml", message, "WorkItemDetailPane.CommentsSection");
                             }
-                            DialogHelpers.showError(pane, "../components/dialogs/ErrorDialog.qml", message, "WorkItemDetailPane.CommentsSection");
                         }
                     }
                 }
             }
         }
-    }
 
-    // Overlay único para redimensionar dividers (irmão do ScrollView, cobre a área, hit-test em onPressed).
-    Item {
-        id: resizeOverlay
-        z: 10
-        anchors.fill: detailsContentWrapper
-        property int activeDivider: 0
-        property real startGlobalY: 0
-        property real startHeight: 0
+        // Overlay único para redimensionar dividers (irmão do ScrollView, cobre a área, hit-test em onPressed).
+        Item {
+            id: resizeOverlay
+            z: 10
+            anchors.fill: detailsContentWrapper
+            property int activeDivider: 0
+            property real startGlobalY: 0
+            property real startHeight: 0
 
-        MouseArea {
-            anchors.fill: parent
-            hoverEnabled: false
-            cursorShape: parent.activeDivider ? Qt.SizeVerCursor : Qt.ArrowCursor
-            onPressed: function (mouse) {
-                var margin = 8
-                var p1 = divider1.mapToItem(resizeOverlay, 0, 0)
-                if (mouse.y >= p1.y - margin && mouse.y < p1.y + divider1.height + margin) {
-                    resizeOverlay.activeDivider = 1
-                    resizeOverlay.startGlobalY = resizeOverlay.mapToGlobal(mouse.x, mouse.y).y
-                    resizeOverlay.startHeight = pane.topSectionHeight
-                    mouse.accepted = true
-                    return
+            MouseArea {
+                anchors.fill: parent
+                hoverEnabled: false
+                cursorShape: parent.activeDivider ? Qt.SizeVerCursor : Qt.ArrowCursor
+                onPressed: function (mouse) {
+                    var margin = 8;
+                    var p1 = divider1.mapToItem(resizeOverlay, 0, 0);
+                    if (mouse.y >= p1.y - margin && mouse.y < p1.y + divider1.height + margin) {
+                        resizeOverlay.activeDivider = 1;
+                        resizeOverlay.startGlobalY = resizeOverlay.mapToGlobal(mouse.x, mouse.y).y;
+                        resizeOverlay.startHeight = pane.topSectionHeight;
+                        mouse.accepted = true;
+                        return;
+                    }
+                    var p2 = divider2.mapToItem(resizeOverlay, 0, 0);
+                    if (mouse.y >= p2.y - margin && mouse.y < p2.y + divider2.height + margin) {
+                        resizeOverlay.activeDivider = 2;
+                        resizeOverlay.startGlobalY = resizeOverlay.mapToGlobal(mouse.x, mouse.y).y;
+                        resizeOverlay.startHeight = pane.epicSectionHeight;
+                        mouse.accepted = true;
+                        return;
+                    }
+                    var p3 = commentsSection.commentResizeDivider.mapToItem(resizeOverlay, 0, 0);
+                    if (mouse.y >= p3.y - margin && mouse.y < p3.y + commentsSection.commentResizeDivider.height + margin) {
+                        resizeOverlay.activeDivider = 3;
+                        resizeOverlay.startGlobalY = resizeOverlay.mapToGlobal(mouse.x, mouse.y).y;
+                        resizeOverlay.startHeight = commentsSection.commentInputHeight;
+                        mouse.accepted = true;
+                        return;
+                    }
+                    mouse.accepted = false;
                 }
-                var p2 = divider2.mapToItem(resizeOverlay, 0, 0)
-                if (mouse.y >= p2.y - margin && mouse.y < p2.y + divider2.height + margin) {
-                    resizeOverlay.activeDivider = 2
-                    resizeOverlay.startGlobalY = resizeOverlay.mapToGlobal(mouse.x, mouse.y).y
-                    resizeOverlay.startHeight = pane.epicSectionHeight
-                    mouse.accepted = true
-                    return
+                onPositionChanged: function (mouse) {
+                    if (resizeOverlay.activeDivider === 0)
+                        return;
+                    var cur = resizeOverlay.mapToGlobal(mouse.x, mouse.y).y;
+                    var delta = cur - resizeOverlay.startGlobalY;
+                    if (resizeOverlay.activeDivider === 1) {
+                        pane.topSectionHeight = Math.max(150, resizeOverlay.startHeight + delta);
+                    } else if (resizeOverlay.activeDivider === 2) {
+                        pane.epicSectionHeight = Math.max(150, resizeOverlay.startHeight + delta);
+                    } else if (resizeOverlay.activeDivider === 3) {
+                        commentsSection.commentInputHeight = Math.max(160, resizeOverlay.startHeight + delta);
+                    }
                 }
-                var p3 = commentsSection.commentResizeDivider.mapToItem(resizeOverlay, 0, 0)
-                if (mouse.y >= p3.y - margin && mouse.y < p3.y + commentsSection.commentResizeDivider.height + margin) {
-                    resizeOverlay.activeDivider = 3
-                    resizeOverlay.startGlobalY = resizeOverlay.mapToGlobal(mouse.x, mouse.y).y
-                    resizeOverlay.startHeight = commentsSection.commentInputHeight
-                    mouse.accepted = true
-                    return
+                onReleased: {
+                    resizeOverlay.activeDivider = 0;
                 }
-                mouse.accepted = false
-            }
-            onPositionChanged: function (mouse) {
-                if (resizeOverlay.activeDivider === 0) return
-                var cur = resizeOverlay.mapToGlobal(mouse.x, mouse.y).y
-                var delta = cur - resizeOverlay.startGlobalY
-                if (resizeOverlay.activeDivider === 1) {
-                    pane.topSectionHeight = Math.max(150, resizeOverlay.startHeight + delta)
-                } else if (resizeOverlay.activeDivider === 2) {
-                    pane.epicSectionHeight = Math.max(150, resizeOverlay.startHeight + delta)
-                } else if (resizeOverlay.activeDivider === 3) {
-                    commentsSection.commentInputHeight = Math.max(160, resizeOverlay.startHeight + delta)
-                }
-            }
-            onReleased: {
-                resizeOverlay.activeDivider = 0
             }
         }
-    }
     } // detailsContentWrapper
 
     Rectangle {
@@ -673,8 +689,12 @@ Item {
         }
         MouseArea {
             anchors.fill: parent
-            onPressed: function (event) { event.accepted = true }
-            onReleased: function (event) { event.accepted = true }
+            onPressed: function (event) {
+                event.accepted = true;
+            }
+            onReleased: function (event) {
+                event.accepted = true;
+            }
         }
         ColumnLayout {
             anchors.centerIn: parent

@@ -28,8 +28,16 @@ Rectangle {
                 radius: Kirigami.Units.smallSpacing / 2
                 color: root.containsMouse ? Kirigami.Theme.highlightColor : Kirigami.Theme.textColor
                 opacity: root.containsMouse ? 1 : 0.6
-                Behavior on color { ColorAnimation { duration: 150 } }
-                Behavior on opacity { NumberAnimation { duration: 150 } }
+                Behavior on color {
+                    ColorAnimation {
+                        duration: 150
+                    }
+                }
+                Behavior on opacity {
+                    NumberAnimation {
+                        duration: 150
+                    }
+                }
             }
         }
     }
@@ -41,8 +49,14 @@ Rectangle {
         hoverEnabled: true
         cursorShape: containsMouse ? Qt.SizeVerCursor : Qt.ArrowCursor
         propagateComposedEvents: true
-        onPressed: function (mouse) { mouse.accepted = false; }
-        onReleased: function (mouse) { mouse.accepted = false; }
-        onPositionChanged: function (mouse) { mouse.accepted = false; }
+        onPressed: function (mouse) {
+            mouse.accepted = false;
+        }
+        onReleased: function (mouse) {
+            mouse.accepted = false;
+        }
+        onPositionChanged: function (mouse) {
+            mouse.accepted = false;
+        }
     }
 }

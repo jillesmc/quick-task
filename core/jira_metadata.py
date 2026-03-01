@@ -69,7 +69,9 @@ class JiraFieldMetadata:
     schema_type: str = ""
     schema_system: Optional[str] = None
     schema_custom: Optional[str] = None
-    schema_raw: Optional[Dict[str, Any]] = None  # full schema from GET /field (for real_type)
+    schema_raw: Optional[Dict[str, Any]] = (
+        None  # full schema from GET /field (for real_type)
+    )
 
 
 def schema_to_real_type(schema: Optional[Dict[str, Any]]) -> str:
@@ -96,7 +98,11 @@ def schema_to_real_type(schema: Optional[Dict[str, Any]]) -> str:
         return "Select List (multiple choices)"
 
     # Assets objects: array + items cmdb-object-field + custom cmdb
-    if stype == "array" and "cmdb-object-field" in items_str and "cmdb-object-cftype" in custom_str:
+    if (
+        stype == "array"
+        and "cmdb-object-field" in items_str
+        and "cmdb-object-cftype" in custom_str
+    ):
         return "Assets objects"
 
     # System fields
@@ -351,9 +357,13 @@ def project_to_dict(project: JiraProject) -> Dict[str, Any]:
         "id": (project.id or "").strip() if project.id else "",
         "key": (project.key or "").strip() if project.key else "",
         "name": (project.name or "").strip() if project.name else "",
-        "project_type_key": (project.project_type_key or "").strip() if project.project_type_key else "",
+        "project_type_key": (
+            (project.project_type_key or "").strip() if project.project_type_key else ""
+        ),
         "avatar_url": project.avatar_url or "",
-        "description": (project.description or "").strip() if project.description else "",
+        "description": (
+            (project.description or "").strip() if project.description else ""
+        ),
         "lead": (project.lead or "").strip() if project.lead else "",
     }
 

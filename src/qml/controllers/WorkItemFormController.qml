@@ -35,36 +35,36 @@ Item {
 
     property bool _createInProgress: false
 
-    signal createRequested()
+    signal createRequested
     signal validationChanged(bool isValid)
-    signal createStarted()
+    signal createStarted
     signal createCompleted(string issueKey, string issueUrl)
     signal createFailed(string errorMessage)
 
     function validate() {
         if (!workItemModel) {
-            isValid = false
-            validationChanged(false)
-            return false
+            isValid = false;
+            validationChanged(false);
+            return false;
         }
 
-        var result = Validators.validateWorkItemForm(workItemModel)
-        isValid = result.isValid
-        validationChanged(result.isValid)
-        return result.isValid
+        var result = Validators.validateWorkItemForm(workItemModel);
+        isValid = result.isValid;
+        validationChanged(result.isValid);
+        return result.isValid;
     }
 
     function prepareCreateData() {
         if (!workItemModel) {
-            return null
+            return null;
         }
 
-        var worklogInicioStr = ""
+        var worklogInicioStr = "";
         if (workItemModel.registrarWorklog && workItemModel.worklogInicio) {
-            worklogInicioStr = workItemModel.worklogInicio
+            worklogInicioStr = workItemModel.worklogInicio;
         }
 
-        var parentEpicKey = workItemModel.epicParentKey || ""
+        var parentEpicKey = workItemModel.epicParentKey || "";
 
         return {
             summary: workItemModel.summary || "",
@@ -82,72 +82,56 @@ Item {
             parentEpicKey: parentEpicKey,
             pendingAttachments: workItemModel.pendingAttachments || [],
             prioridade: workItemModel.prioridade || "Medium"
-        }
+        };
     }
 
     function createIssue() {
         if (!enabled) {
-            return
+            return;
         }
 
         if (!validate()) {
-            createFailed("Por favor, preencha todos os campos obrigatórios")
-            return
+            createFailed("Por favor, preencha todos os campos obrigatórios");
+            return;
         }
 
         if (!jiraService || !jiraService.isAvailable()) {
-            createFailed(jiraService ? jiraService.getErrorMessage() : "Serviço Jira não disponível")
-            return
+            createFailed(jiraService ? jiraService.getErrorMessage() : "Serviço Jira não disponível");
+            return;
         }
 
-        createRequested()
-        createStarted()
-        _createInProgress = true
+        createRequested();
+        createStarted();
+        _createInProgress = true;
 
-        var data = prepareCreateData()
+        var data = prepareCreateData();
         if (!data) {
-            _createInProgress = false
-            createFailed("Erro ao preparar dados para criação")
-            return
+            _createInProgress = false;
+            createFailed("Erro ao preparar dados para criação");
+            return;
         }
 
-        jiraService.createIssue(
-            data.summary,
-            data.description,
-            data.tipoAtividade,
-            data.statusInicial,
-            data.documentacaoAnexa,
-            data.utilizacaoIA,
-            data.valorEntregue,
-            data.plataformasAfetadas,
-            data.registrarWorklog,
-            data.worklogInicio,
-            data.worklogDuracao,
-            "",
-            data.parentEpicKey,
-            data.worklogComment,
-            data.pendingAttachments || [],
-            data.prioridade || "Medium"
-        )
+        jiraService.createIssue(data.summary, data.description, data.tipoAtividade, data.statusInicial, data.documentacaoAnexa, data.utilizacaoIA, data.valorEntregue, data.plataformasAfetadas, data.registrarWorklog, data.worklogInicio, data.worklogDuracao, "", data.parentEpicKey, data.worklogComment, data.pendingAttachments || [], data.prioridade || "Medium");
     }
 
     function reset() {
-        isValid = false
-        validationChanged(false)
+        isValid = false;
+        validationChanged(false);
     }
 
     Connections {
         target: root.jiraService
 
         function onIssueCreated(issueKey, issueUrl) {
-            root._createInProgress = false
-            root.createCompleted(issueKey, issueUrl)
+            root._createInProgress = false;
+            root.createCompleted(issueKey, issueUrl);
         }
 
         function onErrorOccurred(errorMessage) {
-            if (!root._createInProgress) return
-            root._createInProgress = false
-            root.createFailed(errorMessage)
+            if (!root._createInProgress)
+                return;
+            root._createInProgress = false;
+            root.createFailed(errorMessage);
         }
     }
 
@@ -156,26 +140,26 @@ Item {
 
         function onSummaryChanged() {
             if (root.enabled) {
-                root.validate()
+                root.validate();
             }
         }
 
         function onTipoAtividadeChanged() {
             if (root.enabled) {
-                root.validate()
+                root.validate();
             }
         }
 
         function onStatusInicialChanged() {
             if (root.enabled) {
-                root.validate()
+                root.validate();
             }
         }
     }
 
     Component.onCompleted: {
         if (root.enabled) {
-            root.validate()
+            root.validate();
         }
     }
 }

@@ -1064,8 +1064,12 @@ class AtlassianService(QObject):
     )  # lista de epics para paginação incremental (list[dict], nextPageToken)
     # Signals genéricos para busca de parent work item (incluem tipo para não misturar buscas)
     parentSearchStarted = Signal(str)  # parent_issue_type
-    parentSearchCompleted = Signal(str, "QVariant", str)  # parent_issue_type, results, next_token
-    parentSearchPageCompleted = Signal(str, "QVariant", str)  # parent_issue_type, results, next_token
+    parentSearchCompleted = Signal(
+        str, "QVariant", str
+    )  # parent_issue_type, results, next_token
+    parentSearchPageCompleted = Signal(
+        str, "QVariant", str
+    )  # parent_issue_type, results, next_token
     # Signals específicos para carregamento de detalhes de issue (modo assíncrono)
     issueDetailsStarted = Signal(str)  # issueKey
     issueDetailsLoaded = Signal("QVariant")  # dict com detalhes da issue
@@ -1116,7 +1120,9 @@ class AtlassianService(QObject):
             self._config = (
                 config_manager if config_manager is not None else ConfigManager()
             )
-            debug_log("AtlassianService", "__init__", "Configuração carregada com sucesso")
+            debug_log(
+                "AtlassianService", "__init__", "Configuração carregada com sucesso"
+            )
         except Exception as e:
             print(f"Erro ao carregar configuração: {e}", file=sys.stderr)
             self._config = None
@@ -1279,7 +1285,9 @@ class AtlassianService(QObject):
             from src.utils.debug import debug_log
 
             debug_log(
-                "AtlassianService", "reloadConfiguration", "Recarregando configuração..."
+                "AtlassianService",
+                "reloadConfiguration",
+                "Recarregando configuração...",
             )
 
             # Recarregar ConfigManager
@@ -1325,7 +1333,9 @@ class AtlassianService(QObject):
         except Exception as e:
             from src.utils.debug import debug_log
 
-            debug_log("AtlassianService", "reloadConfiguration", "Erro ao recarregar: %s", e)
+            debug_log(
+                "AtlassianService", "reloadConfiguration", "Erro ao recarregar: %s", e
+            )
             # Manter estado anterior em caso de erro
 
     @Slot(
@@ -1854,12 +1864,16 @@ class AtlassianService(QObject):
         if is_pagination:
             worker.pageReady.connect(self.epicSearchPageCompleted.emit)
             worker.pageReady.connect(
-                lambda results, token: self.parentSearchPageCompleted.emit("Epic", results, token)
+                lambda results, token: self.parentSearchPageCompleted.emit(
+                    "Epic", results, token
+                )
             )
         else:
             worker.resultsReady.connect(self.epicSearchCompleted.emit)
             worker.resultsReady.connect(
-                lambda results, token: self.parentSearchCompleted.emit("Epic", results, token)
+                lambda results, token: self.parentSearchCompleted.emit(
+                    "Epic", results, token
+                )
             )
         worker.errorOccurred.connect(self.errorOccurred.emit)
 

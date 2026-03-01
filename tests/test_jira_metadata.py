@@ -221,7 +221,12 @@ def test_parse_projects_response_paginated():
     """Parse aceita resposta paginada com chave 'values'."""
     data = {
         "values": [
-            {"id": "100", "key": "PRJ", "name": "My Project", "projectTypeKey": "software"},
+            {
+                "id": "100",
+                "key": "PRJ",
+                "name": "My Project",
+                "projectTypeKey": "software",
+            },
         ],
         "total": 1,
     }
@@ -388,7 +393,18 @@ def test_project_to_dict_empty_strings():
     d = project_to_dict(p)
     assert d["id"] == ""
     assert d["name"] == ""
-    assert all(isinstance(d[k], str) for k in ("id", "key", "name", "project_type_key", "avatar_url", "description", "lead"))
+    assert all(
+        isinstance(d[k], str)
+        for k in (
+            "id",
+            "key",
+            "name",
+            "project_type_key",
+            "avatar_url",
+            "description",
+            "lead",
+        )
+    )
 
 
 def test_issue_type_to_dict():

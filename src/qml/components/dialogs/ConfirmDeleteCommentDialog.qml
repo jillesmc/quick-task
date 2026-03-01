@@ -24,14 +24,14 @@ Controls.Dialog {
     signal confirmed(string commentId)
 
     function openWith(commentIdValue) {
-        commentId = commentIdValue || ""
-        open()
+        commentId = commentIdValue || "";
+        open();
     }
 
     function centerDialog() {
         if (parent && width > 0 && height > 0 && parent.width > 0 && parent.height > 0) {
-            x = Math.max(0, (parent.width - width) / 2)
-            y = Math.max(0, (parent.height - height) / 2)
+            x = Math.max(0, (parent.width - width) / 2);
+            y = Math.max(0, (parent.height - height) / 2);
         }
     }
 
@@ -62,8 +62,8 @@ Controls.Dialog {
             Controls.Button {
                 text: qsTr("Sim")
                 onClicked: {
-                    dialog.confirmed(dialog.commentId)
-                    dialog.close()
+                    dialog.confirmed(dialog.commentId);
+                    dialog.close();
                 }
             }
         }

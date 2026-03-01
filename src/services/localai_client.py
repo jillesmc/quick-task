@@ -337,8 +337,8 @@ class LocalAIClient(QObject):
             return self._heuristic_fallback(transcription, tipo_atividade_values)
 
         system_content = (
-            (task_system_prompt or "").strip() or DEFAULT_TASK_SYSTEM_PROMPT
-        )
+            task_system_prompt or ""
+        ).strip() or DEFAULT_TASK_SYSTEM_PROMPT
         prompt = self._build_llm_prompt(transcription, tipo_atividade_values)
         r = requests.post(
             self._get_chat_completions_url(),
@@ -389,7 +389,10 @@ class LocalAIClient(QObject):
         Inicia processamento em thread (Expandir com IA).
         Emite processingComplete(dict) ou error(str) quando o worker terminar.
         """
-        if self._process_task_worker is not None and self._process_task_worker.isRunning():
+        if (
+            self._process_task_worker is not None
+            and self._process_task_worker.isRunning()
+        ):
             self.error.emit("Expandir com IA já em andamento")
             return
         transcription = (transcription or "").strip()

@@ -22,17 +22,36 @@ Rectangle {
 
     ListModel {
         id: periodModel
-        ListElement { value: "today"; label: "Today" }
-        ListElement { value: "this_week"; label: "This Week" }
-        ListElement { value: "last_week"; label: "Last Week" }
-        ListElement { value: "last_7_days"; label: "Last 7 Days" }
-        ListElement { value: "this_month"; label: "This Month" }
-        ListElement { value: "last_month"; label: "Last Month" }
+        ListElement {
+            value: "today"
+            label: "Today"
+        }
+        ListElement {
+            value: "this_week"
+            label: "This Week"
+        }
+        ListElement {
+            value: "last_week"
+            label: "Last Week"
+        }
+        ListElement {
+            value: "last_7_days"
+            label: "Last 7 Days"
+        }
+        ListElement {
+            value: "this_month"
+            label: "This Month"
+        }
+        ListElement {
+            value: "last_month"
+            label: "Last Month"
+        }
     }
 
     function indexForPeriod(period) {
         for (var i = 0; i < periodModel.count; i++) {
-            if (periodModel.get(i).value === period) return i;
+            if (periodModel.get(i).value === period)
+                return i;
         }
         return 3; // last_7_days default
     }

@@ -23,9 +23,10 @@ ColumnLayout {
     property string sharedParentWorkItemSummary: ""
     property real preferredHeight: 250
     property real minimumHeight: 150
+    property var metadataConfigModel: null
 
     signal parentWorkItemSelected(string key, string summary)
-    signal parentWorkItemCleared()
+    signal parentWorkItemCleared
 
     spacing: Kirigami.Units.smallSpacing
     Layout.fillWidth: true
@@ -44,7 +45,7 @@ ColumnLayout {
         Layout.fillHeight: true
         enabled: root.enabled
         service: root.atlassianService
-        metadataConfigModel: typeof atlassianMetadataConfigModel !== "undefined" ? atlassianMetadataConfigModel : null // qmllint disable unqualified
+        metadataConfigModel: root.metadataConfigModel
 
         Binding {
             target: root.model

@@ -6,7 +6,7 @@ import org.kde.kirigami as Kirigami
 
 Controls.Dialog {
     id: dialog
-    
+
     property bool isUpdate: false  // Se true, é uma atualização, senão é criação
     title: isUpdate ? "Task Atualizada" : "Issue Criada"
     modal: true
@@ -17,7 +17,7 @@ Controls.Dialog {
     implicitHeight: isUpdate ? 220 : 280
     width: implicitWidth
     height: implicitHeight
-    
+
     property string issueKey: ""
     property string issueUrl: ""
     property var timerService: null
@@ -29,15 +29,15 @@ Controls.Dialog {
 
     // Não usar botões padrão, vamos criar botões customizados
     standardButtons: Controls.Dialog.NoButton
-    
+
     // Centralizar o diálogo
     function centerDialog() {
         if (parent && width > 0 && height > 0) {
-            x = (parent.width - width) / 2
-            y = (parent.height - height) / 2
+            x = (parent.width - width) / 2;
+            y = (parent.height - height) / 2;
         }
     }
-    
+
     Component.onCompleted: centerDialog()
     onWidthChanged: centerDialog()
     onHeightChanged: centerDialog()
@@ -77,7 +77,7 @@ Controls.Dialog {
             wrapMode: Text.Wrap
             font.pointSize: Kirigami.Theme.defaultFont.pointSize
         }
-        
+
         // Issue Key (oculto quando mostra erro)
         Controls.Label {
             visible: dialog._errorMessage === ""
@@ -106,12 +106,12 @@ Controls.Dialog {
                 cursorShape: Qt.PointingHandCursor
                 onClicked: {
                     if (dialog.issueUrl) {
-                        Qt.openUrlExternally(dialog.issueUrl)
+                        Qt.openUrlExternally(dialog.issueUrl);
                     }
                 }
             }
         }
-        
+
         // Espaçador para empurrar botões para baixo (oculto quando mostra erro)
         Item {
             Layout.fillHeight: true
@@ -146,18 +146,19 @@ Controls.Dialog {
             enabled: dialog.timerService && dialog.timerModel && !dialog._waitingForInProgress
 
             onClicked: {
-                if (!dialog.timerService || !dialog.issueKey) return
+                if (!dialog.timerService || !dialog.issueKey)
+                    return;
                 if (dialog.jiraService && dialog.jiraService.transitionToInProgressIfNeeded && dialog.jiraService.transitionToInProgressIfNeeded(dialog.issueKey)) {
-                    dialog._waitingForInProgress = true
+                    dialog._waitingForInProgress = true;
                     if (dialog.applicationWindow && dialog.applicationWindow._jiraErrorShownInCreateFlow !== undefined) {
-                        dialog.applicationWindow._jiraErrorShownInCreateFlow = true
+                        dialog.applicationWindow._jiraErrorShownInCreateFlow = true;
                     }
                 } else {
-                    dialog.timerService.start(dialog.issueKey)
+                    dialog.timerService.start(dialog.issueKey);
                     if (!dialog.isUpdate && dialog.applicationWindow && typeof dialog.applicationWindow.navigateToIssue === "function") {
-                        dialog.applicationWindow.navigateToIssue(dialog.issueKey)
+                        dialog.applicationWindow.navigateToIssue(dialog.issueKey);
                     }
-                    dialog.close()
+                    dialog.close();
                 }
             }
         }
@@ -166,40 +167,44 @@ Controls.Dialog {
             target: dialog.jiraService || null
             function onInProgressReady(key) {
                 if (dialog._waitingForInProgress && key === dialog.issueKey) {
-                    dialog._waitingForInProgress = false
+                    dialog._waitingForInProgress = false;
                     if (dialog.applicationWindow && dialog.applicationWindow._jiraErrorShownInCreateFlow !== undefined) {
-                        dialog.applicationWindow._jiraErrorShownInCreateFlow = false
+                        dialog.applicationWindow._jiraErrorShownInCreateFlow = false;
                     }
-                    if (dialog.timerService) dialog.timerService.start(key)
+                    if (dialog.timerService)
+                        dialog.timerService.start(key);
                     if (!dialog.isUpdate && dialog.applicationWindow && typeof dialog.applicationWindow.navigateToIssue === "function") {
-                        dialog.applicationWindow.navigateToIssue(key)
+                        dialog.applicationWindow.navigateToIssue(key);
                     }
-                    dialog.close()
+                    dialog.close();
                 }
             }
             function onErrorOccurred(message) {
                 if (dialog._waitingForInProgress) {
-                    dialog._waitingForInProgress = false
-                    dialog._errorMessage = message || qsTr("Erro ao transicionar")
+                    dialog._waitingForInProgress = false;
+                    dialog._errorMessage = message || qsTr("Erro ao transicionar");
                     // Erro mostrado neste diálogo; Pane e MyIssuesPage não devem abrir ErrorDialog/ProcessDialog
                 }
             }
         }
-        
+
         // Botões: Abrir (quando há URL e sem erro), Fechar
         RowLayout {
             Layout.fillWidth: true
             Layout.alignment: Qt.AlignHCenter
             Layout.topMargin: Kirigami.Units.smallSpacing
 
-            Item { Layout.fillWidth: true }
+            Item {
+                Layout.fillWidth: true
+            }
             Controls.Button {
                 visible: dialog._errorMessage === "" && !dialog.isUpdate && dialog.issueUrl !== ""
                 text: qsTr("Abrir")
                 Layout.preferredWidth: 120
                 onClicked: {
-                    if (dialog.issueUrl) Qt.openUrlExternally(dialog.issueUrl)
-                    dialog.close()
+                    if (dialog.issueUrl)
+                        Qt.openUrlExternally(dialog.issueUrl);
+                    dialog.close();
                 }
             }
             Controls.Button {
@@ -207,14 +212,16 @@ Controls.Dialog {
                 Layout.preferredWidth: 120
                 onClicked: dialog.close()
             }
-            Item { Layout.fillWidth: true }
+            Item {
+                Layout.fillWidth: true
+            }
         }
     }
 
     function show(key, url, update) {
-        issueKey = key
-        issueUrl = url || ""
-        isUpdate = update || false
-        open()
+        issueKey = key;
+        issueUrl = url || "";
+        isUpdate = update || false;
+        open();
     }
 }

@@ -622,7 +622,9 @@ def test_get_jira_cli_config_path_default_is_config_dir(config_manager):
         default_path.unlink()
     assert config_manager.get_jira_cli_config_path() is None
     default_path.parent.mkdir(parents=True, exist_ok=True)
-    default_path.write_text("login: a@b.com\nserver: https://jira.example.com\n", encoding="utf-8")
+    default_path.write_text(
+        "login: a@b.com\nserver: https://jira.example.com\n", encoding="utf-8"
+    )
     try:
         assert config_manager.get_jira_cli_config_path() == default_path
     finally:

@@ -54,22 +54,26 @@ ColumnLayout {
     signal epicCleared
 
     function _itemKey(it) {
-        if (!it) return "";
+        if (!it)
+            return "";
         var k = it["key"] !== undefined ? it["key"] : it.key;
         return (k !== undefined && k !== null) ? String(k) : "";
     }
     function _itemNameOrKey(it) {
-        if (!it) return "";
+        if (!it)
+            return "";
         var n = it["name"] !== undefined ? it["name"] : it.name;
         var k = it["key"] !== undefined ? it["key"] : it.key;
-        if (n !== undefined && n !== null && String(n).length > 0) return String(n);
-        if (k !== undefined && k !== null && String(k).length > 0) return String(k);
+        if (n !== undefined && n !== null && String(n).length > 0)
+            return String(n);
+        if (k !== undefined && k !== null && String(k).length > 0)
+            return String(k);
         return "";
     }
 
     spacing: Kirigami.Units.smallSpacing
 
-    component ProjectFilterCheckBox : Controls.CheckBox {
+    component ProjectFilterCheckBox: Controls.CheckBox {
         required property int index
         required property var formRoot
         readonly property var item: formRoot._availableProjects[index] || null

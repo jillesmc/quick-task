@@ -373,7 +373,11 @@ class JiraClient:
             params["expand"] = expand
         response = self._make_request("GET", "project", params=params or None)
         data = response.json()
-        if isinstance(data, dict) and "values" in data and isinstance(data["values"], list):
+        if (
+            isinstance(data, dict)
+            and "values" in data
+            and isinstance(data["values"], list)
+        ):
             data = data["values"]
         return _jira_meta.parse_projects_response(data)
 
@@ -433,7 +437,9 @@ class JiraClient:
                 return _jira_meta.parse_createmeta_fields(fields_dict)
         return []
 
-    def get_editmeta_fields(self, issue_id_or_key: str) -> List["_jira_meta.JiraFieldMetadata"]:
+    def get_editmeta_fields(
+        self, issue_id_or_key: str
+    ) -> List["_jira_meta.JiraFieldMetadata"]:
         """
         Obtém campos editáveis de uma issue (GET /rest/api/3/issue/{idOrKey}/editmeta).
         Retorna lista de JiraFieldMetadata (mesma estrutura de createmeta).

@@ -19,26 +19,31 @@ Rectangle {
     signal resolveRequested(var item)
 
     function formatTime(createdTimeStr) {
-        if (!createdTimeStr || typeof createdTimeStr !== "string") return ""
-        var s = createdTimeStr.trim()
-        if (s.length < 10) return s
-        var datePart = s.indexOf("T") >= 0 ? s.split("T")[0] : s.substring(0, 10)
-        var parts = datePart.split("-")
+        if (!createdTimeStr || typeof createdTimeStr !== "string")
+            return "";
+        var s = createdTimeStr.trim();
+        if (s.length < 10)
+            return s;
+        var datePart = s.indexOf("T") >= 0 ? s.split("T")[0] : s.substring(0, 10);
+        var parts = datePart.split("-");
         if (parts.length >= 3) {
-            var d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]))
+            var d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
             if (!isNaN(d.getTime())) {
-                var now = new Date()
-                var delta = now - d
-                var mins = Math.floor(delta / 60000)
-                var hours = Math.floor(delta / 3600000)
-                var days = Math.floor(delta / 86400000)
-                if (mins < 60) return qsTr("Há %1 min").arg(mins)
-                if (hours < 24) return qsTr("Há %1 h").arg(hours)
-                if (days < 7) return qsTr("Há %1 dias").arg(days)
-                return d.toLocaleDateString(Qt.locale(), "dd/MM/yyyy")
+                var now = new Date();
+                var delta = now - d;
+                var mins = Math.floor(delta / 60000);
+                var hours = Math.floor(delta / 3600000);
+                var days = Math.floor(delta / 86400000);
+                if (mins < 60)
+                    return qsTr("Há %1 min").arg(mins);
+                if (hours < 24)
+                    return qsTr("Há %1 h").arg(hours);
+                if (days < 7)
+                    return qsTr("Há %1 dias").arg(days);
+                return d.toLocaleDateString(Qt.locale(), "dd/MM/yyyy");
             }
         }
-        return createdTimeStr
+        return createdTimeStr;
     }
 
     width: parent ? parent.width - Kirigami.Units.smallSpacing * 2 : 200
@@ -66,9 +71,7 @@ Rectangle {
         }
 
         Controls.Label {
-            text: root.itemData && root.itemData.author
-                ? (root.itemData.author + ": \"" + (root.itemData.content || "").substring(0, 120) + (root.itemData.content && root.itemData.content.length > 120 ? "…" : "") + "\"")
-                : ""
+            text: root.itemData && root.itemData.author ? (root.itemData.author + ": \"" + (root.itemData.content || "").substring(0, 120) + (root.itemData.content && root.itemData.content.length > 120 ? "…" : "") + "\"") : ""
             font.pointSize: Kirigami.Theme.smallFont.pointSize
             Layout.fillWidth: true
             wrapMode: Text.WordWrap
@@ -84,9 +87,7 @@ Rectangle {
         }
 
         Controls.Label {
-            text: root.itemData && root.itemData.quoted_text
-                ? (qsTr("Contexto: ") + "\"" + (root.itemData.quoted_text || "").substring(0, 80) + (root.itemData.quoted_text.length > 80 ? "…" : "") + "\"")
-                : ""
+            text: root.itemData && root.itemData.quoted_text ? (qsTr("Contexto: ") + "\"" + (root.itemData.quoted_text || "").substring(0, 80) + (root.itemData.quoted_text.length > 80 ? "…" : "") + "\"") : ""
             font.pointSize: Kirigami.Theme.smallFont.pointSize
             color: Kirigami.Theme.disabledTextColor
             Layout.fillWidth: true
@@ -101,7 +102,9 @@ Rectangle {
             Layout.alignment: Qt.AlignRight
             spacing: Kirigami.Units.smallSpacing
 
-            Item { Layout.fillWidth: true }
+            Item {
+                Layout.fillWidth: true
+            }
 
             Controls.Button {
                 text: qsTr("Abrir no Drive")
@@ -109,9 +112,9 @@ Rectangle {
                 Accessible.name: qsTr("Abrir comentário no Google Drive")
                 onClicked: {
                     if (root.itemData && root.itemData.file_url) {
-                        Qt.openUrlExternally(root.itemData.file_url)
+                        Qt.openUrlExternally(root.itemData.file_url);
                     }
-                    root.openInDriveRequested(root.itemData)
+                    root.openInDriveRequested(root.itemData);
                 }
             }
             Controls.Button {
@@ -120,7 +123,7 @@ Rectangle {
                 Accessible.name: qsTr("Importar comentário para Jira")
                 onClicked: {
                     if (root.itemData) {
-                        root.importRequested(root.itemData)
+                        root.importRequested(root.itemData);
                     }
                 }
             }
@@ -131,9 +134,9 @@ Rectangle {
                 Accessible.name: qsTr("Marcar comentário como resolvido")
                 onClicked: {
                     if (root.itemData && root.googleDriveCommentsService) {
-                        root.googleDriveCommentsService.resolveComment(root.itemData.file_id || "", root.itemData.id || "")
+                        root.googleDriveCommentsService.resolveComment(root.itemData.file_id || "", root.itemData.id || "");
                     }
-                    root.resolveRequested(root.itemData)
+                    root.resolveRequested(root.itemData);
                 }
             }
         }

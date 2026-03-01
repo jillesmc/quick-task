@@ -1,14 +1,14 @@
 /**
  * PomodoroBreakPrompt.qml
- * 
+ *
  * Componente de alerta quando pomodoro completa
  */
+pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls as Controls
 import org.kde.kirigami as Kirigami
 
-pragma ComponentBehavior: Bound
 Item {
     id: root
 
@@ -28,11 +28,11 @@ Item {
         repeat: true
         onTriggered: {
             if (root.remainingSeconds > 0) {
-                root.remainingSeconds--
+                root.remainingSeconds--;
             } else {
-                countdownTimer.stop()
+                countdownTimer.stop();
                 if (root.timerService) {
-                    root.timerService.continueWithoutBreak()
+                    root.timerService.continueWithoutBreak();
                 }
             }
         }
@@ -42,45 +42,45 @@ Item {
         target: root.timerModel || null
         function onTimeUpdated() {
             if (root.timerModel && !root.timerModel.isWaitingBreakDecision) {
-                countdownTimer.stop()
+                countdownTimer.stop();
             }
         }
     }
-    
+
     Rectangle {
         anchors.fill: parent
         color: Kirigami.Theme.backgroundColor || "#f0f0f0"
         border.color: Kirigami.Theme.highlightColor || "#3daee9"
         border.width: 2
         radius: Kirigami.Units.smallSpacing
-        
+
         ColumnLayout {
             anchors.fill: parent
             anchors.margins: Kirigami.Units.mediumSpacing
             spacing: Kirigami.Units.mediumSpacing
-            
+
             // Cabeçalho com botão minimizar
             RowLayout {
                 Layout.fillWidth: true
                 Layout.preferredHeight: 30
-                
+
                 Controls.Label {
                     Layout.fillWidth: true
                     text: qsTr("Timer Ativo")
                     font.bold: true
                     font.pointSize: Kirigami.Theme.defaultFont.pointSize + 1
                 }
-                
+
                 Controls.ToolButton {
                     icon.name: "window-minimize"
                     onClicked: {
                         if (root.hideWindow && typeof root.hideWindow.hide === "function") {
-                            root.hideWindow.hide()
+                            root.hideWindow.hide();
                         }
                     }
                 }
             }
-            
+
             // Título
             Controls.Label {
                 text: qsTr("Pomodoro %1 completado!").arg(root.pomodoroNum)
@@ -89,7 +89,7 @@ Item {
                 Layout.fillWidth: true
                 horizontalAlignment: Text.AlignHCenter
             }
-            
+
             // Mensagem
             Controls.Label {
                 text: qsTr("Deseja fazer uma pausa?")
@@ -97,7 +97,7 @@ Item {
                 Layout.fillWidth: true
                 horizontalAlignment: Text.AlignHCenter
             }
-            
+
             // Contador regressivo
             Controls.Label {
                 text: qsTr("Continuando automaticamente em %1s...").arg(root.remainingSeconds)
@@ -106,16 +106,16 @@ Item {
                 horizontalAlignment: Text.AlignHCenter
                 color: Kirigami.Theme.neutralTextColor || "#666666"
             }
-            
+
             Item {
                 Layout.fillHeight: true
             }
-            
+
             // Botões
             RowLayout {
                 Layout.fillWidth: true
                 spacing: Kirigami.Units.mediumSpacing
-                
+
                 Controls.Button {
                     text: qsTr("Fazer Pausa")
                     icon.name: "media-playback-pause"
@@ -123,7 +123,7 @@ Item {
                     Layout.preferredHeight: 50
                     onClicked: {
                         if (root.timerService && root.breakType) {
-                            root.timerService.acceptBreak(root.breakType)
+                            root.timerService.acceptBreak(root.breakType);
                         }
                     }
                 }
@@ -135,28 +135,28 @@ Item {
                     Layout.preferredHeight: 50
                     onClicked: {
                         if (root.timerService) {
-                            root.timerService.continueWithoutBreak()
+                            root.timerService.continueWithoutBreak();
                         }
                     }
                 }
             }
         }
     }
-    
+
     Connections {
         target: root.timerModel || null
         function onBreakDecisionRequested(pomodoro_num, break_type) {
-            root.pomodoroNum = pomodoro_num
-            root.breakType = break_type
-            root.remainingSeconds = root.autoContinueTimeout
-            countdownTimer.start()
+            root.pomodoroNum = pomodoro_num;
+            root.breakType = break_type;
+            root.remainingSeconds = root.autoContinueTimeout;
+            countdownTimer.start();
         }
     }
 
     Component.onCompleted: {
         if (root.settingsModel && root.settingsModel.autoContinueTimeoutSeconds) {
-            root.autoContinueTimeout = root.settingsModel.autoContinueTimeoutSeconds
-            root.remainingSeconds = root.autoContinueTimeout
+            root.autoContinueTimeout = root.settingsModel.autoContinueTimeoutSeconds;
+            root.remainingSeconds = root.autoContinueTimeout;
         }
     }
 }

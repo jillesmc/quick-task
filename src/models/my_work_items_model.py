@@ -115,7 +115,8 @@ class MyWorkItemsModel(QObject):
             self._config = ConfigManager()
         except Exception as e:  # pragma: no cover - log simples
             print(
-                f"Erro ao carregar configuração em MyWorkItemsModel: {e}", file=sys.stderr
+                f"Erro ao carregar configuração em MyWorkItemsModel: {e}",
+                file=sys.stderr,
             )
             self._config = None
 
@@ -158,7 +159,9 @@ class MyWorkItemsModel(QObject):
             from src.utils.debug import debug_log
 
             debug_log(
-                "MyWorkItemsModel", "reloadConfiguration", "Recarregando configuração..."
+                "MyWorkItemsModel",
+                "reloadConfiguration",
+                "Recarregando configuração...",
             )
 
             # Recarregar ConfigManager

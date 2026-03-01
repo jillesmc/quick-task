@@ -47,7 +47,8 @@ Kirigami.FormLayout {
         enabled: issueKeyField.text.trim().length > 0 && root.timerService && root.timerModel
         onClicked: {
             var issueKey = issueKeyField.text.trim();
-            if (!root.timerService || !root.timerModel || issueKey.length === 0) return;
+            if (!root.timerService || !root.timerModel || issueKey.length === 0)
+                return;
             root.timerService.start(issueKey);
         }
     }

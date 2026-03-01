@@ -52,7 +52,7 @@ RowLayout {
         Controls.TabButton {
             id: googleTabButton
             text: qsTr("Google")
-            enabled: root.googlePage && root.googlePage.googleAuthService
+            enabled: !!(root.googlePage && root.googlePage.googleAuthService)
             icon.name: (root.googlePage && root.googlePage.googleAuthService) ? "" : "process-working"
         }
 
@@ -93,62 +93,90 @@ RowLayout {
     Controls.ToolButton {
         id: globalActionButton
         text: {
-            if (root.currentTabIndex === 0) return qsTr("Criar");
-            if (root.currentTabIndex === 1) return qsTr("Atualizar task");
+            if (root.currentTabIndex === 0)
+                return qsTr("Criar");
+            if (root.currentTabIndex === 1)
+                return qsTr("Atualizar task");
             if (root.currentTabIndex === 6) {
                 if (root.settingsPage && root.settingsPage.isSaving !== undefined && root.settingsPage.isSaving) {
                     return qsTr("Salvando...");
                 }
                 return qsTr("Salvar");
             }
-            if (root.currentTabIndex === 7) return qsTr("Criar");
-            if (root.currentTabIndex === 8) return qsTr("Atualizar task");
+            if (root.currentTabIndex === 7)
+                return qsTr("Criar");
+            if (root.currentTabIndex === 8)
+                return qsTr("Atualizar task");
             return "";
         }
         icon.name: {
-            if (root.currentTabIndex === 0) return "document-new";
-            if (root.currentTabIndex === 1) return "document-save";
-            if (root.currentTabIndex === 6) return "document-save";
-            if (root.currentTabIndex === 7) return "document-new";
-            if (root.currentTabIndex === 8) return "document-save";
+            if (root.currentTabIndex === 0)
+                return "document-new";
+            if (root.currentTabIndex === 1)
+                return "document-save";
+            if (root.currentTabIndex === 6)
+                return "document-save";
+            if (root.currentTabIndex === 7)
+                return "document-new";
+            if (root.currentTabIndex === 8)
+                return "document-save";
             return "";
         }
         visible: root.currentTabIndex >= 0 && root.currentTabIndex !== 2 && root.currentTabIndex !== 3 && root.currentTabIndex !== 4 && root.currentTabIndex !== 5
         enabled: {
             if (root.currentTabIndex === 0) {
-                if (!root.createPage) return false;
-                if (root.createPage.isProcessing !== undefined && root.createPage.isProcessing) return false;
-                if (!root.issueModel) return false;
+                if (!root.createPage)
+                    return false;
+                if (root.createPage.isProcessing !== undefined && root.createPage.isProcessing)
+                    return false;
+                if (!root.issueModel)
+                    return false;
                 var s = root.issueModel.summary ? root.issueModel.summary.trim() : "";
                 return s.length > 0;
             }
             if (root.currentTabIndex === 1) {
-                if (!root.issuesPage) return false;
-                if (!root.issuesPage.controller) return false;
-                if (!root.issuesPage.selectedIssueKey) return false;
-                if (root.issuesPage.isProcessing !== undefined && root.issuesPage.isProcessing) return false;
-                if (!root.jiraService || typeof root.jiraService.isAvailable !== "function") return false;
+                if (!root.issuesPage)
+                    return false;
+                if (!root.issuesPage.controller)
+                    return false;
+                if (!root.issuesPage.selectedIssueKey)
+                    return false;
+                if (root.issuesPage.isProcessing !== undefined && root.issuesPage.isProcessing)
+                    return false;
+                if (!root.jiraService || typeof root.jiraService.isAvailable !== "function")
+                    return false;
                 return root.jiraService.isAvailable();
             }
             if (root.currentTabIndex === 6) {
-                if (!root.settingsPage) return false;
-                if (root.settingsPage.isSaving !== undefined && root.settingsPage.isSaving) return false;
-                if (root.settingsPage.isValid !== undefined && !root.settingsPage.isValid) return false;
+                if (!root.settingsPage)
+                    return false;
+                if (root.settingsPage.isSaving !== undefined && root.settingsPage.isSaving)
+                    return false;
+                if (root.settingsPage.isValid !== undefined && !root.settingsPage.isValid)
+                    return false;
                 return true;
             }
             if (root.currentTabIndex === 7) {
-                if (!root.createWorkItemPage) return false;
-                if (root.createWorkItemPage.isProcessing !== undefined && root.createWorkItemPage.isProcessing) return false;
-                if (!root.workItemModel) return false;
+                if (!root.createWorkItemPage)
+                    return false;
+                if (root.createWorkItemPage.isProcessing !== undefined && root.createWorkItemPage.isProcessing)
+                    return false;
+                if (!root.workItemModel)
+                    return false;
                 var s7 = root.workItemModel.summary ? root.workItemModel.summary.trim() : "";
                 return s7.length > 0;
             }
             if (root.currentTabIndex === 8) {
-                if (!root.myWorkItemsPage) return false;
-                if (!root.myWorkItemsPage.controller) return false;
-                if (!root.myWorkItemsPage.selectedIssueKey) return false;
-                if (root.myWorkItemsPage.isProcessing !== undefined && root.myWorkItemsPage.isProcessing) return false;
-                if (!root.jiraService || typeof root.jiraService.isAvailable !== "function") return false;
+                if (!root.myWorkItemsPage)
+                    return false;
+                if (!root.myWorkItemsPage.controller)
+                    return false;
+                if (!root.myWorkItemsPage.selectedIssueKey)
+                    return false;
+                if (root.myWorkItemsPage.isProcessing !== undefined && root.myWorkItemsPage.isProcessing)
+                    return false;
+                if (!root.jiraService || typeof root.jiraService.isAvailable !== "function")
+                    return false;
                 return root.jiraService.isAvailable();
             }
             return false;
@@ -174,8 +202,7 @@ RowLayout {
         icon.name: "lock"
         visible: {
             var page = (root.currentTabIndex === 1) ? root.issuesPage : ((root.currentTabIndex === 8) ? root.myWorkItemsPage : null);
-            return page && page.selectedIssueKey !== "" && !(page.isProcessing || false)
-                && (page._quickActionStatus || "") !== "BLOCKED";
+            return page && page.selectedIssueKey !== "" && !(page.isProcessing || false) && (page._quickActionStatus || "") !== "BLOCKED";
         }
         Controls.ToolTip.visible: hovered
         Controls.ToolTip.text: qsTr("Bloquear issue")
@@ -193,8 +220,7 @@ RowLayout {
         icon.name: "unlock"
         visible: {
             var page = (root.currentTabIndex === 1) ? root.issuesPage : ((root.currentTabIndex === 8) ? root.myWorkItemsPage : null);
-            return page && page.selectedIssueKey !== "" && !(page.isProcessing || false)
-                && (page._quickActionStatus || "") === "BLOCKED";
+            return page && page.selectedIssueKey !== "" && !(page.isProcessing || false) && (page._quickActionStatus || "") === "BLOCKED";
         }
         Controls.ToolTip.visible: hovered
         Controls.ToolTip.text: qsTr("Desbloquear e retornar para IN PROGRESS")
@@ -212,9 +238,7 @@ RowLayout {
         icon.name: "dialog-cancel"
         visible: {
             var page = (root.currentTabIndex === 1) ? root.issuesPage : ((root.currentTabIndex === 8) ? root.myWorkItemsPage : null);
-            return page && page.selectedIssueKey !== "" && !(page.isProcessing || false)
-                && (page._quickActionStatus || "") !== "CANCELED"
-                && (page._quickActionStatus || "") !== "DONE";
+            return page && page.selectedIssueKey !== "" && !(page.isProcessing || false) && (page._quickActionStatus || "") !== "CANCELED" && (page._quickActionStatus || "") !== "DONE";
         }
         Controls.ToolTip.visible: hovered
         Controls.ToolTip.text: qsTr("Cancelar issue")
@@ -231,8 +255,7 @@ RowLayout {
         text: qsTr("Atualizar")
         icon.name: "view-refresh"
         visible: root.currentTabIndex === 2
-        enabled: root.googlePage && root.googlePage.googleAuthService
-            && root.googlePage.googleAuthService.isAuthorized && !root.googlePage.isLoading
+        enabled: !!(root.googlePage && root.googlePage.googleAuthService && root.googlePage.googleAuthService.isAuthorized && !root.googlePage.isLoading)
         onClicked: {
             if (root.currentTabIndex === 2 && root.googlePage && typeof root.googlePage.reload === "function") {
                 root.googlePage.reload();
@@ -261,7 +284,7 @@ RowLayout {
         enabled: root.timesheetPage && root.timesheetPage.timesheetViewModel && !root.timesheetPage.timesheetViewModel.loading
         onClicked: {
             if (root.currentTabIndex === 5 && root.timesheetPage && root.timesheetPage.timesheetViewModel) {
-                root.timesheetPage.timesheetViewModel.refresh()
+                root.timesheetPage.timesheetViewModel.refresh();
             }
         }
     }
@@ -271,11 +294,9 @@ RowLayout {
         text: qsTr("Sincronizar")
         icon.name: "document-send"
         visible: root.currentTabIndex === 4
-        enabled: root.pendingWorklogsPage && root.pendingWorklogsPage.filteredWorklogs
-                 && root.pendingWorklogsPage.filteredWorklogs.length > 0
+        enabled: root.pendingWorklogsPage && root.pendingWorklogsPage.filteredWorklogs && root.pendingWorklogsPage.filteredWorklogs.length > 0
         onClicked: {
-            if (root.currentTabIndex === 4 && root.pendingWorklogsPage
-                    && typeof root.pendingWorklogsPage.syncAllFromToolbar === "function") {
+            if (root.currentTabIndex === 4 && root.pendingWorklogsPage && typeof root.pendingWorklogsPage.syncAllFromToolbar === "function") {
                 root.pendingWorklogsPage.syncAllFromToolbar();
             }
         }
@@ -288,8 +309,10 @@ RowLayout {
         visible: root.currentTabIndex === 1 || root.currentTabIndex === 8
         enabled: {
             var page = (root.currentTabIndex === 1) ? root.issuesPage : ((root.currentTabIndex === 8) ? root.myWorkItemsPage : null);
-            if (!page || !page.selectedIssueKey) return false;
-            if (!root.githubService || !root.githubService.available) return false;
+            if (!page || !page.selectedIssueKey)
+                return false;
+            if (!root.githubService || !root.githubService.available)
+                return false;
             return true;
         }
         onClicked: {
@@ -304,11 +327,13 @@ RowLayout {
         id: startTimerButton
         text: {
             var page = (root.currentTabIndex === 1) ? root.issuesPage : ((root.currentTabIndex === 8) ? root.myWorkItemsPage : null);
-            if (!page) return "";
+            if (!page)
+                return "";
             if (root.timerModel && root.timerModel.state === "running" && root.timerModel.issueKey === page.selectedIssueKey) {
                 return qsTr("Parar Timer");
             }
-            if (root.timerModel && root.timerModel.isOnBreak) return qsTr("Cancelar Pausa e Iniciar");
+            if (root.timerModel && root.timerModel.isOnBreak)
+                return qsTr("Cancelar Pausa e Iniciar");
             if (root.timerModel && root.timerModel.state !== "idle" && root.timerModel.issueKey !== page.selectedIssueKey) {
                 return qsTr("Parar e Iniciar");
             }
@@ -316,19 +341,24 @@ RowLayout {
         }
         icon.name: {
             var page = (root.currentTabIndex === 1) ? root.issuesPage : ((root.currentTabIndex === 8) ? root.myWorkItemsPage : null);
-            if (!page) return "";
+            if (!page)
+                return "";
             if (root.timerModel && root.timerModel.state === "running" && root.timerModel.issueKey === page.selectedIssueKey) {
                 return "media-playback-stop";
             }
-            if (root.timerModel && root.timerModel.isOnBreak) return "media-playback-start";
+            if (root.timerModel && root.timerModel.isOnBreak)
+                return "media-playback-start";
             return "chronometer";
         }
         visible: root.currentTabIndex === 1 || root.currentTabIndex === 8
         enabled: {
             var page = (root.currentTabIndex === 1) ? root.issuesPage : ((root.currentTabIndex === 8) ? root.myWorkItemsPage : null);
-            if (!page || !page.selectedIssueKey) return false;
-            if (page.isProcessing !== undefined && page.isProcessing) return false;
-            if (!root.timerService || !root.timerModel) return false;
+            if (!page || !page.selectedIssueKey)
+                return false;
+            if (page.isProcessing !== undefined && page.isProcessing)
+                return false;
+            if (!root.timerService || !root.timerModel)
+                return false;
             return true;
         }
         onClicked: {

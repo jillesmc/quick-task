@@ -34,50 +34,67 @@ Controls.Dialog {
 
     /** Slugify: minúsculas, espaços → hífen, remove acentos e não-alfanuméricos (mantém a-z, 0-9, hífen). */
     function slugify(text) {
-        if (!text || typeof text !== "string") return ""
-        var s = text.trim().toLowerCase()
+        if (!text || typeof text !== "string")
+            return "";
+        var s = text.trim().toLowerCase();
         var accents = {
-            "á": "a", "à": "a", "ã": "a", "â": "a", "é": "e", "ê": "e", "í": "i",
-            "ó": "o", "ô": "o", "õ": "o", "ú": "u", "ü": "u", "ç": "c", "ñ": "n"
-        }
-        for (var k in accents) s = s.split(k).join(accents[k])
-        s = s.replace(/\s+/g, "-")
-        s = s.replace(/[^a-z0-9-]/g, "")
-        s = s.replace(/-+/g, "-").replace(/^-|-$/g, "")
-        return s
+            "á": "a",
+            "à": "a",
+            "ã": "a",
+            "â": "a",
+            "é": "e",
+            "ê": "e",
+            "í": "i",
+            "ó": "o",
+            "ô": "o",
+            "õ": "o",
+            "ú": "u",
+            "ü": "u",
+            "ç": "c",
+            "ñ": "n"
+        };
+        for (var k in accents)
+            s = s.split(k).join(accents[k]);
+        s = s.replace(/\s+/g, "-");
+        s = s.replace(/[^a-z0-9-]/g, "");
+        s = s.replace(/-+/g, "-").replace(/^-|-$/g, "");
+        return s;
     }
 
     function suggestedBranchName() {
-        var key = (root.issueKey || "").trim()
-        var slug = slugify(root.issueSummary || "")
-        if (!key) return slug || "branch"
-        if (!slug) return key
-        return key + "-" + slug
+        var key = (root.issueKey || "").trim();
+        var slug = slugify(root.issueSummary || "");
+        if (!key)
+            return slug || "branch";
+        if (!slug)
+            return key;
+        return key + "-" + slug;
     }
 
     function openWith(key, summary, repo, service) {
-        issueKey = key || ""
-        issueSummary = summary || ""
-        initialRepo = (repo || "").trim()
-        githubService = service || null
-        githubAvailable = !!(service && service.available)
-        repoSearchText = ""
-        repoSearchResultsModel.clear()
-        selectedRepo = initialRepo
-        selectedDefaultBranch = ""
-        errorLabel.text = ""
-        createButton.enabled = true
-        open()
+        issueKey = key || "";
+        issueSummary = summary || "";
+        initialRepo = (repo || "").trim();
+        githubService = service || null;
+        githubAvailable = !!(service && service.available);
+        repoSearchText = "";
+        repoSearchResultsModel.clear();
+        selectedRepo = initialRepo;
+        selectedDefaultBranch = "";
+        errorLabel.text = "";
+        createButton.enabled = true;
+        open();
     }
 
     onOpened: {
-        githubAvailable = !!(root.githubService && root.githubService.available)
-        repoSearchField.text = selectedRepo
-        branchNameField.text = suggestedBranchName()
-        baseField.text = selectedDefaultBranch
+        githubAvailable = !!(root.githubService && root.githubService.available);
+        repoSearchField.text = selectedRepo;
+        branchNameField.text = suggestedBranchName();
+        baseField.text = selectedDefaultBranch;
         if (initialRepo && githubService && typeof githubService.searchRepositories === "function") {
-            var part = initialRepo.indexOf("/") >= 0 ? initialRepo.split("/").pop() : initialRepo
-            if (part.length >= 2) githubService.searchRepositories(part)
+            var part = initialRepo.indexOf("/") >= 0 ? initialRepo.split("/").pop() : initialRepo;
+            if (part.length >= 2)
+                githubService.searchRepositories(part);
         }
     }
 
@@ -94,69 +111,75 @@ Controls.Dialog {
         id: debounceTimer
         interval: 350
         onTriggered: {
-            var q = root.repoSearchText.trim()
-            var ok = root.githubService && q.length >= 2
-            console.log("[CreateBranchDialog] debounceTimer: query='" + q + "' len=" + q.length + " calling API=" + ok)
+            var q = root.repoSearchText.trim();
+            var ok = root.githubService && q.length >= 2;
+            console.log("[CreateBranchDialog] debounceTimer: query='" + q + "' len=" + q.length + " calling API=" + ok);
             if (ok) {
-                root.githubService.searchRepositories(q)
+                root.githubService.searchRepositories(q);
             } else {
-                root.repoSearchResultsModel.clear()
+                root.repoSearchResultsModel.clear();
             }
         }
     }
 
     onRepoSearchTextChanged: {
-        console.log("[CreateBranchDialog] repoSearchTextChanged: '" + repoSearchText + "' len=" + repoSearchText.trim().length)
-        debounceTimer.restart()
+        console.log("[CreateBranchDialog] repoSearchTextChanged: '" + repoSearchText + "' len=" + repoSearchText.trim().length);
+        debounceTimer.restart();
         if (repoSearchText.trim().length < 2) {
-            root.repoSearchResultsModel.clear()
+            root.repoSearchResultsModel.clear();
         }
     }
 
     Connections {
         target: root.githubService || null
         function onReposSearchResults(queryUsed, list) {
-            var raw = list || []
-            var currentQuery = root.repoSearchText.trim()
-            var n = raw.length
-            console.log("[CreateBranchDialog] onReposSearchResults: queryUsed='" + (queryUsed || "") + "' currentQuery='" + currentQuery + "' count=" + n)
+            var raw = list || [];
+            var currentQuery = root.repoSearchText.trim();
+            var n = raw.length;
+            console.log("[CreateBranchDialog] onReposSearchResults: queryUsed='" + (queryUsed || "") + "' currentQuery='" + currentQuery + "' count=" + n);
             if ((queryUsed || "").trim() !== currentQuery) {
-                console.log("[CreateBranchDialog] resultado obsoleto (query mudou), buscando novamente com '" + currentQuery + "'")
-                if (root.githubService && currentQuery.length >= 2) root.githubService.searchRepositories(currentQuery)
-                return
+                console.log("[CreateBranchDialog] resultado obsoleto (query mudou), buscando novamente com '" + currentQuery + "'");
+                if (root.githubService && currentQuery.length >= 2)
+                    root.githubService.searchRepositories(currentQuery);
+                return;
             }
-            var names = []
+            var names = [];
             for (var i = 0; i < raw.length; i++) {
-                var item = raw[i]
-                var fn = (item && (item.full_name !== undefined ? item.full_name : item.fullName)) || ""
-                names.push(fn)
+                var item = raw[i];
+                var fn = (item && (item.full_name !== undefined ? item.full_name : item.fullName)) || "";
+                names.push(fn);
             }
-            console.log("[CreateBranchDialog] repos no resultado: " + names.join(" | "))
-            root.repoSearchResultsModel.clear()
+            console.log("[CreateBranchDialog] repos no resultado: " + names.join(" | "));
+            root.repoSearchResultsModel.clear();
             for (var k = 0; k < raw.length; k++) {
-                var it = raw[k]
-                var fullName = (it && (it.full_name !== undefined ? it.full_name : it.fullName)) || ""
-                var defaultBranch = (it && (it.default_branch !== undefined ? it.default_branch : it.defaultBranch)) || "main"
-                root.repoSearchResultsModel.append({ "full_name": fullName, "default_branch": defaultBranch })
+                var it = raw[k];
+                var fullName = (it && (it.full_name !== undefined ? it.full_name : it.fullName)) || "";
+                var defaultBranch = (it && (it.default_branch !== undefined ? it.default_branch : it.defaultBranch)) || "main";
+                root.repoSearchResultsModel.append({
+                    "full_name": fullName,
+                    "default_branch": defaultBranch
+                });
             }
-            if (!root.selectedRepo) return
+            if (!root.selectedRepo)
+                return;
             for (var j = 0; j < root.repoSearchResultsModel.count; j++) {
-                var fn2 = root.repoSearchResultsModel.get(j).full_name
+                var fn2 = root.repoSearchResultsModel.get(j).full_name;
                 if (fn2 === root.selectedRepo) {
-                    root.selectedDefaultBranch = root.repoSearchResultsModel.get(j).default_branch
-                    baseField.text = root.selectedDefaultBranch
-                    break
+                    root.selectedDefaultBranch = root.repoSearchResultsModel.get(j).default_branch;
+                    baseField.text = root.selectedDefaultBranch;
+                    break;
                 }
             }
         }
         function onBranchCreated(owner, repo, branchName, url) {
-            root.close()
-            if (url) Qt.openUrlExternally(url)
-            root.branchCreatedSuccess(url || "")
+            root.close();
+            if (url)
+                Qt.openUrlExternally(url);
+            root.branchCreatedSuccess(url || "");
         }
         function onErrorOccurred(message) {
-            errorLabel.text = message || ""
-            createButton.enabled = true
+            errorLabel.text = message || "";
+            createButton.enabled = true;
         }
     }
 
@@ -188,9 +211,9 @@ Controls.Dialog {
                 placeholderText: qsTr("ex.: owner/repo ou parte do nome (digite 2+ caracteres para buscar)")
                 Layout.fillWidth: true
                 onTextEdited: {
-                    root.repoSearchText = text
-                    root.selectedRepo = text.trim()
-                    root.selectedDefaultBranch = ""
+                    root.repoSearchText = text;
+                    root.selectedRepo = text.trim();
+                    root.selectedDefaultBranch = "";
                 }
             }
             Controls.Frame {
@@ -224,12 +247,12 @@ Controls.Dialog {
                             verticalAlignment: Text.AlignVCenter
                         }
                         onClicked: {
-                            root.selectedRepo = repoDelegate.full_name || ""
-                            root.selectedDefaultBranch = repoDelegate.default_branch || "main"
-                            repoSearchField.text = root.selectedRepo
-                            baseField.text = root.selectedDefaultBranch
-                            root.repoSearchResultsModel.clear()
-                            repoSearchField.focus = false
+                            root.selectedRepo = repoDelegate.full_name || "";
+                            root.selectedDefaultBranch = repoDelegate.default_branch || "main";
+                            repoSearchField.text = root.selectedRepo;
+                            baseField.text = root.selectedDefaultBranch;
+                            root.repoSearchResultsModel.clear();
+                            repoSearchField.focus = false;
                         }
                     }
                 }
@@ -274,26 +297,25 @@ Controls.Dialog {
                 text: qsTr("Criar")
                 Layout.alignment: Qt.AlignRight
                 onClicked: {
-                    var ownerRepo = root.selectedRepo.trim()
-                    var name = branchNameField.text.trim()
+                    var ownerRepo = root.selectedRepo.trim();
+                    var name = branchNameField.text.trim();
                     if (!ownerRepo) {
-                        errorLabel.text = qsTr("Selecione ou digite o repositório (owner/repo).")
-                        return
+                        errorLabel.text = qsTr("Selecione ou digite o repositório (owner/repo).");
+                        return;
                     }
                     if (!name) {
-                        errorLabel.text = qsTr("Informe o nome da branch.")
-                        return
+                        errorLabel.text = qsTr("Informe o nome da branch.");
+                        return;
                     }
                     if (!root.githubService || typeof root.githubService.createBranch !== "function") {
-                        errorLabel.text = qsTr("GitHub não configurado. Configure o token nas configurações.")
-                        return
+                        errorLabel.text = qsTr("GitHub não configurado. Configure o token nas configurações.");
+                        return;
                     }
-                    errorLabel.text = ""
-                    createButton.enabled = false
-                    root.githubService.createBranch(ownerRepo, name, baseField.text.trim())
+                    errorLabel.text = "";
+                    createButton.enabled = false;
+                    root.githubService.createBranch(ownerRepo, name, baseField.text.trim());
                 }
             }
         }
     }
-
 }

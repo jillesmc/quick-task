@@ -20,14 +20,18 @@ from src.atlassian_service import AtlassianService, JiraWorker
 def atlassian_service(qtbot, mock_atlassian_client, mock_config_manager):
     """Fixture para AtlassianService com dependências mockadas"""
     with (
-        patch("src.atlassian_service.AtlassianClient", return_value=mock_atlassian_client),
+        patch(
+            "src.atlassian_service.AtlassianClient", return_value=mock_atlassian_client
+        ),
         patch("src.atlassian_service.ConfigManager", return_value=mock_config_manager),
     ):
         service = AtlassianService()
         return service
 
 
-def test_atlassian_service_init(atlassian_service, mock_atlassian_client, mock_config_manager):
+def test_atlassian_service_init(
+    atlassian_service, mock_atlassian_client, mock_config_manager
+):
     """Testa inicialização do serviço"""
     assert atlassian_service._jira_client is not None
     assert atlassian_service._config is not None
@@ -38,7 +42,9 @@ def test_atlassian_service_is_available(atlassian_service):
     assert atlassian_service.isAvailable() is True
 
 
-def test_atlassian_service_create_issue_success(atlassian_service, qtbot, mock_atlassian_client):
+def test_atlassian_service_create_issue_success(
+    atlassian_service, qtbot, mock_atlassian_client
+):
     """Testa criação de issue com sucesso (API espelhada ao JiraService)"""
     mock_worker = MagicMock(spec=JiraWorker)
     mock_worker.isRunning = MagicMock(return_value=False)

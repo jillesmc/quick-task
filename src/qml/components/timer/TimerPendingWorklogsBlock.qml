@@ -14,7 +14,7 @@ ColumnLayout {
 
     property var pendingWorklogs: []
     property var worklogSyncService: null
-    signal refreshRequested()
+    signal refreshRequested
 
     Controls.Label {
         text: qsTr("Worklogs Pendentes")

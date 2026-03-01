@@ -13,6 +13,7 @@ import "../components/forms"
 import "../components/controls"
 import "../components/fields"
 import "../utils/DialogHelpers.js" as DialogHelpers
+
 Kirigami.Page {
     id: page
 
@@ -28,12 +29,14 @@ Kirigami.Page {
 
     // Registrar worklog só permitido quando status inicial é IN PROGRESS ou posterior
     property bool registrarWorklogEnabled: {
-        if (!workItemModel || !workItemModel.statusSequence) return false
-        var seq = workItemModel.statusSequence
-        var inDevIdx = seq.indexOf("IN PROGRESS")
-        if (inDevIdx < 0) return false
-        var statusIdx = seq.indexOf(workItemModel.statusInicial || "")
-        return statusIdx >= inDevIdx
+        if (!workItemModel || !workItemModel.statusSequence)
+            return false;
+        var seq = workItemModel.statusSequence;
+        var inDevIdx = seq.indexOf("IN PROGRESS");
+        if (inDevIdx < 0)
+            return false;
+        var statusIdx = seq.indexOf(workItemModel.statusInicial || "");
+        return statusIdx >= inDevIdx;
     }
 
     // Propriedades compartilhadas para sincronizar epic entre abas
@@ -55,10 +58,11 @@ Kirigami.Page {
     property var hideWindowFn: null
     property var timerService: null
     property var timerModel: null
-    property var _ctxVoiceInputService: typeof voiceInputService !== "undefined" ? voiceInputService : null // qmllint disable unqualified
+    property var atlassianMetadataConfigModel: null
+    property var voiceInputService: null
     /** Quando definido (ex.: aba work item), usa este em vez do contexto. */
     property var voiceInputServiceOverride: null
-    property var _effectiveVoiceInputService: (voiceInputServiceOverride !== null && voiceInputServiceOverride !== undefined) ? voiceInputServiceOverride : _ctxVoiceInputService
+    property var _effectiveVoiceInputService: (voiceInputServiceOverride !== null && voiceInputServiceOverride !== undefined) ? voiceInputServiceOverride : voiceInputService
 
     // ------------------------------------------------------------------
     // Funções públicas para integração com Main.qml (botão global)
@@ -165,7 +169,7 @@ Kirigami.Page {
             id: splitView
             anchors.fill: parent
             orientation: Qt.Horizontal
-            handle: SplitViewHandle { }
+            handle: SplitViewHandle {}
 
             // Coluna Esquerda: Summary, Description e Epic Parent (ScrollView único com dividers)
             Controls.ScrollView {
@@ -186,17 +190,19 @@ Kirigami.Page {
                     Component.onCompleted: {
                         function initSectionHeights() {
                             if (leftScrollView.availableHeight > 200) {
-                                var spacing = Kirigami.Units.largeSpacing
-                                var dividerApprox = 24
-                                var total = leftScrollView.availableHeight - 2 * dividerApprox - 2 * spacing
-                                var half = Math.max(250, total / 2)
-                                leftScrollView.topSectionHeight = half
-                                leftScrollView.epicSectionHeight = half
+                                var spacing = Kirigami.Units.largeSpacing;
+                                var dividerApprox = 24;
+                                var total = leftScrollView.availableHeight - 2 * dividerApprox - 2 * spacing;
+                                var half = Math.max(250, total / 2);
+                                leftScrollView.topSectionHeight = half;
+                                leftScrollView.epicSectionHeight = half;
                             }
                         }
-                        Qt.callLater(initSectionHeights)
+                        Qt.callLater(initSectionHeights);
                         // Fallback: viewport pode não estar pronto no primeiro frame
-                        Qt.callLater(function() { Qt.callLater(initSectionHeights) })
+                        Qt.callLater(function () {
+                            Qt.callLater(initSectionHeights);
+                        });
                     }
 
                     ColumnLayout {
@@ -231,11 +237,11 @@ Kirigami.Page {
                                 onOpenVoiceRequested: page.openVoiceDialog()
                             }
 
-                        Item {
-                            Layout.fillHeight: true
-                            Layout.fillWidth: true
+                            Item {
+                                Layout.fillHeight: true
+                                Layout.fillWidth: true
+                            }
                         }
-                    }
 
                         DividerBar {
                             id: divider1
@@ -247,6 +253,7 @@ Kirigami.Page {
                             id: parentWorkItemBlock
                             model: page.workItemModel
                             atlassianService: page.jiraService
+                            metadataConfigModel: page.atlassianMetadataConfigModel
                             parentIssueType: "Epic"
                             enabled: !page.isProcessing
                             mode: "create"
@@ -374,9 +381,11 @@ Kirigami.Page {
                             Connections {
                                 target: page.workItemModel || null
                                 function onWorklogInicioChanged() {
-                                    if (!page.workItemModel || !worklogForm) return;
+                                    if (!page.workItemModel || !worklogForm)
+                                        return;
                                     var inicio = page.workItemModel.worklogInicio || "";
-                                    if (!inicio) return;
+                                    if (!inicio)
+                                        return;
                                     var parts = inicio.split(" ");
                                     if (parts.length >= 2) {
                                         worklogForm.setWorklogData({
@@ -388,7 +397,8 @@ Kirigami.Page {
                                     }
                                 }
                                 function onWorklogDuracaoChanged() {
-                                    if (!page.workItemModel || !worklogForm) return;
+                                    if (!page.workItemModel || !worklogForm)
+                                        return;
                                     worklogForm.setWorklogData({
                                         duration: page.workItemModel.worklogDuracao || 30
                                     });
@@ -450,7 +460,8 @@ Kirigami.Page {
                     mouse.accepted = false;
                 }
                 onPositionChanged: function (mouse) {
-                    if (resizeOverlay.activeDivider === 0) return;
+                    if (resizeOverlay.activeDivider === 0)
+                        return;
                     var cur = resizeOverlay.mapToGlobal(mouse.x, mouse.y).y;
                     var delta = cur - resizeOverlay.startGlobalY;
                     if (resizeOverlay.activeDivider === 1) {
@@ -479,8 +490,12 @@ Kirigami.Page {
         }
         MouseArea {
             anchors.fill: parent
-            onPressed: function (event) { event.accepted = true }
-            onReleased: function (event) { event.accepted = true }
+            onPressed: function (event) {
+                event.accepted = true;
+            }
+            onReleased: function (event) {
+                event.accepted = true;
+            }
         }
         ColumnLayout {
             anchors.centerIn: parent
@@ -503,13 +518,15 @@ Kirigami.Page {
         source: "../components/dialogs/VoiceInputDialog.qml"
         onLoaded: {
             if (item) {
-                item.voiceInputService = page._effectiveVoiceInputService
-                item.settingsModel = (page.applicationWindow && typeof page.applicationWindow._ctxSettingsModel !== "undefined") ? page.applicationWindow._ctxSettingsModel : null
+                item.voiceInputService = page._effectiveVoiceInputService;
+                item.settingsModel = (page.applicationWindow && typeof page.applicationWindow._ctxSettingsModel !== "undefined") ? page.applicationWindow._ctxSettingsModel : null;
                 // qmllint disable missing-property
-                item.fieldsFilled.connect(function() { item.close(); })
-                item.errorMessage.connect(function(msg) {
+                item.fieldsFilled.connect(function () {
+                    item.close();
+                });
+                item.errorMessage.connect(function (msg) {
                     DialogHelpers.showError(page, "../components/dialogs/ErrorDialog.qml", msg, "CreateWorkItemPage.voiceOrOther");
-                })
+                });
                 // qmllint enable missing-property
             }
         }
@@ -582,5 +599,4 @@ Kirigami.Page {
         }
         return false;
     }
-
 }

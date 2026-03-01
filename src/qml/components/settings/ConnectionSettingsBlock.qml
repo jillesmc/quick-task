@@ -13,9 +13,7 @@ Rectangle {
     id: root
 
     property var settingsModel: null
-    property bool valid: (urlField.text.trim().length > 0 && (urlField.text.startsWith("http://") || urlField.text.startsWith("https://"))) &&
-                         (emailField.text.trim().length > 0 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailField.text.trim())) &&
-                         (tokenField.text.trim().length > 0)
+    property bool valid: (urlField.text.trim().length > 0 && (urlField.text.startsWith("http://") || urlField.text.startsWith("https://"))) && (emailField.text.trim().length > 0 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailField.text.trim())) && (tokenField.text.trim().length > 0)
 
     implicitHeight: connectionBlock.implicitHeight + (Kirigami.Units.largeSpacing * 2)
     color: Kirigami.Theme.backgroundColor || "#f0f0f0"

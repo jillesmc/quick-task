@@ -17,8 +17,8 @@ Controls.Button {
     Layout.preferredWidth: implicitWidth
     onClicked: {
         if (formRoot) {
-            formRoot.duration = duration
-            formRoot.worklogChanged()
+            formRoot.duration = duration;
+            formRoot.worklogChanged();
         }
     }
 }

@@ -309,8 +309,8 @@ ColumnLayout {
      */
     function reset() {
         clear();
-        // Não limpar searchField.text nem searchResults
-        // A busca permanece visível
+    // Não limpar searchField.text nem searchResults
+    // A busca permanece visível
     }
 
     /**
@@ -368,8 +368,8 @@ ColumnLayout {
         root.filterAssignedToMe = false;
         root.filterProjectPlatform = false;  // Todos limpos quando issue tem parent
         root.filterExcludeDone = false;  // Todos limpos quando issue tem parent
-        // Nota: Mudar as propriedades programaticamente não aciona onToggled dos checkboxes
-        // então não vai disparar busca automática nem salvar configurações
+    // Nota: Mudar as propriedades programaticamente não aciona onToggled dos checkboxes
+    // então não vai disparar busca automática nem salvar configurações
     }
 
     /**

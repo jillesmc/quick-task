@@ -22,61 +22,63 @@ Item {
     property var _pendingUrls: ({})
 
     function _escapeForAttr(s) {
-        if (!s) return ""
-        return String(s).replace(/&/g, "&amp;").replace(/"/g, "&quot;")
+        if (!s)
+            return "";
+        return String(s).replace(/&/g, "&amp;").replace(/"/g, "&quot;");
     }
 
     function _extractJiraUrls(html) {
-        var urls = []
-        var re = /data-jira-img="([^"]+)"/g
-        var m
+        var urls = [];
+        var re = /data-jira-img="([^"]+)"/g;
+        var m;
         while ((m = re.exec(html)) !== null) {
-            var url = m[1].replace(/&quot;/g, '"').replace(/&amp;/g, "&")
-            if (urls.indexOf(url) < 0) urls.push(url)
+            var url = m[1].replace(/&quot;/g, '"').replace(/&amp;/g, "&");
+            if (urls.indexOf(url) < 0)
+                urls.push(url);
         }
-        return urls
+        return urls;
     }
 
     function _replacePlaceholderWithImg(html, url, dataUrl) {
-        var escaped = _escapeForAttr(url)
-        var needle = 'data-jira-img="' + escaped + '"'
-        var idx = html.indexOf(needle)
+        var escaped = _escapeForAttr(url);
+        var needle = 'data-jira-img="' + escaped + '"';
+        var idx = html.indexOf(needle);
         while (idx >= 0) {
-            var spanStart = html.lastIndexOf("<span", idx)
-            var spanEnd = html.indexOf("</span>", idx)
+            var spanStart = html.lastIndexOf("<span", idx);
+            var spanEnd = html.indexOf("</span>", idx);
             if (spanStart >= 0 && spanEnd >= 0) {
-                spanEnd += 7
-                var spanContent = html.substring(spanStart, spanEnd)
-                var fnStart = spanContent.indexOf('data-filename="')
-                var fnEnd = spanContent.indexOf('"', fnStart + 15)
-                var alt = (fnStart >= 0 && fnEnd >= 0) ? spanContent.substring(fnStart + 15, fnEnd).replace(/&quot;/g, '"').replace(/&amp;/g, "&") : "imagem"
-                var widthMatch = spanContent.match(/data-width="(\d+)"/)
-                var widthPx = widthMatch ? widthMatch[1] : ""
+                spanEnd += 7;
+                var spanContent = html.substring(spanStart, spanEnd);
+                var fnStart = spanContent.indexOf('data-filename="');
+                var fnEnd = spanContent.indexOf('"', fnStart + 15);
+                var alt = (fnStart >= 0 && fnEnd >= 0) ? spanContent.substring(fnStart + 15, fnEnd).replace(/&quot;/g, '"').replace(/&amp;/g, "&") : "imagem";
+                var widthMatch = spanContent.match(/data-width="(\d+)"/);
+                var widthPx = widthMatch ? widthMatch[1] : "";
                 // Qt RichText ignora style em img; usar atributos width/height diretamente
-                var widthAttr = widthPx ? (' width="' + widthPx + '"') : ""
-                var imgTag = '<img src="' + dataUrl + '" alt="' + alt.replace(/"/g, "&quot;") + '"' + widthAttr + '/>'
-                html = html.substring(0, spanStart) + imgTag + html.substring(spanEnd)
-                idx = html.indexOf(needle, spanStart)
+                var widthAttr = widthPx ? (' width="' + widthPx + '"') : "";
+                var imgTag = '<img src="' + dataUrl + '" alt="' + alt.replace(/"/g, "&quot;") + '"' + widthAttr + '/>';
+                html = html.substring(0, spanStart) + imgTag + html.substring(spanEnd);
+                idx = html.indexOf(needle, spanStart);
             } else {
-                break
+                break;
             }
         }
-        return html
+        return html;
     }
 
     function _renderAndProcess() {
         // qmllint disable unqualified
         if (typeof markdownPreviewRenderer === "undefined" || !markdownPreviewRenderer) {
-            root._processedHtml = root.sourceText || ""
-            return
+            root._processedHtml = root.sourceText || "";
+            return;
         }
-        var raw = markdownPreviewRenderer.render(root.sourceText || "")
+        var raw = markdownPreviewRenderer.render(root.sourceText || "");
         // qmllint enable unqualified
-        root._processedHtml = raw
-        var urls = _extractJiraUrls(raw)
+        root._processedHtml = raw;
+        var urls = _extractJiraUrls(raw);
         if (urls.length > 0 && root.jiraService && typeof root.jiraService.fetchAttachmentDataUrl === "function") {
             for (var i = 0; i < urls.length; i++) {
-                root.jiraService.fetchAttachmentDataUrl(urls[i])
+                root.jiraService.fetchAttachmentDataUrl(urls[i]);
             }
         }
     }
@@ -89,7 +91,7 @@ Item {
     Connections {
         target: root.jiraService || null
         function onAttachmentDataUrlReady(url, dataUrl) {
-            root._processedHtml = root._replacePlaceholderWithImg(root._processedHtml, url, dataUrl)
+            root._processedHtml = root._replacePlaceholderWithImg(root._processedHtml, url, dataUrl);
         }
     }
 
@@ -103,8 +105,8 @@ Item {
         color: "#ffffff"
         text: root._processedHtml || (root.sourceText || "")
         wrapMode: Text.Wrap
-        onLinkActivated: function(link) {
-            Qt.openUrlExternally(link)
+        onLinkActivated: function (link) {
+            Qt.openUrlExternally(link);
         }
     }
 }

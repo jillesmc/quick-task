@@ -23,12 +23,12 @@ Kirigami.Page {
     property var jiraService: null
     property var myIssuesModel: null
     property var googleAuthService: null
+    property var jiraMetadataConfigModel: null
+    property var voiceInputService: null
     property bool isSaving: false
     property bool isValid: connectionBlock ? connectionBlock.valid : false
 
-    // Entrada por voz: context property (pode ser null se dependências não instaladas)
-    property var _ctxVoiceInputService: (typeof voiceInputService !== "undefined" ? voiceInputService : null) // qmllint disable unqualified
-    property bool voiceInputAvailable: _ctxVoiceInputService ? _ctxVoiceInputService.isAvailable() : false
+    property bool voiceInputAvailable: voiceInputService ? voiceInputService.isAvailable() : false
 
     // Função pública para integração com Main.qml (botão global no header)
     function saveSettingsFromToolbar() {
@@ -94,7 +94,7 @@ Kirigami.Page {
         id: splitView
         anchors.fill: parent
         orientation: Qt.Horizontal
-        handle: SplitViewHandle { }
+        handle: SplitViewHandle {}
 
         // Coluna Esquerda: Conexões com plataformas e dados do Jira
         Controls.ScrollView {
@@ -144,8 +144,7 @@ Kirigami.Page {
                     ColumnLayout {
                         Layout.fillWidth: true
                         spacing: Kirigami.Units.smallSpacing
-                        // qmllint disable unqualified
-                        visible: typeof jiraMetadataConfigModel !== "undefined" && jiraMetadataConfigModel !== null
+                        visible: !!page.jiraMetadataConfigModel
 
                         Kirigami.Heading {
                             text: qsTr("Metadata do Jira")
@@ -160,7 +159,7 @@ Kirigami.Page {
                         Controls.Button {
                             text: qsTr("Configurar projetos e campos")
                             Layout.fillWidth: true
-                            enabled: jiraMetadataConfigModel && jiraMetadataConfigModel.isAvailable() // qmllint disable unqualified
+                            enabled: page.jiraMetadataConfigModel && page.jiraMetadataConfigModel.isAvailable()
                             onClicked: {
                                 var comp = Qt.createComponent("../components/dialogs/JiraMetadataWizard.qml");
                                 if (comp.status !== Component.Ready) {
@@ -169,15 +168,19 @@ Kirigami.Page {
                                     return;
                                 }
                                 var parent = (typeof page.applicationWindow !== "undefined" ? page.applicationWindow : null) || page.parent || page; // qmllint disable missing-property
-                                var dlg = comp.createObject(parent, { jiraMetadataConfigModel: jiraMetadataConfigModel }); // qmllint disable unqualified
+                                var dlg = comp.createObject(parent, {
+                                    jiraMetadataConfigModel: page.jiraMetadataConfigModel
+                                });
                                 if (dlg) {
-                                    dlg.closed.connect(function() { dlg.destroy(); });
+                                    dlg.closed.connect(function () {
+                                        dlg.destroy();
+                                    });
                                     dlg.open();
                                 }
                             }
                         }
                         Controls.Label {
-                            visible: jiraMetadataConfigModel && !jiraMetadataConfigModel.isAvailable() // qmllint disable unqualified
+                            visible: page.jiraMetadataConfigModel && !page.jiraMetadataConfigModel.isAvailable()
                             text: qsTr("Configure a conexão Jira acima primeiro.")
                             color: Kirigami.Theme.negativeTextColor
                             wrapMode: Text.WordWrap
@@ -222,9 +225,7 @@ Kirigami.Page {
                         function onAssetsCacheLoaded(success, message) {
                             assetsReloadStatus.visible = true;
                             assetsReloadStatus.text = message;
-                            assetsReloadStatus.color = success
-                                ? Kirigami.Theme.positiveTextColor
-                                : Kirigami.Theme.negativeTextColor;
+                            assetsReloadStatus.color = success ? Kirigami.Theme.positiveTextColor : Kirigami.Theme.negativeTextColor;
                         }
                     }
                 }

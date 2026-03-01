@@ -39,14 +39,13 @@ ColumnLayout {
         text: root.text
         placeholderText: root.placeholderText
         maximumLength: root.maximumLength
-        onTextChanged: function() {
-            root.fieldTextChanged(text)
+        onTextChanged: function () {
+            root.fieldTextChanged(text);
         }
         Component.onCompleted: {
             if (root.requestFocusOnLoad) {
-                forceActiveFocus()
+                forceActiveFocus();
             }
         }
     }
-
 }

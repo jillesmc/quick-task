@@ -53,7 +53,7 @@ Kirigami.Page {
         }
 
         function onTimeUpdated() {
-            // Tempo atualizado - o Timer já cuida da atualização visual
+        // Tempo atualizado - o Timer já cuida da atualização visual
         }
 
         function onIssueKeyChanged() {
@@ -83,13 +83,13 @@ Kirigami.Page {
         target: page._ctxTimerService || null
 
         function onTick(seconds) {
-            // Timer atualizado - o binding do QML já atualiza o display
+        // Timer atualizado - o binding do QML já atualiza o display
         }
 
         function onPomodoroCompleted(pomodoroNum) {
             console.log("TimerPage: Pomodoro completado:", pomodoroNum);
-            // Notificação no tray removida - a janela do timer será trazida para primeiro plano
-            // com o questionamento interativo
+        // Notificação no tray removida - a janela do timer será trazida para primeiro plano
+        // com o questionamento interativo
         }
 
         function onBreakSuggested(breakType) {

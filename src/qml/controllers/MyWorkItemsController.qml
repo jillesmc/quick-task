@@ -39,28 +39,28 @@ Item {
     signal updateRequested(string issueKey)
     signal issueSelected(string issueKey, var issueData)
     signal searchRequested(string query)
-    signal updateStarted()
+    signal updateStarted
     signal updateCompleted(string issueKey)
     signal updateFailed(string errorMessage)
 
     function searchIssues(query) {
         if (!enabled || !myWorkItemsModel) {
-            return
+            return;
         }
 
-        var trimmedQuery = query || ""
-        root.searchRequested(trimmedQuery)
-        myWorkItemsModel.refreshIssues(trimmedQuery)
+        var trimmedQuery = query || "";
+        root.searchRequested(trimmedQuery);
+        myWorkItemsModel.refreshIssues(trimmedQuery);
     }
 
     function loadIssueDetails(issueKey) {
         if (!enabled || !issueKey || !jiraService) {
-            return null
+            return null;
         }
 
-        var details = jiraService.getIssueDetails(issueKey)
+        var details = jiraService.getIssueDetails(issueKey);
         if (!details || !details.key) {
-            return null
+            return null;
         }
 
         return {
@@ -75,85 +75,52 @@ Item {
             plataformasAfetadas: details.plataformasAfetadas || [],
             parentKey: String(details.parentKey || ""),
             parentSummary: String(details.parentSummary || "")
-        }
+        };
     }
 
     function _callUpdateIssue(issueKey, fieldData, worklogData, epicKey, originalStatus) {
-        var worklogInicioStr = ""
+        var worklogInicioStr = "";
         if (worklogData && worklogData.shouldRegister && worklogData.date && worklogData.time) {
-            worklogInicioStr = worklogData.date + " " + worklogData.time
+            worklogInicioStr = worklogData.date + " " + worklogData.time;
         }
-        var statusToUpdate = ""
+        var statusToUpdate = "";
         if (fieldData && fieldData.status && fieldData.status !== originalStatus) {
-            statusToUpdate = fieldData.status
+            statusToUpdate = fieldData.status;
         }
-        jiraService.updateIssue(
-            issueKey,
-            fieldData ? fieldData.summary || "" : "",
-            fieldData ? fieldData.description || "" : "",
-            fieldData ? fieldData.tipoAtividade || "" : "",
-            statusToUpdate,
-            fieldData ? fieldData.prioridade || "" : "",
-            fieldData ? fieldData.documentacaoAnexa || "Não" : "Não",
-            fieldData ? fieldData.utilizacaoIA || "Não" : "Não",
-            fieldData ? fieldData.valorEntregue || "" : "",
-            fieldData ? (fieldData.plataformasAfetadas || []) : [],
-            epicKey || "",
-            worklogData ? worklogData.shouldRegister || false : false,
-            worklogInicioStr,
-            worklogData ? Math.round(worklogData.duration || 0) : 0,
-            "",
-            worklogData ? worklogData.comment || "" : ""
-        )
+        jiraService.updateIssue(issueKey, fieldData ? fieldData.summary || "" : "", fieldData ? fieldData.description || "" : "", fieldData ? fieldData.tipoAtividade || "" : "", statusToUpdate, fieldData ? fieldData.prioridade || "" : "", fieldData ? fieldData.documentacaoAnexa || "Não" : "Não", fieldData ? fieldData.utilizacaoIA || "Não" : "Não", fieldData ? fieldData.valorEntregue || "" : "", fieldData ? (fieldData.plataformasAfetadas || []) : [], epicKey || "", worklogData ? worklogData.shouldRegister || false : false, worklogInicioStr, worklogData ? Math.round(worklogData.duration || 0) : 0, "", worklogData ? worklogData.comment || "" : "");
     }
 
     function startTwoPhaseUpdate(issueKey, fieldData, worklogData, epicKey, originalStatus) {
         if (!enabled || !jiraService || !jiraService.isAvailable()) {
-            if (jiraService) updateFailed(jiraService.getErrorMessage())
-            return
+            if (jiraService)
+                updateFailed(jiraService.getErrorMessage());
+            return;
         }
-        var worklogInicioStr = ""
+        var worklogInicioStr = "";
         if (worklogData && worklogData.shouldRegister && worklogData.date && worklogData.time) {
-            worklogInicioStr = worklogData.date + " " + worklogData.time
+            worklogInicioStr = worklogData.date + " " + worklogData.time;
         }
-        updateRequested(issueKey)
-        updateStarted()
-        jiraService.transitionToInProgress(
-            issueKey,
-            fieldData ? fieldData.summary || "" : "",
-            fieldData ? fieldData.description || "" : "",
-            fieldData ? fieldData.tipoAtividade || "" : "",
-            fieldData ? fieldData.status || "" : "",
-            fieldData ? fieldData.prioridade || "" : "",
-            fieldData ? fieldData.documentacaoAnexa || "Não" : "Não",
-            fieldData ? fieldData.utilizacaoIA || "Não" : "Não",
-            fieldData ? fieldData.valorEntregue || "" : "",
-            fieldData ? (fieldData.plataformasAfetadas || []) : [],
-            epicKey || "",
-            worklogData ? worklogData.shouldRegister || false : false,
-            worklogInicioStr,
-            worklogData ? Math.round(worklogData.duration || 0) : 0,
-            "",
-            worklogData ? worklogData.comment || "" : ""
-        )
+        updateRequested(issueKey);
+        updateStarted();
+        jiraService.transitionToInProgress(issueKey, fieldData ? fieldData.summary || "" : "", fieldData ? fieldData.description || "" : "", fieldData ? fieldData.tipoAtividade || "" : "", fieldData ? fieldData.status || "" : "", fieldData ? fieldData.prioridade || "" : "", fieldData ? fieldData.documentacaoAnexa || "Não" : "Não", fieldData ? fieldData.utilizacaoIA || "Não" : "Não", fieldData ? fieldData.valorEntregue || "" : "", fieldData ? (fieldData.plataformasAfetadas || []) : [], epicKey || "", worklogData ? worklogData.shouldRegister || false : false, worklogInicioStr, worklogData ? Math.round(worklogData.duration || 0) : 0, "", worklogData ? worklogData.comment || "" : "");
     }
 
     function updateIssue(issueKey, fieldData, worklogData, epicKey, originalStatus) {
         if (!enabled) {
-            return
+            return;
         }
-        var keyValidation = Validators.validateIssueKey(issueKey)
+        var keyValidation = Validators.validateIssueKey(issueKey);
         if (!keyValidation.isValid) {
-            updateFailed(keyValidation.error)
-            return
+            updateFailed(keyValidation.error);
+            return;
         }
         if (!jiraService || !jiraService.isAvailable()) {
-            updateFailed(jiraService ? jiraService.getErrorMessage() : "Serviço Jira não disponível")
-            return
+            updateFailed(jiraService ? jiraService.getErrorMessage() : "Serviço Jira não disponível");
+            return;
         }
-        updateRequested(issueKey)
-        updateStarted()
-        _callUpdateIssue(issueKey, fieldData, worklogData, epicKey, originalStatus)
+        updateRequested(issueKey);
+        updateStarted();
+        _callUpdateIssue(issueKey, fieldData, worklogData, epicKey, originalStatus);
     }
 
     function getDefaultFieldValues() {
@@ -163,29 +130,29 @@ Item {
             status: "",
             documentacaoAnexa: "Não",
             utilizacaoIA: "Não"
-        }
+        };
 
         if (workItemModel) {
             if (workItemModel.tipoAtividadeValues && workItemModel.tipoAtividadeValues.length > 0) {
-                defaults.tipoAtividade = workItemModel.tipoAtividadeValues[0]
+                defaults.tipoAtividade = workItemModel.tipoAtividadeValues[0];
             }
             if (workItemModel.statusSequence && workItemModel.statusSequence.length > 0) {
-                defaults.status = workItemModel.statusSequence[0]
+                defaults.status = workItemModel.statusSequence[0];
             }
         }
 
-        return defaults
+        return defaults;
     }
 
     function resetFields() {
-        return getDefaultFieldValues()
+        return getDefaultFieldValues();
     }
 
     Connections {
         target: root.jiraService
 
         function onIssueUpdated(issueKey) {
-            root.updateCompleted(issueKey)
+            root.updateCompleted(issueKey);
         }
 
         function onErrorOccurred(errorMessage) {
@@ -200,7 +167,7 @@ Item {
         target: root.myWorkItemsModel || null
 
         function onErrorOccurred(errorMessage) {
-            root.updateFailed(errorMessage)
+            root.updateFailed(errorMessage);
         }
     }
 }

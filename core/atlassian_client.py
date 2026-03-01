@@ -166,7 +166,10 @@ class AtlassianClient:
         debug_log("AtlassianClient", "_make_request", "%s %s", method, url)
         if json_data:
             debug_log(
-                "AtlassianClient", "_make_request", "JSON keys: %s", list(json_data.keys())
+                "AtlassianClient",
+                "_make_request",
+                "JSON keys: %s",
+                list(json_data.keys()),
             )
         if params:
             debug_log("AtlassianClient", "_make_request", "Params: %s", params)
@@ -373,7 +376,11 @@ class AtlassianClient:
             params["expand"] = expand
         response = self._make_request("GET", "project", params=params or None)
         data = response.json()
-        if isinstance(data, dict) and "values" in data and isinstance(data["values"], list):
+        if (
+            isinstance(data, dict)
+            and "values" in data
+            and isinstance(data["values"], list)
+        ):
             data = data["values"]
         return _jira_meta.parse_projects_response(data)
 
@@ -433,7 +440,9 @@ class AtlassianClient:
                 return _jira_meta.parse_createmeta_fields(fields_dict)
         return []
 
-    def get_editmeta_fields(self, issue_id_or_key: str) -> List["_jira_meta.JiraFieldMetadata"]:
+    def get_editmeta_fields(
+        self, issue_id_or_key: str
+    ) -> List["_jira_meta.JiraFieldMetadata"]:
         """
         Obtém campos editáveis de uma issue (GET /rest/api/3/issue/{idOrKey}/editmeta).
         Retorna lista de JiraFieldMetadata (mesma estrutura de createmeta).
@@ -1249,7 +1258,9 @@ class AtlassianClient:
                     {
                         "type": "heading",
                         "attrs": {"level": level},
-                        "content": AtlassianClient._parse_inline_formatting(heading_text),
+                        "content": AtlassianClient._parse_inline_formatting(
+                            heading_text
+                        ),
                     }
                 )
                 i += 1
@@ -1428,7 +1439,8 @@ class AtlassianClient:
 
         if node_type == "bulletList":
             items = [
-                "- " + AtlassianClient._adf_to_markdown(item).strip().replace("\n\n", "\n")
+                "- "
+                + AtlassianClient._adf_to_markdown(item).strip().replace("\n\n", "\n")
                 for item in content
             ]
             return "\n".join(items) + "\n"
@@ -1874,7 +1886,10 @@ class AtlassianClient:
             data = response.json()
 
             debug_log(
-                "AtlassianClient", "create_issue", "Resposta recebida: %s", list(data.keys())
+                "AtlassianClient",
+                "create_issue",
+                "Resposta recebida: %s",
+                list(data.keys()),
             )
 
             # Extrair issue_key da resposta

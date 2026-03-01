@@ -22,28 +22,33 @@ ColumnLayout {
 
     /** Índice do status atual no formulário (statusInicial). */
     property int statusCurrentIndex: {
-        if (!metadataFieldsRoot.issueModel || !metadataFieldsRoot.issueModel.statusSequence) return -1
-        var seq = metadataFieldsRoot.issueModel.statusSequence
-        var current = String(metadataFieldsRoot.issueModel.statusInicial || "").trim().toUpperCase()
+        if (!metadataFieldsRoot.issueModel || !metadataFieldsRoot.issueModel.statusSequence)
+            return -1;
+        var seq = metadataFieldsRoot.issueModel.statusSequence;
+        var current = String(metadataFieldsRoot.issueModel.statusInicial || "").trim().toUpperCase();
         for (var i = 0; i < seq.length; i++) {
-            if (String(seq[i] || "").trim().toUpperCase() === current) return i
+            if (String(seq[i] || "").trim().toUpperCase() === current)
+                return i;
         }
-        return -1
+        return -1;
     }
     /** Índice do status persistido (statusForRestriction) na sequência; usado para minEnabledIndex quando definido. */
     property int statusRestrictionIndex: {
-        if (!metadataFieldsRoot.issueModel || !metadataFieldsRoot.issueModel.statusSequence || !metadataFieldsRoot.statusForRestriction) return -1
-        var seq = metadataFieldsRoot.issueModel.statusSequence
-        var saved = String(metadataFieldsRoot.statusForRestriction || "").trim().toUpperCase()
+        if (!metadataFieldsRoot.issueModel || !metadataFieldsRoot.issueModel.statusSequence || !metadataFieldsRoot.statusForRestriction)
+            return -1;
+        var seq = metadataFieldsRoot.issueModel.statusSequence;
+        var saved = String(metadataFieldsRoot.statusForRestriction || "").trim().toUpperCase();
         for (var i = 0; i < seq.length; i++) {
-            if (String(seq[i] || "").trim().toUpperCase() === saved) return i
+            if (String(seq[i] || "").trim().toUpperCase() === saved)
+                return i;
         }
-        return -1
+        return -1;
     }
     property int _statusMinEnabledIndex: {
-        if (!metadataFieldsRoot.restrictStatusBySequence) return -1
-        var idx = metadataFieldsRoot.statusForRestriction ? metadataFieldsRoot.statusRestrictionIndex : metadataFieldsRoot.statusCurrentIndex
-        return idx >= 0 ? idx : -1
+        if (!metadataFieldsRoot.restrictStatusBySequence)
+            return -1;
+        var idx = metadataFieldsRoot.statusForRestriction ? metadataFieldsRoot.statusRestrictionIndex : metadataFieldsRoot.statusCurrentIndex;
+        return idx >= 0 ? idx : -1;
     }
 
     spacing: Kirigami.Units.largeSpacing
@@ -72,17 +77,37 @@ ColumnLayout {
                 id: prioridadeRadioGroup
                 Layout.fillWidth: true
                 model: [
-                    { value: "Highest", label: "Highest", icon: "flag-red" },
-                    { value: "High", label: "High", icon: "flag-yellow" },
-                    { value: "Medium", label: "Medium", icon: "flag" },
-                    { value: "Low", label: "Low", icon: "flag-green" },
-                    { value: "Lowest", label: "Lowest", icon: "flag-blue" }
+                    {
+                        value: "Highest",
+                        label: "Highest",
+                        icon: "flag-red"
+                    },
+                    {
+                        value: "High",
+                        label: "High",
+                        icon: "flag-yellow"
+                    },
+                    {
+                        value: "Medium",
+                        label: "Medium",
+                        icon: "flag"
+                    },
+                    {
+                        value: "Low",
+                        label: "Low",
+                        icon: "flag-green"
+                    },
+                    {
+                        value: "Lowest",
+                        label: "Lowest",
+                        icon: "flag-blue"
+                    }
                 ]
                 enabled: metadataFieldsRoot.enabled
                 selectedValue: metadataFieldsRoot.issueModel ? metadataFieldsRoot.issueModel.prioridade : "Medium"
-                onValueChanged: function(value) {
+                onValueChanged: function (value) {
                     if (metadataFieldsRoot.issueModel) {
-                        metadataFieldsRoot.issueModel.prioridade = value
+                        metadataFieldsRoot.issueModel.prioridade = value;
                     }
                 }
             }
@@ -105,15 +130,13 @@ ColumnLayout {
                 id: statusRadioGroup
                 Layout.fillWidth: true
                 // Novo workflow: TO DO → IN PROGRESS → DONE; fallback quando config ainda não carregou
-                model: (metadataFieldsRoot.issueModel && metadataFieldsRoot.issueModel.statusSequence && metadataFieldsRoot.issueModel.statusSequence.length > 0)
-                    ? metadataFieldsRoot.issueModel.statusSequence
-                    : ["TO DO", "IN PROGRESS", "DONE"]
+                model: (metadataFieldsRoot.issueModel && metadataFieldsRoot.issueModel.statusSequence && metadataFieldsRoot.issueModel.statusSequence.length > 0) ? metadataFieldsRoot.issueModel.statusSequence : ["TO DO", "IN PROGRESS", "DONE"]
                 enabled: metadataFieldsRoot.enabled
                 selectedValue: metadataFieldsRoot.issueModel ? metadataFieldsRoot.issueModel.statusInicial : ""
                 minEnabledIndex: metadataFieldsRoot._statusMinEnabledIndex
-                onValueChanged: function(value) {
+                onValueChanged: function (value) {
                     if (metadataFieldsRoot.issueModel) {
-                        metadataFieldsRoot.issueModel.statusInicial = value
+                        metadataFieldsRoot.issueModel.statusInicial = value;
                     }
                 }
             }
@@ -144,7 +167,7 @@ ColumnLayout {
                         checked: metadataFieldsRoot.issueModel && metadataFieldsRoot.issueModel.documentacaoAnexa === "Não"
                         onCheckedChanged: {
                             if (checked && metadataFieldsRoot.issueModel) {
-                                metadataFieldsRoot.issueModel.documentacaoAnexa = "Não"
+                                metadataFieldsRoot.issueModel.documentacaoAnexa = "Não";
                             }
                         }
                     }
@@ -154,7 +177,7 @@ ColumnLayout {
                         checked: metadataFieldsRoot.issueModel && metadataFieldsRoot.issueModel.documentacaoAnexa === "Sim"
                         onCheckedChanged: {
                             if (checked && metadataFieldsRoot.issueModel) {
-                                metadataFieldsRoot.issueModel.documentacaoAnexa = "Sim"
+                                metadataFieldsRoot.issueModel.documentacaoAnexa = "Sim";
                             }
                         }
                     }
@@ -180,7 +203,7 @@ ColumnLayout {
                         checked: metadataFieldsRoot.issueModel && metadataFieldsRoot.issueModel.utilizacaoIA === "Não"
                         onCheckedChanged: {
                             if (checked && metadataFieldsRoot.issueModel) {
-                                metadataFieldsRoot.issueModel.utilizacaoIA = "Não"
+                                metadataFieldsRoot.issueModel.utilizacaoIA = "Não";
                             }
                         }
                     }
@@ -190,7 +213,7 @@ ColumnLayout {
                         checked: metadataFieldsRoot.issueModel && metadataFieldsRoot.issueModel.utilizacaoIA === "Sim"
                         onCheckedChanged: {
                             if (checked && metadataFieldsRoot.issueModel) {
-                                metadataFieldsRoot.issueModel.utilizacaoIA = "Sim"
+                                metadataFieldsRoot.issueModel.utilizacaoIA = "Sim";
                             }
                         }
                     }
@@ -217,9 +240,9 @@ ColumnLayout {
                 model: metadataFieldsRoot.issueModel ? metadataFieldsRoot.issueModel.tipoAtividadeValues : []
                 enabled: metadataFieldsRoot.enabled
                 selectedValue: metadataFieldsRoot.issueModel ? metadataFieldsRoot.issueModel.tipoAtividade : ""
-                onValueChanged: function(value) {
+                onValueChanged: function (value) {
                     if (metadataFieldsRoot.issueModel) {
-                        metadataFieldsRoot.issueModel.tipoAtividade = value
+                        metadataFieldsRoot.issueModel.tipoAtividade = value;
                     }
                 }
             }
@@ -244,9 +267,9 @@ ColumnLayout {
                 model: metadataFieldsRoot.issueModel ? metadataFieldsRoot.issueModel.valorEntregueOptions : []
                 enabled: metadataFieldsRoot.enabled
                 selectedValue: metadataFieldsRoot.issueModel ? metadataFieldsRoot.issueModel.valorEntregue : ""
-                onValueChanged: function(value) {
+                onValueChanged: function (value) {
                     if (metadataFieldsRoot.issueModel) {
-                        metadataFieldsRoot.issueModel.valorEntregue = value
+                        metadataFieldsRoot.issueModel.valorEntregue = value;
                     }
                 }
             }
@@ -271,9 +294,9 @@ ColumnLayout {
             model: metadataFieldsRoot.issueModel ? metadataFieldsRoot.issueModel.plataformasAfetadasOptions : []
             enabled: metadataFieldsRoot.enabled
             selectedValues: metadataFieldsRoot.issueModel ? (metadataFieldsRoot.issueModel.plataformasAfetadas || []) : []
-            onSelectionChanged: function(values) {
+            onSelectionChanged: function (values) {
                 if (metadataFieldsRoot.issueModel) {
-                    metadataFieldsRoot.issueModel.plataformasAfetadas = values
+                    metadataFieldsRoot.issueModel.plataformasAfetadas = values;
                 }
             }
         }

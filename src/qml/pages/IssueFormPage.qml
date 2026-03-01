@@ -12,6 +12,7 @@ import org.kde.kirigami as Kirigami
 import "../components/forms"
 import "../components/controls"
 import "../utils/DialogHelpers.js" as DialogHelpers
+
 Kirigami.Page {
     id: page
 
@@ -27,12 +28,14 @@ Kirigami.Page {
 
     // Registrar worklog só permitido quando status inicial é IN PROGRESS ou posterior
     property bool registrarWorklogEnabled: {
-        if (!issueModel || !issueModel.statusSequence) return false
-        var seq = issueModel.statusSequence
-        var inDevIdx = seq.indexOf("IN PROGRESS")
-        if (inDevIdx < 0) return false
-        var statusIdx = seq.indexOf(issueModel.statusInicial || "")
-        return statusIdx >= inDevIdx
+        if (!issueModel || !issueModel.statusSequence)
+            return false;
+        var seq = issueModel.statusSequence;
+        var inDevIdx = seq.indexOf("IN PROGRESS");
+        if (inDevIdx < 0)
+            return false;
+        var statusIdx = seq.indexOf(issueModel.statusInicial || "");
+        return statusIdx >= inDevIdx;
     }
 
     // Contador para placeholders de anexos na descrição (nova issue)
@@ -58,10 +61,10 @@ Kirigami.Page {
     property var hideWindowFn: null
     property var timerService: null
     property var timerModel: null
-    property var _ctxVoiceInputService: typeof voiceInputService !== "undefined" ? voiceInputService : null // qmllint disable unqualified
-    /** Quando definido (ex.: aba work item), usa este em vez do contexto. */
+    property var voiceInputService: null
+    /** Quando definido (ex.: aba work item), usa este em vez do voiceInputService da aba. */
     property var voiceInputServiceOverride: null
-    property var _effectiveVoiceInputService: (voiceInputServiceOverride !== null && voiceInputServiceOverride !== undefined) ? voiceInputServiceOverride : _ctxVoiceInputService
+    property var _effectiveVoiceInputService: (voiceInputServiceOverride !== null && voiceInputServiceOverride !== undefined) ? voiceInputServiceOverride : voiceInputService
 
     // ------------------------------------------------------------------
     // Funções públicas para integração com Main.qml (botão global)
@@ -103,88 +106,112 @@ Kirigami.Page {
     }
 
     function _openEmbedDialogCreateFlow(filePath, filename) {
-        if (!filePath || !page.issueModel) return
-        var comp = Qt.createComponent("../components/dialogs/AttachmentEmbedPreviewDialog.qml")
-        var win = page.applicationWindow || page.parent || page
+        if (!filePath || !page.issueModel)
+            return;
+        var comp = Qt.createComponent("../components/dialogs/AttachmentEmbedPreviewDialog.qml");
+        var win = page.applicationWindow || page.parent || page;
         if (comp.status !== Component.Ready) {
             if (comp.status === Component.Error) {
-                console.error("IssueFormPage: AttachmentEmbedPreviewDialog error:", comp.errorString())
+                console.error("IssueFormPage: AttachmentEmbedPreviewDialog error:", comp.errorString());
             }
             comp.statusChanged.connect(function () {
                 if (comp.status === Component.Ready) {
-                    _createAndOpenEmbedDialog(comp, win, filePath, filename)
+                    _createAndOpenEmbedDialog(comp, win, filePath, filename);
                 }
-            })
-            return
+            });
+            return;
         }
-        _createAndOpenEmbedDialog(comp, win, filePath, filename)
+        _createAndOpenEmbedDialog(comp, win, filePath, filename);
     }
 
     function _createAndOpenEmbedDialog(comp, parent, filePath, filename) {
-        var dlg = comp.createObject(parent)
-        if (!dlg) return
-        dlg.filePath = filePath
-        dlg.showPositionOptions = true
-        dlg.defaultDisplayWidth = (page.jiraService && typeof page.jiraService.getEmbedMaxDisplayWidth === "function")
-            ? page.jiraService.getEmbedMaxDisplayWidth() : 760
-        dlg.applicationWindow = page.applicationWindow
-        dlg.clipboardHelper = page.clipboardHelper
+        var dlg = comp.createObject(parent);
+        if (!dlg)
+            return;
+        dlg.filePath = filePath;
+        dlg.showPositionOptions = true;
+        dlg.defaultDisplayWidth = (page.jiraService && typeof page.jiraService.getEmbedMaxDisplayWidth === "function") ? page.jiraService.getEmbedMaxDisplayWidth() : 760;
+        dlg.applicationWindow = page.applicationWindow;
+        dlg.clipboardHelper = page.clipboardHelper;
         dlg.acceptedEmbed.connect(function (layout, position, displayWidth) {
-            page._descriptionPlaceholderCounter += 1
-            var placeholderId = "p" + page._descriptionPlaceholderCounter
-            var list = page.issueModel.pendingAttachments || []
-            list.push({ path: filePath, filename: filename, placeholderId: placeholderId, layout: layout, position: position, displayWidth: displayWidth })
-            page.issueModel.pendingAttachments = list
-            var markdown = "![" + filename + "](pending:" + placeholderId + ")"
-            var insertPos = (position === "start") ? 0 : descriptionField.text.length
-            descriptionField.insert(insertPos, markdown)
-            if (page.issueModel) page.issueModel.description = descriptionField.text
-        })
+            page._descriptionPlaceholderCounter += 1;
+            var placeholderId = "p" + page._descriptionPlaceholderCounter;
+            var list = page.issueModel.pendingAttachments || [];
+            list.push({
+                path: filePath,
+                filename: filename,
+                placeholderId: placeholderId,
+                layout: layout,
+                position: position,
+                displayWidth: displayWidth
+            });
+            page.issueModel.pendingAttachments = list;
+            var markdown = "![" + filename + "](pending:" + placeholderId + ")";
+            var insertPos = (position === "start") ? 0 : descriptionField.text.length;
+            descriptionField.insert(insertPos, markdown);
+            if (page.issueModel)
+                page.issueModel.description = descriptionField.text;
+        });
         dlg.acceptedAttachOnly.connect(function () {
-            var list = page.issueModel.pendingAttachments || []
-            list.push({ path: filePath, filename: filename })
-            page.issueModel.pendingAttachments = list
-        })
-        dlg.rejected.connect(function () {})
-        dlg.closed.connect(function () { dlg.destroy() })
-        dlg.open()
+            var list = page.issueModel.pendingAttachments || [];
+            list.push({
+                path: filePath,
+                filename: filename
+            });
+            page.issueModel.pendingAttachments = list;
+        });
+        dlg.rejected.connect(function () {});
+        dlg.closed.connect(function () {
+            dlg.destroy();
+        });
+        dlg.open();
     }
 
     function _addNonImageAttachmentCreateFlow(filePath, filename) {
-        if (!page.issueModel) return
-        page._descriptionPlaceholderCounter += 1
-        var placeholderId = "p" + page._descriptionPlaceholderCounter
-        var list = page.issueModel.pendingAttachments || []
-        list.push({ path: filePath, filename: filename, placeholderId: placeholderId })
-        page.issueModel.pendingAttachments = list
-        var markdown = "[" + filename + "](pending:" + placeholderId + ")"
-        var insertPos = descriptionField.cursorPosition >= 0 ? descriptionField.cursorPosition : descriptionField.text.length
-        descriptionField.insert(insertPos, markdown)
-        if (page.issueModel) page.issueModel.description = descriptionField.text
+        if (!page.issueModel)
+            return;
+        page._descriptionPlaceholderCounter += 1;
+        var placeholderId = "p" + page._descriptionPlaceholderCounter;
+        var list = page.issueModel.pendingAttachments || [];
+        list.push({
+            path: filePath,
+            filename: filename,
+            placeholderId: placeholderId
+        });
+        page.issueModel.pendingAttachments = list;
+        var markdown = "[" + filename + "](pending:" + placeholderId + ")";
+        var insertPos = descriptionField.cursorPosition >= 0 ? descriptionField.cursorPosition : descriptionField.text.length;
+        descriptionField.insert(insertPos, markdown);
+        if (page.issueModel)
+            page.issueModel.description = descriptionField.text;
     }
 
     function _openAttachmentsPopover(button) {
-        if (!button || !page.issueModel) return
-        var comp = Qt.createComponent("../components/dialogs/DescriptionAttachmentsPopover.qml")
+        if (!button || !page.issueModel)
+            return;
+        var comp = Qt.createComponent("../components/dialogs/DescriptionAttachmentsPopover.qml");
         if (comp.status !== Component.Ready) {
             if (comp.status === Component.Error) {
-                console.error("IssueFormPage: DescriptionAttachmentsPopover error:", comp.errorString())
+                console.error("IssueFormPage: DescriptionAttachmentsPopover error:", comp.errorString());
             }
             comp.statusChanged.connect(function () {
                 if (comp.status === Component.Ready) {
-                    _openAttachmentsPopover(button)
+                    _openAttachmentsPopover(button);
                 }
-            })
-            return
+            });
+            return;
         }
-        var popover = comp.createObject(button)
-        if (!popover) return
-        popover.x = 0
-        popover.y = button.height + 2
-        popover.mode = "create"
-        popover.issueModel = page.issueModel
-        popover.closed.connect(function () { popover.destroy() })
-        popover.open()
+        var popover = comp.createObject(button);
+        if (!popover)
+            return;
+        popover.x = 0;
+        popover.y = button.height + 2;
+        popover.mode = "create";
+        popover.issueModel = page.issueModel;
+        popover.closed.connect(function () {
+            popover.destroy();
+        });
+        popover.open();
     }
 
     // Definir foco inicial no campo Summary quando a página for carregada
@@ -255,7 +282,7 @@ Kirigami.Page {
             id: splitView
             anchors.fill: parent
             orientation: Qt.Horizontal
-            handle: SplitViewHandle { }
+            handle: SplitViewHandle {}
 
             // Coluna Esquerda: Summary, Description e Epic Parent (ScrollView único com dividers)
             Controls.ScrollView {
@@ -276,17 +303,19 @@ Kirigami.Page {
                     Component.onCompleted: {
                         function initSectionHeights() {
                             if (leftScrollView.availableHeight > 200) {
-                                var spacing = Kirigami.Units.largeSpacing
-                                var dividerApprox = 24
-                                var total = leftScrollView.availableHeight - 2 * dividerApprox - 2 * spacing
-                                var half = Math.max(250, total / 2)
-                                leftScrollView.topSectionHeight = half
-                                leftScrollView.epicSectionHeight = half
+                                var spacing = Kirigami.Units.largeSpacing;
+                                var dividerApprox = 24;
+                                var total = leftScrollView.availableHeight - 2 * dividerApprox - 2 * spacing;
+                                var half = Math.max(250, total / 2);
+                                leftScrollView.topSectionHeight = half;
+                                leftScrollView.epicSectionHeight = half;
                             }
                         }
-                        Qt.callLater(initSectionHeights)
+                        Qt.callLater(initSectionHeights);
                         // Fallback: viewport pode não estar pronto no primeiro frame
-                        Qt.callLater(function() { Qt.callLater(initSectionHeights) })
+                        Qt.callLater(function () {
+                            Qt.callLater(initSectionHeights);
+                        });
                     }
 
                     ColumnLayout {
@@ -302,232 +331,229 @@ Kirigami.Page {
                             Layout.fillWidth: true
                             Layout.preferredHeight: leftScrollView.topSectionHeight
                             Layout.minimumHeight: 250
-                        spacing: Kirigami.Units.largeSpacing
+                            spacing: Kirigami.Units.largeSpacing
 
-                        ColumnLayout {
-                            Layout.fillWidth: true
-                            // Layout.margins: 20
-                            // Layout.bottomMargin: 10
-                            spacing: Kirigami.Units.smallSpacing
-
-                            RowLayout {
+                            ColumnLayout {
                                 Layout.fillWidth: true
+                                // Layout.margins: 20
+                                // Layout.bottomMargin: 10
                                 spacing: Kirigami.Units.smallSpacing
 
-                                Controls.Label {
-                                    text: qsTr("Summary:")
-                                    font.bold: true
+                                RowLayout {
                                     Layout.fillWidth: true
+                                    spacing: Kirigami.Units.smallSpacing
+
+                                    Controls.Label {
+                                        text: qsTr("Summary:")
+                                        font.bold: true
+                                        Layout.fillWidth: true
+                                    }
+
+                                    Controls.ToolButton {
+                                        visible: page._effectiveVoiceInputService !== null && page._effectiveVoiceInputService.isAvailable()
+                                        icon.name: "audio-input-microphone"
+                                        text: qsTr("Criar por voz")
+                                        onClicked: {
+                                            if (voiceDialogLoader.item) {
+                                                voiceDialogLoader.item.open(); // qmllint disable missing-property
+                                            }
+                                        }
+                                    }
                                 }
 
-                                Controls.ToolButton {
-                                    visible: page._effectiveVoiceInputService !== null && page._effectiveVoiceInputService.isAvailable()
-                                    icon.name: "audio-input-microphone"
-                                    text: qsTr("Criar por voz")
-                                    onClicked: {
-                                        if (voiceDialogLoader.item) {
-                                            voiceDialogLoader.item.open() // qmllint disable missing-property
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    spacing: Kirigami.Units.smallSpacing
+
+                                    Controls.TextField {
+                                        id: summaryField
+                                        Layout.fillWidth: true
+                                        enabled: !page.isProcessing
+                                        text: page.issueModel ? page.issueModel.summary : ""
+                                        onTextChanged: if (page.issueModel)
+                                            page.issueModel.summary = text
+                                    }
+
+                                    Controls.ToolButton {
+                                        visible: page._effectiveVoiceInputService !== null && page._effectiveVoiceInputService.isAvailable()
+                                        icon.name: "tools-wizard"
+                                        text: qsTr("Expandir com IA")
+                                        enabled: !page.isProcessing && page.issueModel && (page.issueModel.summary || page.issueModel.description)
+                                        onClicked: {
+                                            if (page._effectiveVoiceInputService && page.issueModel) {
+                                                page._effectiveVoiceInputService.expandFromSummaryAndDescription(page.issueModel.summary || "", page.issueModel.description || "", false);
+                                            }
                                         }
                                     }
                                 }
                             }
 
-                            RowLayout {
-                                Layout.fillWidth: true
-                                spacing: Kirigami.Units.smallSpacing
-
-                                Controls.TextField {
-                                    id: summaryField
-                                    Layout.fillWidth: true
-                                    enabled: !page.isProcessing
-                                    text: page.issueModel ? page.issueModel.summary : ""
-                                    onTextChanged: if (page.issueModel) page.issueModel.summary = text
-                                }
-
-                                Controls.ToolButton {
-                                    visible: page._effectiveVoiceInputService !== null && page._effectiveVoiceInputService.isAvailable()
-                                    icon.name: "tools-wizard"
-                                    text: qsTr("Expandir com IA")
-                                    enabled: !page.isProcessing && page.issueModel && (page.issueModel.summary || page.issueModel.description)
-                                    onClicked: {
-                                        if (page._effectiveVoiceInputService && page.issueModel) {
-                                            page._effectiveVoiceInputService.expandFromSummaryAndDescription(
-                                                page.issueModel.summary || "",
-                                                page.issueModel.description || "",
-                                                false
-                                            );
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        ColumnLayout {
-                            Layout.fillWidth: true
-                            Layout.fillHeight: true
-                            // Layout.margins: 20
-                            // Layout.topMargin: 0
-                            spacing: Kirigami.Units.smallSpacing
-
-                            RowLayout {
-                                Layout.fillWidth: true
-                                spacing: Kirigami.Units.smallSpacing
-
-                                Controls.Label {
-                                    text: qsTr("Description:")
-                                    font.bold: true
-                                    Layout.fillWidth: true
-                                }
-
-                                EditPreviewToggle {
-                                    isEditMode: page._descriptionEditMode
-                                    onModeChanged: function(editMode) {
-                                        page._descriptionEditMode = editMode
-                                    }
-                                }
-
-                                Controls.ToolButton {
-                                    id: attachmentListButton
-                                    icon.name: "mail-attachment"
-                                    text: qsTr("Anexos na descrição")
-                                    display: Controls.AbstractButton.IconOnly
-                                    onClicked: page._openAttachmentsPopover(attachmentListButton)
-                                }
-                            }
-
-                            // DropArea como container: cliques vão para o filho (ScrollView/TextArea), drops para o DropArea.
-                            Item {
-                                id: descriptionContainer
+                            ColumnLayout {
                                 Layout.fillWidth: true
                                 Layout.fillHeight: true
+                                // Layout.margins: 20
+                                // Layout.topMargin: 0
+                                spacing: Kirigami.Units.smallSpacing
 
-                                StackLayout {
-                                    anchors.fill: parent
-                                    currentIndex: page._descriptionEditMode ? 0 : 1
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    spacing: Kirigami.Units.smallSpacing
 
-                                    // Edit mode: estrutura original (DropArea > ScrollView > TextArea)
-                                    DropArea {
-                                        enabled: !page.isProcessing
-                                        onDropped: function(drop) {
-                                            if (!drop.urls || drop.urls.length === 0 || !page.issueModel) return
-                                            var extList = (page.jiraService && typeof page.jiraService.getAllowedAttachmentExtensions === "function")
-                                                ? page.jiraService.getAllowedAttachmentExtensions() : []
-                                            var imageExtList = (page.jiraService && typeof page.jiraService.getAllowedImageExtensions === "function")
-                                                ? page.jiraService.getAllowedImageExtensions() : []
-                                            for (var i = 0; i < drop.urls.length; i++) {
-                                                var urlStr = drop.urls[i].toString()
-                                                var path = urlStr.replace(/^file:\/\//, "")
-                                                var filename = path.split("/").pop() || path.split("\\").pop() || "file"
-                                                var ext = filename.indexOf(".") >= 0 ? filename.split(".").pop().toLowerCase() : ""
-                                                if (extList.indexOf(ext) < 0) continue
-                                                var pathToUse = (page.clipboardHelper && typeof page.clipboardHelper.copyFileToTemp === "function")
-                                                    ? page.clipboardHelper.copyFileToTemp(path) : path
-                                                if (!pathToUse) continue
-                                                if (imageExtList.indexOf(ext) >= 0) {
-                                                    page._openEmbedDialogCreateFlow(pathToUse, filename)
-                                                } else {
-                                                    page._addNonImageAttachmentCreateFlow(pathToUse, filename)
+                                    Controls.Label {
+                                        text: qsTr("Description:")
+                                        font.bold: true
+                                        Layout.fillWidth: true
+                                    }
+
+                                    EditPreviewToggle {
+                                        isEditMode: page._descriptionEditMode
+                                        onModeChanged: function (editMode) {
+                                            page._descriptionEditMode = editMode;
+                                        }
+                                    }
+
+                                    Controls.ToolButton {
+                                        id: attachmentListButton
+                                        icon.name: "mail-attachment"
+                                        text: qsTr("Anexos na descrição")
+                                        display: Controls.AbstractButton.IconOnly
+                                        onClicked: page._openAttachmentsPopover(attachmentListButton)
+                                    }
+                                }
+
+                                // DropArea como container: cliques vão para o filho (ScrollView/TextArea), drops para o DropArea.
+                                Item {
+                                    id: descriptionContainer
+                                    Layout.fillWidth: true
+                                    Layout.fillHeight: true
+
+                                    StackLayout {
+                                        anchors.fill: parent
+                                        currentIndex: page._descriptionEditMode ? 0 : 1
+
+                                        // Edit mode: estrutura original (DropArea > ScrollView > TextArea)
+                                        DropArea {
+                                            enabled: !page.isProcessing
+                                            onDropped: function (drop) {
+                                                if (!drop.urls || drop.urls.length === 0 || !page.issueModel)
+                                                    return;
+                                                var extList = (page.jiraService && typeof page.jiraService.getAllowedAttachmentExtensions === "function") ? page.jiraService.getAllowedAttachmentExtensions() : [];
+                                                var imageExtList = (page.jiraService && typeof page.jiraService.getAllowedImageExtensions === "function") ? page.jiraService.getAllowedImageExtensions() : [];
+                                                for (var i = 0; i < drop.urls.length; i++) {
+                                                    var urlStr = drop.urls[i].toString();
+                                                    var path = urlStr.replace(/^file:\/\//, "");
+                                                    var filename = path.split("/").pop() || path.split("\\").pop() || "file";
+                                                    var ext = filename.indexOf(".") >= 0 ? filename.split(".").pop().toLowerCase() : "";
+                                                    if (extList.indexOf(ext) < 0)
+                                                        continue;
+                                                    var pathToUse = (page.clipboardHelper && typeof page.clipboardHelper.copyFileToTemp === "function") ? page.clipboardHelper.copyFileToTemp(path) : path;
+                                                    if (!pathToUse)
+                                                        continue;
+                                                    if (imageExtList.indexOf(ext) >= 0) {
+                                                        page._openEmbedDialogCreateFlow(pathToUse, filename);
+                                                    } else {
+                                                        page._addNonImageAttachmentCreateFlow(pathToUse, filename);
+                                                    }
+                                                }
+                                            }
+
+                                            Controls.ScrollView {
+                                                id: descriptionScrollView
+                                                anchors.fill: parent
+                                                clip: true
+                                                contentWidth: descriptionField.implicitWidth
+
+                                                Controls.TextArea {
+                                                    id: descriptionField
+                                                    width: descriptionContainer.width
+                                                    wrapMode: Controls.TextArea.Wrap
+                                                    enabled: !page.isProcessing
+                                                    topPadding: Kirigami.Units.smallSpacing
+                                                    bottomPadding: Kirigami.Units.smallSpacing
+                                                    placeholderText: qsTr("Arraste ficheiros ou use Ctrl+V para colar imagem; imagens têm preview, outros ficheiros ficam como link.")
+                                                    text: page.issueModel ? page.issueModel.description : ""
+                                                    onTextChanged: if (page.issueModel)
+                                                        page.issueModel.description = text
+
+                                                    Keys.onPressed: function (event) {
+                                                        if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_V) {
+                                                            if (!page.clipboardHelper || !page.issueModel)
+                                                                return;
+                                                            if (page.clipboardHelper.hasClipboardImage()) {
+                                                                var tempPath = page.clipboardHelper.getClipboardImageAsTempFile();
+                                                                if (tempPath) {
+                                                                    page._openEmbedDialogCreateFlow(tempPath, "paste.png");
+                                                                    event.accepted = true;
+                                                                }
+                                                            }
+                                                        } else if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_E) {
+                                                            page._descriptionEditMode = true;
+                                                            event.accepted = true;
+                                                        } else if ((event.modifiers & (Qt.ControlModifier | Qt.ShiftModifier)) === (Qt.ControlModifier | Qt.ShiftModifier) && event.key === Qt.Key_P) {
+                                                            page._descriptionEditMode = false;
+                                                            event.accepted = true;
+                                                        } else if (event.key === Qt.Key_Escape) {
+                                                            page._descriptionEditMode = true;
+                                                            event.accepted = true;
+                                                        }
+                                                    }
                                                 }
                                             }
                                         }
 
-                                        Controls.ScrollView {
-                                            id: descriptionScrollView
-                                            anchors.fill: parent
-                                            clip: true
-                                            contentWidth: descriptionField.implicitWidth
+                                        // Preview mode
+                                        Rectangle {
+                                            focus: !page._descriptionEditMode
+                                            color: "transparent"
+                                            border.color: Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g, Kirigami.Theme.textColor.b, 0.15)
+                                            border.width: 0.5
+                                            radius: Kirigami.Units.smallSpacing
 
-                                            Controls.TextArea {
-                                                id: descriptionField
-                                                width: descriptionContainer.width
-                                                wrapMode: Controls.TextArea.Wrap
-                                                enabled: !page.isProcessing
-                                                topPadding: Kirigami.Units.smallSpacing
-                                                bottomPadding: Kirigami.Units.smallSpacing
-                                                placeholderText: qsTr("Arraste ficheiros ou use Ctrl+V para colar imagem; imagens têm preview, outros ficheiros ficam como link.")
-                                                text: page.issueModel ? page.issueModel.description : ""
-                                                onTextChanged: if (page.issueModel) page.issueModel.description = text
+                                            Keys.onPressed: function (event) {
+                                                if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_E) {
+                                                    page._descriptionEditMode = true;
+                                                    event.accepted = true;
+                                                } else if ((event.modifiers & (Qt.ControlModifier | Qt.ShiftModifier)) === (Qt.ControlModifier | Qt.ShiftModifier) && event.key === Qt.Key_P) {
+                                                    page._descriptionEditMode = false;
+                                                    event.accepted = true;
+                                                } else if (event.key === Qt.Key_Escape) {
+                                                    page._descriptionEditMode = true;
+                                                    event.accepted = true;
+                                                }
+                                            }
 
-                                                Keys.onPressed: function(event) {
-                                                    if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_V) {
-                                                        if (!page.clipboardHelper || !page.issueModel) return
-                                                        if (page.clipboardHelper.hasClipboardImage()) {
-                                                            var tempPath = page.clipboardHelper.getClipboardImageAsTempFile()
-                                                            if (tempPath) {
-                                                                page._openEmbedDialogCreateFlow(tempPath, "paste.png")
-                                                                event.accepted = true
-                                                            }
-                                                        }
-                                                    } else if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_E) {
-                                                        page._descriptionEditMode = true
-                                                        event.accepted = true
-                                                    } else if ((event.modifiers & (Qt.ControlModifier | Qt.ShiftModifier)) === (Qt.ControlModifier | Qt.ShiftModifier) && event.key === Qt.Key_P) {
-                                                        page._descriptionEditMode = false
-                                                        event.accepted = true
-                                                    } else if (event.key === Qt.Key_Escape) {
-                                                        page._descriptionEditMode = true
-                                                        event.accepted = true
+                                            Controls.ScrollView {
+                                                id: descriptionPreviewScroll
+                                                anchors.fill: parent
+                                                anchors.margins: 1
+                                                clip: true
+                                                contentWidth: availableWidth
+
+                                                Text {
+                                                    width: descriptionPreviewScroll.availableWidth - Kirigami.Units.largeSpacing * 2
+                                                    x: Kirigami.Units.largeSpacing
+                                                    topPadding: Kirigami.Units.smallSpacing
+                                                    bottomPadding: Kirigami.Units.smallSpacing
+                                                    textFormat: Text.RichText
+                                                    color: "#ffffff"
+                                                    // qmllint disable unqualified
+                                                    text: (typeof markdownPreviewRenderer !== "undefined" && markdownPreviewRenderer) ? markdownPreviewRenderer.render(page.issueModel ? page.issueModel.description : "") : (page.issueModel ? page.issueModel.description : "")
+                                                    wrapMode: Text.Wrap
+                                                    onLinkActivated: function (link) {
+                                                        Qt.openUrlExternally(link);
                                                     }
                                                 }
                                             }
                                         }
                                     }
-
-                                    // Preview mode
-                                    Rectangle {
-                                        focus: !page._descriptionEditMode
-                                        color: "transparent"
-                                        border.color: Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g, Kirigami.Theme.textColor.b, 0.15)
-                                        border.width: 0.5
-                                        radius: Kirigami.Units.smallSpacing
-
-                                        Keys.onPressed: function(event) {
-                                            if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_E) {
-                                                page._descriptionEditMode = true
-                                                event.accepted = true
-                                            } else if ((event.modifiers & (Qt.ControlModifier | Qt.ShiftModifier)) === (Qt.ControlModifier | Qt.ShiftModifier) && event.key === Qt.Key_P) {
-                                                page._descriptionEditMode = false
-                                                event.accepted = true
-                                            } else if (event.key === Qt.Key_Escape) {
-                                                page._descriptionEditMode = true
-                                                event.accepted = true
-                                            }
-                                        }
-
-                                        Controls.ScrollView {
-                                            id: descriptionPreviewScroll
-                                            anchors.fill: parent
-                                            anchors.margins: 1
-                                            clip: true
-                                            contentWidth: availableWidth
-
-                                            Text {
-                                                width: descriptionPreviewScroll.availableWidth - Kirigami.Units.largeSpacing * 2
-                                                x: Kirigami.Units.largeSpacing
-                                                topPadding: Kirigami.Units.smallSpacing
-                                                bottomPadding: Kirigami.Units.smallSpacing
-                                                textFormat: Text.RichText
-                                                color: "#ffffff"
-                                                // qmllint disable unqualified
-                                                text: (typeof markdownPreviewRenderer !== "undefined" && markdownPreviewRenderer)
-                                                    ? markdownPreviewRenderer.render(page.issueModel ? page.issueModel.description : "")
-                                                    : (page.issueModel ? page.issueModel.description : "")
-                                                wrapMode: Text.Wrap
-                                                onLinkActivated: function(link) {
-                                                    Qt.openUrlExternally(link)
-                                                }
-                                            }
-                                        }
-                                    }
                                 }
                             }
-                        }
 
-                        Item {
-                            Layout.fillHeight: true
-                            Layout.fillWidth: true
+                            Item {
+                                Layout.fillHeight: true
+                                Layout.fillWidth: true
+                            }
                         }
-                    }
 
                         DividerBar {
                             id: divider1
@@ -720,9 +746,11 @@ Kirigami.Page {
                             Connections {
                                 target: page.issueModel || null
                                 function onWorklogInicioChanged() {
-                                    if (!page.issueModel || !worklogForm) return;
+                                    if (!page.issueModel || !worklogForm)
+                                        return;
                                     var inicio = page.issueModel.worklogInicio || "";
-                                    if (!inicio) return;
+                                    if (!inicio)
+                                        return;
                                     var parts = inicio.split(" ");
                                     if (parts.length >= 2) {
                                         worklogForm.setWorklogData({
@@ -734,7 +762,8 @@ Kirigami.Page {
                                     }
                                 }
                                 function onWorklogDuracaoChanged() {
-                                    if (!page.issueModel || !worklogForm) return;
+                                    if (!page.issueModel || !worklogForm)
+                                        return;
                                     worklogForm.setWorklogData({
                                         duration: page.issueModel.worklogDuracao || 30
                                     });
@@ -796,7 +825,8 @@ Kirigami.Page {
                     mouse.accepted = false;
                 }
                 onPositionChanged: function (mouse) {
-                    if (resizeOverlay.activeDivider === 0) return;
+                    if (resizeOverlay.activeDivider === 0)
+                        return;
                     var cur = resizeOverlay.mapToGlobal(mouse.x, mouse.y).y;
                     var delta = cur - resizeOverlay.startGlobalY;
                     if (resizeOverlay.activeDivider === 1) {
@@ -825,8 +855,12 @@ Kirigami.Page {
         }
         MouseArea {
             anchors.fill: parent
-            onPressed: function (event) { event.accepted = true }
-            onReleased: function (event) { event.accepted = true }
+            onPressed: function (event) {
+                event.accepted = true;
+            }
+            onReleased: function (event) {
+                event.accepted = true;
+            }
         }
         ColumnLayout {
             anchors.centerIn: parent
@@ -849,13 +883,15 @@ Kirigami.Page {
         source: "../components/dialogs/VoiceInputDialog.qml"
         onLoaded: {
             if (item) {
-                item.voiceInputService = page._effectiveVoiceInputService
-                item.settingsModel = (page.applicationWindow && typeof page.applicationWindow._ctxSettingsModel !== "undefined") ? page.applicationWindow._ctxSettingsModel : null
+                item.voiceInputService = page._effectiveVoiceInputService;
+                item.settingsModel = (page.applicationWindow && typeof page.applicationWindow._ctxSettingsModel !== "undefined") ? page.applicationWindow._ctxSettingsModel : null;
                 // qmllint disable missing-property
-                item.fieldsFilled.connect(function() { item.close(); })
-                item.errorMessage.connect(function(msg) {
+                item.fieldsFilled.connect(function () {
+                    item.close();
+                });
+                item.errorMessage.connect(function (msg) {
                     DialogHelpers.showError(page, "../components/dialogs/ErrorDialog.qml", msg, "IssueFormPage.voiceOrOther");
-                })
+                });
                 // qmllint enable missing-property
             }
         }
@@ -928,5 +964,4 @@ Kirigami.Page {
         }
         return false;
     }
-
 }

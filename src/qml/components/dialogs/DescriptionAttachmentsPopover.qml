@@ -38,22 +38,24 @@ Controls.Popup {
     readonly property int listCount: Array.isArray(root.listSource) ? root.listSource.length : 0
 
     function _getListSource() {
-        if (!root.isCreate) return (root.editModePane ? root.editModePane._currentAttachmentsList : (root.attachmentsList || []))
-        var fromModel = root.issueModel ? (root.issueModel.pendingAttachments || []) : []
-        var fromDesc = root.issueModel ? FormatUtils.getPendingPlaceholdersFromDescription(root.issueModel.description || "") : []
-        var seen = {}
+        if (!root.isCreate)
+            return (root.editModePane ? root.editModePane._currentAttachmentsList : (root.attachmentsList || []));
+        var fromModel = root.issueModel ? (root.issueModel.pendingAttachments || []) : [];
+        var fromDesc = root.issueModel ? FormatUtils.getPendingPlaceholdersFromDescription(root.issueModel.description || "") : [];
+        var seen = {};
         for (var i = 0; i < fromModel.length; i++) {
-            var pid = fromModel[i] && (fromModel[i].placeholderId !== undefined) ? String(fromModel[i].placeholderId) : ""
-            if (pid) seen[pid] = true
+            var pid = fromModel[i] && (fromModel[i].placeholderId !== undefined) ? String(fromModel[i].placeholderId) : "";
+            if (pid)
+                seen[pid] = true;
         }
-        var merged = fromModel.slice()
+        var merged = fromModel.slice();
         for (var j = 0; j < fromDesc.length; j++) {
             if (!seen[fromDesc[j].placeholderId]) {
-                seen[fromDesc[j].placeholderId] = true
-                merged.push(fromDesc[j])
+                seen[fromDesc[j].placeholderId] = true;
+                merged.push(fromDesc[j]);
             }
         }
-        return merged
+        return merged;
     }
 
     ListModel {
@@ -61,20 +63,27 @@ Controls.Popup {
     }
 
     function _syncListModel() {
-        listModel.clear()
-        var src = root.listSource || []
+        listModel.clear();
+        var src = root.listSource || [];
         for (var i = 0; i < src.length; i++) {
-            var it = src[i]
-            var displayName = ""
-            var itemId = ""
+            var it = src[i];
+            var displayName = "";
+            var itemId = "";
             if (it && typeof it === "object") {
-                if (it.filename) displayName = it.filename
-                else if (it.placeholderId !== undefined) displayName = it.filename || ("pending:" + it.placeholderId)
-                else if (it.contentUrl) displayName = it.filename || (String(it.contentUrl).split("/").pop() || "") || qsTr("Anexo")
-                else displayName = qsTr("Anexo")
-                itemId = root.isCreate ? (it.placeholderId !== undefined ? String(it.placeholderId) : "") : (it.id !== undefined ? String(it.id) : "")
+                if (it.filename)
+                    displayName = it.filename;
+                else if (it.placeholderId !== undefined)
+                    displayName = it.filename || ("pending:" + it.placeholderId);
+                else if (it.contentUrl)
+                    displayName = it.filename || (String(it.contentUrl).split("/").pop() || "") || qsTr("Anexo");
+                else
+                    displayName = qsTr("Anexo");
+                itemId = root.isCreate ? (it.placeholderId !== undefined ? String(it.placeholderId) : "") : (it.id !== undefined ? String(it.id) : "");
             }
-            listModel.append({ "displayName": displayName, "itemId": itemId })
+            listModel.append({
+                "displayName": displayName,
+                "itemId": itemId
+            });
         }
     }
 
@@ -84,9 +93,9 @@ Controls.Popup {
     contentHeight: Math.min(contentColumn.implicitHeight + root.padding * 2, Kirigami.Units.gridUnit * 18)
 
     onOpened: {
-        _syncListModel()
+        _syncListModel();
         if (root.positionLeftOfButton && parent && root.contentWidth > 0) {
-            x = parent.width - root.contentWidth
+            x = parent.width - root.contentWidth;
         }
     }
 
@@ -102,14 +111,14 @@ Controls.Popup {
         function onAttachmentDeleted(attachmentId) {
             if (typeof root.onAttachmentDeleted === "function") {
                 // qmllint disable use-proper-function
-                root.onAttachmentDeleted(attachmentId)
+                root.onAttachmentDeleted(attachmentId);
                 // qmllint enable use-proper-function
             }
         }
         function onAttachmentDeleteFailed(attachmentId, errorMessage) {
             if (typeof root.onAttachmentDeleteFailed === "function") {
                 // qmllint disable use-proper-function
-                root.onAttachmentDeleteFailed(attachmentId, errorMessage)
+                root.onAttachmentDeleteFailed(attachmentId, errorMessage);
                 // qmllint enable use-proper-function
             }
         }
@@ -168,28 +177,31 @@ Controls.Popup {
                             flat: true
                             Layout.alignment: Qt.AlignRight
                             onClicked: {
-                                var pid = attachmentRow.itemId
-                                if (!pid) return
+                                var pid = attachmentRow.itemId;
+                                if (!pid)
+                                    return;
                                 if (root.isCreate) {
-                                    if (!root.issueModel) return
-                                    var currentDesc = root.issueModel.description || ""
-                                    var newDesc = FormatUtils.removePendingAttachmentFromDescription(currentDesc, pid)
-                                    root.issueModel.description = newDesc
-                                    var list = root.issueModel.pendingAttachments || []
-                                    var filtered = []
+                                    if (!root.issueModel)
+                                        return;
+                                    var currentDesc = root.issueModel.description || "";
+                                    var newDesc = FormatUtils.removePendingAttachmentFromDescription(currentDesc, pid);
+                                    root.issueModel.description = newDesc;
+                                    var list = root.issueModel.pendingAttachments || [];
+                                    var filtered = [];
                                     for (var i = 0; i < list.length; i++) {
-                                        if (String(list[i].placeholderId) !== pid) filtered.push(list[i])
+                                        if (String(list[i].placeholderId) !== pid)
+                                            filtered.push(list[i]);
                                     }
-                                    root.issueModel.pendingAttachments = filtered
+                                    root.issueModel.pendingAttachments = filtered;
                                     if (typeof root.onAttachmentDeleted === "function") {
                                         // qmllint disable use-proper-function
-                                        root.onAttachmentDeleted(pid)
+                                        root.onAttachmentDeleted(pid);
                                         // qmllint enable use-proper-function
                                     }
                                 } else {
                                     if (typeof root.onAttachmentDeleted === "function") {
                                         // qmllint disable use-proper-function
-                                        root.onAttachmentDeleted(pid)
+                                        root.onAttachmentDeleted(pid);
                                         // qmllint enable use-proper-function
                                     }
                                 }

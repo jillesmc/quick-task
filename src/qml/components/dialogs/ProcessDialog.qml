@@ -39,9 +39,9 @@ Controls.Dialog {
     property string targetStatus: ""
     property bool blockTransitionIfPending: false
 
-    signal cancelClicked()
-    signal skipSyncClicked()
-    signal syncClicked()
+    signal cancelClicked
+    signal skipSyncClicked
+    signal syncClicked
 
     // ---- Progress ----
     property string progressMessage: ""
@@ -60,10 +60,14 @@ Controls.Dialog {
     property string errorMessage: ""
 
     function _updateTitle() {
-        if (root.state === "confirm") title = qsTr("Worklogs pendentes")
-        else if (root.state === "progress") title = qsTr("Progresso")
-        else if (root.state === "success") title = root.successIsUpdate ? qsTr("Task Atualizada") : qsTr("Issue Criada")
-        else if (root.state === "error") title = qsTr("Erro")
+        if (root.state === "confirm")
+            title = qsTr("Worklogs pendentes");
+        else if (root.state === "progress")
+            title = qsTr("Progresso");
+        else if (root.state === "success")
+            title = root.successIsUpdate ? qsTr("Task Atualizada") : qsTr("Issue Criada");
+        else if (root.state === "error")
+            title = qsTr("Erro");
     }
 
     onStateChanged: _updateTitle()
@@ -72,85 +76,89 @@ Controls.Dialog {
         if (typeof console !== "undefined" && console.log) {
             console.log("[ProcessDialog] openInConfirm: parent=", root.parent ? "set" : "null", "worklogs=", (worklogs || []).length);
         }
-        root.worklogInfo = worklogs || []
-        root.totalFormatted = totalFormattedStr || ""
-        root.targetStatus = targetStatusStr || ""
-        root.blockTransitionIfPending = blockIfPending || false
-        root.state = "confirm"
-        root.open()
+        root.worklogInfo = worklogs || [];
+        root.totalFormatted = totalFormattedStr || "";
+        root.targetStatus = targetStatusStr || "";
+        root.blockTransitionIfPending = blockIfPending || false;
+        root.state = "confirm";
+        root.open();
         if (typeof console !== "undefined" && console.log) {
             console.log("[ProcessDialog] openInConfirm: open() called, opened=", root.opened);
         }
-        Qt.callLater(centerDialog)
+        Qt.callLater(centerDialog);
     }
 
     /** Transição para estado confirm (ex.: já aberto em progress, aparece worklogs). */
     function transitionToConfirm(worklogs, totalFormattedStr, targetStatusStr, blockIfPending) {
-        root.worklogInfo = worklogs || []
-        root.totalFormatted = totalFormattedStr || ""
-        root.targetStatus = targetStatusStr || ""
-        root.blockTransitionIfPending = blockIfPending || false
-        root.state = "confirm"
-        Qt.callLater(centerDialog)
+        root.worklogInfo = worklogs || [];
+        root.totalFormatted = totalFormattedStr || "";
+        root.targetStatus = targetStatusStr || "";
+        root.blockTransitionIfPending = blockIfPending || false;
+        root.state = "confirm";
+        Qt.callLater(centerDialog);
     }
 
     function openInProgress(message) {
-        root.progressMessage = message || qsTr("Processando...")
-        root.progressValue = 0
-        root.state = "progress"
-        root.open()
-        Qt.callLater(centerDialog)
+        root.progressMessage = message || qsTr("Processando...");
+        root.progressValue = 0;
+        root.state = "progress";
+        root.open();
+        Qt.callLater(centerDialog);
     }
 
     function transitionToProgress(message) {
-        root.progressMessage = message || root.progressMessage
-        root.progressValue = 0
-        root.state = "progress"
-        Qt.callLater(centerDialog)
+        root.progressMessage = message || root.progressMessage;
+        root.progressValue = 0;
+        root.state = "progress";
+        Qt.callLater(centerDialog);
     }
 
     function updateProgress(percentage, message) {
-        root.progressValue = percentage
-        if (message) root.progressMessage = message
+        root.progressValue = percentage;
+        if (message)
+            root.progressMessage = message;
     }
 
     function transitionToSuccess(issueKey, issueUrl, isUpdate) {
-        root.successIssueKey = issueKey || ""
-        root.successIssueUrl = issueUrl || ""
-        root.successIsUpdate = !!isUpdate
-        root._waitingForInProgress = false
-        root.state = "success"
-        if (!root.opened) root.open()
-        Qt.callLater(centerDialog)
+        root.successIssueKey = issueKey || "";
+        root.successIssueUrl = issueUrl || "";
+        root.successIsUpdate = !!isUpdate;
+        root._waitingForInProgress = false;
+        root.state = "success";
+        if (!root.opened)
+            root.open();
+        Qt.callLater(centerDialog);
     }
 
     function transitionToError(message) {
         if (typeof console !== "undefined" && console.log) {
             console.log("[ProcessDialog.transitionToError] Mostrando erro no ProcessDialog (botão Fechar). message(primeiros 80)=", (message || "").slice(0, 80));
         }
-        root.errorMessage = message || ""
-        root.state = "error"
-        if (!root.opened) root.open()
-        Qt.callLater(centerDialog)
+        root.errorMessage = message || "";
+        root.state = "error";
+        if (!root.opened)
+            root.open();
+        Qt.callLater(centerDialog);
     }
 
     function centerDialog() {
-        var cw = (applicationWindow && applicationWindow.width > 0) ? applicationWindow.width : (parent ? parent.width : 0)
-        var ch = (applicationWindow && applicationWindow.height > 0) ? applicationWindow.height : (parent ? parent.height : 0)
+        var cw = (applicationWindow && applicationWindow.width > 0) ? applicationWindow.width : (parent ? parent.width : 0);
+        var ch = (applicationWindow && applicationWindow.height > 0) ? applicationWindow.height : (parent ? parent.height : 0);
         if (width > 0 && height > 0 && cw > 0 && ch > 0) {
-            x = Math.max(0, (cw - width) / 2)
-            y = Math.max(0, (ch - height) / 2)
+            x = Math.max(0, (cw - width) / 2);
+            y = Math.max(0, (ch - height) / 2);
         }
     }
 
     function formatDurationSeconds(seconds) {
-        if (seconds == null || isNaN(seconds)) return ""
-        return FormatUtils.formatDuration(Math.floor(Number(seconds) / 60))
+        if (seconds == null || isNaN(seconds))
+            return "";
+        return FormatUtils.formatDuration(Math.floor(Number(seconds) / 60));
     }
 
     Component.onCompleted: {
-        _updateTitle()
-        Qt.callLater(centerDialog)
+        _updateTitle();
+        Qt.callLater(centerDialog);
     }
     onWidthChanged: Qt.callLater(centerDialog)
     onHeightChanged: Qt.callLater(centerDialog)
@@ -172,9 +180,7 @@ Controls.Dialog {
                 spacing: Kirigami.Units.largeSpacing
 
                 Controls.Label {
-                    text: root.targetStatus
-                        ? qsTr("Esta issue tem worklogs pendentes (%1). É recomendado sincronizar antes de transitar para %2.").arg(root.totalFormatted).arg(root.targetStatus)
-                        : qsTr("Esta issue tem worklogs pendentes (%1). É recomendado sincronizar antes de continuar.").arg(root.totalFormatted)
+                    text: root.targetStatus ? qsTr("Esta issue tem worklogs pendentes (%1). É recomendado sincronizar antes de transitar para %2.").arg(root.totalFormatted).arg(root.targetStatus) : qsTr("Esta issue tem worklogs pendentes (%1). É recomendado sincronizar antes de continuar.").arg(root.totalFormatted)
                     wrapMode: Text.Wrap
                     Layout.fillWidth: true
                     Layout.leftMargin: Kirigami.Units.smallSpacing
@@ -224,19 +230,21 @@ Controls.Dialog {
                     Layout.fillWidth: true
                     Layout.alignment: Qt.AlignRight
                     spacing: Kirigami.Units.smallSpacing
-                    Item { Layout.fillWidth: true }
+                    Item {
+                        Layout.fillWidth: true
+                    }
                     Controls.Button {
                         text: qsTr("Cancelar")
                         onClicked: {
-                            root.cancelClicked()
-                            root.close()
+                            root.cancelClicked();
+                            root.close();
                         }
                     }
                     Controls.Button {
                         visible: !root.blockTransitionIfPending
                         text: qsTr("Continuar sem sincronizar")
                         onClicked: {
-                            root.skipSyncClicked()
+                            root.skipSyncClicked();
                             // Não fechar: a página faz transição para progresso no mesmo dialog (fluxo unificado)
                         }
                     }
@@ -244,8 +252,8 @@ Controls.Dialog {
                         text: qsTr("Sincronizar")
                         highlighted: true
                         onClicked: {
-                            root.syncClicked()
-                            root.transitionToProgress(qsTr("Sincronizando worklogs..."))
+                            root.syncClicked();
+                            root.transitionToProgress(qsTr("Sincronizando worklogs..."));
                         }
                     }
                 }
@@ -319,7 +327,8 @@ Controls.Dialog {
                         anchors.fill: parent
                         cursorShape: Qt.PointingHandCursor
                         onClicked: {
-                            if (root.successIssueUrl) Qt.openUrlExternally(root.successIssueUrl)
+                            if (root.successIssueUrl)
+                                Qt.openUrlExternally(root.successIssueUrl);
                         }
                     }
                 }
@@ -346,12 +355,13 @@ Controls.Dialog {
                     visible: !root.successIsUpdate && root.successIssueKey !== "" && root.timerService && root.timerModel
                     enabled: root.timerService && root.timerModel && !root._waitingForInProgress
                     onClicked: {
-                        if (!root.timerService || !root.successIssueKey) return
+                        if (!root.timerService || !root.successIssueKey)
+                            return;
                         if (root.jiraService && root.jiraService.transitionToInProgressIfNeeded && root.jiraService.transitionToInProgressIfNeeded(root.successIssueKey)) {
-                            root._waitingForInProgress = true
+                            root._waitingForInProgress = true;
                         } else {
-                            root.timerService.start(root.successIssueKey)
-                            root.close()
+                            root.timerService.start(root.successIssueKey);
+                            root.close();
                         }
                     }
                 }
@@ -359,16 +369,21 @@ Controls.Dialog {
                 RowLayout {
                     Layout.fillWidth: true
                     Layout.alignment: Qt.AlignHCenter
-                    Item { Layout.fillWidth: true }
+                    Item {
+                        Layout.fillWidth: true
+                    }
                     Controls.Button {
                         text: (!root.successIsUpdate && root.successIssueUrl !== "") ? qsTr("Abrir") : qsTr("OK")
                         Layout.preferredWidth: 120
                         onClicked: {
-                            if (!root.successIsUpdate && root.successIssueUrl) Qt.openUrlExternally(root.successIssueUrl)
-                            root.close()
+                            if (!root.successIsUpdate && root.successIssueUrl)
+                                Qt.openUrlExternally(root.successIssueUrl);
+                            root.close();
                         }
                     }
-                    Item { Layout.fillWidth: true }
+                    Item {
+                        Layout.fillWidth: true
+                    }
                 }
             }
 
@@ -388,7 +403,9 @@ Controls.Dialog {
                 RowLayout {
                     Layout.fillWidth: true
                     Layout.alignment: Qt.AlignRight
-                    Item { Layout.fillWidth: true }
+                    Item {
+                        Layout.fillWidth: true
+                    }
                     Controls.Button {
                         text: qsTr("Fechar")
                         onClicked: root.close()
@@ -402,13 +419,15 @@ Controls.Dialog {
         target: root.jiraService || null
         function onInProgressReady(key) {
             if (root._waitingForInProgress && key === root.successIssueKey) {
-                root._waitingForInProgress = false
-                if (root.timerService) root.timerService.start(key)
-                root.close()
+                root._waitingForInProgress = false;
+                if (root.timerService)
+                    root.timerService.start(key);
+                root.close();
             }
         }
         function onErrorOccurred(message) {
-            if (root._waitingForInProgress) root._waitingForInProgress = false
+            if (root._waitingForInProgress)
+                root._waitingForInProgress = false;
         }
     }
 }

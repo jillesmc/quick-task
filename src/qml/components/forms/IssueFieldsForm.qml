@@ -5,7 +5,7 @@ pragma ComponentBehavior: Bound
  * Componente reutilizável para campos de issue
  * Segue Single Responsibility Principle - apenas gerencia campos de issue
  * Segue Open/Closed Principle - pode ser estendido sem modificar
- * 
+ *
  * Propriedades:
  * - enabled: controla se o formulário está habilitado
  * - description: texto da descrição
@@ -15,10 +15,10 @@ pragma ComponentBehavior: Bound
  * - utilizacaoIA: "Sim" ou "Não"
  * - tipoAtividadeValues: array de valores disponíveis (binding)
  * - statusSequence: array de status disponíveis (binding)
- * 
+ *
  * Signals:
  * - fieldChanged(string fieldName, var value): emitido quando qualquer campo muda
- * 
+ *
  * Métodos:
  * - reset(): reseta todos os campos para valores padrão
  * - setFieldData(data): define dados dos campos
@@ -31,7 +31,7 @@ import org.kde.kirigami as Kirigami
 
 ColumnLayout {
     id: root
-    
+
     property bool enabled: true
     property alias description: descriptionField.text
     property string tipoAtividade: ""
@@ -63,71 +63,80 @@ ColumnLayout {
      * On rejected: não faz nada.
      */
     function _openEmbedDialog(filePath, filename) {
-        if (!filePath) return
-        var comp = Qt.createComponent("../dialogs/AttachmentEmbedPreviewDialog.qml")
-        var win = root.parent && root.parent.parent ? root.parent.parent : root
+        if (!filePath)
+            return;
+        var comp = Qt.createComponent("../dialogs/AttachmentEmbedPreviewDialog.qml");
+        var win = root.parent && root.parent.parent ? root.parent.parent : root;
         if (comp.status !== Component.Ready) {
             if (comp.status === Component.Error) {
-                console.error("IssueFieldsForm: AttachmentEmbedPreviewDialog error:", comp.errorString())
+                console.error("IssueFieldsForm: AttachmentEmbedPreviewDialog error:", comp.errorString());
             }
             comp.statusChanged.connect(function () {
                 if (comp.status === Component.Ready) {
-                    _createAndOpenEmbedDialog(comp, win, filePath, filename)
+                    _createAndOpenEmbedDialog(comp, win, filePath, filename);
                 }
-            })
-            return
+            });
+            return;
         }
-        _createAndOpenEmbedDialog(comp, win, filePath, filename)
+        _createAndOpenEmbedDialog(comp, win, filePath, filename);
     }
 
     function _createAndOpenEmbedDialog(comp, parent, filePath, filename) {
-        var dlg = comp.createObject(parent)
-        if (!dlg) return
-        dlg.filePath = filePath
-        dlg.showPositionOptions = true
-        dlg.defaultDisplayWidth = (root.jiraService && typeof root.jiraService.getEmbedMaxDisplayWidth === "function")
-            ? root.jiraService.getEmbedMaxDisplayWidth() : 760
-        dlg.applicationWindow = root.applicationWindow
-        dlg.clipboardHelper = root.clipboardHelper
+        var dlg = comp.createObject(parent);
+        if (!dlg)
+            return;
+        dlg.filePath = filePath;
+        dlg.showPositionOptions = true;
+        dlg.defaultDisplayWidth = (root.jiraService && typeof root.jiraService.getEmbedMaxDisplayWidth === "function") ? root.jiraService.getEmbedMaxDisplayWidth() : 760;
+        dlg.applicationWindow = root.applicationWindow;
+        dlg.clipboardHelper = root.clipboardHelper;
         dlg.acceptedEmbed.connect(function (layout, position, displayWidth) {
-            root._placeholderCounter += 1
-            var placeholderId = "p" + root._placeholderCounter
-            root.pendingAttachments = root.pendingAttachments.concat([{
-                path: filePath,
-                filename: filename,
-                placeholderId: placeholderId,
-                layout: layout,
-                position: position,
-                displayWidth: displayWidth
-            }])
-            var markdown = "![" + filename + "](pending:" + placeholderId + ")"
-            var insertPos = (position === "start") ? 0 : descriptionField.text.length
-            descriptionField.insert(insertPos, markdown)
-            root.fieldChanged("description", descriptionField.text)
-        })
+            root._placeholderCounter += 1;
+            var placeholderId = "p" + root._placeholderCounter;
+            root.pendingAttachments = root.pendingAttachments.concat([
+                {
+                    path: filePath,
+                    filename: filename,
+                    placeholderId: placeholderId,
+                    layout: layout,
+                    position: position,
+                    displayWidth: displayWidth
+                }
+            ]);
+            var markdown = "![" + filename + "](pending:" + placeholderId + ")";
+            var insertPos = (position === "start") ? 0 : descriptionField.text.length;
+            descriptionField.insert(insertPos, markdown);
+            root.fieldChanged("description", descriptionField.text);
+        });
         dlg.acceptedAttachOnly.connect(function () {
-            root.pendingAttachments = root.pendingAttachments.concat([{
-                path: filePath,
-                filename: filename
-            }])
-        })
-        dlg.rejected.connect(function () {})
-        dlg.closed.connect(function () { dlg.destroy() })
-        dlg.open()
+            root.pendingAttachments = root.pendingAttachments.concat([
+                {
+                    path: filePath,
+                    filename: filename
+                }
+            ]);
+        });
+        dlg.rejected.connect(function () {});
+        dlg.closed.connect(function () {
+            dlg.destroy();
+        });
+        dlg.open();
     }
 
     function _addNonImageAttachment(filePath, filename) {
-        root._placeholderCounter += 1
-        var placeholderId = "p" + root._placeholderCounter
-        root.pendingAttachments = root.pendingAttachments.concat([{
-            path: filePath,
-            filename: filename,
-            placeholderId: placeholderId
-        }])
-        var markdown = "[" + filename + "](pending:" + placeholderId + ")"
-        var insertPos = descriptionField.cursorPosition >= 0 ? descriptionField.cursorPosition : descriptionField.text.length
-        descriptionField.insert(insertPos, markdown)
-        root.fieldChanged("description", descriptionField.text)
+        root._placeholderCounter += 1;
+        var placeholderId = "p" + root._placeholderCounter;
+        root.pendingAttachments = root.pendingAttachments.concat([
+            {
+                path: filePath,
+                filename: filename,
+                placeholderId: placeholderId
+            }
+        ]);
+        var markdown = "[" + filename + "](pending:" + placeholderId + ")";
+        var insertPos = descriptionField.cursorPosition >= 0 ? descriptionField.cursorPosition : descriptionField.text.length;
+        descriptionField.insert(insertPos, markdown);
+        root.fieldChanged("description", descriptionField.text);
     }
 
     spacing: Kirigami.Units.largeSpacing
@@ -147,87 +156,87 @@ ColumnLayout {
 
         // Scroll vertical para descrições longas + DropArea para anexos
         Controls.ScrollView {
-        id: descriptionScrollView
-        Layout.fillWidth: true
-        Layout.preferredHeight: 120
-        Layout.leftMargin: Kirigami.Units.mediumSpacing
-        Layout.rightMargin: Kirigami.Units.mediumSpacing
-        Layout.alignment: Qt.AlignLeft | Qt.AlignTop
-        clip: true
+            id: descriptionScrollView
+            Layout.fillWidth: true
+            Layout.preferredHeight: 120
+            Layout.leftMargin: Kirigami.Units.mediumSpacing
+            Layout.rightMargin: Kirigami.Units.mediumSpacing
+            Layout.alignment: Qt.AlignLeft | Qt.AlignTop
+            clip: true
 
-        Item {
-            width: descriptionScrollView.availableWidth
-            height: descriptionField.implicitHeight
+            Item {
+                width: descriptionScrollView.availableWidth
+                height: descriptionField.implicitHeight
 
-            DropArea {
-                anchors.fill: parent
-                enabled: root.enabled
-                onDropped: function(drop) {
-                    if (!drop.urls || drop.urls.length === 0) return
-                    var extList = (root.jiraService && typeof root.jiraService.getAllowedAttachmentExtensions === "function")
-                        ? root.jiraService.getAllowedAttachmentExtensions() : []
-                    var imageExtList = (root.jiraService && typeof root.jiraService.getAllowedImageExtensions === "function")
-                        ? root.jiraService.getAllowedImageExtensions() : []
-                    for (var i = 0; i < drop.urls.length; i++) {
-                        var urlStr = drop.urls[i].toString()
-                        var path = urlStr.replace(/^file:\/\//, "")
-                        var filename = path.split("/").pop() || path.split("\\").pop() || "file"
-                        var ext = filename.indexOf(".") >= 0 ? filename.split(".").pop().toLowerCase() : ""
-                        if (extList.indexOf(ext) < 0) continue
-                        var pathToUse = (root.clipboardHelper && typeof root.clipboardHelper.copyFileToTemp === "function")
-                            ? root.clipboardHelper.copyFileToTemp(path) : path
-                        if (!pathToUse) pathToUse = path
-                        if (imageExtList.indexOf(ext) >= 0) {
-                            root._openEmbedDialog(pathToUse, filename)
-                        } else {
-                            root._addNonImageAttachment(pathToUse, filename)
-                        }
-                    }
-                }
-            }
-
-            Controls.TextArea {
-                id: descriptionField
-                width: parent.width
-                wrapMode: Controls.TextArea.Wrap
-                topPadding: 0
-                enabled: root.enabled
-                focus: true
-                placeholderText: qsTr("Arraste ficheiros ou use Ctrl+V para colar imagem; imagens têm preview, outros ficheiros ficam como link.")
-
-                Keys.onTabPressed: function(event) {
-                    event.accepted = true
-                    var nextItem = nextItemInFocusChain(true)
-                    if (nextItem) {
-                        nextItem.forceActiveFocus()
-                    }
-                }
-
-                Keys.onBacktabPressed: function(event) {
-                    event.accepted = true
-                    var prevItem = nextItemInFocusChain(false)
-                    if (prevItem) {
-                        prevItem.forceActiveFocus()
-                    }
-                }
-
-                Keys.onPressed: function(event) {
-                    if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_V) {
-                        if (root.clipboardHelper && root.clipboardHelper.hasClipboardImage()) {
-                            var tempPath = root.clipboardHelper.getClipboardImageAsTempFile()
-                            if (tempPath) {
-                                root._openEmbedDialog(tempPath, "paste.png")
-                                event.accepted = true
+                DropArea {
+                    anchors.fill: parent
+                    enabled: root.enabled
+                    onDropped: function (drop) {
+                        if (!drop.urls || drop.urls.length === 0)
+                            return;
+                        var extList = (root.jiraService && typeof root.jiraService.getAllowedAttachmentExtensions === "function") ? root.jiraService.getAllowedAttachmentExtensions() : [];
+                        var imageExtList = (root.jiraService && typeof root.jiraService.getAllowedImageExtensions === "function") ? root.jiraService.getAllowedImageExtensions() : [];
+                        for (var i = 0; i < drop.urls.length; i++) {
+                            var urlStr = drop.urls[i].toString();
+                            var path = urlStr.replace(/^file:\/\//, "");
+                            var filename = path.split("/").pop() || path.split("\\").pop() || "file";
+                            var ext = filename.indexOf(".") >= 0 ? filename.split(".").pop().toLowerCase() : "";
+                            if (extList.indexOf(ext) < 0)
+                                continue;
+                            var pathToUse = (root.clipboardHelper && typeof root.clipboardHelper.copyFileToTemp === "function") ? root.clipboardHelper.copyFileToTemp(path) : path;
+                            if (!pathToUse)
+                                pathToUse = path;
+                            if (imageExtList.indexOf(ext) >= 0) {
+                                root._openEmbedDialog(pathToUse, filename);
+                            } else {
+                                root._addNonImageAttachment(pathToUse, filename);
                             }
                         }
                     }
                 }
 
-                onTextChanged: {
-                    root.fieldChanged("description", text)
+                Controls.TextArea {
+                    id: descriptionField
+                    width: parent.width
+                    wrapMode: Controls.TextArea.Wrap
+                    topPadding: 0
+                    enabled: root.enabled
+                    focus: true
+                    placeholderText: qsTr("Arraste ficheiros ou use Ctrl+V para colar imagem; imagens têm preview, outros ficheiros ficam como link.")
+
+                    Keys.onTabPressed: function (event) {
+                        event.accepted = true;
+                        var nextItem = nextItemInFocusChain(true);
+                        if (nextItem) {
+                            nextItem.forceActiveFocus();
+                        }
+                    }
+
+                    Keys.onBacktabPressed: function (event) {
+                        event.accepted = true;
+                        var prevItem = nextItemInFocusChain(false);
+                        if (prevItem) {
+                            prevItem.forceActiveFocus();
+                        }
+                    }
+
+                    Keys.onPressed: function (event) {
+                        if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_V) {
+                            if (root.clipboardHelper && root.clipboardHelper.hasClipboardImage()) {
+                                var tempPath = root.clipboardHelper.getClipboardImageAsTempFile();
+                                if (tempPath) {
+                                    root._openEmbedDialog(tempPath, "paste.png");
+                                    event.accepted = true;
+                                }
+                            }
+                        }
+                    }
+
+                    onTextChanged: {
+                        root.fieldChanged("description", text);
+                    }
                 }
             }
-        }
         }
     }
 
@@ -240,7 +249,7 @@ ColumnLayout {
         Layout.fillWidth: false
         Layout.fillHeight: false
         Layout.alignment: Qt.AlignLeft | Qt.AlignTop
-        
+
         // Coluna 1: Tipo de atividade (largura fixa: 500px)
         ColumnLayout {
             id: tipoAtividadeColumn
@@ -249,21 +258,21 @@ ColumnLayout {
             Layout.alignment: Qt.AlignLeft | Qt.AlignTop
             Layout.rowSpan: 2
             spacing: Kirigami.Units.smallSpacing
-            
+
             Controls.Label {
                 text: qsTr("Tipo de atividade:")
                 font.bold: true
                 Layout.fillWidth: true
                 Layout.alignment: Qt.AlignLeft | Qt.AlignTop
             }
-            
+
             Column {
                 id: tipoAtividadeRadioColumn
                 Layout.fillWidth: true
                 Layout.leftMargin: Kirigami.Units.mediumSpacing
                 Layout.alignment: Qt.AlignLeft | Qt.AlignTop
                 spacing: Kirigami.Units.smallSpacing
-                
+
                 Repeater {
                     model: root.tipoAtividadeValues
 
@@ -274,15 +283,15 @@ ColumnLayout {
                         checked: root.tipoAtividade === modelData
                         onCheckedChanged: {
                             if (checked) {
-                                root.tipoAtividade = modelData
-                                root.fieldChanged("tipoAtividade", modelData)
+                                root.tipoAtividade = modelData;
+                                root.fieldChanged("tipoAtividade", modelData);
                             }
                         }
                     }
                 }
             }
         }
-        
+
         // Coluna 2, Linha 1: Documentação anexa (largura fixa: 250px)
         ColumnLayout {
             id: documentacaoColumn
@@ -291,20 +300,20 @@ ColumnLayout {
             Layout.alignment: Qt.AlignLeft | Qt.AlignTop
             Layout.rowSpan: 1
             spacing: Kirigami.Units.smallSpacing
-            
+
             Controls.Label {
                 text: qsTr("Documentação anexa:")
                 font.bold: true
                 Layout.fillWidth: true
                 Layout.alignment: Qt.AlignLeft | Qt.AlignTop
             }
-            
+
             Row {
                 id: documentacaoRow
                 Layout.leftMargin: 0
                 Layout.alignment: Qt.AlignLeft | Qt.AlignTop
                 spacing: Kirigami.Units.largeSpacing
-                
+
                 Controls.RadioButton {
                     id: docNaoRadio
                     text: qsTr("Não")
@@ -312,12 +321,12 @@ ColumnLayout {
                     checked: root.documentacaoAnexa === "Não"
                     onCheckedChanged: {
                         if (checked) {
-                            root.documentacaoAnexa = "Não"
-                            root.fieldChanged("documentacaoAnexa", "Não")
+                            root.documentacaoAnexa = "Não";
+                            root.fieldChanged("documentacaoAnexa", "Não");
                         }
                     }
                 }
-                
+
                 Controls.RadioButton {
                     id: docSimRadio
                     text: qsTr("Sim")
@@ -325,14 +334,14 @@ ColumnLayout {
                     checked: root.documentacaoAnexa === "Sim"
                     onCheckedChanged: {
                         if (checked) {
-                            root.documentacaoAnexa = "Sim"
-                            root.fieldChanged("documentacaoAnexa", "Sim")
+                            root.documentacaoAnexa = "Sim";
+                            root.fieldChanged("documentacaoAnexa", "Sim");
                         }
                     }
                 }
             }
         }
-        
+
         // Coluna 2, Linha 2: Utilização de IA (largura fixa: 250px)
         ColumnLayout {
             id: utilizacaoIAColumn
@@ -341,20 +350,20 @@ ColumnLayout {
             Layout.alignment: Qt.AlignLeft | Qt.AlignTop
             Layout.rowSpan: 1
             spacing: Kirigami.Units.smallSpacing
-            
+
             Controls.Label {
                 text: qsTr("Utilização de IA:")
                 font.bold: true
                 Layout.fillWidth: true
                 Layout.alignment: Qt.AlignLeft | Qt.AlignTop
             }
-            
+
             Row {
                 id: utilizacaoIARow
                 Layout.leftMargin: 0
                 Layout.alignment: Qt.AlignLeft | Qt.AlignTop
                 spacing: Kirigami.Units.largeSpacing
-                
+
                 Controls.RadioButton {
                     id: iaNaoRadio
                     text: qsTr("Não")
@@ -362,12 +371,12 @@ ColumnLayout {
                     checked: root.utilizacaoIA === "Não"
                     onCheckedChanged: {
                         if (checked) {
-                            root.utilizacaoIA = "Não"
-                            root.fieldChanged("utilizacaoIA", "Não")
+                            root.utilizacaoIA = "Não";
+                            root.fieldChanged("utilizacaoIA", "Não");
                         }
                     }
                 }
-                
+
                 Controls.RadioButton {
                     id: iaSimRadio
                     text: qsTr("Sim")
@@ -375,36 +384,36 @@ ColumnLayout {
                     checked: root.utilizacaoIA === "Sim"
                     onCheckedChanged: {
                         if (checked) {
-                            root.utilizacaoIA = "Sim"
-                            root.fieldChanged("utilizacaoIA", "Sim")
+                            root.utilizacaoIA = "Sim";
+                            root.fieldChanged("utilizacaoIA", "Sim");
                         }
                     }
                 }
             }
         }
     }
-    
+
     /**
      * Reseta todos os campos para valores padrão
      */
     function reset() {
-        descriptionField.text = ""
-        pendingAttachments = []
-        _placeholderCounter = 0
+        descriptionField.text = "";
+        pendingAttachments = [];
+        _placeholderCounter = 0;
         if (tipoAtividadeValues && tipoAtividadeValues.length > 0) {
-            tipoAtividade = tipoAtividadeValues[0]
+            tipoAtividade = tipoAtividadeValues[0];
         } else {
-            tipoAtividade = ""
+            tipoAtividade = "";
         }
         if (statusSequence && statusSequence.length > 0) {
-            status = statusSequence[0]
+            status = statusSequence[0];
         } else {
-            status = ""
+            status = "";
         }
-        documentacaoAnexa = "Não"
-        utilizacaoIA = "Não"
+        documentacaoAnexa = "Não";
+        utilizacaoIA = "Não";
     }
-    
+
     /**
      * Retorna objeto com dados dos campos
      * @returns {object} Objeto com description, tipoAtividade, status, documentacaoAnexa, utilizacaoIA
@@ -416,30 +425,30 @@ ColumnLayout {
             status: status,
             documentacaoAnexa: documentacaoAnexa,
             utilizacaoIA: utilizacaoIA
-        }
+        };
     }
-    
+
     /**
      * Define dados dos campos
      * @param {object} data - Objeto com description, tipoAtividade, status, documentacaoAnexa, utilizacaoIA
      */
     function setFieldData(data) {
-        if (!data) return
-        
+        if (!data)
+            return;
         if (data.description !== undefined) {
-            descriptionField.text = data.description
+            descriptionField.text = data.description;
         }
         if (data.tipoAtividade !== undefined) {
-            tipoAtividade = data.tipoAtividade
+            tipoAtividade = data.tipoAtividade;
         }
         if (data.status !== undefined) {
-            status = data.status
+            status = data.status;
         }
         if (data.documentacaoAnexa !== undefined) {
-            documentacaoAnexa = data.documentacaoAnexa
+            documentacaoAnexa = data.documentacaoAnexa;
         }
         if (data.utilizacaoIA !== undefined) {
-            utilizacaoIA = data.utilizacaoIA
+            utilizacaoIA = data.utilizacaoIA;
         }
     }
 }

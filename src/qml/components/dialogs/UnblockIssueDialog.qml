@@ -24,16 +24,16 @@ Controls.Dialog {
     width: implicitWidth
 
     function openWith(key, summary) {
-        issueKey = key || ""
-        issueSummary = summary || ""
-        commentInput.text = ""
-        open()
+        issueKey = key || "";
+        issueSummary = summary || "";
+        commentInput.text = "";
+        open();
     }
 
     onOpened: {
         if (parent && parent.width > 0 && parent.height > 0 && width > 0 && height > 0) {
-            x = Math.max(0, Math.round((parent.width - width) / 2))
-            y = Math.max(0, Math.round((parent.height - height) / 2))
+            x = Math.max(0, Math.round((parent.width - width) / 2));
+            y = Math.max(0, Math.round((parent.height - height) / 2));
         }
     }
 
@@ -78,7 +78,9 @@ Controls.Dialog {
         spacing: Kirigami.Units.mediumSpacing
         Layout.alignment: Qt.AlignRight
 
-        Item { Layout.fillWidth: true }
+        Item {
+            Layout.fillWidth: true
+        }
         Controls.Button {
             text: qsTr("Voltar")
             onClicked: dialog.close()
@@ -88,9 +90,9 @@ Controls.Dialog {
             highlighted: true
             onClicked: {
                 if (dialog.jiraService && dialog.issueKey) {
-                    dialog.jiraService.unblock_issue(dialog.issueKey, (commentInput.text || "").trim())
+                    dialog.jiraService.unblock_issue(dialog.issueKey, (commentInput.text || "").trim());
                 }
-                dialog.close()
+                dialog.close();
             }
         }
     }

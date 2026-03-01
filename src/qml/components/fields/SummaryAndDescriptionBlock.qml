@@ -30,22 +30,22 @@ ColumnLayout {
     property bool _serviceExpanding: false
     readonly property bool _fieldsEnabled: root.enabled && !root._serviceExpanding
 
-    signal openVoiceRequested()
+    signal openVoiceRequested
 
     spacing: Kirigami.Units.largeSpacing
 
     onVoiceInputServiceChanged: {
-        root._serviceExpanding = (root.voiceInputService && root.voiceInputService.isExpanding) || false
+        root._serviceExpanding = (root.voiceInputService && root.voiceInputService.isExpanding) || false;
     }
     Component.onCompleted: {
-        root._serviceExpanding = (root.voiceInputService && root.voiceInputService.isExpanding) || false
+        root._serviceExpanding = (root.voiceInputService && root.voiceInputService.isExpanding) || false;
     }
 
     Connections {
         target: root.voiceInputService || null
         function onExpandingChanged() {
             if (root.voiceInputService)
-                root._serviceExpanding = !!root.voiceInputService.isExpanding
+                root._serviceExpanding = !!root.voiceInputService.isExpanding;
         }
     }
 
@@ -85,7 +85,8 @@ ColumnLayout {
                     Layout.fillWidth: true
                     text: root.workItemModel ? root.workItemModel.summary || "" : ""
                     onFieldTextChanged: function (newText) {
-                        if (root.workItemModel) root.workItemModel.summary = newText
+                        if (root.workItemModel)
+                            root.workItemModel.summary = newText;
                     }
                     enabled: root._fieldsEnabled
                     opacity: root._fieldsEnabled ? 1 : 0.6
@@ -102,12 +103,8 @@ ColumnLayout {
                     enabled: root._fieldsEnabled && root.workItemModel && (root.workItemModel.summary || root.workItemModel.description)
                     onClicked: {
                         if (root.voiceInputService && root.workItemModel) {
-                            var forEdit = (root.mode === "edit")
-                            root.voiceInputService.expandFromSummaryAndDescription(
-                                root.workItemModel.summary || "",
-                                root.workItemModel.description || "",
-                                forEdit
-                            )
+                            var forEdit = (root.mode === "edit");
+                            root.voiceInputService.expandFromSummaryAndDescription(root.workItemModel.summary || "", root.workItemModel.description || "", forEdit);
                         }
                     }
                 }
@@ -125,13 +122,14 @@ ColumnLayout {
                 Layout.fillHeight: true
                 text: root.workItemModel ? root.workItemModel.description || "" : ""
                 onFieldTextChanged: function (newText) {
-                    if (root.workItemModel) root.workItemModel.description = newText
+                    if (root.workItemModel)
+                        root.workItemModel.description = newText;
                 }
                 enabled: root._fieldsEnabled
                 opacity: root._fieldsEnabled ? 1 : 0.6
                 editMode: root._descriptionEditMode
                 onFieldEditModeChanged: function (editMode) {
-                    root._descriptionEditMode = editMode
+                    root._descriptionEditMode = editMode;
                 }
                 showEditPreviewToggle: true
                 showAttachmentsButton: true

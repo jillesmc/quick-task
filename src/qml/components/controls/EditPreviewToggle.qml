@@ -25,8 +25,8 @@ RowLayout {
         Accessible.name: qsTr("Modo edição")
         onClicked: {
             if (!root.isEditMode) {
-                root.isEditMode = true
-                root.modeChanged(true)
+                root.isEditMode = true;
+                root.modeChanged(true);
             }
         }
     }
@@ -39,8 +39,8 @@ RowLayout {
         Accessible.name: qsTr("Modo visualização")
         onClicked: {
             if (root.isEditMode) {
-                root.isEditMode = false
-                root.modeChanged(false)
+                root.isEditMode = false;
+                root.modeChanged(false);
             }
         }
     }

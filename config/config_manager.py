@@ -968,18 +968,36 @@ class ConfigManager:
         try:
             from src.utils.debug import debug_log
         except ImportError:
+
             def debug_log(*a, **k):
                 pass
+
         path = self.get_jira_metadata_path()
-        debug_log("ConfigManager", "load_jira_metadata", "path=%s exists=%s", path, path.exists())
+        debug_log(
+            "ConfigManager",
+            "load_jira_metadata",
+            "path=%s exists=%s",
+            path,
+            path.exists(),
+        )
         if not path.exists():
             return {}
         try:
             with open(path, "r", encoding="utf-8") as f:
                 data = json.load(f)
             result = data if isinstance(data, dict) else {}
-            sp = (result.get("selected_projects") or []) if isinstance(result, dict) else []
-            debug_log("ConfigManager", "load_jira_metadata", "loaded keys=%s selected_projects len=%s", list(result.keys()) if isinstance(result, dict) else [], len(sp))
+            sp = (
+                (result.get("selected_projects") or [])
+                if isinstance(result, dict)
+                else []
+            )
+            debug_log(
+                "ConfigManager",
+                "load_jira_metadata",
+                "loaded keys=%s selected_projects len=%s",
+                list(result.keys()) if isinstance(result, dict) else [],
+                len(sp),
+            )
             return result
         except (json.JSONDecodeError, OSError) as e:
             debug_log("ConfigManager", "load_jira_metadata", "error: %s", e)
@@ -1086,7 +1104,12 @@ class ConfigManager:
         for k, v in filters.items():
             if k == "selected_project_keys":
                 update[k] = list(v) if isinstance(v, list) else []
-            elif k in ("created_by_me", "assigned_to_me", "project_platform", "exclude_done"):
+            elif k in (
+                "created_by_me",
+                "assigned_to_me",
+                "project_platform",
+                "exclude_done",
+            ):
                 update[k] = bool(v)
         self._config["parent_work_item_filters"].update(update)
 

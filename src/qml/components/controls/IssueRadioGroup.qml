@@ -25,19 +25,25 @@ ColumnLayout {
     spacing: Kirigami.Units.smallSpacing
 
     function itemValue(data) {
-        if (typeof data === "string") return data
-        if (data && typeof data.value !== "undefined") return String(data.value)
-        return data ? String(data.label || data) : ""
+        if (typeof data === "string")
+            return data;
+        if (data && typeof data.value !== "undefined")
+            return String(data.value);
+        return data ? String(data.label || data) : "";
     }
     function itemLabel(data) {
-        if (typeof data === "string") return data
-        if (data && typeof data.label !== "undefined") return String(data.label)
-        return data ? String(data) : ""
+        if (typeof data === "string")
+            return data;
+        if (data && typeof data.label !== "undefined")
+            return String(data.label);
+        return data ? String(data) : "";
     }
     function itemIcon(data) {
-        if (!data || typeof data !== "object") return ""
-        if (data.icon !== undefined) return String(data.icon)
-        return ""
+        if (!data || typeof data !== "object")
+            return "";
+        if (data.icon !== undefined)
+            return String(data.icon);
+        return "";
     }
 
     Column {
@@ -59,7 +65,7 @@ ColumnLayout {
                 checked: group.selectedValue === group.itemValue(radioButton.modelData)
                 onCheckedChanged: {
                     if (checked) {
-                        group.valueChanged(group.itemValue(radioButton.modelData))
+                        group.valueChanged(group.itemValue(radioButton.modelData));
                     }
                 }
             }
