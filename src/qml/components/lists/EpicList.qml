@@ -196,7 +196,7 @@ Controls.Frame {
         Kirigami.PlaceholderMessage {
             anchors.centerIn: parent
             visible: (!epicListRoot.model || epicListRoot.model.length === 0) && !epicListRoot.isLoading
-            text: qsTr("Nenhum épico encontrado")
+            text: qsTr("Nenhum parent encontrado")
             explanation: qsTr("Faça uma busca ou ajuste os filtros.")
         }
 

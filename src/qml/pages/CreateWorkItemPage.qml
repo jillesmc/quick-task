@@ -9,7 +9,6 @@ import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls as Controls
 import org.kde.kirigami as Kirigami
-import "../components/forms"
 import "../components/controls"
 import "../components/fields"
 import "../utils/DialogHelpers.js" as DialogHelpers
@@ -319,107 +318,12 @@ Kirigami.Page {
                         anchors.rightMargin: Kirigami.Units.largeSpacing
                         spacing: Kirigami.Units.largeSpacing
 
-                        // Worklog (habilitado só quando status inicial é IN PROGRESS ou posterior)
-                        Controls.CheckBox {
-                            id: worklogCheckbox
-                            text: qsTr("Registrar worklog")
-                            Layout.fillWidth: true
-                            enabled: !page.isProcessing && page.registrarWorklogEnabled
-                            checked: page.workItemModel ? page.workItemModel.registrarWorklog : false
-                            onCheckedChanged: {
-                                if (page.workItemModel) {
-                                    page.workItemModel.registrarWorklog = checked;
-                                }
-                            }
-                        }
-                        Binding {
-                            target: page.workItemModel
-                            property: "registrarWorklog"
-                            value: false
-                            when: page.workItemModel && !page.registrarWorklogEnabled
-                        }
-
-                        // WorklogForm (oculto quando checkbox não está marcado)
-                        WorklogForm {
-                            id: worklogForm
-                            jiraService: page.jiraService
-                            Layout.fillWidth: true
-                            enabled: !page.isProcessing && worklogCheckbox.checked
-                            visible: worklogCheckbox.checked
-                            showCheckbox: false  // Não mostrar checkbox aqui, já temos acima
-
-                            // Bindings bidirecionais com workItemModel
-                            Binding {
-                                target: page.workItemModel
-                                property: "worklogInicio"
-                                value: worklogForm.date && worklogForm.time ? worklogForm.date + " " + worklogForm.time : ""
-                                when: page.workItemModel && worklogForm.date && worklogForm.time
-                            }
-
-                            Binding {
-                                target: page.workItemModel
-                                property: "worklogDuracao"
-                                value: Math.round(worklogForm.duration)
-                                when: page.workItemModel
-                            }
-
-                            Binding {
-                                target: page.workItemModel
-                                property: "worklogComment"
-                                value: worklogForm.comment
-                                when: page.workItemModel
-                            }
-
-                            // Binding reverso: inicializar e manter sincronizado quando model muda (ex.: import do Google Calendar)
-                            Component.onCompleted: {
-                                if (page.workItemModel && page.workItemModel.worklogInicio) {
-                                    var parts = page.workItemModel.worklogInicio.split(" ");
-                                    if (parts.length >= 2) {
-                                        worklogForm.setWorklogData({
-                                            date: parts[0],
-                                            time: parts[1],
-                                            duration: page.workItemModel.worklogDuracao || 30,
-                                            comment: page.workItemModel.worklogComment || ""
-                                        });
-                                    } else {
-                                        worklogForm.setWorklogData({
-                                            duration: page.workItemModel.worklogDuracao || 30,
-                                            comment: page.workItemModel.worklogComment || ""
-                                        });
-                                    }
-                                } else if (page.workItemModel) {
-                                    worklogForm.setWorklogData({
-                                        duration: page.workItemModel.worklogDuracao || 30,
-                                        comment: page.workItemModel.worklogComment || ""
-                                    });
-                                }
-                            }
-                            Connections {
-                                target: page.workItemModel || null
-                                function onWorklogInicioChanged() {
-                                    if (!page.workItemModel || !worklogForm)
-                                        return;
-                                    var inicio = page.workItemModel.worklogInicio || "";
-                                    if (!inicio)
-                                        return;
-                                    var parts = inicio.split(" ");
-                                    if (parts.length >= 2) {
-                                        worklogForm.setWorklogData({
-                                            date: parts[0],
-                                            time: parts[1],
-                                            duration: page.workItemModel.worklogDuracao || 30,
-                                            comment: page.workItemModel.worklogComment || ""
-                                        });
-                                    }
-                                }
-                                function onWorklogDuracaoChanged() {
-                                    if (!page.workItemModel || !worklogForm)
-                                        return;
-                                    worklogForm.setWorklogData({
-                                        duration: page.workItemModel.worklogDuracao || 30
-                                    });
-                                }
-                            }
+                        RegisterWorklogBlock {
+                            id: registerWorklogBlock
+                            model: page.workItemModel
+                            enabled: !page.isProcessing
+                            registrarWorklogEnabled: page.registrarWorklogEnabled
+                            service: page.jiraService
                         }
 
                         IssueMetadataFields {
@@ -596,14 +500,8 @@ Kirigami.Page {
             }
 
             // Resetar worklog
-            page.workItemModel.registrarWorklog = false;
-            var now = new Date();
-            var dateStr = Qt.formatDateTime(now, "yyyy-MM-dd");
-            var timeStr = Qt.formatDateTime(now, "HH:mm:ss");
-            page.workItemModel.worklogInicio = dateStr + " " + timeStr;
-            page.workItemModel.worklogDuracao = 30;
-            if (worklogForm) {
-                worklogForm.reset();
+            if (registerWorklogBlock) {
+                registerWorklogBlock.reset();
             }
 
             // Limpar anexos pendentes da descrição

@@ -10,7 +10,6 @@ import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls as Controls
 import org.kde.kirigami as Kirigami
-import "../forms"
 import "../controls"
 import "../fields"
 import "../../utils/DialogHelpers.js" as DialogHelpers
@@ -273,11 +272,8 @@ Item {
     }
 
     function getWorklogData() {
-        if (worklogCheckboxTab2 && worklogCheckboxTab2.checked && worklogForm) {
-            var data = worklogForm.getWorklogData();
-            // Com showCheckbox: false o checkbox do form não é visível; o estado vem do painel
-            data.shouldRegister = true;
-            return data;
+        if (registerWorklogBlockRef && typeof registerWorklogBlockRef.getWorklogData === "function") {
+            return registerWorklogBlockRef.getWorklogData();
         }
         return {};
     }
@@ -308,10 +304,9 @@ Item {
             workItemModel.utilizacaoIA = "Não";
             workItemModel.valorEntregue = "";
             workItemModel.plataformasAfetadas = [];
-            workItemModel.registrarWorklog = false;
         }
-        if (worklogForm) {
-            worklogForm.reset();
+        if (registerWorklogBlockRef && typeof registerWorklogBlockRef.reset === "function") {
+            registerWorklogBlockRef.reset();
         }
         if (parentWorkItemBlockRef && typeof parentWorkItemBlockRef.clearParent === "function") {
             parentWorkItemBlockRef.clearParent();
@@ -489,72 +484,12 @@ Item {
                         Layout.fillHeight: true
                         spacing: Kirigami.Units.largeSpacing
 
-                        ColumnLayout {
-                            Layout.fillWidth: true
-                            spacing: Kirigami.Units.largeSpacing
-
-                            Controls.CheckBox {
-                                id: worklogCheckboxTab2
-                                text: qsTr("Registrar worklog")
-                                Layout.fillWidth: true
-                                enabled: pane.selectedIssueKey !== "" && !pane.isProcessing && pane.registrarWorklogEnabled
-                                checked: pane.workItemModel ? pane.workItemModel.registrarWorklog : false
-                                onCheckedChanged: {
-                                    if (pane.workItemModel) {
-                                        pane.workItemModel.registrarWorklog = checked;
-                                    }
-                                }
-                            }
-                            Binding {
-                                target: pane.workItemModel
-                                property: "registrarWorklog"
-                                value: false
-                                when: pane.workItemModel && !pane.registrarWorklogEnabled
-                            }
-
-                            WorklogForm {
-                                id: worklogForm
-                                jiraService: pane.atlassianService
-                                Layout.fillWidth: true
-                                enabled: pane.selectedIssueKey !== "" && !pane.isProcessing && worklogCheckboxTab2.checked
-                                visible: worklogCheckboxTab2.checked
-                                showCheckbox: false
-
-                                Binding {
-                                    target: pane.workItemModel
-                                    property: "worklogInicio"
-                                    value: worklogForm.date && worklogForm.time ? worklogForm.date + " " + worklogForm.time : ""
-                                    when: pane.workItemModel && worklogForm.date && worklogForm.time
-                                }
-
-                                Binding {
-                                    target: pane.workItemModel
-                                    property: "worklogDuracao"
-                                    value: Math.round(worklogForm.duration)
-                                    when: pane.workItemModel
-                                }
-
-                                Binding {
-                                    target: pane.workItemModel
-                                    property: "worklogComment"
-                                    value: worklogForm.comment
-                                    when: pane.workItemModel
-                                }
-
-                                Component.onCompleted: {
-                                    if (pane.workItemModel && pane.workItemModel.worklogInicio) {
-                                        var parts = pane.workItemModel.worklogInicio.split(" ");
-                                        if (parts.length >= 2) {
-                                            worklogForm.date = parts[0];
-                                            worklogForm.time = parts[1];
-                                        }
-                                    }
-                                    if (pane.workItemModel) {
-                                        worklogForm.duration = pane.workItemModel.worklogDuracao || 30;
-                                        worklogForm.comment = pane.workItemModel.worklogComment || "";
-                                    }
-                                }
-                            }
+                        RegisterWorklogBlock {
+                            id: registerWorklogBlockRef
+                            model: pane.workItemModel
+                            enabled: pane.selectedIssueKey !== "" && !pane.isProcessing
+                            registrarWorklogEnabled: pane.registrarWorklogEnabled
+                            service: pane.atlassianService
                         }
 
                         IssueMetadataFields {
