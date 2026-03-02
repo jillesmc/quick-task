@@ -326,9 +326,9 @@ Kirigami.Page {
                             service: page.jiraService
                         }
 
-                        IssueMetadataFields {
+                        WorkItemMetadataFields {
                             Layout.fillWidth: true
-                            issueModel: page.workItemModel  // IssueMetadataFields partilha prop issueModel (abas 0/1)
+                            workItemModel: page.workItemModel
                             enabled: !page.isProcessing
                             restrictStatusBySequence: false
                         }

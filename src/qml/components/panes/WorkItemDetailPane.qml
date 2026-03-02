@@ -492,9 +492,9 @@ Item {
                             service: pane.atlassianService
                         }
 
-                        IssueMetadataFields {
+                        WorkItemMetadataFields {
                             Layout.fillWidth: true
-                            issueModel: pane.workItemModel
+                            workItemModel: pane.workItemModel
                             enabled: pane.selectedIssueKey !== "" && !pane.isProcessing
                             restrictStatusBySequence: true
                             statusForRestriction: pane.savedStatus
