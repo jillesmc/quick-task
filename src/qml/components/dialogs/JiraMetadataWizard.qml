@@ -36,6 +36,7 @@ Controls.Dialog {
     property string _selectedIssuetypeName: ""
     property string _errorMessage: ""
     property bool _loading: false
+    property bool _saving: false  // true apenas durante enrichAndSave (overlay de "Salvando...")
     property string _filterProjects: ""
     property string _filterIssueTypes: ""
     property string _filterFields: ""
@@ -338,6 +339,7 @@ Controls.Dialog {
         }
         function onDiscoveryError(message) {
             root._loading = false;
+            root._saving = false;
             root._errorMessage = message || "";
         }
         function onAssetsObjectSchemasLoaded(list) {
@@ -368,6 +370,7 @@ Controls.Dialog {
         }
         function onSaveFinished(ok) {
             root._loading = false;
+            root._saving = false;
             if (ok)
                 root.close();
         }
@@ -840,6 +843,7 @@ Controls.Dialog {
                         } else if (root.currentStep === 3) {
                             if (root.jiraMetadataConfigModel) {
                                 root._loading = true;
+                                root._saving = true;
                                 var payloadWithAssets = root._buildSavePayloadWithAssetsConfig();
                                 root.jiraMetadataConfigModel.enrichAndSave(payloadWithAssets);
                             }
@@ -880,6 +884,7 @@ Controls.Dialog {
                                             root.currentStep = 3;
                                         } else {
                                             root._loading = true;
+                                            root._saving = true;
                                             root.jiraMetadataConfigModel.enrichAndSave(payload);
                                         }
                                     }
@@ -895,11 +900,34 @@ Controls.Dialog {
                                     root.jiraMetadataConfigModel.loadAssetsObjectSchemas();
                                     root.currentStep = 3;
                                 } else {
+                                    root._saving = true;
                                     root.jiraMetadataConfigModel.enrichAndSave(payloadLegacy);
                                 }
                             }
                         }
                     }
+                }
+            }
+        }
+
+        // Overlay só ao salvar (enrichAndSave); não ao descobrir projetos/tipos/campos
+        Rectangle {
+            anchors.fill: parent
+            visible: root._saving
+            z: 1
+            color: Kirigami.Theme.backgroundColor
+            opacity: 0.92
+            ColumnLayout {
+                anchors.centerIn: parent
+                spacing: Kirigami.Units.largeSpacing
+                Controls.BusyIndicator {
+                    Layout.alignment: Qt.AlignHCenter
+                    running: root._saving
+                }
+                Controls.Label {
+                    Layout.alignment: Qt.AlignHCenter
+                    text: qsTr("Salvando configuração…")
+                    color: Kirigami.Theme.textColor
                 }
             }
         }

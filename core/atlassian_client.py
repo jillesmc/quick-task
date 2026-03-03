@@ -527,6 +527,77 @@ class AtlassianClient:
         values = data.get("values") if isinstance(data, dict) else []
         return list(values) if isinstance(values, list) else []
 
+    def get_workflow_schemes_for_projects(
+        self, project_ids: List[str]
+    ) -> List[Dict[str, Any]]:
+        """
+        Obtém workflow schemes que atendem aos projetos (POST /rest/api/3/workflowscheme/read).
+        Retorna lista de schemes; cada um pode ter workflowsForIssueTypes (issueTypeIds → workflow).
+        Retorna [] em caso de 403 (falta de permissão).
+        """
+        if not project_ids:
+            return []
+        payload = {"projectIds": [str(pid).strip() for pid in project_ids if pid]}
+        if not payload["projectIds"]:
+            return []
+        try:
+            response = self._make_request(
+                "POST", "workflowscheme/read", json_data=payload, timeout=30
+            )
+            data = response.json()
+            return data if isinstance(data, list) else []
+        except RuntimeError as e:
+            if "403" in str(e) or "Forbidden" in str(e):
+                return []
+            raise
+
+    def get_project_statuses(self, project_id_or_key: str) -> List[Dict[str, Any]]:
+        """
+        Lista statuses do projeto agrupados por issue type (GET /rest/api/3/project/{idOrKey}/statuses).
+        project_id_or_key: id ou key do projeto.
+        Retorna lista de objetos com id/name do issue type e array statuses.
+        Retorna [] em caso de 403.
+        """
+        pid = (project_id_or_key or "").strip()
+        if not pid:
+            return []
+        try:
+            response = self._make_request("GET", f"project/{pid}/statuses", timeout=15)
+            data = response.json()
+            return data if isinstance(data, list) else []
+        except RuntimeError as e:
+            if "403" in str(e) or "Forbidden" in str(e):
+                return []
+            raise
+
+    def get_workflows_search(
+        self,
+        expand: str = "values.transitions",
+        query_string: Optional[str] = None,
+        start_at: int = 0,
+        max_results: int = 50,
+    ) -> Dict[str, Any]:
+        """
+        Busca workflows (GET /rest/api/3/workflows/search).
+        expand=values.transitions traz statuses e transitions de cada workflow.
+        query_string: filtro case-insensitive por nome do workflow.
+        Retorna o JSON bruto (values = lista de workflows).
+        Retorna {"values": []} em caso de 403.
+        """
+        params = {"expand": expand, "startAt": start_at, "maxResults": max_results}
+        if query_string and str(query_string).strip():
+            params["queryString"] = str(query_string).strip()
+        try:
+            response = self._make_request(
+                "GET", "workflows/search", params=params, timeout=30
+            )
+            data = response.json()
+            return data if isinstance(data, dict) else {"values": []}
+        except RuntimeError as e:
+            if "403" in str(e) or "Forbidden" in str(e):
+                return {"values": []}
+            raise
+
     def get_field_context_default_value(
         self,
         field_id: str,

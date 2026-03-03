@@ -524,6 +524,169 @@ class JiraClient:
         values = data.get("values") if isinstance(data, dict) else []
         return list(values) if isinstance(values, list) else []
 
+    def get_workflow_schemes_for_projects(
+        self, project_ids: List[str]
+    ) -> List[Dict[str, Any]]:
+        """
+        Obtém workflow schemes que atendem aos projetos (POST /rest/api/3/workflowscheme/read).
+        Retorna lista de schemes; cada um pode ter workflowsForIssueTypes (issueTypeIds → workflow).
+        Retorna [] em caso de 403 (falta de permissão).
+        """
+        if not project_ids:
+            return []
+        payload = {"projectIds": [str(pid).strip() for pid in project_ids if pid]}
+        if not payload["projectIds"]:
+            return []
+        try:
+            response = self._make_request(
+                "POST", "workflowscheme/read", json_data=payload, timeout=30
+            )
+            data = response.json()
+            # Log estrutura básica da resposta para diagnóstico de workflow_metadata
+            try:
+                from src.utils.debug import debug_log
+
+                schemes = data if isinstance(data, list) else []
+                first = schemes[0] if schemes else {}
+                wf_items = first.get("workflowsForIssueTypes") or []
+                debug_log(
+                    "JiraClient",
+                    "get_workflow_schemes_for_projects",
+                    "workflowscheme/read projectIds=%s schemes=%d first.keys=%s has_defaultWorkflow=%s workflowsForIssueTypes.len=%d",
+                    payload["projectIds"],
+                    len(schemes),
+                    list(first.keys()) if isinstance(first, dict) else [],
+                    bool(isinstance(first, dict) and first.get("defaultWorkflow")),
+                    len(wf_items) if isinstance(wf_items, list) else 0,
+                )
+            except Exception:
+                # Logging não deve quebrar o fluxo normal
+                pass
+            return data if isinstance(data, list) else []
+        except RuntimeError as e:
+            if "403" in str(e) or "Forbidden" in str(e):
+                return []
+            raise
+
+    def get_project_statuses(self, project_id_or_key: str) -> List[Dict[str, Any]]:
+        """
+        Lista statuses do projeto agrupados por issue type (GET /rest/api/3/project/{idOrKey}/statuses).
+        project_id_or_key: id ou key do projeto.
+        Retorna lista de objetos com id/name do issue type e array statuses.
+        Retorna [] em caso de 403.
+        """
+        pid = (project_id_or_key or "").strip()
+        if not pid:
+            return []
+        try:
+            response = self._make_request("GET", f"project/{pid}/statuses", timeout=15)
+            data = response.json()
+            items = data if isinstance(data, list) else []
+            # Log forma básica dos statuses para confirmar statusCategory/category
+            try:
+                from src.utils.debug import debug_log
+
+                first_item = items[0] if items else {}
+                statuses = first_item.get("statuses") or []
+                first_status = (
+                    statuses[0] if isinstance(statuses, list) and statuses else {}
+                )
+                status_cat = (
+                    first_status.get("statusCategory")
+                    if isinstance(first_status, dict)
+                    else None
+                )
+                debug_log(
+                    "JiraClient",
+                    "get_project_statuses",
+                    "project/%s/statuses items=%d first_issueType.id=%s statuses.len=%d first_status.keys=%s has_statusCategory=%s statusCategory.key=%s",
+                    pid,
+                    len(items),
+                    (
+                        str(first_item.get("id") or "")
+                        if isinstance(first_item, dict)
+                        else ""
+                    ),
+                    len(statuses) if isinstance(statuses, list) else 0,
+                    list(first_status.keys()) if isinstance(first_status, dict) else [],
+                    bool(isinstance(status_cat, dict)),
+                    (
+                        str(status_cat.get("key") or "")
+                        if isinstance(status_cat, dict)
+                        else ""
+                    ),
+                )
+            except Exception:
+                pass
+            return items
+        except RuntimeError as e:
+            if "403" in str(e) or "Forbidden" in str(e):
+                return []
+            raise
+
+    def get_workflows_search(
+        self,
+        expand: str = "values.transitions",
+        query_string: Optional[str] = None,
+        start_at: int = 0,
+        max_results: int = 50,
+        is_active: bool = True,
+    ) -> Dict[str, Any]:
+        """
+        Busca workflows (GET /rest/api/3/workflows/search).
+        expand=values.transitions traz statuses (top-level) e values[].statuses/transitions.
+        query_string: filtro case-insensitive por nome do workflow.
+        is_active=true filtra apenas workflows ativos.
+        Retorna o JSON bruto (statuses no topo, values = lista de workflows).
+        Retorna {"values": []} em caso de 403.
+        """
+        params = {
+            "expand": expand,
+            "startAt": start_at,
+            "maxResults": max_results,
+            "isActive": is_active,
+        }
+        if query_string and str(query_string).strip():
+            params["queryString"] = str(query_string).strip()
+        try:
+            response = self._make_request(
+                "GET", "workflows/search", params=params, timeout=30
+            )
+            data = response.json()
+            obj = data if isinstance(data, dict) else {"values": []}
+            try:
+                from src.utils.debug import debug_log
+
+                values = obj.get("values") if isinstance(obj, dict) else []
+                top_statuses = obj.get("statuses") if isinstance(obj, dict) else []
+                first = values[0] if isinstance(values, list) and values else {}
+                raw_transitions = (
+                    first.get("transitions") or [] if isinstance(first, dict) else []
+                )
+                first_id = first.get("id") if isinstance(first, dict) else None
+                w_id_str = (
+                    str(first_id)
+                    if not isinstance(first_id, dict)
+                    else str(first_id.get("entityId") or first_id.get("id") or "")
+                )
+                debug_log(
+                    "JiraClient",
+                    "get_workflows_search",
+                    "workflows/search query=%s values.len=%d statuses.len=%d first.id=%s transitions.len=%d",
+                    str(query_string or ""),
+                    len(values) if isinstance(values, list) else 0,
+                    len(top_statuses) if isinstance(top_statuses, list) else 0,
+                    w_id_str,
+                    len(raw_transitions) if isinstance(raw_transitions, list) else 0,
+                )
+            except Exception:
+                pass
+            return obj
+        except RuntimeError as e:
+            if "403" in str(e) or "Forbidden" in str(e):
+                return {"values": []}
+            raise
+
     def get_field_context_default_value(
         self,
         field_id: str,

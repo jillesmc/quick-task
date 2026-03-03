@@ -327,6 +327,112 @@ def mock_jira_client_for_enrichment():
     return client
 
 
+@pytest.fixture
+def mock_jira_client_with_workflow_apis(mock_jira_client_for_enrichment):
+    """Like mock_jira_client_for_enrichment plus workflow scheme/statuses/workflows/search."""
+    client = mock_jira_client_for_enrichment
+    client.get_workflow_schemes_for_projects.return_value = [
+        {
+            "id": "101",
+            "name": "Default",
+            "workflowsForIssueTypes": [
+                {
+                    "issueTypeIds": ["10001"],
+                    "workflow": {"id": "wf-uuid-1", "name": "Software Development"},
+                },
+            ],
+        },
+    ]
+    client.get_project_statuses.return_value = [
+        {
+            "id": "10001",
+            "name": "Task",
+            "statuses": [
+                {"id": "1", "name": "To Do", "statusCategory": {"key": "new"}},
+                {"id": "2", "name": "Done", "statusCategory": {"key": "done"}},
+            ],
+        },
+    ]
+    client.get_workflows_search.return_value = {
+        "values": [
+            {
+                "id": "wf-uuid-1",
+                "name": "Software Development",
+                "statuses": [{"id": "1", "name": "To Do"}, {"id": "2", "name": "Done"}],
+                "transitions": [
+                    {"id": "21", "name": "Done", "to": {"id": "2", "name": "Done"}},
+                ],
+            },
+        ],
+    }
+    return client
+
+
+def test_enrichment_worker_adds_workflow_metadata(mock_jira_client_with_workflow_apis):
+    """EnrichmentWorker adiciona workflow_metadata quando selected_issue_types está presente."""
+    from src.models.jira_metadata_config_model import EnrichmentWorker
+
+    payload = {
+        "version": "2.0",
+        "selected_projects": [
+            {"id": "10000", "key": "PROJ", "name": "Proj", "enabled": True}
+        ],
+        "selected_issue_types": {
+            "PROJ": [{"id": "10001", "name": "Task", "enabled": True}],
+        },
+        "selected_fields": {},
+    }
+    worker = EnrichmentWorker(
+        payload=payload,
+        jira_client=mock_jira_client_with_workflow_apis,
+    )
+    result = []
+    worker.enriched.connect(result.append)
+    worker.run()
+
+    assert len(result) == 1
+    enriched = result[0]
+    wm = enriched.get("workflow_metadata")
+    assert isinstance(wm, dict)
+    assert "PROJ" in wm
+    assert "10001" in wm["PROJ"]
+    entry = wm["PROJ"]["10001"]
+    assert entry.get("workflowId") == "wf-uuid-1"
+    assert entry.get("workflowName") == "Software Development"
+    assert isinstance(entry.get("statuses"), list)
+    assert len(entry["statuses"]) == 2
+    assert isinstance(entry.get("transitions"), list)
+    assert len(entry["transitions"]) == 1
+    mock_jira_client_with_workflow_apis.get_workflow_schemes_for_projects.assert_called_once_with(
+        ["10000"]
+    )
+    mock_jira_client_with_workflow_apis.get_project_statuses.assert_called()
+    mock_jira_client_with_workflow_apis.get_workflows_search.assert_called()
+
+
+def test_enrichment_worker_workflow_metadata_empty_when_no_issue_types(
+    mock_jira_client_with_workflow_apis,
+):
+    """EnrichmentWorker define workflow_metadata vazio quando selected_issue_types ausente."""
+    from src.models.jira_metadata_config_model import EnrichmentWorker
+
+    payload = {
+        "version": "2.0",
+        "selected_projects": [{"id": "10000", "key": "PROJ", "name": "Proj"}],
+        "selected_fields": {},
+    }
+    worker = EnrichmentWorker(
+        payload=payload,
+        jira_client=mock_jira_client_with_workflow_apis,
+    )
+    result = []
+    worker.enriched.connect(result.append)
+    worker.run()
+
+    assert len(result) == 1
+    assert result[0].get("workflow_metadata") == {}
+
+
 def test_enrichment_worker_adds_real_type_and_default_value(
     mock_jira_client_for_enrichment,
 ):

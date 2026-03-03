@@ -15,6 +15,9 @@ from core.jira_metadata import (
     parse_createmeta_fields,
     parse_field_list_response,
     schema_to_real_type,
+    build_issue_type_to_workflow_from_schemes,
+    build_statuses_by_issue_type,
+    build_workflow_details_by_id,
 )
 
 # --- Fixtures: respostas da API (estrutura real/documentada) ---
@@ -522,3 +525,159 @@ def test_schema_to_real_type_option_generic():
 def test_schema_to_real_type_array_generic():
     """Generic array without multiselect/cmdb returns Array."""
     assert schema_to_real_type({"type": "array", "items": "string"}) == "Array"
+
+
+# --- Workflow / status / transitions parsers ---
+
+
+def test_build_issue_type_to_workflow_from_schemes():
+    """build_issue_type_to_workflow_from_schemes extrai issueTypeId -> workflow id/name."""
+    schemes = [
+        {
+            "workflowsForIssueTypes": [
+                {
+                    "issueTypeIds": ["10001", "10002"],
+                    "workflow": {"id": "wf-1", "name": "Dev Workflow"},
+                },
+                {
+                    "issueTypeIds": ["10003"],
+                    "workflow": {"id": "wf-2", "name": "Bug Workflow"},
+                },
+            ],
+        },
+    ]
+    result = build_issue_type_to_workflow_from_schemes(schemes)
+    assert result["10001"] == {"workflowId": "wf-1", "workflowName": "Dev Workflow"}
+    assert result["10002"] == {"workflowId": "wf-1", "workflowName": "Dev Workflow"}
+    assert result["10003"] == {"workflowId": "wf-2", "workflowName": "Bug Workflow"}
+
+
+def test_build_issue_type_to_workflow_from_schemes_empty():
+    """build_issue_type_to_workflow_from_schemes retorna {} para lista vazia."""
+    assert build_issue_type_to_workflow_from_schemes([]) == {}
+    assert build_issue_type_to_workflow_from_schemes(None) == {}
+
+
+def test_build_statuses_by_issue_type():
+    """build_statuses_by_issue_type normaliza resposta project/statuses."""
+    raw = [
+        {
+            "id": "10001",
+            "name": "Task",
+            "statuses": [
+                {
+                    "id": "1",
+                    "name": "To Do",
+                    "statusCategory": {"key": "new", "name": "To Do"},
+                },
+                {"id": "2", "name": "Done", "statusCategory": {"key": "done"}},
+            ],
+        },
+    ]
+    result = build_statuses_by_issue_type(raw)
+    assert "10001" in result
+    assert len(result["10001"]) == 2
+    assert result["10001"][0]["id"] == "1" and result["10001"][0]["name"] == "To Do"
+    assert result["10001"][0].get("category") == "new"
+    assert result["10001"][0].get("categoryName") == "To Do"
+    assert result["10001"][1].get("category") == "done"
+    assert "categoryName" not in result["10001"][1]  # sem name no payload
+
+
+def test_build_statuses_by_issue_type_empty():
+    """build_statuses_by_issue_type retorna {} para entrada vazia."""
+    assert build_statuses_by_issue_type([]) == {}
+    assert build_statuses_by_issue_type(None) == {}
+
+
+def test_build_workflow_details_by_id():
+    """build_workflow_details_by_id extrai statuses e transitions por workflow id."""
+    resp = {
+        "values": [
+            {
+                "id": "wf-uuid-1",
+                "name": "Software",
+                "statuses": [{"id": "1", "name": "To Do"}, {"id": "2", "name": "Done"}],
+                "transitions": [
+                    {"id": "21", "name": "Done", "to": {"id": "2", "name": "Done"}},
+                ],
+            },
+        ],
+    }
+    result = build_workflow_details_by_id(resp)
+    assert "wf-uuid-1" in result
+    assert result["wf-uuid-1"]["workflowName"] == "Software"
+    assert len(result["wf-uuid-1"]["statuses"]) == 2
+    assert len(result["wf-uuid-1"]["transitions"]) == 1
+    assert result["wf-uuid-1"]["transitions"][0]["to"]["name"] == "Done"
+
+
+def test_build_workflow_details_by_id_values_transitions_format():
+    """build_workflow_details_by_id com expand=values.transitions (statuses no topo, toStatusReference, links)."""
+    resp = {
+        "statuses": [
+            {"id": "3", "name": "In Progress", "statusCategory": "IN_PROGRESS"},
+            {"id": "10034", "name": "To Do", "statusCategory": "TODO"},
+            {"id": "10077", "name": "Blocked", "statusCategory": "TODO"},
+            {"id": "10003", "name": "Done", "statusCategory": "DONE"},
+        ],
+        "values": [
+            {
+                "id": "c43be6b4-bae9-4fc4-9ac4-53c2dfe1cc00",
+                "name": "Platform Default Workflow v1",
+                "statuses": [
+                    {"statusReference": "10034"},
+                    {"statusReference": "3"},
+                    {"statusReference": "10077"},
+                    {"statusReference": "10003"},
+                ],
+                "transitions": [
+                    {
+                        "id": "21",
+                        "name": "In Progress",
+                        "type": "DIRECTED",
+                        "toStatusReference": "3",
+                        "links": [
+                            {"fromStatusReference": "10034"},
+                            {"fromStatusReference": "10077"},
+                        ],
+                    },
+                    {
+                        "id": "41",
+                        "name": "Done",
+                        "type": "DIRECTED",
+                        "toStatusReference": "10003",
+                        "links": [{"fromStatusReference": "3"}],
+                        "transitionScreen": {"parameters": {"screenId": "20561"}},
+                    },
+                ],
+            },
+        ],
+    }
+    result = build_workflow_details_by_id(resp)
+    wf_id = "c43be6b4-bae9-4fc4-9ac4-53c2dfe1cc00"
+    assert wf_id in result
+    assert result[wf_id]["workflowName"] == "Platform Default Workflow v1"
+    statuses = result[wf_id]["statuses"]
+    assert len(statuses) == 4
+    assert statuses[0]["id"] == "10034" and statuses[0]["name"] == "To Do"
+    transitions = result[wf_id]["transitions"]
+    assert len(transitions) == 2
+    assert transitions[0]["id"] == "21"
+    assert transitions[0]["to"] == {"id": "3", "name": "In Progress"}
+    assert transitions[0]["from"] == ["10034", "10077"]
+    assert transitions[0]["fromStatuses"] == [
+        {"id": "10034", "name": "To Do"},
+        {"id": "10077", "name": "Blocked"},
+    ]
+    assert transitions[0]["type"] == "directed"
+    assert (
+        transitions[1]["to"]["id"] == "10003" and transitions[1]["to"]["name"] == "Done"
+    )
+    assert transitions[1]["screen"] == {"id": "20561", "name": ""}
+
+
+def test_build_workflow_details_by_id_empty():
+    """build_workflow_details_by_id retorna {} quando values vazio."""
+    assert build_workflow_details_by_id({}) == {}
+    assert build_workflow_details_by_id({"values": []}) == {}

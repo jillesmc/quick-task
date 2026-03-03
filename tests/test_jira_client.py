@@ -1726,6 +1726,132 @@ def test_get_field_context_mapping_empty_when_length_mismatch(
 
 
 @patch("core.jira_client.requests.request")
+def test_get_workflow_schemes_for_projects_success(mock_request, mock_config_file):
+    """get_workflow_schemes_for_projects retorna lista de schemes com workflowsForIssueTypes."""
+    mock_request.return_value.status_code = 200
+    mock_request.return_value.json.return_value = [
+        {
+            "id": "101",
+            "name": "Default",
+            "workflowsForIssueTypes": [
+                {
+                    "issueTypeIds": ["10001"],
+                    "workflow": {
+                        "id": "wf-uuid-1",
+                        "name": "Software Development",
+                    },
+                },
+            ],
+        },
+    ]
+    client = JiraClient(jira_cli_config_path=mock_config_file)
+    result = client.get_workflow_schemes_for_projects(["10047"])
+    assert len(result) == 1
+    assert result[0]["workflowsForIssueTypes"][0]["workflow"]["id"] == "wf-uuid-1"
+    call_kw = mock_request.call_args[1]
+    assert call_kw.get("json") == {"projectIds": ["10047"]}
+    assert "workflowscheme/read" in mock_request.call_args[0][1]
+
+
+@patch("core.jira_client.requests.request")
+def test_get_workflow_schemes_for_projects_empty_for_empty_ids(
+    mock_request, mock_config_file
+):
+    """get_workflow_schemes_for_projects retorna [] quando project_ids vazio."""
+    client = JiraClient(jira_cli_config_path=mock_config_file)
+    assert client.get_workflow_schemes_for_projects([]) == []
+    mock_request.assert_not_called()
+
+
+@patch("core.jira_client.requests.request")
+def test_get_workflow_schemes_for_projects_returns_empty_on_403(
+    mock_request, mock_config_file
+):
+    """get_workflow_schemes_for_projects retorna [] em 403 (sem permissão)."""
+    mock_request.return_value.status_code = 403
+    mock_request.return_value.text = "Forbidden"
+    mock_request.return_value.json.return_value = {"errorMessages": ["Forbidden"]}
+    client = JiraClient(jira_cli_config_path=mock_config_file)
+    result = client.get_workflow_schemes_for_projects(["10047"])
+    assert result == []
+
+
+@patch("core.jira_client.requests.request")
+def test_get_project_statuses_success(mock_request, mock_config_file):
+    """get_project_statuses retorna lista por issue type."""
+    mock_request.return_value.status_code = 200
+    mock_request.return_value.json.return_value = [
+        {
+            "id": "10001",
+            "name": "Task",
+            "statuses": [
+                {"id": "1", "name": "To Do", "statusCategory": {"key": "new"}},
+                {"id": "2", "name": "Done", "statusCategory": {"key": "done"}},
+            ],
+        },
+    ]
+    client = JiraClient(jira_cli_config_path=mock_config_file)
+    result = client.get_project_statuses("10047")
+    assert len(result) == 1
+    assert result[0]["id"] == "10001"
+    assert len(result[0]["statuses"]) == 2
+    assert "project/10047/statuses" in mock_request.call_args[0][1]
+
+
+@patch("core.jira_client.requests.request")
+def test_get_project_statuses_returns_empty_on_403(mock_request, mock_config_file):
+    """get_project_statuses retorna [] em 403."""
+    mock_request.return_value.status_code = 403
+    mock_request.return_value.text = "Forbidden"
+    mock_request.return_value.json.return_value = {"errorMessages": ["Forbidden"]}
+    client = JiraClient(jira_cli_config_path=mock_config_file)
+    result = client.get_project_statuses("PROJ")
+    assert result == []
+
+
+@patch("core.jira_client.requests.request")
+def test_get_workflows_search_success(mock_request, mock_config_file):
+    """get_workflows_search retorna values com workflows (statuses/transitions se expand)."""
+    mock_request.return_value.status_code = 200
+    mock_request.return_value.json.return_value = {
+        "values": [
+            {
+                "id": "wf-uuid-1",
+                "name": "Software Development",
+                "statuses": [{"id": "1", "name": "To Do"}, {"id": "2", "name": "Done"}],
+                "transitions": [
+                    {"id": "21", "name": "Done", "to": {"id": "2", "name": "Done"}},
+                ],
+            },
+        ],
+        "startAt": 0,
+        "maxResults": 50,
+    }
+    client = JiraClient(jira_cli_config_path=mock_config_file)
+    result = client.get_workflows_search(query_string="Software")
+    assert "values" in result
+    assert len(result["values"]) == 1
+    assert result["values"][0]["id"] == "wf-uuid-1"
+    call_kw = mock_request.call_args[1]
+    assert call_kw.get("params", {}).get("expand") == "values.transitions"
+    assert call_kw.get("params", {}).get("isActive") is True
+    assert call_kw.get("params", {}).get("queryString") == "Software"
+
+
+@patch("core.jira_client.requests.request")
+def test_get_workflows_search_returns_empty_values_on_403(
+    mock_request, mock_config_file
+):
+    """get_workflows_search retorna {values: []} em 403."""
+    mock_request.return_value.status_code = 403
+    mock_request.return_value.text = "Forbidden"
+    mock_request.return_value.json.return_value = {"errorMessages": ["Forbidden"]}
+    client = JiraClient(jira_cli_config_path=mock_config_file)
+    result = client.get_workflows_search()
+    assert result == {"values": []}
+
+
+@patch("core.jira_client.requests.request")
 def test_get_field_context_default_value_success(mock_request, mock_config_file):
     """get_field_context_default_value retorna lista de defaults."""
     mock_request.return_value.status_code = 200

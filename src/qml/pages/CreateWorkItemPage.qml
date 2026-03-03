@@ -198,8 +198,8 @@ Kirigami.Page {
 
                 Item {
                     width: leftScrollView.availableWidth
-                    // Garantir altura mínima = viewport para o layout preencher o pane (como MyIssuesPage/MyWorkItemsPage)
-                    implicitHeight: Math.max(leftColumn.implicitHeight, leftScrollView.availableHeight)
+                    // Altura mínima = viewport; evita binding loop (não usar leftColumn.implicitHeight aqui)
+                    implicitHeight: Math.max(leftScrollView.topSectionHeight + leftScrollView.epicSectionHeight + Kirigami.Units.largeSpacing * 2 + 24 + 200, leftScrollView.availableHeight)
 
                     Component.onCompleted: {
                         leftScrollView.updateSectionHeightsFromViewport();

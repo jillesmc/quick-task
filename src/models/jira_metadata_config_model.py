@@ -106,6 +106,11 @@ class EnrichmentWorker(QThread):
                         field_id_to_meta,
                     )
 
+        # Workflow / status / transitions metadata for selected projects and issue types
+        payload["workflow_metadata"] = self._fetch_workflow_metadata(
+            payload, client, project_key_to_id
+        )
+
         return payload
 
     def _enrich_one_field(
@@ -180,6 +185,228 @@ class EnrichmentWorker(QThread):
                 field_obj["object_schema"] = None
             if "filter_scope_aql" not in field_obj:
                 field_obj["filter_scope_aql"] = None
+
+    def _fetch_workflow_metadata(
+        self,
+        payload: Dict[str, Any],
+        client: Any,
+        project_key_to_id: Dict[str, str],
+    ) -> Dict[str, Dict[str, Any]]:
+        """
+        Obtém workflow_metadata para os projetos e issue types selecionados.
+        Retorna { projectKey: { issuetypeId: { workflowId, workflowName, statuses, transitions } } }.
+        Em caso de 403 ou falha, retorna {} ou dados parciais sem quebrar o save.
+        """
+        try:
+            from src.utils.debug import debug_log
+        except Exception:
+
+            def debug_log(*_a, **_k):
+                return
+
+        selected_issue_types = payload.get("selected_issue_types") or {}
+        if not isinstance(selected_issue_types, dict):
+            debug_log(
+                "JiraMetadataConfigModel",
+                "_fetch_workflow_metadata",
+                "selected_issue_types not dict type=%s",
+                type(selected_issue_types).__name__,
+            )
+            return {}
+        debug_log(
+            "JiraMetadataConfigModel",
+            "_fetch_workflow_metadata",
+            "selected_issue_types projects=%s",
+            list(selected_issue_types.keys()),
+        )
+
+        # Lista (project_key, project_id, issuetype_id) para os pares selecionados
+        pairs: List[tuple] = []
+        for project_key, types_list in selected_issue_types.items():
+            if not isinstance(types_list, list):
+                continue
+            project_id = project_key_to_id.get(project_key) or project_key
+            for t in types_list:
+                if isinstance(t, dict) and t.get("id"):
+                    pairs.append((project_key, project_id, str(t["id"])))
+        if not pairs:
+            debug_log(
+                "JiraMetadataConfigModel",
+                "_fetch_workflow_metadata",
+                "no (project, issuetype) pairs found",
+            )
+            return {}
+        debug_log(
+            "JiraMetadataConfigModel",
+            "_fetch_workflow_metadata",
+            "pairs.len=%d sample=%s",
+            len(pairs),
+            pairs[:5],
+        )
+
+        project_ids = list({pid for (_, pid, _) in pairs if pid})
+        try:
+            schemes = client.get_workflow_schemes_for_projects(project_ids)
+        except Exception as e:
+            debug_log(
+                "JiraMetadataConfigModel",
+                "_fetch_workflow_metadata",
+                "get_workflow_schemes_for_projects error: %s",
+                e,
+            )
+            return {}
+        issue_type_to_workflow = _jira_meta.build_issue_type_to_workflow_from_schemes(
+            schemes
+        )
+        default_workflow = _jira_meta.get_default_workflow_from_schemes(schemes)
+        issuetype_ids = sorted({it for (_, _, it) in pairs})
+        mapping_sample = {
+            it: issue_type_to_workflow.get(it) or default_workflow
+            for it in issuetype_ids
+        }
+        debug_log(
+            "JiraMetadataConfigModel",
+            "_fetch_workflow_metadata",
+            "issue_type_to_workflow.keys=%s default_workflow=%s sample=%s",
+            sorted(issue_type_to_workflow.keys()),
+            default_workflow,
+            mapping_sample,
+        )
+
+        # Cache: project_id_or_key -> statuses by issue type
+        project_statuses_cache: Dict[str, Dict[str, List[Dict[str, Any]]]] = {}
+        for project_key, project_id, _ in pairs:
+            key = project_id or project_key
+            if key in project_statuses_cache:
+                continue
+            try:
+                raw = client.get_project_statuses(key)
+                project_statuses_cache[key] = _jira_meta.build_statuses_by_issue_type(
+                    raw
+                )
+            except Exception as e:
+                debug_log(
+                    "JiraMetadataConfigModel",
+                    "_fetch_workflow_metadata",
+                    "get_project_statuses error project=%s: %s",
+                    key,
+                    e,
+                )
+                project_statuses_cache[key] = {}
+        debug_log(
+            "JiraMetadataConfigModel",
+            "_fetch_workflow_metadata",
+            "project_statuses_cache.keys=%s",
+            list(project_statuses_cache.keys()),
+        )
+
+        # Cache: workflow_id -> { workflowName, statuses, transitions }
+        workflow_details_cache: Dict[str, Dict[str, Any]] = {}
+        for _, _, issuetype_id in pairs:
+            w = issue_type_to_workflow.get(issuetype_id) or default_workflow
+            if not w:
+                continue
+            w_id = (w.get("workflowId") or "").strip()
+            w_name = (w.get("workflowName") or "").strip()
+            if not w_id and not w_name:
+                continue
+            if w_id in workflow_details_cache:
+                continue
+            try:
+                resp = client.get_workflows_search(
+                    query_string=w_name if w_name else None,
+                )
+                by_id = _jira_meta.build_workflow_details_by_id(resp)
+                if w_id and w_id in by_id:
+                    workflow_details_cache[w_id] = by_id[w_id]
+                elif by_id:
+                    first = next(iter(by_id.values()))
+                    cache_key = w_id or w_name or "_"
+                    workflow_details_cache[cache_key] = first
+            except Exception as e:
+                debug_log(
+                    "JiraMetadataConfigModel",
+                    "_fetch_workflow_metadata",
+                    "get_workflows_search error issuetype=%s workflowId=%s workflowName=%s: %s",
+                    issuetype_id,
+                    w_id,
+                    w_name,
+                    e,
+                )
+        debug_log(
+            "JiraMetadataConfigModel",
+            "_fetch_workflow_metadata",
+            "workflow_details_cache.keys=%s",
+            list(workflow_details_cache.keys()),
+        )
+
+        # Montar workflow_metadata
+        result: Dict[str, Dict[str, Any]] = {}
+        logged_examples = 0
+        for project_key, project_id, issuetype_id in pairs:
+            if project_key not in result:
+                result[project_key] = {}
+            w = issue_type_to_workflow.get(issuetype_id) or default_workflow
+            w_id = (w.get("workflowId") or "").strip() if w else ""
+            w_name = (w.get("workflowName") or "").strip() if w else ""
+            statuses = (
+                project_statuses_cache.get(project_id or project_key) or {}
+            ).get(issuetype_id, [])
+            details = (
+                (workflow_details_cache.get(w_id) if w_id else None)
+                or (workflow_details_cache.get(w_name) if w_name else None)
+                or workflow_details_cache.get("_")
+            )
+            if not statuses and details:
+                statuses = details.get("statuses") or []
+            transitions = (details.get("transitions") or []) if details else []
+            status_id_to_name = {
+                str(s.get("id") or ""): (s.get("name") or "")
+                for s in statuses
+                if isinstance(s, dict) and s.get("id")
+            }
+            for tr in transitions:
+                if not isinstance(tr, dict):
+                    continue
+                to_obj = tr.get("to")
+                if (
+                    isinstance(to_obj, dict)
+                    and to_obj.get("id")
+                    and not to_obj.get("name")
+                ):
+                    sid = str(to_obj.get("id", ""))
+                    if sid in status_id_to_name:
+                        to_obj["name"] = status_id_to_name[sid]
+                if not tr.get("fromStatuses"):
+                    from_ids = tr.get("from")
+                    if isinstance(from_ids, list) and from_ids:
+                        tr["fromStatuses"] = [
+                            {
+                                "id": str(fid),
+                                "name": status_id_to_name.get(str(fid), ""),
+                            }
+                            for fid in from_ids
+                        ]
+            result[project_key][issuetype_id] = {
+                "workflowId": w_id,
+                "workflowName": w_name,
+                "statuses": statuses,
+                "transitions": transitions,
+            }
+            if logged_examples < 5:
+                debug_log(
+                    "JiraMetadataConfigModel",
+                    "_fetch_workflow_metadata",
+                    "entry project=%s issuetype=%s workflowId=%s workflowName=%s statuses.len=%d transitions.len=%d",
+                    project_key,
+                    issuetype_id,
+                    w_id,
+                    w_name,
+                    len(statuses),
+                    len(transitions),
+                )
+                logged_examples += 1
+        return result
 
 
 class DiscoveryWorker(QThread):
