@@ -704,6 +704,55 @@ def test_adf_to_markdown_bullet_list():
     assert "One" in result and "Two" in result
 
 
+def test_adf_to_markdown_nested_bullet_list():
+    """ADF com listItem que contém paragraph + bulletList → markdown com sublista (4 espaços)."""
+    adf = {
+        "type": "bulletList",
+        "content": [
+            {
+                "type": "listItem",
+                "content": [
+                    {
+                        "type": "paragraph",
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": "IDP Keycloak: Algumas rotas públicas do Keycloak utilizam a CDN Azion.",
+                            }
+                        ],
+                    },
+                    {
+                        "type": "bulletList",
+                        "content": [
+                            {
+                                "type": "listItem",
+                                "content": [
+                                    {
+                                        "type": "paragraph",
+                                        "content": [
+                                            {
+                                                "type": "text",
+                                                "text": "Bot Manager - Implementado para tudo que passa na CDN.",
+                                            }
+                                        ],
+                                    }
+                                ],
+                            }
+                        ],
+                    },
+                ],
+            },
+        ],
+    }
+    result = JiraClient._adf_to_markdown(adf)
+    assert "IDP Keycloak" in result
+    assert "Bot Manager" in result
+    # Item principal com '- '; sublista com 4 espaços antes do '- '
+    lines = result.strip().split("\n")
+    assert any(line.startswith("- ") and "IDP" in line for line in lines)
+    assert any(line.startswith("    - ") and "Bot" in line for line in lines)
+
+
 def test_adf_to_markdown_ordered_list():
     """ADF com orderedList de dois itens → '1. ...' e '2. ...'."""
     adf = {

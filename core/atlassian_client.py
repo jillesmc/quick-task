@@ -1526,9 +1526,21 @@ class AtlassianClient:
             return "\n".join(items) + "\n"
 
         if node_type == "listItem":
-            if content:
-                return AtlassianClient._adf_to_markdown(content[0]).strip()
-            return ""
+            # listItem pode ter paragraph(s) + bulletList/orderedList aninhados; ADF guarda o nível.
+            # Processar todos os filhos; sublistas são indentadas (4 espaços) para Markdown.
+            parts = []
+            for block in content:
+                if not isinstance(block, dict):
+                    continue
+                block_md = AtlassianClient._adf_to_markdown(block).strip()
+                if not block_md:
+                    continue
+                if block.get("type") in ("bulletList", "orderedList"):
+                    lines = [line for line in block_md.split("\n") if line.strip()]
+                    parts.append("\n".join("    " + line for line in lines))
+                else:
+                    parts.append(block_md)
+            return "\n".join(parts) if parts else ""
 
         if node_type == "codeBlock":
             lang = (adf_node.get("attrs") or {}).get("language", "")

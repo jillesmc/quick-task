@@ -84,6 +84,9 @@ Kirigami.ApplicationWindow {
     // Objeto único injetado pelo Python via setInitialProperties; acesso qualificado (root.appContext.xxx)
     property var appContext
 
+    // Para preview de Markdown (DescriptionField, CommentsSection, etc.): exposto no root para resolução do identificador não qualificado "markdownPreviewRenderer" em componentes filhos.
+    property var markdownPreviewRenderer: root.appContext ? root.appContext.markdownPreviewRenderer : null
+
     property var hideWindowFn: root.appContext ? root.appContext.hideWindow : null
 
     // Quando true, o erro de transição (ex.: ao clicar "Iniciar Timer" no SuccessDialog) já está a ser mostrado no diálogo de criação; evita ErrorDialog/ProcessDialog duplicados
