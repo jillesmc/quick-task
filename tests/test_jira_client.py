@@ -245,7 +245,7 @@ def test_transition_issue_success(mock_request, mock_config_file):
 @patch("core.jira_client.time.sleep")
 @patch("core.jira_client.requests.request")
 def test_transition_issue_retry(mock_request, mock_sleep, mock_config_file):
-    """Testa retry em caso de falha"""
+    """Testa retry em caso de falha (503 é retentado por request_with_retry)."""
     transitions_response = Mock()
     transitions_response.status_code = 200
     transitions_response.json.return_value = {
@@ -253,18 +253,19 @@ def test_transition_issue_retry(mock_request, mock_sleep, mock_config_file):
             {"id": "21", "name": "In Progress", "to": {"name": "In Progress"}}
         ]
     }
-    # Primeira tentativa falha, segunda sucede
+    # 503 é retentado pelo request_with_retry; primeira POST falha, segunda sucede
     transition_response_fail = Mock()
-    transition_response_fail.status_code = 500
-    transition_response_fail.text = "Internal Server Error"
+    transition_response_fail.status_code = 503
+    transition_response_fail.text = "Service Unavailable"
+    transition_response_fail.json.return_value = {}
     transition_response_success = Mock()
     transition_response_success.status_code = 204
 
-    # 1 GET para buscar transições + 2 POSTs (falha + sucesso)
+    # 1 GET para buscar transições + 2 POSTs (falha 503 + sucesso)
     mock_request.side_effect = [
-        transitions_response,  # GET transitions (uma vez no início)
-        transition_response_fail,  # POST transition (primeira tentativa - falha)
-        transition_response_success,  # POST transition (segunda tentativa - sucesso)
+        transitions_response,  # GET transitions
+        transition_response_fail,  # POST (503 -> retry)
+        transition_response_success,  # POST (204)
     ]
 
     client = JiraClient(jira_cli_config_path=mock_config_file)

@@ -273,6 +273,80 @@ def test_save_worklog_check_config():
             temp_path.unlink()
 
 
+def test_get_http_retry_config_defaults(config_manager: ConfigManager):
+    """Sem http_retry no config, retorna defaults."""
+    cfg = config_manager.get_http_retry_config()
+    assert cfg["max_retries"] == 3
+    assert cfg["base_delay_seconds"] == 1.0
+    assert cfg["max_delay_seconds"] == 60.0
+    assert cfg["retry_on_status"] == [429, 503, 502]
+    assert cfg["retry_on_connection_errors"] is True
+
+
+def test_get_http_retry_config_with_section():
+    """Com http_retry no config, retorna valores do arquivo."""
+    config_with_retry = {
+        "project": "TEST",
+        "issue_type": "Task",
+        "assignee": "test@example.com",
+        "custom_fields": {
+            "tipo_atividade": "x",
+            "documentacao_anexa": "y",
+            "utilizacao_ia": "z",
+        },
+        "tipo_atividade_values": ["A"],
+        "status_sequence": ["TO DO", "DONE"],
+        "http_retry": {
+            "max_retries": 5,
+            "base_delay_seconds": 2.0,
+            "max_delay_seconds": 120.0,
+        },
+    }
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+        json.dump(config_with_retry, f)
+        temp_path = Path(f.name)
+    try:
+        manager = ConfigManager(config_path=temp_path)
+        cfg = manager.get_http_retry_config()
+        assert cfg["max_retries"] == 5
+        assert cfg["base_delay_seconds"] == 2.0
+        assert cfg["max_delay_seconds"] == 120.0
+    finally:
+        if temp_path.exists():
+            temp_path.unlink()
+
+
+def test_save_http_retry_config():
+    """save_http_retry_config persiste e recarrega."""
+    config_base = {
+        "project": "TEST",
+        "issue_type": "Task",
+        "assignee": "test@example.com",
+        "custom_fields": {
+            "tipo_atividade": "x",
+            "documentacao_anexa": "y",
+            "utilizacao_ia": "z",
+        },
+        "tipo_atividade_values": ["A"],
+        "status_sequence": ["TO DO", "DONE"],
+    }
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+        json.dump(config_base, f)
+        temp_path = Path(f.name)
+    try:
+        manager = ConfigManager(config_path=temp_path)
+        manager.save_http_retry_config(
+            {"max_retries": 4, "base_delay_seconds": 1.5, "max_delay_seconds": 90.0}
+        )
+        cfg = manager.get_http_retry_config()
+        assert cfg["max_retries"] == 4
+        assert cfg["base_delay_seconds"] == 1.5
+        assert cfg["max_delay_seconds"] == 90.0
+    finally:
+        if temp_path.exists():
+            temp_path.unlink()
+
+
 def test_get_github_token_from_config():
     """get_github_token returns token from config when no env."""
     config_with_github = {

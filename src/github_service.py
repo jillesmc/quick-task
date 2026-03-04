@@ -14,6 +14,8 @@ sys.path.insert(0, str(ROOT_DIR))
 
 from config.config_manager import ConfigManager
 
+from src.utils.http_retry import request_with_retry
+
 try:
     from src.utils.debug import debug_log
 except ImportError:
@@ -62,10 +64,17 @@ class GitHubLoadPRsWorker(QThread):
     prsReady = Signal(list, list)  # prsUser, prsTeam
     errorOccurred = Signal(str)
 
-    def __init__(self, token: str, username: str, parent=None):
+    def __init__(
+        self,
+        token: str,
+        username: str,
+        parent=None,
+        retry_config: Optional[Dict[str, Any]] = None,
+    ):
         super().__init__(parent)
         self._token = (token or "").strip()
         self._username = (username or "").strip()
+        self._retry_config = retry_config
 
     def run(self) -> None:
         if not requests:
@@ -83,21 +92,22 @@ class GitHubLoadPRsWorker(QThread):
         }
         session = requests.Session()
         session.headers.update(headers)
+        rc = self._retry_config
         pr_user_query = f"is:pr is:open user-review-requested:{self._username}"
-        prs_user, err = _fetch_search_issues(session, pr_user_query, "pr", "user")
+        prs_user, err = _fetch_search_issues(session, pr_user_query, "pr", "user", rc)
         if err:
             self.errorOccurred.emit(err)
             return
         user_urls = {it["url"] for it in prs_user}
         prs_team: List[Dict[str, Any]] = []
-        teams, teams_err = _get_user_teams(session)
+        teams, teams_err = _get_user_teams(session, rc)
         if not teams_err and teams:
             for team in teams:
                 org, slug = team.get("org", ""), team.get("slug", "")
                 if not org or not slug:
                     continue
                 q = f"is:pr is:open team-review-requested:{org}/{slug}"
-                batch, batch_err = _fetch_search_issues(session, q, "pr", "team")
+                batch, batch_err = _fetch_search_issues(session, q, "pr", "team", rc)
                 if batch_err:
                     continue
                 for it in batch:
@@ -113,10 +123,17 @@ class GitHubLoadIssuesWorker(QThread):
     issuesReady = Signal(list)
     errorOccurred = Signal(str)
 
-    def __init__(self, token: str, username: str, parent=None):
+    def __init__(
+        self,
+        token: str,
+        username: str,
+        parent=None,
+        retry_config: Optional[Dict[str, Any]] = None,
+    ):
         super().__init__(parent)
         self._token = (token or "").strip()
         self._username = (username or "").strip()
+        self._retry_config = retry_config
 
     def run(self) -> None:
         if not requests:
@@ -135,7 +152,9 @@ class GitHubLoadIssuesWorker(QThread):
         session = requests.Session()
         session.headers.update(headers)
         issue_query = f"is:issue is:open assignee:{self._username}"
-        issues, err = _fetch_search_issues(session, issue_query, "issue")
+        issues, err = _fetch_search_issues(
+            session, issue_query, "issue", retry_config=self._retry_config
+        )
         if err:
             self.errorOccurred.emit(err)
             return
@@ -148,10 +167,17 @@ class GitHubLoadWorker(QThread):
     dataLoaded = Signal(dict)  # { prsRequestedForUser, prsRequestedForTeam, issues }
     errorOccurred = Signal(str)
 
-    def __init__(self, token: str, username: str, parent=None):
+    def __init__(
+        self,
+        token: str,
+        username: str,
+        parent=None,
+        retry_config: Optional[Dict[str, Any]] = None,
+    ):
         super().__init__(parent)
         self._token = (token or "").strip()
         self._username = (username or "").strip()
+        self._retry_config = retry_config
 
     def run(self) -> None:
         if not requests:
@@ -169,21 +195,22 @@ class GitHubLoadWorker(QThread):
         }
         session = requests.Session()
         session.headers.update(headers)
+        rc = self._retry_config
         pr_user_query = f"is:pr is:open user-review-requested:{self._username}"
-        prs_user, err = _fetch_search_issues(session, pr_user_query, "pr", "user")
+        prs_user, err = _fetch_search_issues(session, pr_user_query, "pr", "user", rc)
         if err:
             self.errorOccurred.emit(err)
             return
         user_urls = {it["url"] for it in prs_user}
         prs_team: List[Dict[str, Any]] = []
-        teams, teams_err = _get_user_teams(session)
+        teams, teams_err = _get_user_teams(session, rc)
         if not teams_err and teams:
             for team in teams:
                 org, slug = team.get("org", ""), team.get("slug", "")
                 if not org or not slug:
                     continue
                 q = f"is:pr is:open team-review-requested:{org}/{slug}"
-                batch, batch_err = _fetch_search_issues(session, q, "pr", "team")
+                batch, batch_err = _fetch_search_issues(session, q, "pr", "team", rc)
                 if batch_err:
                     continue
                 for it in batch:
@@ -191,7 +218,9 @@ class GitHubLoadWorker(QThread):
                         prs_team.append(it)
                         user_urls.add(it["url"])
         issue_query = f"is:issue is:open assignee:{self._username}"
-        issues, err = _fetch_search_issues(session, issue_query, "issue")
+        issues, err = _fetch_search_issues(
+            session, issue_query, "issue", retry_config=rc
+        )
         if err:
             self.errorOccurred.emit(err)
             return
@@ -209,12 +238,16 @@ def _fetch_search_issues(
     q: str,
     kind: str,
     review_kind: Optional[str] = None,
+    retry_config: Optional[Dict[str, Any]] = None,
 ) -> Tuple[List[Dict[str, Any]], Optional[str]]:
     """Call GitHub search/issues with q; return (list of normalized items, error message or None)."""
     url = f"{GITHUB_API_BASE}/search/issues"
     params = {"q": q, "per_page": 100, "sort": "created", "order": "desc"}
     try:
-        resp = session.get(url, params=params, timeout=30)
+        resp = request_with_retry(
+            lambda: session.get(url, params=params, timeout=30),
+            retry_config,
+        )
         if resp.status_code == 403 or resp.status_code == 429:
             retry = resp.headers.get("Retry-After", "")
             msg = (
@@ -239,6 +272,7 @@ def _search_repos_impl(
     session: "requests.Session",
     query: str,
     default_org: str,
+    retry_config: Optional[Dict[str, Any]] = None,
 ) -> List[Dict[str, Any]]:
     """Fetch repos restricted by default_org (org or user) and filter by query. Returns list of {full_name, default_branch}."""
     try:
@@ -259,10 +293,13 @@ def _search_repos_impl(
         for qualifier in ("org", "user"):
             search_q = f"{q} {qualifier}:{default_org} in:name"
             try:
-                resp = session.get(
-                    f"{GITHUB_API_BASE}/search/repositories",
-                    params={"q": search_q, "per_page": 30, "sort": "updated"},
-                    timeout=15,
+                resp = request_with_retry(
+                    lambda sq=search_q: session.get(
+                        f"{GITHUB_API_BASE}/search/repositories",
+                        params={"q": sq, "per_page": 30, "sort": "updated"},
+                        timeout=15,
+                    ),
+                    retry_config,
                 )
                 if resp.status_code == 200:
                     data = resp.json() or {}
@@ -300,7 +337,7 @@ def _search_repos_impl(
 
         # Fallback: list org repos and filter client-side (limited to first 100)
         repos: List[Dict[str, Any]] = []
-        for url, params in [
+        for repo_url, req_params in [
             (
                 f"{GITHUB_API_BASE}/orgs/{default_org}/repos",
                 {"type": "all", "per_page": 100},
@@ -311,9 +348,14 @@ def _search_repos_impl(
             ),
         ]:
             try:
-                resp = session.get(url, params=params, timeout=15)
+                resp = request_with_retry(
+                    lambda u=repo_url, p=req_params: session.get(
+                        u, params=p, timeout=15
+                    ),
+                    retry_config,
+                )
                 if resp.status_code == 404:
-                    _log("_search_repos_impl", "run", "URL 404: %s", url[:60])
+                    _log("_search_repos_impl", "run", "URL 404: %s", repo_url[:60])
                     continue
                 resp.raise_for_status()
                 repos = resp.json() or []
@@ -321,7 +363,7 @@ def _search_repos_impl(
                     "_search_repos_impl",
                     "run",
                     "GET %s repos_raw=%s (fallback)",
-                    url[:50],
+                    repo_url[:50],
                     len(repos),
                 )
                 break
@@ -353,10 +395,13 @@ def _search_repos_impl(
 
     # No default_org: list user repos and filter
     try:
-        resp = session.get(
-            f"{GITHUB_API_BASE}/user/repos",
-            params={"sort": "updated", "per_page": 100},
-            timeout=15,
+        resp = request_with_retry(
+            lambda: session.get(
+                f"{GITHUB_API_BASE}/user/repos",
+                params={"sort": "updated", "per_page": 100},
+                timeout=15,
+            ),
+            retry_config,
         )
         resp.raise_for_status()
         repos = resp.json() or []
@@ -390,11 +435,15 @@ def _search_repos_impl(
 
 def _get_user_teams(
     session: "requests.Session",
+    retry_config: Optional[Dict[str, Any]] = None,
 ) -> Tuple[List[Dict[str, Any]], Optional[str]]:
     """GET /user/teams; return (list of {org, slug}, error or None). Requires read:org scope."""
     url = f"{GITHUB_API_BASE}/user/teams"
     try:
-        resp = session.get(url, params={"per_page": 100}, timeout=15)
+        resp = request_with_retry(
+            lambda: session.get(url, params={"per_page": 100}, timeout=15),
+            retry_config,
+        )
         if resp.status_code == 403 or resp.status_code == 404:
             return [], None  # no org permission or endpoint not available
         if resp.status_code == 429:
@@ -428,11 +477,13 @@ class SearchReposWorker(QThread):
         default_org: str,
         query: str,
         parent=None,
+        retry_config: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(parent)
         self._token = (token or "").strip()
         self._default_org = (default_org or "").strip()
         self._query = (query or "").strip()
+        self._retry_config = retry_config
 
     def run(self) -> None:
         if not requests:
@@ -453,7 +504,9 @@ class SearchReposWorker(QThread):
         session = requests.Session()
         session.headers.update(headers)
         try:
-            results = _search_repos_impl(session, self._query, self._default_org)
+            results = _search_repos_impl(
+                session, self._query, self._default_org, self._retry_config
+            )
             debug_log(
                 "SearchReposWorker",
                 "run",
@@ -493,6 +546,7 @@ class CreateBranchWorker(QThread):
         branch_name: str,
         base_branch: str,
         parent=None,
+        retry_config: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(parent)
         self._token = (token or "").strip()
@@ -500,6 +554,7 @@ class CreateBranchWorker(QThread):
         self._repo = (repo or "").strip()
         self._branch_name = (branch_name or "").strip()
         self._base_branch = (base_branch or "").strip()
+        self._retry_config = retry_config
 
     def run(self) -> None:
         if not requests:
@@ -521,11 +576,15 @@ class CreateBranchWorker(QThread):
         session = requests.Session()
         session.headers.update(headers)
         base_url = f"{GITHUB_API_BASE}/repos/{self._owner}/{self._repo}"
+        rc = self._retry_config
         try:
             # 1) Get default branch if base not set
             base = self._base_branch
             if not base:
-                resp = session.get(base_url, timeout=15)
+                resp = request_with_retry(
+                    lambda: session.get(base_url, timeout=15),
+                    rc,
+                )
                 if resp.status_code == 403:
                     self.errorOccurred.emit(
                         "Sem permissão para criar branch neste repositório."
@@ -536,7 +595,10 @@ class CreateBranchWorker(QThread):
                 base = (data.get("default_branch") or "main").strip()
             # 2) Get SHA of base ref
             ref_url = f"{base_url}/git/ref/heads/{base}"
-            resp = session.get(ref_url, timeout=15)
+            resp = request_with_retry(
+                lambda: session.get(ref_url, timeout=15),
+                rc,
+            )
             if resp.status_code == 404:
                 self.errorOccurred.emit(f"Branch base '{base}' não encontrada.")
                 return
@@ -549,7 +611,10 @@ class CreateBranchWorker(QThread):
             # 3) Create ref
             post_url = f"{base_url}/git/refs"
             body = {"ref": f"refs/heads/{self._branch_name}", "sha": sha}
-            resp = session.post(post_url, json=body, timeout=15)
+            resp = request_with_retry(
+                lambda: session.post(post_url, json=body, timeout=15),
+                rc,
+            )
             if resp.status_code == 422:
                 self.errorOccurred.emit("Já existe uma branch com este nome.")
                 return
@@ -647,6 +712,12 @@ class GitHubService(QObject):
         self._reload_config()
         return self._config.get_github_username()
 
+    def _get_retry_config(self) -> Optional[Dict[str, Any]]:
+        """HTTP retry config for external calls (None = use module defaults)."""
+        if not self._config:
+            return None
+        return self._config.get_http_retry_config()
+
     @Slot()
     def loadItems(self) -> None:
         """Load PRs and Issues in parallel (calls loadPRs + loadIssues)."""
@@ -660,7 +731,9 @@ class GitHubService(QObject):
             return
         token = self._get_token()
         username = self._get_username()
-        self._prs_worker = GitHubLoadPRsWorker(token, username, parent=self)
+        self._prs_worker = GitHubLoadPRsWorker(
+            token, username, parent=self, retry_config=self._get_retry_config()
+        )
         self._prs_worker.prsReady.connect(self.prsReady.emit)
         self._prs_worker.errorOccurred.connect(self.prsErrorOccurred.emit)
         self._prs_worker.finished.connect(self._on_prs_worker_finished)
@@ -676,7 +749,9 @@ class GitHubService(QObject):
             return
         token = self._get_token()
         username = self._get_username()
-        self._issues_worker = GitHubLoadIssuesWorker(token, username, parent=self)
+        self._issues_worker = GitHubLoadIssuesWorker(
+            token, username, parent=self, retry_config=self._get_retry_config()
+        )
         self._issues_worker.issuesReady.connect(self.issuesReady.emit)
         self._issues_worker.errorOccurred.connect(self.issuesErrorOccurred.emit)
         self._issues_worker.finished.connect(self._on_issues_worker_finished)
@@ -692,7 +767,9 @@ class GitHubService(QObject):
             return
         token = self._get_token()
         username = self._get_username()
-        self._worker = GitHubLoadWorker(token, username, parent=self)
+        self._worker = GitHubLoadWorker(
+            token, username, parent=self, retry_config=self._get_retry_config()
+        )
         self._worker.dataLoaded.connect(self._on_data_loaded)
         self._worker.errorOccurred.connect(self.errorOccurred.emit)
         self._worker.finished.connect(self._on_worker_finished)
@@ -737,7 +814,11 @@ class GitHubService(QObject):
             len(token) if token else 0,
         )
         self._search_repos_worker = SearchReposWorker(
-            token, default_org, query or "", parent=self
+            token,
+            default_org,
+            query or "",
+            parent=self,
+            retry_config=self._get_retry_config(),
         )
         self._search_repos_worker.reposSearchResults.connect(
             self.reposSearchResults.emit
@@ -772,6 +853,7 @@ class GitHubService(QObject):
             (branch_name or "").strip(),
             (base_branch or "").strip(),
             parent=self,
+            retry_config=self._get_retry_config(),
         )
         self._create_branch_worker.branchCreated.connect(self.branchCreated.emit)
         self._create_branch_worker.errorOccurred.connect(self.errorOccurred.emit)

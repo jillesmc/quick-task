@@ -372,6 +372,18 @@ Kirigami.Page {
                         settingsModel: page.settingsModel
                     }
 
+                    // Chamadas externas (HTTP retry)
+                    Kirigami.Heading {
+                        text: qsTr("Chamadas externas")
+                        level: 2
+                        Layout.fillWidth: true
+                        Layout.topMargin: Kirigami.Units.largeSpacing
+                    }
+                    HttpRetrySettingsBlock {
+                        Layout.fillWidth: true
+                        settingsModel: page.settingsModel
+                    }
+
                     // Entrada
                     Kirigami.Heading {
                         text: qsTr("Entrada")

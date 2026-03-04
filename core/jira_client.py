@@ -16,6 +16,8 @@ from requests.auth import HTTPBasicAuth
 
 from core import jira_metadata as _jira_meta
 
+from src.utils.http_retry import request_with_retry
+
 if TYPE_CHECKING:
     from config.config_manager import ConfigManager
 
@@ -129,6 +131,12 @@ class JiraClient:
             )
         return HTTPBasicAuth(self._auth_email, self._api_token)
 
+    def _get_retry_config(self) -> Optional[Dict[str, Any]]:
+        """Config para request_with_retry (None = usar defaults do módulo)."""
+        if self._config_manager is not None:
+            return self._config_manager.get_http_retry_config()
+        return None
+
     def _make_request(
         self,
         method: str,
@@ -172,14 +180,17 @@ class JiraClient:
             debug_log("JiraClient", "_make_request", "Params: %s", params)
 
         try:
-            response = requests.request(
-                method,
-                url,
-                json=json_data,
-                params=params,
-                auth=auth,
-                headers=headers,
-                timeout=timeout,
+            response = request_with_retry(
+                lambda: requests.request(
+                    method,
+                    url,
+                    json=json_data,
+                    params=params,
+                    auth=auth,
+                    headers=headers,
+                    timeout=timeout,
+                ),
+                self._get_retry_config(),
             )
 
             from src.utils.debug import debug_log
@@ -268,14 +279,17 @@ class JiraClient:
         """
         auth = self._get_auth()
         headers = {"Accept": "application/json", "Content-Type": "application/json"}
-        response = requests.request(
-            method,
-            url,
-            json=json_data,
-            params=params,
-            auth=auth,
-            headers=headers,
-            timeout=timeout,
+        response = request_with_retry(
+            lambda: requests.request(
+                method,
+                url,
+                json=json_data,
+                params=params,
+                auth=auth,
+                headers=headers,
+                timeout=timeout,
+            ),
+            self._get_retry_config(),
         )
         if response.status_code >= 400:
             error_msg = response.text or f"HTTP {response.status_code}"
@@ -328,11 +342,14 @@ class JiraClient:
             )
         try:
             auth = self._get_auth()
-            response = requests.get(
-                fetch_url,
-                auth=auth,
-                timeout=30,
-                allow_redirects=True,
+            response = request_with_retry(
+                lambda: requests.get(
+                    fetch_url,
+                    auth=auth,
+                    timeout=30,
+                    allow_redirects=True,
+                ),
+                self._get_retry_config(),
             )
             if response.status_code >= 400:
                 return None
@@ -813,15 +830,19 @@ class JiraClient:
             mime_type = "application/octet-stream"
 
         try:
-            with open(path, "rb") as f:
-                files = {"file": (filename, f, mime_type)}
-                response = requests.post(
-                    url,
-                    auth=auth,
-                    headers=headers,
-                    files=files,
-                    timeout=60,
-                )
+
+            def _do_upload():
+                with open(path, "rb") as f:
+                    files = {"file": (filename, f, mime_type)}
+                    return requests.post(
+                        url,
+                        auth=auth,
+                        headers=headers,
+                        files=files,
+                        timeout=60,
+                    )
+
+            response = request_with_retry(_do_upload, self._get_retry_config())
             if response.status_code >= 400:
                 error_msg = response.text or f"HTTP {response.status_code}"
                 try:
@@ -886,12 +907,15 @@ class JiraClient:
 
         try:
             files = {"file": (filename, io.BytesIO(data), mime_type)}
-            response = requests.post(
-                url,
-                auth=auth,
-                headers=headers,
-                files=files,
-                timeout=60,
+            response = request_with_retry(
+                lambda: requests.post(
+                    url,
+                    auth=auth,
+                    headers=headers,
+                    files=files,
+                    timeout=60,
+                ),
+                self._get_retry_config(),
             )
             if response.status_code >= 400:
                 error_msg = response.text or f"HTTP {response.status_code}"
@@ -2406,38 +2430,28 @@ class JiraClient:
             )
             return False
 
-        # Tentar transição com retry
-        for attempt in range(max_retries):
-            try:
-                self._make_request(
-                    "POST",
-                    f"issue/{issue_key}/transitions",
-                    json_data=payload,
-                    timeout=15,
-                )
-                return True
-            except RuntimeError as e:
-                error_msg = str(e)
-                if attempt < max_retries - 1:
-                    time.sleep(retry_delay)
-                    continue
-                print(
-                    f"Erro ao transicionar para '{status}': {error_msg}",
-                    file=sys.stderr,
-                )
-                raise RuntimeError(error_msg) from e
-            except Exception as e:
-                if attempt < max_retries - 1:
-                    time.sleep(retry_delay)
-                    continue
-                err_str = str(e)
-                print(
-                    f"Erro ao transicionar para '{status}': {err_str}",
-                    file=sys.stderr,
-                )
-                raise RuntimeError(err_str) from e
-
-        return False
+        # Transição (retry com backoff já está em _make_request)
+        try:
+            self._make_request(
+                "POST",
+                f"issue/{issue_key}/transitions",
+                json_data=payload,
+                timeout=15,
+            )
+            return True
+        except RuntimeError as e:
+            print(
+                f"Erro ao transicionar para '{status}': {e}",
+                file=sys.stderr,
+            )
+            raise
+        except Exception as e:
+            err_str = str(e)
+            print(
+                f"Erro ao transicionar para '{status}': {err_str}",
+                file=sys.stderr,
+            )
+            raise RuntimeError(err_str) from e
 
     @staticmethod
     def _extract_issue_key(output: str) -> str:
@@ -3017,12 +3031,15 @@ class JiraClient:
         params = {"issueId": str(issue_id)}
         try:
             auth = self._get_auth()
-            response = requests.get(
-                url,
-                params=params,
-                auth=auth,
-                headers={"Accept": "application/json"},
-                timeout=15,
+            response = request_with_retry(
+                lambda: requests.get(
+                    url,
+                    params=params,
+                    auth=auth,
+                    headers={"Accept": "application/json"},
+                    timeout=15,
+                ),
+                self._get_retry_config(),
             )
             if response.status_code in (403, 404):
                 return {}

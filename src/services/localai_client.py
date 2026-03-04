@@ -11,6 +11,7 @@ from typing import Any, Dict, List, Optional
 from PySide6.QtCore import QObject, Signal, QThread, Slot  # type: ignore[import]
 
 from src.constants import SUMMARY_MAX_LENGTH
+from src.utils.http_retry import request_with_retry
 
 try:
     import requests
@@ -161,7 +162,10 @@ class LocalAIClient(QObject):
             return False
         url = self._get_models_url()
         try:
-            r = requests.get(url, timeout=LOCALAI_TIMEOUT_MODELS)
+            r = request_with_retry(
+                lambda: requests.get(url, timeout=LOCALAI_TIMEOUT_MODELS),
+                None,
+            )
             if r.status_code == 200:
                 return True
             try:
@@ -205,19 +209,22 @@ class LocalAIClient(QObject):
         if not path.exists():
             raise FileNotFoundError(f"Arquivo de áudio não encontrado: {audio_path}")
 
-        with open(path, "rb") as f:
-            files = {"file": (path.name or "audio.wav", f, "audio/wav")}
-            data = {
-                "model": self._whisper_model,
-                "language": "pt",
-                "response_format": "json",
-            }
-            r = requests.post(
-                self._get_transcriptions_url(),
-                files=files,
-                data=data,
-                timeout=LOCALAI_TIMEOUT_TRANSCRIBE,
-            )
+        def _do_transcribe():
+            with open(path, "rb") as f:
+                files = {"file": (path.name or "audio.wav", f, "audio/wav")}
+                data = {
+                    "model": self._whisper_model,
+                    "language": "pt",
+                    "response_format": "json",
+                }
+                return requests.post(
+                    self._get_transcriptions_url(),
+                    files=files,
+                    data=data,
+                    timeout=LOCALAI_TIMEOUT_TRANSCRIBE,
+                )
+
+        r = request_with_retry(_do_transcribe, None)
 
         if r.status_code != 200:
             raise RuntimeError(f"Transcrição falhou: HTTP {r.status_code}")
@@ -261,17 +268,20 @@ class LocalAIClient(QObject):
             comment_improvement_prompt or ""
         ).strip() or DEFAULT_COMMENT_IMPROVEMENT_PROMPT
         try:
-            r = requests.post(
-                self._get_chat_completions_url(),
-                json={
-                    "model": self._llm_model,
-                    "messages": [
-                        {"role": "system", "content": prompt},
-                        {"role": "user", "content": text},
-                    ],
-                    "temperature": 0.3,
-                },
-                timeout=LOCALAI_TIMEOUT_IMPROVE_COMMENT,
+            r = request_with_retry(
+                lambda: requests.post(
+                    self._get_chat_completions_url(),
+                    json={
+                        "model": self._llm_model,
+                        "messages": [
+                            {"role": "system", "content": prompt},
+                            {"role": "user", "content": text},
+                        ],
+                        "temperature": 0.3,
+                    },
+                    timeout=LOCALAI_TIMEOUT_IMPROVE_COMMENT,
+                ),
+                None,
             )
             if r.status_code != 200:
                 return text
@@ -340,18 +350,21 @@ class LocalAIClient(QObject):
             task_system_prompt or ""
         ).strip() or DEFAULT_TASK_SYSTEM_PROMPT
         prompt = self._build_llm_prompt(transcription, tipo_atividade_values)
-        r = requests.post(
-            self._get_chat_completions_url(),
-            json={
-                "model": self._llm_model,
-                "messages": [
-                    {"role": "system", "content": system_content},
-                    {"role": "user", "content": prompt},
-                ],
-                "temperature": 0.3,
-                "response_format": {"type": "json_object"},
-            },
-            timeout=LOCALAI_TIMEOUT_GENERATE,
+        r = request_with_retry(
+            lambda: requests.post(
+                self._get_chat_completions_url(),
+                json={
+                    "model": self._llm_model,
+                    "messages": [
+                        {"role": "system", "content": system_content},
+                        {"role": "user", "content": prompt},
+                    ],
+                    "temperature": 0.3,
+                    "response_format": {"type": "json_object"},
+                },
+                timeout=LOCALAI_TIMEOUT_GENERATE,
+            ),
+            None,
         )
         if r.status_code != 200:
             return self._heuristic_fallback(transcription, tipo_atividade_values)

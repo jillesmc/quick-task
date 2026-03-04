@@ -8,6 +8,7 @@ import re
 from typing import Any, Dict, List, Optional
 
 from src.constants import SUMMARY_MAX_LENGTH
+from src.utils.http_retry import request_with_retry
 
 try:
     import requests
@@ -34,7 +35,10 @@ class VoiceTaskProcessor:
         if not REQUESTS_AVAILABLE:
             return False
         try:
-            r = requests.get(f"{self._ollama_base}/api/tags", timeout=5)
+            r = request_with_retry(
+                lambda: requests.get(f"{self._ollama_base}/api/tags", timeout=5),
+                None,
+            )
             return r.status_code == 200
         except Exception:
             return False
@@ -43,10 +47,17 @@ class VoiceTaskProcessor:
         if not REQUESTS_AVAILABLE:
             return None
         try:
-            r = requests.post(
-                f"{self._ollama_base}/api/generate",
-                json={"model": self._ollama_model, "prompt": prompt, "stream": False},
-                timeout=OLLAMA_TIMEOUT,
+            r = request_with_retry(
+                lambda: requests.post(
+                    f"{self._ollama_base}/api/generate",
+                    json={
+                        "model": self._ollama_model,
+                        "prompt": prompt,
+                        "stream": False,
+                    },
+                    timeout=OLLAMA_TIMEOUT,
+                ),
+                None,
             )
             if r.status_code != 200:
                 return None

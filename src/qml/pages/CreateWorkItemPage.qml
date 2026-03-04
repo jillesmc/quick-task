@@ -198,8 +198,7 @@ Kirigami.Page {
 
                 Item {
                     width: leftScrollView.availableWidth
-                    // Altura mínima = viewport; evita binding loop (não usar leftColumn.implicitHeight aqui)
-                    implicitHeight: Math.max(leftScrollView.topSectionHeight + leftScrollView.epicSectionHeight + Kirigami.Units.largeSpacing * 2 + 24 + 200, leftScrollView.availableHeight)
+                    implicitHeight: leftColumn.implicitHeight
 
                     Component.onCompleted: {
                         leftScrollView.updateSectionHeightsFromViewport();
@@ -253,7 +252,7 @@ Kirigami.Page {
                             Layout.fillWidth: true
                         }
 
-                        // Seção Parent Work Item (wrapper com Layout.preferredHeight para dividir o left pane ao meio, como em IssueFormPage)
+                        // Seção Parent Work Item
                         ColumnLayout {
                             id: epicSection
                             Layout.fillWidth: true
@@ -291,7 +290,6 @@ Kirigami.Page {
                             Layout.fillWidth: true
                         }
 
-                        // Espaço final (fillHeight para permitir redimensionamento do epicSection)
                         Item {
                             Layout.fillWidth: true
                             Layout.fillHeight: true

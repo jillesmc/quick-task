@@ -782,6 +782,51 @@ class ConfigManager:
             self.get_worklog_check_config().get("block_transition_if_pending", False)
         )
 
+    def get_http_retry_config(self) -> Dict[str, Any]:
+        """
+        Retorna configuração de retry para chamadas HTTP externas (evitar 429, 503, etc.).
+
+        Returns:
+            Dict com max_retries, base_delay_seconds, max_delay_seconds e opcionais
+            retry_on_status, retry_on_connection_errors.
+        """
+        default_config: Dict[str, Any] = {
+            "max_retries": 3,
+            "base_delay_seconds": 1.0,
+            "max_delay_seconds": 60.0,
+            "retry_on_status": [429, 503, 502],
+            "retry_on_connection_errors": True,
+        }
+        http_retry = self._config.get("http_retry") or {}
+        if not isinstance(http_retry, dict):
+            return default_config
+        result = dict(default_config)
+        for key in ("max_retries", "base_delay_seconds", "max_delay_seconds"):
+            if key in http_retry and http_retry[key] is not None:
+                result[key] = http_retry[key]
+        if "retry_on_status" in http_retry and isinstance(
+            http_retry["retry_on_status"], list
+        ):
+            result["retry_on_status"] = list(http_retry["retry_on_status"])
+        if "retry_on_connection_errors" in http_retry:
+            result["retry_on_connection_errors"] = bool(
+                http_retry["retry_on_connection_errors"]
+            )
+        return result
+
+    def save_http_retry_config(self, http_retry_config: Dict[str, Any]) -> None:
+        """
+        Salva configurações de http_retry no arquivo de configuração.
+        """
+        self._config["http_retry"] = dict(http_retry_config)
+        self.config_path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            with open(self.config_path, "w", encoding="utf-8") as f:
+                json.dump(self._config, f, indent=2, ensure_ascii=False)
+            self.load_config()
+        except Exception as e:
+            raise RuntimeError(f"Erro ao salvar configuração de http_retry: {e}") from e
+
     def get_development_panel_config(self) -> Dict[str, Any]:
         """
         Retorna configuração do painel de Development (Minhas Issues).

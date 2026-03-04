@@ -24,6 +24,7 @@ from core.status_transition import (
 )
 from config.config_manager import ConfigManager
 from src.services.assets_cache import AssetsCacheService
+from src.utils.http_retry import request_with_retry
 from src.utils.field_utils import is_placeholder_custom_field_id
 
 
@@ -3182,6 +3183,8 @@ class AtlassianService(QObject):
         ):
             return
 
+        retry_cfg = self._config.get_http_retry_config() if self._config else None
+
         class _DevelopmentEnrichWorker(QThread):
             resultReady = Signal(str, "QVariant")
 
@@ -3190,11 +3193,13 @@ class AtlassianService(QObject):
                 key: str,
                 prs: List[Dict[str, Any]],
                 gh_token: str,
+                retry_config: Optional[Dict[str, Any]] = None,
             ):
                 super().__init__()
                 self._key = key
                 self._prs = prs
                 self._token = gh_token
+                self._retry_config = retry_config
 
             def run(self) -> None:
                 try:
@@ -3209,6 +3214,7 @@ class AtlassianService(QObject):
                         "Accept": "application/vnd.github.v3+json",
                         "Authorization": f"token {self._token}",
                     }
+                    rc = self._retry_config
                     enriched = []
                     for pr in self._prs:
                         pr_url = (pr.get("url") or "").strip()
@@ -3231,20 +3237,26 @@ class AtlassianService(QObject):
                         )
                         row = dict(pr)
                         try:
-                            r = requests.get(
-                                f"https://api.github.com/repos/{owner}/{repo}/pulls/{number}",
-                                headers=headers,
-                                timeout=10,
+                            r = request_with_retry(
+                                lambda: requests.get(
+                                    f"https://api.github.com/repos/{owner}/{repo}/pulls/{number}",
+                                    headers=headers,
+                                    timeout=10,
+                                ),
+                                rc,
                             )
                             if r.ok:
                                 data = r.json()
                                 row["mergeableState"] = (
                                     data.get("mergeable_state") or ""
                                 )
-                            rev = requests.get(
-                                f"https://api.github.com/repos/{owner}/{repo}/pulls/{number}/reviews",
-                                headers=headers,
-                                timeout=10,
+                            rev = request_with_retry(
+                                lambda: requests.get(
+                                    f"https://api.github.com/repos/{owner}/{repo}/pulls/{number}/reviews",
+                                    headers=headers,
+                                    timeout=10,
+                                ),
+                                rc,
                             )
                             if rev.ok:
                                 reviews = rev.json() or []
@@ -3267,7 +3279,9 @@ class AtlassianService(QObject):
                 except Exception:
                     self.resultReady.emit(self._key, self._prs)
 
-        worker = _DevelopmentEnrichWorker(issue_key.strip(), list(prs), token)
+        worker = _DevelopmentEnrichWorker(
+            issue_key.strip(), list(prs), token, retry_config=retry_cfg
+        )
         self._development_enrich_worker = worker
 
         def _on_enriched(key: str, enriched_list: Any) -> None:
@@ -3324,14 +3338,25 @@ class AtlassianService(QObject):
         ):
             return
 
+        retry_cfg_branch = (
+            self._config.get_http_retry_config() if self._config else None
+        )
+
         class _BranchesEnrichWorker(QThread):
             resultReady = Signal(str, "QVariant")
 
-            def __init__(self, key: str, brs: List[Dict[str, Any]], gh_token: str):
+            def __init__(
+                self,
+                key: str,
+                brs: List[Dict[str, Any]],
+                gh_token: str,
+                retry_config: Optional[Dict[str, Any]] = None,
+            ):
                 super().__init__()
                 self._key = key
                 self._branches = brs
                 self._token = gh_token
+                self._retry_config = retry_config
 
             def run(self) -> None:
                 try:
@@ -3346,6 +3371,7 @@ class AtlassianService(QObject):
                         "Accept": "application/vnd.github.v3+json",
                         "Authorization": f"token {self._token}",
                     }
+                    rc = self._retry_config
                     enriched = []
                     for br in self._branches:
                         br_url = (br.get("url") or "").strip()
@@ -3365,10 +3391,13 @@ class AtlassianService(QObject):
                         row = dict(br)
                         for base in ("production", "main", "master"):
                             try:
-                                r = requests.get(
-                                    f"https://api.github.com/repos/{owner}/{repo}/compare/{base}...{br_name}",
-                                    headers=headers,
-                                    timeout=10,
+                                r = request_with_retry(
+                                    lambda: requests.get(
+                                        f"https://api.github.com/repos/{owner}/{repo}/compare/{base}...{br_name}",
+                                        headers=headers,
+                                        timeout=10,
+                                    ),
+                                    rc,
                                 )
                                 if r.ok:
                                     data = r.json()
@@ -3411,7 +3440,12 @@ class AtlassianService(QObject):
                 except Exception:
                     self.resultReady.emit(self._key, self._branches)
 
-        worker = _BranchesEnrichWorker(issue_key.strip(), list(branches), token)
+        worker = _BranchesEnrichWorker(
+            issue_key.strip(),
+            list(branches),
+            token,
+            retry_config=retry_cfg_branch,
+        )
         self._development_branches_enrich_worker = worker
 
         def _on_branches_enriched(key: str, enriched_list: Any) -> None:
