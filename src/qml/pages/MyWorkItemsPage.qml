@@ -5,6 +5,7 @@
  * Refatorado seguindo Clean Code e SOLID
  * Usa componentes reutilizáveis e controllers
  */
+pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls as Controls
@@ -17,6 +18,7 @@ import "../utils/DialogHelpers.js" as DialogHelpers
 import "../utils/FormatUtils.js" as FormatUtils
 import "../utils/MyIssuesPageLogic.js" as MyIssuesPageLogic
 import "../utils/Validators.js" as Validators
+import "../utils/StatusReachableLogic.js" as StatusReachableLogic
 
 Kirigami.Page {
     id: page
@@ -92,6 +94,32 @@ Kirigami.Page {
 
     // Controller para lógica de negócio
     property var controller: null
+
+    /** Workflow entry para status path (projectKey/issuetypeId do detailPane). */
+    readonly property var _workflowEntry: {
+        if (!page.atlassianMetadataConfigModel || !page.detailPane)
+            return null;
+        var meta = page.atlassianMetadataConfigModel.getLoadedMetadata();
+        var wm = meta && meta.workflow_metadata ? meta.workflow_metadata : null;
+        if (!wm)
+            return null;
+        var pk = (page.detailPane.projectKey || "").toString().trim();
+        var itid = (page.detailPane.issuetypeId || "").toString().trim();
+        if (!pk || !itid)
+            return null;
+        if (!wm[pk])
+            return null;
+        return wm[pk][itid] || null;
+    }
+
+    // Estado para diálogo de escolha de caminho (múltiplos paths)
+    property bool _pathChoiceDialogVisible: false
+    property var _pathChoicePaths: []       // array of path arrays (IDs)
+    property var _pathChoicePathNames: []   // array of [name1, name2, ...] por path (para backend)
+    property var _pathChoiceLabels: []      // ["To Do → In Progress → Done", ...]
+    /** Array of { label, pathIndex } for path choice dialog list. */
+    property var _pathChoiceOptions: []
+    property var _pathChoiceCallback: null  // function(chosenPathNames)
 
     // Property aliases para permitir acesso externo aos componentes
     property alias issueSearchForm: issueSearchForm
@@ -431,6 +459,10 @@ Kirigami.Page {
                     if (page.myIssuesModel && issueKey && typeof page.myIssuesModel.updateIssueInList === "function") {
                         page.myIssuesModel.updateIssueInList(issueKey, summary, status, prioridade, "");
                     }
+                    // Re-obter detalhes (incl. availableTransitions) para atualizar o painel sem recarregar manualmente
+                    if (page.selectedIssueKey === issueKey && typeof page.loadIssueDetails === "function") {
+                        page.loadIssueDetails(issueKey);
+                    }
                 });
 
                 page.controller.updateFailed.connect(function (errorMessage) {
@@ -621,6 +653,10 @@ Kirigami.Page {
                 var prioridade = (page.workItemModel && page.workItemModel.prioridade) ? page.workItemModel.prioridade : "";
                 if (page.myIssuesModel && issueKey && typeof page.myIssuesModel.updateIssueInList === "function") {
                     page.myIssuesModel.updateIssueInList(issueKey, summary, status, prioridade, "");
+                }
+                // Re-obter detalhes (incl. availableTransitions) após transição em duas fases
+                if (page.selectedIssueKey === issueKey && typeof page.loadIssueDetails === "function") {
+                    page.loadIssueDetails(issueKey);
                 }
             } else if (page._lastQuickActionType !== "") {
                 // Quick action concluída: atualizar lista e status imediatamente (sem esperar refresh)
@@ -835,6 +871,80 @@ Kirigami.Page {
                 }
                 page.controller.updateIssue(issueKey, fieldData, worklogData, epicKey, originalStatus);
                 return;
+            }
+            var workflowEntry = page._workflowEntry;
+            if (workflowEntry && workflowEntry.statuses && workflowEntry.transitions) {
+                var statuses = workflowEntry.statuses;
+                var nameToId = {};
+                var idToName = {};
+                for (var si = 0; si < statuses.length; si++) {
+                    var st = statuses[si];
+                    var sid = st && (st.id !== undefined && st.id !== null) ? String(st.id) : "";
+                    var sname = (st && st.name) ? String(st.name) : sid;
+                    if (sid) {
+                        idToName[sid] = sname;
+                        nameToId[sname] = sid;
+                        nameToId[(sname || "").toUpperCase()] = sid;
+                    }
+                }
+                var originalId = nameToId[originalStatus] || nameToId[(originalStatus || "").toUpperCase()] || "";
+                var targetId = nameToId[targetStatus] || nameToId[(targetStatus || "").toUpperCase()] || "";
+                if (originalId && targetId) {
+                    var paths = StatusReachableLogic.findPaths(workflowEntry, originalId, targetId);
+                    if (paths.length === 0) {
+                        var fieldDataNoTransition = {};
+                        for (var k in fieldData)
+                            fieldDataNoTransition[k] = fieldData[k];
+                        fieldDataNoTransition.status = originalStatus;
+                        page.controller.updateIssue(issueKey, fieldDataNoTransition, worklogData, epicKey, originalStatus);
+                        return;
+                    }
+                    function pathIdsToNames(pathIds) {
+                        var names = [];
+                        for (var pi = 1; pi < pathIds.length; pi++)
+                            names.push(idToName[pathIds[pi]] || pathIds[pi]);
+                        return names;
+                    }
+                    if (paths.length === 1) {
+                        var statusPath = pathIdsToNames(paths[0]);
+                        page.controller.updateIssue(issueKey, fieldData, worklogData, epicKey, originalStatus, statusPath);
+                        return;
+                    }
+                    var pathLabels = [];
+                    for (var pl = 0; pl < paths.length; pl++) {
+                        pathLabels.push(paths[pl].map(function (id) {
+                            return idToName[id] || id;
+                        }).join(" → "));
+                    }
+                    var pathNamesList = [];
+                    for (var pn = 0; pn < paths.length; pn++)
+                        pathNamesList.push(pathIdsToNames(paths[pn]));
+                    var pathOptions = [];
+                    for (var po = 0; po < pathLabels.length; po++)
+                        pathOptions.push({
+                            label: pathLabels[po],
+                            pathIndex: po
+                        });
+                    page._pathChoicePaths = paths;
+                    page._pathChoicePathNames = pathNamesList;
+                    page._pathChoiceLabels = pathLabels;
+                    page._pathChoiceOptions = pathOptions;
+                    page._pathChoiceCallback = function (chosenPathNames) {
+                        page._pathChoiceDialogVisible = false;
+                        page._pathChoicePaths = [];
+                        page._pathChoicePathNames = [];
+                        page._pathChoiceLabels = [];
+                        page._pathChoiceOptions = [];
+                        page._pathChoiceCallback = null;
+                        page.controller.updateIssue(issueKey, fieldData, worklogData, epicKey, originalStatus, chosenPathNames);
+                    };
+                    page._pathChoiceDialogVisible = true;
+                    Qt.callLater(function () {
+                        if (pathChoiceDialog && typeof pathChoiceDialog.open === "function")
+                            pathChoiceDialog.open();
+                    });
+                    return;
+                }
             }
             if (page.jiraService.needsTwoPhaseTransition(originalStatus, targetStatus)) {
                 page._pendingTwoPhaseTarget = targetStatus;
@@ -1107,6 +1217,70 @@ Kirigami.Page {
         source: "../components/dialogs/CreateBranchDialog.qml"
         onLoaded: if (item)
             item.visible = false
+    }
+
+    Controls.Dialog {
+        id: pathChoiceDialog
+        title: qsTr("Escolha o caminho de transição")
+        modal: true
+        parent: page.applicationWindow || page
+        visible: page._pathChoiceDialogVisible
+        onVisibleChanged: {
+            if (!visible) {
+                page._pathChoiceDialogVisible = false;
+                page._pathChoicePaths = [];
+                page._pathChoicePathNames = [];
+                page._pathChoiceLabels = [];
+                page._pathChoiceOptions = [];
+                page._pathChoiceCallback = null;
+            }
+        }
+        onRejected: {
+            page._pathChoiceDialogVisible = false;
+            page._pathChoicePaths = [];
+            page._pathChoicePathNames = [];
+            page._pathChoiceLabels = [];
+            page._pathChoiceOptions = [];
+            page._pathChoiceCallback = null;
+        }
+        standardButtons: Controls.Dialog.Cancel
+        contentItem: Item {
+            implicitWidth: 380
+            implicitHeight: pathList.contentHeight + pathLabel.height + Kirigami.Units.gridUnit * 2
+            Controls.Label {
+                id: pathLabel
+                text: qsTr("Existem vários caminhos para chegar ao status escolhido. Selecione um:")
+                wrapMode: Text.WordWrap
+                width: parent.width - Kirigami.Units.largeSpacing * 2
+                anchors.top: parent.top
+                anchors.left: parent.left
+                anchors.margins: Kirigami.Units.smallSpacing
+            }
+            ListView {
+                id: pathList
+                anchors.top: pathLabel.bottom
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.bottom: parent.bottom
+                anchors.margins: Kirigami.Units.smallSpacing
+                clip: true
+                model: page._pathChoiceOptions
+                delegate: Controls.ItemDelegate {
+                    required property string label
+                    required property int pathIndex
+                    width: pathList.width
+                    text: label
+                    onClicked: {
+                        var pathNames = page._pathChoicePathNames;
+                        var cb = page._pathChoiceCallback;
+                        if (cb && pathNames && pathIndex >= 0 && pathIndex < pathNames.length) {
+                            cb(pathNames[pathIndex]);
+                        }
+                        pathChoiceDialog.close();
+                    }
+                }
+            }
+        }
     }
 
     // Reagir aos sinais assíncronos de carregamento de detalhes de issue

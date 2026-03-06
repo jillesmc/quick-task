@@ -329,6 +329,8 @@ Kirigami.Page {
                             workItemModel: page.workItemModel
                             enabled: !page.isProcessing
                             restrictStatusBySequence: false
+                            allPathsFromInitial: true
+                            atlassianMetadataConfigModel: page.atlassianMetadataConfigModel
                         }
 
                         // Espaço extra no final para não "comer" o último campo

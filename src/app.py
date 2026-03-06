@@ -772,7 +772,12 @@ def main():
                 jira_client=jira_client,
                 config_manager=app_config_manager,
             )
-            debug_log("App", "main", "JiraMetadataConfigModel criado")
+            jira_metadata_config_model.loadConfiguration()
+            debug_log(
+                "App",
+                "main",
+                "JiraMetadataConfigModel criado e jira_metadata carregado",
+            )
         except Exception as e:
             print(
                 f"⚠ Aviso: Erro ao criar JiraMetadataConfigModel: {e}",

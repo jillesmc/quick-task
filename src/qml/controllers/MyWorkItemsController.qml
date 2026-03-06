@@ -78,7 +78,7 @@ Item {
         };
     }
 
-    function _callUpdateIssue(issueKey, fieldData, worklogData, epicKey, originalStatus) {
+    function _callUpdateIssue(issueKey, fieldData, worklogData, epicKey, originalStatus, statusPath) {
         var worklogInicioStr = "";
         if (worklogData && worklogData.shouldRegister && worklogData.date && worklogData.time) {
             worklogInicioStr = worklogData.date + " " + worklogData.time;
@@ -87,7 +87,8 @@ Item {
         if (fieldData && fieldData.status && fieldData.status !== originalStatus) {
             statusToUpdate = fieldData.status;
         }
-        jiraService.updateIssue(issueKey, fieldData ? fieldData.summary || "" : "", fieldData ? fieldData.description || "" : "", fieldData ? fieldData.tipoAtividade || "" : "", statusToUpdate, fieldData ? fieldData.prioridade || "" : "", fieldData ? fieldData.documentacaoAnexa || "Não" : "Não", fieldData ? fieldData.utilizacaoIA || "Não" : "Não", fieldData ? fieldData.valorEntregue || "" : "", fieldData ? (fieldData.plataformasAfetadas || []) : [], epicKey || "", worklogData ? worklogData.shouldRegister || false : false, worklogInicioStr, worklogData ? Math.round(worklogData.duration || 0) : 0, "", worklogData ? worklogData.comment || "" : "");
+        var path = (statusPath && typeof statusPath.length === "number") ? statusPath : [];
+        jiraService.updateIssue(issueKey, fieldData ? fieldData.summary || "" : "", fieldData ? fieldData.description || "" : "", fieldData ? fieldData.tipoAtividade || "" : "", statusToUpdate, fieldData ? fieldData.prioridade || "" : "", fieldData ? fieldData.documentacaoAnexa || "Não" : "Não", fieldData ? fieldData.utilizacaoIA || "Não" : "Não", fieldData ? fieldData.valorEntregue || "" : "", fieldData ? (fieldData.plataformasAfetadas || []) : [], epicKey || "", worklogData ? worklogData.shouldRegister || false : false, worklogInicioStr, worklogData ? Math.round(worklogData.duration || 0) : 0, "", worklogData ? worklogData.comment || "" : "", path);
     }
 
     function startTwoPhaseUpdate(issueKey, fieldData, worklogData, epicKey, originalStatus) {
@@ -105,7 +106,7 @@ Item {
         jiraService.transitionToInProgress(issueKey, fieldData ? fieldData.summary || "" : "", fieldData ? fieldData.description || "" : "", fieldData ? fieldData.tipoAtividade || "" : "", fieldData ? fieldData.status || "" : "", fieldData ? fieldData.prioridade || "" : "", fieldData ? fieldData.documentacaoAnexa || "Não" : "Não", fieldData ? fieldData.utilizacaoIA || "Não" : "Não", fieldData ? fieldData.valorEntregue || "" : "", fieldData ? (fieldData.plataformasAfetadas || []) : [], epicKey || "", worklogData ? worklogData.shouldRegister || false : false, worklogInicioStr, worklogData ? Math.round(worklogData.duration || 0) : 0, "", worklogData ? worklogData.comment || "" : "");
     }
 
-    function updateIssue(issueKey, fieldData, worklogData, epicKey, originalStatus) {
+    function updateIssue(issueKey, fieldData, worklogData, epicKey, originalStatus, statusPath) {
         if (!enabled) {
             return;
         }
@@ -120,7 +121,7 @@ Item {
         }
         updateRequested(issueKey);
         updateStarted();
-        _callUpdateIssue(issueKey, fieldData, worklogData, epicKey, originalStatus);
+        _callUpdateIssue(issueKey, fieldData, worklogData, epicKey, originalStatus, statusPath || []);
     }
 
     function getDefaultFieldValues() {

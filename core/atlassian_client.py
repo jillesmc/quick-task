@@ -2876,13 +2876,15 @@ class AtlassianClient:
             return None
 
         # Campos necessários: summary, description, status, parent (com summary), priority,
-        # attachment (lista de anexos da issue), e campos customizados
+        # project, issuetype (para workflow metadata nas abas 7/8), attachment, customizados
         fields_list = [
             "summary",
             "description",
             "status",
             "parent",
             "priority",
+            "project",
+            "issuetype",
             "attachment",
             "customfield_12088",  # tipo_atividade
             "customfield_14840",  # documentacao_anexa

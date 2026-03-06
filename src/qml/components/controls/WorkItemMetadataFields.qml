@@ -20,6 +20,39 @@ ColumnLayout {
     property bool restrictStatusBySequence: true
     /** Status persistido (ex.: do Jira); quando definido, a desativação usa só este valor, não o escolhido no formulário. Use na Minhas Issues. */
     property string statusForRestriction: ""
+    /** Quando true, considera todos os caminhos a partir do initial como liberados (ex.: CreateWorkItemPage). Passa currentStatusName vazio para o cálculo de enabled. */
+    property bool allPathsFromInitial: false
+    /** Transições disponíveis da API (GET issue/transitions). Quando definido, o status usa esta lista para enabled em vez de reachable. */
+    property var availableTransitions: null
+    /** Model de metadata (atlassianMetadataConfigModel); usado para workflow_metadata nas abas 7/8. */
+    property var atlassianMetadataConfigModel: null
+    /** Chave do projeto (ex.: PLATFORM); com issuetypeId obtém workflow entry. */
+    property string projectKey: ""
+    /** ID do tipo de issue (ex.: 10008); com projectKey obtém workflow entry. */
+    property string issuetypeId: ""
+
+    /** Workflow entry para o par projectKey/issuetypeId; null se metadata não disponível. Usa primeiro projeto/tipo da metadata quando projectKey/issuetypeId vazios (ex.: CreateWorkItemPage). */
+    readonly property var _workflowEntry: {
+        if (!metadataFieldsRoot.atlassianMetadataConfigModel)
+            return null;
+        var meta = metadataFieldsRoot.atlassianMetadataConfigModel.getLoadedMetadata();
+        var wm = meta && meta.workflow_metadata ? meta.workflow_metadata : null;
+        if (!wm)
+            return null;
+        var pk = (metadataFieldsRoot.projectKey || "").toString().trim();
+        var itid = (metadataFieldsRoot.issuetypeId || "").toString().trim();
+        if (!pk || !itid) {
+            var sp = meta.selected_projects;
+            if (sp && sp.length > 0 && sp[0] && sp[0].key)
+                pk = String(sp[0].key);
+            var sit = meta.selected_issue_types;
+            if (sit && pk && sit[pk] && sit[pk].length > 0 && sit[pk][0] && sit[pk][0].id != undefined)
+                itid = String(sit[pk][0].id);
+        }
+        if (!pk || !itid || !wm[pk])
+            return null;
+        return wm[pk][itid] || null;
+    }
 
     /** Índice do status atual no formulário (statusInicial). */
     property int statusCurrentIndex: {
@@ -70,7 +103,7 @@ ColumnLayout {
             labelText: qsTr("Prioridade:")
         }
 
-        // Status
+        // Status (workflow por reachable quando metadata disponível; senão fallback statusSequence)
         ColumnLayout {
             id: statusColumnLayout
             Layout.fillWidth: true
@@ -83,10 +116,27 @@ ColumnLayout {
                 Layout.fillWidth: true
             }
 
-            IssueRadioGroup {
-                id: statusRadioGroup
+            WorkItemStatusField {
+                id: workflowStatusField
                 Layout.fillWidth: true
-                // Novo workflow: TO DO → IN PROGRESS → DONE; fallback quando config ainda não carregou
+                workflowEntry: metadataFieldsRoot._workflowEntry
+                currentStatusName: metadataFieldsRoot.allPathsFromInitial ? "" : (metadataFieldsRoot.statusForRestriction || (metadataFieldsRoot.workItemModel ? metadataFieldsRoot.workItemModel.statusInicial : ""))
+                allPathsFromInitial: metadataFieldsRoot.allPathsFromInitial
+                availableTransitions: metadataFieldsRoot.availableTransitions
+                selectedValue: metadataFieldsRoot.workItemModel ? metadataFieldsRoot.workItemModel.statusInicial : ""
+                enabled: metadataFieldsRoot.enabled
+                visible: !!metadataFieldsRoot._workflowEntry
+                onValueChanged: function (value) {
+                    if (metadataFieldsRoot.workItemModel) {
+                        metadataFieldsRoot.workItemModel.statusInicial = value;
+                    }
+                }
+            }
+
+            IssueRadioGroup {
+                id: statusRadioGroupFallback
+                Layout.fillWidth: true
+                visible: !metadataFieldsRoot._workflowEntry
                 model: (metadataFieldsRoot.workItemModel && metadataFieldsRoot.workItemModel.statusSequence && metadataFieldsRoot.workItemModel.statusSequence.length > 0) ? metadataFieldsRoot.workItemModel.statusSequence : ["TO DO", "IN PROGRESS", "DONE"]
                 enabled: metadataFieldsRoot.enabled
                 selectedValue: metadataFieldsRoot.workItemModel ? metadataFieldsRoot.workItemModel.statusInicial : ""

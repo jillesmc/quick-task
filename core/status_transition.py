@@ -169,6 +169,36 @@ def _register_worklog_if_needed(
         )
 
 
+def transition_along_path(
+    client: Any,
+    issue_key: str,
+    path_status_names: List[str],
+    progress_callback: Optional[Callable[[str, int, str], None]] = None,
+) -> None:
+    """
+    Executa uma sequência de transições até o status alvo.
+    path_status_names = lista de nomes de status para transicionar em ordem
+    (ex.: ["In Progress", "Done"] para ir de To Do a Done).
+    O cliente deve ter método transition_issue(issue_key, status_name) -> bool.
+    """
+    if not issue_key or not path_status_names:
+        return
+    total = len(path_status_names)
+    for i, status_name in enumerate(path_status_names):
+        if not (status_name and str(status_name).strip()):
+            continue
+        if progress_callback:
+            pct = int((i + 1) * 100 / total) if total else 100
+            progress_callback(
+                str(status_name),
+                pct,
+                f"Transicionando para: {status_name}",
+            )
+        success = client.transition_issue(issue_key, str(status_name).strip())
+        if not success:
+            raise RuntimeError(f"Não foi possível transicionar para '{status_name}'")
+
+
 def _transition_to_next_status(
     jira_client: JiraClient,
     issue_key: str,

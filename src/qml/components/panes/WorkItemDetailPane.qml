@@ -51,6 +51,12 @@ Item {
     property string sharedEpicSummary: ""
     /** Status persistido no Jira; usado para desabilitar só status anteriores ao salvo (não ao escolhido no form). */
     property string savedStatus: ""
+    /** Chave do projeto da issue (ex.: PLATFORM); preenchido em setDetails para workflow metadata. */
+    property string projectKey: ""
+    /** ID do tipo de issue (ex.: 10008); preenchido em setDetails para workflow metadata. */
+    property string issuetypeId: ""
+    /** Transições disponíveis da API (GET issue/transitions); preenchido em setDetails. Usado pelo status para habilitar apenas destinos possíveis. */
+    property var availableTransitions: []
 
     property real topSectionHeight: 300
     property real epicSectionHeight: 250
@@ -314,6 +320,7 @@ Item {
         pane.developmentData = null;
         pane.enrichedPrs = null;
         pane.enrichedBranches = null;
+        pane.availableTransitions = [];
         pane._newAttachmentsThisSession = [];
         pane._deletedAttachmentIds = [];
     }
@@ -349,6 +356,9 @@ Item {
             pane.enrichedPrs = null;
             console.log("[ Development ] setDetails developmentData: null");
         }
+        pane.projectKey = String(details.projectKey || "");
+        pane.issuetypeId = String(details.issuetypeId || "");
+        pane.availableTransitions = (details.availableTransitions && typeof details.availableTransitions.length === "number") ? details.availableTransitions : [];
         if (details.parentKey) {
             var parentKey = String(details.parentKey || "");
             var parentSummary = String(details.parentSummary || "");
@@ -498,6 +508,10 @@ Item {
                             enabled: pane.selectedIssueKey !== "" && !pane.isProcessing
                             restrictStatusBySequence: true
                             statusForRestriction: pane.savedStatus
+                            atlassianMetadataConfigModel: pane.atlassianMetadataConfigModel
+                            projectKey: pane.projectKey
+                            issuetypeId: pane.issuetypeId
+                            availableTransitions: pane.availableTransitions
                         }
 
                         CommentsSection {

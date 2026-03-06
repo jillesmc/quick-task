@@ -15,6 +15,7 @@ sys.path.insert(0, str(ROOT_DIR))
 
 from core.atlassian_client import AtlassianClient
 from core.status_transition import (
+    transition_along_path,
     transition_sequentially,
     WorklogConfig,
     needs_two_phase_transition,
@@ -544,6 +545,7 @@ class UpdateWorker(QThread):
         assets_cache: Any = None,
         target_status_override: Optional[str] = None,
         priority: Optional[str] = None,
+        status_path: Optional[List[str]] = None,
         parent=None,
     ):
         super().__init__(parent)
@@ -567,6 +569,7 @@ class UpdateWorker(QThread):
         self.assets_cache = assets_cache
         self.target_status_override = target_status_override
         self.priority = priority
+        self.status_path = status_path or []
 
     def run(self):
         """Executa a atualização da issue e worklog opcional em thread separada"""
@@ -694,15 +697,9 @@ class UpdateWorker(QThread):
                 )
             )
             if transition_target:
-                self.progressUpdated.emit(60, "Iniciando transições de status...")
-
-                # Callback para progresso de transições
-                def progress_callback(status, percentage, message):
-                    transition_progress = 60 + int((percentage * 40) / 100)
-                    self.progressUpdated.emit(transition_progress, message)
-
                 sequence = self.config.get_status_sequence()
                 worklog_config = None
+                worklog_registered = False
                 if (
                     self.registrar_worklog
                     and self.worklog_inicio
@@ -717,44 +714,97 @@ class UpdateWorker(QThread):
                         comment=self.worklog_comment,
                     )
 
-                # Transicionar (worklog é registrado ao atingir IN PROGRESS)
-                worklog_registered = transition_sequentially(
-                    jira_client=self.jira_client,
-                    issue_key=self.issue_key,
-                    target_status=transition_target,
-                    status_sequence=sequence,
-                    progress_callback=progress_callback,
-                    worklog=worklog_config,
-                )
+                # Sequência de transições do grafo (abas 7/8: caminho escolhido pelo utilizador)
+                if self.status_path:
+                    self.progressUpdated.emit(60, "Iniciando transições de status...")
 
-                # Registrar worklog no fim só se não foi registrado ao atingir IN PROGRESS
-                if (
-                    not worklog_registered
-                    and self.registrar_worklog
-                    and self.worklog_inicio
-                    and self.worklog_duracao
-                    and _is_status_at_or_after_in_progress(transition_target, sequence)
-                ):
-                    self.progressUpdated.emit(85, "Registrando worklog...")
-                    time_spent = self.jira_client._format_duration_minutes(
-                        self.worklog_duracao
+                    def path_progress_callback(_status, percentage, message):
+                        transition_progress = 60 + int((percentage * 40) / 100)
+                        self.progressUpdated.emit(transition_progress, message)
+
+                    transition_along_path(
+                        self.jira_client,
+                        self.issue_key,
+                        self.status_path,
+                        progress_callback=path_progress_callback,
                     )
-                    started_str = self.worklog_inicio.strftime("%Y-%m-%d %H:%M:%S")
-                    worklog_ok = self.jira_client.register_worklog(
-                        issue_key=self.issue_key,
-                        time_spent=time_spent,
-                        started=started_str,
-                        timezone=self.worklog_timezone,
-                        comment=self.worklog_comment,
+                    self.progressUpdated.emit(100, "Transições concluídas!")
+                else:
+                    # Tentar transição direta primeiro (abas 7/8: usuário escolheu status alcançável)
+                    direct_ok = self.jira_client.transition_issue(
+                        self.issue_key, transition_target
                     )
-                    if not worklog_ok:
-                        self.errorOccurred.emit(
-                            f"Erro ao registrar worklog para {self.issue_key}"
+                    if direct_ok:
+                        if (
+                            worklog_config
+                            and (transition_target or "").strip().upper()
+                            == "IN PROGRESS"
+                        ):
+                            self.progressUpdated.emit(65, "Registrando worklog...")
+                            time_spent = self.jira_client._format_duration_minutes(
+                                self.worklog_duracao
+                            )
+                            started_str = self.worklog_inicio.strftime(
+                                "%Y-%m-%d %H:%M:%S"
+                            )
+                            worklog_registered = self.jira_client.register_worklog(
+                                issue_key=self.issue_key,
+                                time_spent=time_spent,
+                                started=started_str,
+                                timezone=self.worklog_timezone,
+                                comment=self.worklog_comment,
+                            )
+                        self.progressUpdated.emit(100, "Transições concluídas!")
+                    else:
+                        self.progressUpdated.emit(
+                            60, "Iniciando transições de status..."
                         )
-                        return
-                    self.progressUpdated.emit(90, "Worklog registrado com sucesso!")
 
-                self.progressUpdated.emit(100, "Transições concluídas!")
+                        def progress_callback(status, percentage, message):
+                            transition_progress = 60 + int((percentage * 40) / 100)
+                            self.progressUpdated.emit(transition_progress, message)
+
+                        # Fallback: transição sequencial (vários passos)
+                        worklog_registered = transition_sequentially(
+                            jira_client=self.jira_client,
+                            issue_key=self.issue_key,
+                            target_status=transition_target,
+                            status_sequence=sequence,
+                            progress_callback=progress_callback,
+                            worklog=worklog_config,
+                        )
+
+                    # Registrar worklog no fim só se não foi registrado ao atingir IN PROGRESS
+                    if (
+                        not worklog_registered
+                        and self.registrar_worklog
+                        and self.worklog_inicio
+                        and self.worklog_duracao
+                        and _is_status_at_or_after_in_progress(
+                            transition_target, sequence
+                        )
+                    ):
+                        self.progressUpdated.emit(85, "Registrando worklog...")
+                        time_spent = self.jira_client._format_duration_minutes(
+                            self.worklog_duracao
+                        )
+                        started_str = self.worklog_inicio.strftime("%Y-%m-%d %H:%M:%S")
+                        worklog_ok = self.jira_client.register_worklog(
+                            issue_key=self.issue_key,
+                            time_spent=time_spent,
+                            started=started_str,
+                            timezone=self.worklog_timezone,
+                            comment=self.worklog_comment,
+                        )
+                        if not worklog_ok:
+                            self.errorOccurred.emit(
+                                f"Erro ao registrar worklog para {self.issue_key}"
+                            )
+                            return
+                        self.progressUpdated.emit(90, "Worklog registrado com sucesso!")
+
+                    if not direct_ok:
+                        self.progressUpdated.emit(100, "Transições concluídas!")
             else:
                 # Se não houver transição de status, registrar worklog separadamente se solicitado
                 if self.registrar_worklog and self.worklog_inicio:
@@ -2709,6 +2759,9 @@ class AtlassianService(QObject):
         worklogDuracao: int,  # NOSONAR
         worklogTimezone: str,  # NOSONAR
         worklogComment: str,  # NOSONAR
+        statusPath: Optional[
+            List[str]
+        ] = None,  # NOSONAR - sequência de nomes de status (caminho do grafo)
     ) -> bool:
         """
         Atualiza uma issue existente no Jira de forma assíncrona.
@@ -2787,6 +2840,7 @@ class AtlassianService(QObject):
             worklog_comment=worklogComment.strip() if worklogComment else None,
             assets_cache=self._assets_cache,
             priority=prioridade.strip() if prioridade else None,
+            status_path=statusPath if statusPath else None,
         )
 
         # Conectar signals do worker
@@ -3009,6 +3063,16 @@ class AtlassianService(QObject):
                 status_name = str(status_obj)
         status_name = status_name.upper() if status_name else ""
 
+        # Extrair projectKey e issuetypeId (para workflow metadata nas abas 7 e 8)
+        project_key = ""
+        issuetype_id = ""
+        project_obj = fields.get("project")
+        if isinstance(project_obj, dict) and project_obj.get("key"):
+            project_key = str(project_obj["key"])
+        issuetype_obj = fields.get("issuetype")
+        if isinstance(issuetype_obj, dict) and issuetype_obj.get("id") is not None:
+            issuetype_id = str(issuetype_obj["id"])
+
         # Extrair prioridade (objeto {id, name} da API)
         priority_obj = fields.get("priority") or {}
         priority_name = ""
@@ -3024,6 +3088,8 @@ class AtlassianService(QObject):
             "summary": fields.get("summary", ""),
             "description": description,
             "status": status_name,
+            "projectKey": project_key,
+            "issuetypeId": issuetype_id,
             "priority": priority_name or "Medium",
             "priorityId": priority_id,
             "tipoAtividade": tipo_atividade,
