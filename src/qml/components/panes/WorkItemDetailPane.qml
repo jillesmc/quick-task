@@ -186,68 +186,6 @@ Item {
         popover.open();
     }
 
-    function _openQuickActionDialog(componentPath) {
-        if (!pane.selectedIssueKey || !pane.atlassianService)
-            return;
-        var comp = Qt.createComponent(componentPath);
-        // Usar sempre a janela principal como parent para o diálogo aparecer ao centro
-        var win = pane.applicationWindow || (pane.workItemsPage ? pane.workItemsPage.applicationWindow : null) || pane.parent;
-        if (comp.status !== Component.Ready) {
-            if (comp.status === Component.Error) {
-                console.error("WorkItemDetailPane: quick action dialog error:", comp.errorString());
-            }
-            comp.statusChanged.connect(function () {
-                if (comp.status === Component.Ready) {
-                    _openQuickActionDialog(componentPath);
-                }
-            });
-            return;
-        }
-        var dlg = comp.createObject(win);
-        if (!dlg)
-            return;
-        dlg.jiraService = pane.atlassianService;
-        dlg.issueKey = pane.selectedIssueKey;
-        dlg.issueSummary = (pane.workItemModel && pane.workItemModel.summary) ? pane.workItemModel.summary : "";
-        if (typeof dlg.openWith === "function") {
-            dlg.openWith(dlg.issueKey, dlg.issueSummary);
-        } else {
-            dlg.open();
-        }
-        if (pane.workItemsPage && typeof pane.workItemsPage._quickActionInProgress !== "undefined") {
-            pane.workItemsPage._quickActionInProgress = true;
-        }
-        dlg.closed.connect(function () {
-            if (pane.workItemsPage) {
-                Qt.callLater(function () {
-                    if (pane.workItemsPage && typeof pane.workItemsPage._quickActionInProgress !== "undefined") {
-                        pane.workItemsPage._quickActionInProgress = false;
-                    }
-                });
-            }
-            dlg.destroy();
-        });
-    }
-
-    function openCancelDialog() {
-        if (pane.workItemsPage && typeof pane.workItemsPage._lastQuickActionType !== "undefined") {
-            pane.workItemsPage._lastQuickActionType = "cancel";
-        }
-        _openQuickActionDialog("../dialogs/CancelIssueDialog.qml");
-    }
-    function openBlockDialog() {
-        if (pane.workItemsPage && typeof pane.workItemsPage._lastQuickActionType !== "undefined") {
-            pane.workItemsPage._lastQuickActionType = "block";
-        }
-        _openQuickActionDialog("../dialogs/BlockIssueDialog.qml");
-    }
-    function openUnblockDialog() {
-        if (pane.workItemsPage && typeof pane.workItemsPage._lastQuickActionType !== "undefined") {
-            pane.workItemsPage._lastQuickActionType = "unblock";
-        }
-        _openQuickActionDialog("../dialogs/UnblockIssueDialog.qml");
-    }
-
     /** Dados de development (branches/PRs) para o painel; preenchido em setDetails. null quando feature desativada. */
     property var developmentData: null
     /** Lista enriquecida de PRs (checks, approvals) quando disponível; definida externamente ao receber developmentEnriched. */

@@ -70,10 +70,6 @@ Kirigami.Page {
     property string _pendingTimerStartIssueKey: ""
     // Quando true, o erro do jiraService já foi mostrado no ProcessDialog; evita abrir ErrorDialog por cima
     property bool _jiraErrorShownInProcessDialog: false
-    // Quick actions (Cancel/Block/Unblock): true enquanto o diálogo está aberto; usado para refresh + toast em issueUpdated e ErrorDialog em errorOccurred
-    property bool _quickActionInProgress: false
-    // Tipo da última quick action ("cancel" | "block" | "unblock") para atualizar lista e status imediatamente
-    property string _lastQuickActionType: ""
     property var voiceInputService: null
     /** Quando definido (ex.: aba work item), usa este em vez do voiceInputService da aba. */
     property var voiceInputServiceOverride: null
@@ -102,14 +98,7 @@ Kirigami.Page {
         }
     }
 
-    // Status atual da issue selecionada (para visibilidade dos botões de quick action no header)
-    readonly property string _quickActionStatus: {
-        var s = (page.originalStatus || "").trim() || (page.issueModel ? (page.issueModel.statusInicial || "").trim() : "");
-        return String(s).toUpperCase();
-    }
-
     // Ações da página (Kirigami 6 usa 'actions' ao invés de 'mainAction').
-    // Bloquear / Desbloquear / Cancelar ficam no header global (MainHeader), ao lado de "Atualizar task".
     actions: [
         Kirigami.Action {
             id: refreshAction
@@ -617,36 +606,6 @@ Kirigami.Page {
                 if (page.myIssuesModel && issueKey && typeof page.myIssuesModel.updateIssueInList === "function") {
                     page.myIssuesModel.updateIssueInList(issueKey, summary, status, prioridade, "");
                 }
-            } else if (page._lastQuickActionType !== "") {
-                // Quick action concluída: atualizar lista e status imediatamente (sem esperar refresh)
-                var newStatus = "";
-                if (page._lastQuickActionType === "cancel") {
-                    newStatus = "CANCELED";
-                } else if (page._lastQuickActionType === "block") {
-                    newStatus = "BLOCKED";
-                } else if (page._lastQuickActionType === "unblock") {
-                    newStatus = "IN PROGRESS";
-                }
-                if (newStatus && page.myIssuesModel && issueKey && typeof page.myIssuesModel.updateIssueInList === "function") {
-                    var summary = (page.issueModel && page.issueModel.summary) ? page.issueModel.summary : "";
-                    var prioridade = (page.issueModel && page.issueModel.prioridade) ? page.issueModel.prioridade : "";
-                    page.myIssuesModel.updateIssueInList(issueKey, summary, newStatus, prioridade, "");
-                }
-                if (page.selectedIssueKey === issueKey) {
-                    page.originalStatus = newStatus;
-                    if (page.issueModel) {
-                        page.issueModel.statusInicial = newStatus;
-                    }
-                }
-                page._lastQuickActionType = "";
-                page._quickActionInProgress = false;
-                // Atualizar detalhes em background (para manter dados em sync)
-                if (page.selectedIssueKey === issueKey && typeof page.loadIssueDetails === "function") {
-                    page.loadIssueDetails(issueKey);
-                }
-                if (page.applicationWindow && typeof page.applicationWindow.showPassiveNotification === "function") {
-                    page.applicationWindow.showPassiveNotification(qsTr("Issue %1 atualizada").arg(issueKey || ""), 4000);
-                }
             }
         }
 
@@ -672,11 +631,7 @@ Kirigami.Page {
             if (typeof console !== "undefined" && console.log) {
                 console.log("[MyIssuesPage] jiraService.onErrorOccurred. _pendingTimerStartIssueKey=", page._pendingTimerStartIssueKey || "");
             }
-            if (page._quickActionInProgress || page._lastQuickActionType !== "") {
-                page._quickActionInProgress = false;
-                page._lastQuickActionType = "";
-                DialogHelpers.showError(page, "../components/dialogs/ErrorDialog.qml", errorMessage || qsTr("Erro ao transicionar"), "MyIssuesPage.quickAction");
-            } else if (page._pendingTimerStartIssueKey) {
+            if (page._pendingTimerStartIssueKey) {
                 page._pendingTimerStartIssueKey = "";
                 if (typeof console !== "undefined" && console.log) {
                     console.log("[MyIssuesPage] jiraService.onErrorOccurred -> ProcessDialog.transitionToError");

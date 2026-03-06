@@ -197,60 +197,6 @@ RowLayout {
     }
 
     Controls.ToolButton {
-        id: blockIssueButton
-        text: qsTr("Bloquear")
-        icon.name: "lock"
-        visible: {
-            var page = (root.currentTabIndex === 1) ? root.issuesPage : ((root.currentTabIndex === 8) ? root.myWorkItemsPage : null);
-            return page && page.selectedIssueKey !== "" && !(page.isProcessing || false) && (page._quickActionStatus || "") !== "BLOCKED";
-        }
-        Controls.ToolTip.visible: hovered
-        Controls.ToolTip.text: qsTr("Bloquear issue")
-        onClicked: {
-            var page = (root.currentTabIndex === 1) ? root.issuesPage : ((root.currentTabIndex === 8) ? root.myWorkItemsPage : null);
-            if (page && page.detailPane && typeof page.detailPane.openBlockDialog === "function") {
-                page.detailPane.openBlockDialog();
-            }
-        }
-    }
-
-    Controls.ToolButton {
-        id: unblockIssueButton
-        text: qsTr("Desbloquear")
-        icon.name: "unlock"
-        visible: {
-            var page = (root.currentTabIndex === 1) ? root.issuesPage : ((root.currentTabIndex === 8) ? root.myWorkItemsPage : null);
-            return page && page.selectedIssueKey !== "" && !(page.isProcessing || false) && (page._quickActionStatus || "") === "BLOCKED";
-        }
-        Controls.ToolTip.visible: hovered
-        Controls.ToolTip.text: qsTr("Desbloquear e retornar para IN PROGRESS")
-        onClicked: {
-            var page = (root.currentTabIndex === 1) ? root.issuesPage : ((root.currentTabIndex === 8) ? root.myWorkItemsPage : null);
-            if (page && page.detailPane && typeof page.detailPane.openUnblockDialog === "function") {
-                page.detailPane.openUnblockDialog();
-            }
-        }
-    }
-
-    Controls.ToolButton {
-        id: cancelIssueButton
-        text: qsTr("Cancelar")
-        icon.name: "dialog-cancel"
-        visible: {
-            var page = (root.currentTabIndex === 1) ? root.issuesPage : ((root.currentTabIndex === 8) ? root.myWorkItemsPage : null);
-            return page && page.selectedIssueKey !== "" && !(page.isProcessing || false) && (page._quickActionStatus || "") !== "CANCELED" && (page._quickActionStatus || "") !== "DONE";
-        }
-        Controls.ToolTip.visible: hovered
-        Controls.ToolTip.text: qsTr("Cancelar issue")
-        onClicked: {
-            var page = (root.currentTabIndex === 1) ? root.issuesPage : ((root.currentTabIndex === 8) ? root.myWorkItemsPage : null);
-            if (page && page.detailPane && typeof page.detailPane.openCancelDialog === "function") {
-                page.detailPane.openCancelDialog();
-            }
-        }
-    }
-
-    Controls.ToolButton {
         id: refreshGoogleButton
         text: qsTr("Atualizar")
         icon.name: "view-refresh"

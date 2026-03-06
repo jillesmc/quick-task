@@ -179,69 +179,6 @@ Item {
         popover.open();
     }
 
-    function _openQuickActionDialog(componentPath) {
-        if (!pane.selectedIssueKey || !pane.jiraService)
-            return;
-        var comp = Qt.createComponent(componentPath);
-        // Usar sempre a janela principal como parent para o diálogo aparecer ao centro
-        var win = pane.applicationWindow || (pane.myIssuesPage ? pane.myIssuesPage.applicationWindow : null) || pane.parent;
-        if (comp.status !== Component.Ready) {
-            if (comp.status === Component.Error) {
-                console.error("MyIssuesDetailPane: quick action dialog error:", comp.errorString());
-            }
-            comp.statusChanged.connect(function () {
-                if (comp.status === Component.Ready) {
-                    _openQuickActionDialog(componentPath);
-                }
-            });
-            return;
-        }
-        var dlg = comp.createObject(win);
-        if (!dlg)
-            return;
-        dlg.jiraService = pane.jiraService;
-        dlg.issueKey = pane.selectedIssueKey;
-        dlg.issueSummary = (pane.issueModel && pane.issueModel.summary) ? pane.issueModel.summary : "";
-        if (typeof dlg.openWith === "function") {
-            dlg.openWith(dlg.issueKey, dlg.issueSummary);
-        } else {
-            dlg.open();
-        }
-        if (pane.myIssuesPage && typeof pane.myIssuesPage._quickActionInProgress !== "undefined") {
-            pane.myIssuesPage._quickActionInProgress = true;
-        }
-        dlg.closed.connect(function () {
-            // Limpar flag em callLater para que, se o utilizador confirmou, issueUpdated ainda veja _lastQuickActionType; se cancelou, limpamos aqui
-            if (pane.myIssuesPage) {
-                Qt.callLater(function () {
-                    if (pane.myIssuesPage && typeof pane.myIssuesPage._quickActionInProgress !== "undefined") {
-                        pane.myIssuesPage._quickActionInProgress = false;
-                    }
-                });
-            }
-            dlg.destroy();
-        });
-    }
-
-    function openCancelDialog() {
-        if (pane.myIssuesPage && typeof pane.myIssuesPage._lastQuickActionType !== "undefined") {
-            pane.myIssuesPage._lastQuickActionType = "cancel";
-        }
-        _openQuickActionDialog("../dialogs/CancelIssueDialog.qml");
-    }
-    function openBlockDialog() {
-        if (pane.myIssuesPage && typeof pane.myIssuesPage._lastQuickActionType !== "undefined") {
-            pane.myIssuesPage._lastQuickActionType = "block";
-        }
-        _openQuickActionDialog("../dialogs/BlockIssueDialog.qml");
-    }
-    function openUnblockDialog() {
-        if (pane.myIssuesPage && typeof pane.myIssuesPage._lastQuickActionType !== "undefined") {
-            pane.myIssuesPage._lastQuickActionType = "unblock";
-        }
-        _openQuickActionDialog("../dialogs/UnblockIssueDialog.qml");
-    }
-
     /** Dados de development (branches/PRs) para o painel; preenchido em setDetails. null quando feature desativada. */
     property var developmentData: null
     /** Lista enriquecida de PRs (checks, approvals) quando disponível; definida externamente ao receber developmentEnriched. */
