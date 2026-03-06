@@ -55,7 +55,7 @@ ColumnLayout {
         spacing: Kirigami.Units.largeSpacing
 
         Column {
-            Layout.fillWidth: true
+            Layout.alignment: Qt.AlignLeft | Qt.AlignTop
             spacing: Kirigami.Units.smallSpacing
             Repeater {
                 model: root._statusOptionsWithColumns.mainColumn
@@ -74,7 +74,7 @@ ColumnLayout {
             }
         }
         Column {
-            Layout.preferredWidth: 140
+            Layout.alignment: Qt.AlignLeft | Qt.AlignTop
             spacing: Kirigami.Units.smallSpacing
             Repeater {
                 model: root._statusOptionsWithColumns.globalColumn
@@ -91,6 +91,9 @@ ColumnLayout {
                     Accessible.description: modelData.enabled ? qsTr("Transição permitida para este status.") : qsTr("Sem transição possível a partir do status atual.")
                 }
             }
+        }
+        Item {
+            Layout.fillWidth: true
         }
     }
 }
