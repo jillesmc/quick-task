@@ -43,190 +43,201 @@ Kirigami.Page {
     property bool isLoading: isLoadingCalendar || isLoadingTasks || isLoadingDriveComments
 
     function formatDate(d) {
-        var y = d.getFullYear()
-        var m = String(d.getMonth() + 1).padStart(2, "0")
-        var day = String(d.getDate()).padStart(2, "0")
-        return y + "-" + m + "-" + day
+        var y = d.getFullYear();
+        var m = String(d.getMonth() + 1).padStart(2, "0");
+        var day = String(d.getDate()).padStart(2, "0");
+        return y + "-" + m + "-" + day;
     }
 
     function setDateFromStr(s) {
-        var parts = (s || "").split("-")
+        var parts = (s || "").split("-");
         if (parts.length >= 3) {
-            var d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]))
+            var d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
             if (!isNaN(d.getTime())) {
-                page._currentDate = d
-                page.currentDateStr = formatDate(d)
-                return
+                page._currentDate = d;
+                page.currentDateStr = formatDate(d);
+                return;
             }
         }
-        var today = new Date()
-        page._currentDate = today
-        page.currentDateStr = formatDate(today)
+        var today = new Date();
+        page._currentDate = today;
+        page.currentDateStr = formatDate(today);
     }
 
     property var _currentDate: new Date()
 
     function reloadCalendar() {
-        if (!page.googleCalendarService) return
+        if (!page.googleCalendarService)
+            return;
         if (!page.currentDateStr) {
-            var today = new Date()
-            page._currentDate = today
-            page.currentDateStr = formatDate(today)
+            var today = new Date();
+            page._currentDate = today;
+            page.currentDateStr = formatDate(today);
         }
-        page.isLoadingCalendar = true
-        page.googleCalendarService.loadEventsForDate(page.currentDateStr)
+        page.isLoadingCalendar = true;
+        page.googleCalendarService.loadEventsForDate(page.currentDateStr);
     }
 
     function reloadTasks() {
-        if (!page.googleTasksService) return
-        page.isLoadingTasks = true
-        page.googleTasksService.loadTasks()
+        if (!page.googleTasksService)
+            return;
+        page.isLoadingTasks = true;
+        page.googleTasksService.loadTasks();
     }
 
     function reloadDriveComments() {
-        if (!page.googleDriveCommentsService) return
-        page.isLoadingDriveComments = true
-        page.googleDriveCommentsService.loadComments()
+        if (!page.googleDriveCommentsService)
+            return;
+        page.isLoadingDriveComments = true;
+        page.googleDriveCommentsService.loadComments();
     }
 
     function reload() {
-        page.errorMessageCalendar = ""
-        page.errorMessageTasks = ""
-        page.errorMessageDriveComments = ""
-        page.reloadCalendar()
-        page.reloadTasks()
-        page.reloadDriveComments()
+        page.errorMessageCalendar = "";
+        page.errorMessageTasks = "";
+        page.errorMessageDriveComments = "";
+        page.reloadCalendar();
+        page.reloadTasks();
+        page.reloadDriveComments();
     }
 
     function removeDriveCommentByFileAndId(fileId, commentId) {
-        var list = page.driveComments || []
-        var out = []
+        var list = page.driveComments || [];
+        var out = [];
         for (var i = 0; i < list.length; i++) {
-            var c = list[i]
+            var c = list[i];
             if (c && (String(c.file_id) !== String(fileId) || String(c.id) !== String(commentId))) {
-                out.push(c)
+                out.push(c);
             }
         }
-        page.driveComments = out
+        page.driveComments = out;
     }
 
     function prevDay() {
-        var d = new Date(page._currentDate)
-        d.setDate(d.getDate() - 1)
-        page._currentDate = d
-        page.currentDateStr = formatDate(d)
-        page.reloadCalendar()
+        var d = new Date(page._currentDate);
+        d.setDate(d.getDate() - 1);
+        page._currentDate = d;
+        page.currentDateStr = formatDate(d);
+        page.reloadCalendar();
     }
 
     function nextDay() {
-        var d = new Date(page._currentDate)
-        d.setDate(d.getDate() + 1)
-        page._currentDate = d
-        page.currentDateStr = formatDate(d)
-        page.reloadCalendar()
+        var d = new Date(page._currentDate);
+        d.setDate(d.getDate() + 1);
+        page._currentDate = d;
+        page.currentDateStr = formatDate(d);
+        page.reloadCalendar();
     }
 
     function formatDueDate(rfc3339Str) {
-        if (!rfc3339Str || typeof rfc3339Str !== "string") return ""
-        var s = rfc3339Str.trim()
-        if (s.indexOf("T") >= 0) return s.split("T")[0] || ""
-        return s.split(" ")[0] || s
+        if (!rfc3339Str || typeof rfc3339Str !== "string")
+            return "";
+        var s = rfc3339Str.trim();
+        if (s.indexOf("T") >= 0)
+            return s.split("T")[0] || "";
+        return s.split(" ")[0] || s;
     }
 
     function formatWorklogStart(isoStart) {
-        if (!isoStart || typeof isoStart !== "string") return ""
-        var s = isoStart.trim()
-        if (!s) return ""
-        var d = new Date(s)
-        if (isNaN(d.getTime())) return ""
-        var y = d.getFullYear()
-        var m = String(d.getMonth() + 1).padStart(2, "0")
-        var day = String(d.getDate()).padStart(2, "0")
-        var h = String(d.getHours()).padStart(2, "0")
-        var min = String(d.getMinutes()).padStart(2, "0")
-        var sec = String(d.getSeconds()).padStart(2, "0")
-        return y + "-" + m + "-" + day + " " + h + ":" + min + ":" + sec
+        if (!isoStart || typeof isoStart !== "string")
+            return "";
+        var s = isoStart.trim();
+        if (!s)
+            return "";
+        var d = new Date(s);
+        if (isNaN(d.getTime()))
+            return "";
+        var y = d.getFullYear();
+        var m = String(d.getMonth() + 1).padStart(2, "0");
+        var day = String(d.getDate()).padStart(2, "0");
+        var h = String(d.getHours()).padStart(2, "0");
+        var min = String(d.getMinutes()).padStart(2, "0");
+        var sec = String(d.getSeconds()).padStart(2, "0");
+        return y + "-" + m + "-" + day + " " + h + ":" + min + ":" + sec;
     }
 
     function importEventToJira(event) {
-        if (!page.issueModel || !page.tabBar || !event) return
-        page.issueModel.summary = event.summary || ""
-        page.issueModel.description = event.description || ""
-        page.issueModel.worklogInicio = page.formatWorklogStart(event.start)
-        page.issueModel.worklogDuracao = event.duration_minutes || 30
-        page.issueModel.statusInicial = "IN DEVELOPMENT"
-        page.issueModel.registrarWorklog = true
-        page.tabBar.currentIndex = 0
+        if (!page.issueModel || !page.tabBar || !event)
+            return;
+        page.issueModel.summary = event.summary || "";
+        page.issueModel.description = event.description || "";
+        page.issueModel.worklogInicio = page.formatWorklogStart(event.start);
+        page.issueModel.worklogDuracao = event.duration_minutes || 30;
+        page.issueModel.statusInicial = "IN PROGRESS";
+        page.issueModel.registrarWorklog = true;
+        page.tabBar.currentIndex = 0;
     }
 
     function importTaskToJira(task) {
-        if (!page.issueModel || !page.tabBar || !task) return
-        var desc = task.notes || ""
-        if (task.list_title) desc = (desc ? desc + "\n\n" : "") + qsTr("Lista: %1").arg(task.list_title)
-        if (task.due) desc = (desc ? desc + "\n" : "") + qsTr("Vencimento: %1").arg(page.formatDueDate(task.due))
-        var src = task.assignment_source || ""
+        if (!page.issueModel || !page.tabBar || !task)
+            return;
+        var desc = task.notes || "";
+        if (task.list_title)
+            desc = (desc ? desc + "\n\n" : "") + qsTr("Lista: %1").arg(task.list_title);
+        if (task.due)
+            desc = (desc ? desc + "\n" : "") + qsTr("Vencimento: %1").arg(page.formatDueDate(task.due));
+        var src = task.assignment_source || "";
         if (src === "SPACE") {
-            desc = (desc ? desc + "\n\n" : "") + qsTr("Origem: Google Chat Space")
-            if (task.assignment_link) desc = desc + "\n" + qsTr("Link: %1").arg(task.assignment_link)
+            desc = (desc ? desc + "\n\n" : "") + qsTr("Origem: Google Chat Space");
+            if (task.assignment_link)
+                desc = desc + "\n" + qsTr("Link: %1").arg(task.assignment_link);
         } else if (src === "DOCUMENT") {
-            desc = (desc ? desc + "\n\n" : "") + qsTr("Origem: Google Docs")
-            if (task.assignment_link) desc = desc + "\n" + qsTr("Link: %1").arg(task.assignment_link)
+            desc = (desc ? desc + "\n\n" : "") + qsTr("Origem: Google Docs");
+            if (task.assignment_link)
+                desc = desc + "\n" + qsTr("Link: %1").arg(task.assignment_link);
         }
-        var links = task.links || []
+        var links = task.links || [];
         if (links.length > 0) {
-            desc = (desc ? desc + "\n\n" : "") + qsTr("Links:")
+            desc = (desc ? desc + "\n\n" : "") + qsTr("Links:");
             for (var i = 0; i < links.length; i++) {
-                var lnk = links[i]
-                if (lnk && lnk.link) desc = desc + "\n- " + lnk.link
+                var lnk = links[i];
+                if (lnk && lnk.link)
+                    desc = desc + "\n- " + lnk.link;
             }
         }
-        page.issueModel.summary = task.title || ""
-        page.issueModel.description = desc
-        page.tabBar.currentIndex = 0
+        page.issueModel.summary = task.title || "";
+        page.issueModel.description = desc;
+        page.tabBar.currentIndex = 0;
     }
 
     function importCommentToJira(comment) {
-        if (!page.issueModel || !page.tabBar || !comment) return
-        var content = (comment.content || "").trim()
-        var file_name = (comment.file_name || "").trim()
-        var firstSentence = content.split(".")[0].trim()
-        firstSentence = firstSentence.replace(/@\S+/g, "").trim()
-        firstSentence = firstSentence.substring(0, 100).trim()
-        var summary = firstSentence.length < 80 && file_name
-            ? (firstSentence ? firstSentence + " em " + file_name : file_name)
-            : (firstSentence || qsTr("Comentário do Drive"))
-        var author = (comment.author || "").trim() || "Unknown"
-        var file_type = (comment.file_type || "").trim() || qsTr("Documento")
-        var file_url = (comment.file_url || "").trim()
-        var quoted_text = (comment.quoted_text || "").trim()
-        var created_time = (comment.createdTime || "").trim()
-        var parts = [
-            qsTr("Comentário de %1 em %2:").arg(author).arg(file_type),
-            "",
-            "\"" + content + "\"",
-            ""
-        ]
+        if (!page.issueModel || !page.tabBar || !comment)
+            return;
+        var content = (comment.content || "").trim();
+        var file_name = (comment.file_name || "").trim();
+        var firstSentence = content.split(".")[0].trim();
+        firstSentence = firstSentence.replace(/@\S+/g, "").trim();
+        firstSentence = firstSentence.substring(0, 100).trim();
+        var summary = firstSentence.length < 80 && file_name ? (firstSentence ? firstSentence + " em " + file_name : file_name) : (firstSentence || qsTr("Comentário do Drive"));
+        var author = (comment.author || "").trim() || "Unknown";
+        var file_type = (comment.file_type || "").trim() || qsTr("Documento");
+        var file_url = (comment.file_url || "").trim();
+        var quoted_text = (comment.quoted_text || "").trim();
+        var created_time = (comment.createdTime || "").trim();
+        var parts = [qsTr("Comentário de %1 em %2:").arg(author).arg(file_type), "", "\"" + content + "\"", ""];
         if (quoted_text) {
-            parts.push(qsTr("Contexto:"))
-            parts.push("\"" + quoted_text + "\"")
-            parts.push("")
+            parts.push(qsTr("Contexto:"));
+            parts.push("\"" + quoted_text + "\"");
+            parts.push("");
         }
         if (file_name || file_url) {
-            parts.push(qsTr("Documento: ") + (file_name || qsTr("Documento")))
-            if (file_url) parts.push(file_url)
-            parts.push("")
+            parts.push(qsTr("Documento: ") + (file_name || qsTr("Documento")));
+            if (file_url)
+                parts.push(file_url);
+            parts.push("");
         }
-        if (created_time) parts.push(qsTr("Data: ") + created_time)
-        page.issueModel.summary = summary
-        page.issueModel.description = parts.join("\n")
-        page.tabBar.currentIndex = 0
+        if (created_time)
+            parts.push(qsTr("Data: ") + created_time);
+        page.issueModel.summary = summary;
+        page.issueModel.description = parts.join("\n");
+        page.tabBar.currentIndex = 0;
     }
 
     Component.onCompleted: {
         if (!page.currentDateStr) {
-            var today = new Date()
-            page._currentDate = today
-            page.currentDateStr = formatDate(today)
+            var today = new Date();
+            page._currentDate = today;
+            page.currentDateStr = formatDate(today);
         }
     }
 
@@ -234,8 +245,7 @@ Kirigami.Page {
         Kirigami.Action {
             text: qsTr("Atualizar")
             icon.name: "view-refresh"
-            enabled: page.googleCalendarService && page.googleTasksService && page.googleAuthService
-                && page.googleAuthService.isAuthorized && !page.isLoading
+            enabled: page.googleCalendarService && page.googleTasksService && page.googleAuthService && page.googleAuthService.isAuthorized && !page.isLoading
             onTriggered: page.reload()
         }
     ]
@@ -244,21 +254,21 @@ Kirigami.Page {
         target: page.googleCalendarService || null
 
         function onEventsReady(list) {
-            page.events = list || []
-            page.isLoadingCalendar = false
-            page.errorMessageCalendar = ""
-            page.hasCachedData = true
+            page.events = list || [];
+            page.isLoadingCalendar = false;
+            page.errorMessageCalendar = "";
+            page.hasCachedData = true;
         }
 
         function onErrorOccurred(msg) {
-            page.isLoadingCalendar = false
-            page.errorMessageCalendar = msg || qsTr("Erro ao carregar eventos.")
-            page.hasCachedData = true
+            page.isLoadingCalendar = false;
+            page.errorMessageCalendar = msg || qsTr("Erro ao carregar eventos.");
+            page.hasCachedData = true;
         }
 
         function onAuthRequired() {
-            page.isLoadingCalendar = false
-            page.errorMessageCalendar = qsTr("Autorize o acesso ao Google nas Configurações.")
+            page.isLoadingCalendar = false;
+            page.errorMessageCalendar = qsTr("Autorize o acesso ao Google nas Configurações.");
         }
     }
 
@@ -266,21 +276,21 @@ Kirigami.Page {
         target: page.googleTasksService || null
 
         function onTasksReady(list) {
-            page.tasks = list || []
-            page.isLoadingTasks = false
-            page.errorMessageTasks = ""
-            page.hasCachedData = true
+            page.tasks = list || [];
+            page.isLoadingTasks = false;
+            page.errorMessageTasks = "";
+            page.hasCachedData = true;
         }
 
         function onErrorOccurred(msg) {
-            page.isLoadingTasks = false
-            page.errorMessageTasks = msg || qsTr("Erro ao carregar tarefas.")
-            page.hasCachedData = true
+            page.isLoadingTasks = false;
+            page.errorMessageTasks = msg || qsTr("Erro ao carregar tarefas.");
+            page.hasCachedData = true;
         }
 
         function onAuthRequired() {
-            page.isLoadingTasks = false
-            page.errorMessageTasks = qsTr("Autorize o acesso ao Google nas Configurações.")
+            page.isLoadingTasks = false;
+            page.errorMessageTasks = qsTr("Autorize o acesso ao Google nas Configurações.");
         }
     }
 
@@ -288,26 +298,26 @@ Kirigami.Page {
         target: page.googleDriveCommentsService || null
 
         function onCommentsReady(list) {
-            page.driveComments = list || []
-            page.isLoadingDriveComments = false
-            page.errorMessageDriveComments = ""
-            page.hasCachedData = true
+            page.driveComments = list || [];
+            page.isLoadingDriveComments = false;
+            page.errorMessageDriveComments = "";
+            page.hasCachedData = true;
         }
 
         function onErrorOccurred(msg) {
-            page.isLoadingDriveComments = false
-            page.errorMessageDriveComments = msg || qsTr("Erro ao carregar comentários do Drive.")
-            page.hasCachedData = true
+            page.isLoadingDriveComments = false;
+            page.errorMessageDriveComments = msg || qsTr("Erro ao carregar comentários do Drive.");
+            page.hasCachedData = true;
         }
 
         function onAuthRequired() {
-            page.isLoadingDriveComments = false
-            page.errorMessageDriveComments = qsTr("Autorize o acesso ao Google nas Configurações.")
+            page.isLoadingDriveComments = false;
+            page.errorMessageDriveComments = qsTr("Autorize o acesso ao Google nas Configurações.");
         }
 
         function onResolveFinished(success) {
             if (success) {
-                page.hasCachedData = true
+                page.hasCachedData = true;
             }
         }
     }
@@ -329,8 +339,8 @@ Kirigami.Page {
             id: googleSplitView
             Layout.fillWidth: true
             Layout.fillHeight: true
-            visible: page.googleAuthService && page.googleAuthService.isAuthorized
-            handle: SplitViewHandle { }
+            visible: !!(page.googleAuthService && page.googleAuthService.isAuthorized)
+            handle: SplitViewHandle {}
 
             // Coluna esquerda: Google Calendar (1/3 da largura)
             Controls.ScrollView {
@@ -383,8 +393,8 @@ Kirigami.Page {
                             placeholderText: "YYYY-MM-DD"
                             Layout.fillWidth: true
                             onAccepted: {
-                                page.setDateFromStr(text)
-                                page.reloadCalendar()
+                                page.setDateFromStr(text);
+                                page.reloadCalendar();
                             }
                         }
                         Controls.Button {
@@ -404,7 +414,7 @@ Kirigami.Page {
                                 id: eventDelegate
                                 itemData: parent.modelData
                                 width: parent.width - Kirigami.Units.smallSpacing * 2
-                                onImportRequested: (item) => page.importEventToJira(item)
+                                onImportRequested: item => page.importEventToJira(item)
                             }
                         }
                     }
@@ -465,7 +475,7 @@ Kirigami.Page {
                                 id: taskDelegate
                                 itemData: parent.modelData
                                 width: parent.width - Kirigami.Units.smallSpacing * 2
-                                onImportRequested: (item) => page.importTaskToJira(item)
+                                onImportRequested: item => page.importTaskToJira(item)
                             }
                         }
                     }
@@ -528,10 +538,10 @@ Kirigami.Page {
                                 itemData: parent.modelData
                                 googleDriveCommentsService: page.googleDriveCommentsService
                                 width: parent.width - Kirigami.Units.smallSpacing * 2
-                                onImportRequested: (item) => page.importCommentToJira(item)
-                                onResolveRequested: (item) => {
+                                onImportRequested: item => page.importCommentToJira(item)
+                                onResolveRequested: item => {
                                     if (item && item.file_id != null && item.id != null) {
-                                        page.removeDriveCommentByFileAndId(item.file_id, item.id)
+                                        page.removeDriveCommentByFileAndId(item.file_id, item.id);
                                     }
                                 }
                             }
@@ -548,5 +558,4 @@ Kirigami.Page {
             }
         }
     }
-
 }

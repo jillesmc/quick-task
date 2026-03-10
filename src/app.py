@@ -40,7 +40,7 @@ except ImportError as e:
     sys.exit(1)
 
 from PySide6.QtGui import QIcon  # type: ignore[import]
-from PySide6.QtCore import QUrl, QObject, QTimer, Property  # type: ignore[import]
+from PySide6.QtCore import QUrl, QObject, QTimer, Property, Signal  # type: ignore[import]
 from PySide6.QtQml import QQmlApplicationEngine, qmlRegisterType  # type: ignore[import]
 from PySide6.QtCore import Slot  # type: ignore[import]
 import json
@@ -91,6 +91,196 @@ class DebugLogger(QObject):
         _write_debug_ndjson(location, message, hypothesis_id="C")
 
     # #endregion
+
+
+class AppContext(QObject):
+    """
+    Objeto único exposto ao QML via setInitialProperties.
+    Centraliza todos os modelos e serviços para acesso qualificado (root.appContext.xxx),
+    eliminando a necessidade de context properties soltas e de desativar o qmllint.
+    """
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._issue_model = None
+        self._editing_issue_model = None
+        self._my_issues_model = None
+        self._work_item_model = None
+        self._editing_work_item_model = None
+        self._my_work_items_model = None
+        self._jira_service = None
+        self._atlassian_service = None
+        self._github_service = None
+        self._settings_model = None
+        self._jira_metadata_config_model = None
+        self._atlassian_metadata_config_model = None
+        self._clipboard_helper = None
+        self._git_command_helper = None
+        self._voice_input_service = None
+        self._voice_transcription_service = None
+        self._markdown_preview_renderer = None
+        self._tray_manager = None
+        self._timer_model = None
+        self._timer_service = None
+        self._notification_service = None
+        self._worklog_sync_service = None
+        self._timesheet_view_model = None
+        self._timer_tray_manager = None
+        self._hide_window = None
+        self._debug_log = None
+        # Google services: atribuídos via Python após load (Opção B)
+        self._google_auth_service = None
+        self._google_calendar_service = None
+        self._google_tasks_service = None
+        self._google_drive_comments_service = None
+
+    # Sinais para propriedades que são atribuídas após engine.load() (Google services)
+    googleAuthServiceChanged = Signal()
+    googleCalendarServiceChanged = Signal()
+    googleTasksServiceChanged = Signal()
+    googleDriveCommentsServiceChanged = Signal()
+
+    def _get_google_auth_service(self):
+        return self._google_auth_service
+
+    def _set_google_auth_service(self, val):
+        if self._google_auth_service is not val:
+            self._google_auth_service = val
+            self.googleAuthServiceChanged.emit()
+
+    def _get_google_calendar_service(self):
+        return self._google_calendar_service
+
+    def _set_google_calendar_service(self, val):
+        if self._google_calendar_service is not val:
+            self._google_calendar_service = val
+            self.googleCalendarServiceChanged.emit()
+
+    def _get_google_tasks_service(self):
+        return self._google_tasks_service
+
+    def _set_google_tasks_service(self, val):
+        if self._google_tasks_service is not val:
+            self._google_tasks_service = val
+            self.googleTasksServiceChanged.emit()
+
+    def _get_google_drive_comments_service(self):
+        return self._google_drive_comments_service
+
+    def _set_google_drive_comments_service(self, val):
+        if self._google_drive_comments_service is not val:
+            self._google_drive_comments_service = val
+            self.googleDriveCommentsServiceChanged.emit()
+
+    # Propriedades expostas ao QML (get/set para cada uma)
+    def _get(name):  # noqa: N805
+        def getter(self):
+            return getattr(self, name)
+
+        return getter
+
+    def _set(name):  # noqa: N805
+        def setter(self, val):
+            setattr(self, name, val)
+
+        return setter
+
+    issueModel = Property("QVariant", _get("_issue_model"), _set("_issue_model"))
+    editingIssueModel = Property(
+        "QVariant", _get("_editing_issue_model"), _set("_editing_issue_model")
+    )
+    myIssuesModel = Property(
+        "QVariant", _get("_my_issues_model"), _set("_my_issues_model")
+    )
+    workItemModel = Property(
+        "QVariant", _get("_work_item_model"), _set("_work_item_model")
+    )
+    editingWorkItemModel = Property(
+        "QVariant", _get("_editing_work_item_model"), _set("_editing_work_item_model")
+    )
+    myWorkItemsModel = Property(
+        "QVariant", _get("_my_work_items_model"), _set("_my_work_items_model")
+    )
+    jiraService = Property("QVariant", _get("_jira_service"), _set("_jira_service"))
+    atlassianService = Property(
+        "QVariant", _get("_atlassian_service"), _set("_atlassian_service")
+    )
+    githubService = Property(
+        "QVariant", _get("_github_service"), _set("_github_service")
+    )
+    settingsModel = Property(
+        "QVariant", _get("_settings_model"), _set("_settings_model")
+    )
+    jiraMetadataConfigModel = Property(
+        "QVariant",
+        _get("_jira_metadata_config_model"),
+        _set("_jira_metadata_config_model"),
+    )
+    atlassianMetadataConfigModel = Property(
+        "QVariant",
+        _get("_atlassian_metadata_config_model"),
+        _set("_atlassian_metadata_config_model"),
+    )
+    clipboardHelper = Property(
+        "QVariant", _get("_clipboard_helper"), _set("_clipboard_helper")
+    )
+    gitCommandHelper = Property(
+        "QVariant", _get("_git_command_helper"), _set("_git_command_helper")
+    )
+    voiceInputService = Property(
+        "QVariant", _get("_voice_input_service"), _set("_voice_input_service")
+    )
+    voiceTranscriptionService = Property(
+        "QVariant",
+        _get("_voice_transcription_service"),
+        _set("_voice_transcription_service"),
+    )
+    markdownPreviewRenderer = Property(
+        "QVariant",
+        _get("_markdown_preview_renderer"),
+        _set("_markdown_preview_renderer"),
+    )
+    trayManager = Property("QVariant", _get("_tray_manager"), _set("_tray_manager"))
+    timerModel = Property("QVariant", _get("_timer_model"), _set("_timer_model"))
+    timerService = Property("QVariant", _get("_timer_service"), _set("_timer_service"))
+    notificationService = Property(
+        "QVariant", _get("_notification_service"), _set("_notification_service")
+    )
+    worklogSyncService = Property(
+        "QVariant", _get("_worklog_sync_service"), _set("_worklog_sync_service")
+    )
+    timesheetViewModel = Property(
+        "QVariant", _get("_timesheet_view_model"), _set("_timesheet_view_model")
+    )
+    timerTrayManager = Property(
+        "QVariant", _get("_timer_tray_manager"), _set("_timer_tray_manager")
+    )
+    hideWindow = Property("QVariant", _get("_hide_window"), _set("_hide_window"))
+    debugLog = Property("QVariant", _get("_debug_log"), _set("_debug_log"))
+    googleAuthService = Property(
+        "QVariant",
+        _get_google_auth_service,
+        _set_google_auth_service,
+        notify=googleAuthServiceChanged,
+    )
+    googleCalendarService = Property(
+        "QVariant",
+        _get_google_calendar_service,
+        _set_google_calendar_service,
+        notify=googleCalendarServiceChanged,
+    )
+    googleTasksService = Property(
+        "QVariant",
+        _get_google_tasks_service,
+        _set_google_tasks_service,
+        notify=googleTasksServiceChanged,
+    )
+    googleDriveCommentsService = Property(
+        "QVariant",
+        _get_google_drive_comments_service,
+        _set_google_drive_comments_service,
+        notify=googleDriveCommentsServiceChanged,
+    )
 
 
 def qt_message_handler(msg_type, context, message):
@@ -178,8 +368,11 @@ sys.path.insert(0, str(ROOT_DIR))
 
 from src.models.issue_model import IssueModel
 from src.models.my_issues_model import MyIssuesModel
+from src.models.work_item_model import WorkItemModel
+from src.models.my_work_items_model import MyWorkItemsModel
 from src.models.settings_model import SettingsModel
 from src.jira_service import JiraService
+from src.atlassian_service import AtlassianService
 from src.github_service import GitHubService
 from src.single_instance_manager import SingleInstanceManager
 from src.system_tray_manager import SystemTrayManager
@@ -288,6 +481,7 @@ def main():
     # Registrar tipos Python no QML
     qmlRegisterType(IssueModel, "JiraQuickTask", 1, 0, "IssueModel")
     qmlRegisterType(JiraService, "JiraQuickTask", 1, 0, "JiraService")
+    qmlRegisterType(AtlassianService, "JiraQuickTask", 1, 0, "AtlassianService")
 
     # Criar instâncias do modelo e serviço
     debug_log("App", "main", "Criando modelos e serviços...")
@@ -326,6 +520,26 @@ def main():
         traceback.print_exc(file=sys.stderr)
         raise
 
+    # Modelos workItem isolados (abas 7 e 8)
+    try:
+        debug_log(
+            "App", "main", "Criando work_item_model (formulário criação work item)..."
+        )
+        work_item_model = WorkItemModel()
+        editing_work_item_model = WorkItemModel()
+        my_work_items_model = MyWorkItemsModel()
+        debug_log(
+            "App",
+            "main",
+            "work_item_model, editing_work_item_model, my_work_items_model criados",
+        )
+    except Exception as e:
+        print(f"✗ Erro ao criar modelos workItem: {e}", file=sys.stderr)
+        import traceback
+
+        traceback.print_exc(file=sys.stderr)
+        raise
+
     try:
         debug_log("App", "main", "Criando JiraService...")
         jira_service = JiraService()
@@ -335,6 +549,15 @@ def main():
         import traceback
 
         traceback.print_exc(file=sys.stderr)
+        raise
+
+    atlassian_service = None
+    try:
+        debug_log("App", "main", "Criando AtlassianService...")
+        atlassian_service = AtlassianService()
+        debug_log("App", "main", "AtlassianService criado com sucesso")
+    except Exception as e:
+        print(f"✗ Erro ao criar AtlassianService: {e}", file=sys.stderr)
         raise
 
     # Conectar cache de Assets aos modelos de issue (Valor entregue / Plataformas afetadas)
@@ -357,6 +580,14 @@ def main():
         # #endregion
         issue_model.set_assets_cache(assets_cache)
         editing_issue_model.set_assets_cache(assets_cache)
+        work_item_model.set_assets_cache(assets_cache)
+        editing_work_item_model.set_assets_cache(assets_cache)
+    assets_cache_atlassian = (
+        atlassian_service.get_assets_cache() if atlassian_service else None
+    )
+    if assets_cache_atlassian:
+        work_item_model.set_assets_cache(assets_cache_atlassian)
+        editing_work_item_model.set_assets_cache(assets_cache_atlassian)
         # #region agent log
         _write_debug_ndjson(
             "app.main:after_set_assets_cache",
@@ -371,17 +602,35 @@ def main():
         def update_models():
             issue_model.on_assets_cache_loaded()
             editing_issue_model.on_assets_cache_loaded()
+            work_item_model.on_assets_cache_loaded()
+            editing_work_item_model.on_assets_cache_loaded()
 
         QTimer.singleShot(0, update_models)
 
+    def on_atlassian_assets_cache_loaded(success, message):
+        def update_work_item_models():
+            work_item_model.on_assets_cache_loaded()
+            editing_work_item_model.on_assets_cache_loaded()
+
+        QTimer.singleShot(0, update_work_item_models)
+        if success and atlassian_service:
+            cache = atlassian_service.get_assets_cache()
+            if cache:
+                work_item_model.set_assets_cache(cache)
+                editing_work_item_model.set_assets_cache(cache)
+
     jira_service.assetsCacheLoaded.connect(on_assets_cache_loaded)
+    if atlassian_service:
+        atlassian_service.assetsCacheLoaded.connect(on_atlassian_assets_cache_loaded)
 
     # ConfigManager único: mesmo config em memória para JiraService, GitHubService, SettingsModel e TimerService
     from config.config_manager import ConfigManager as AppConfigManager
 
     app_config_manager = AppConfigManager()
-    # Injetar config compartilhado no JiraService (para enrichment refletir configurações salvas)
+    # Injetar config compartilhado no JiraService e no AtlassianService (para enrichment refletir configurações salvas)
     jira_service._config = app_config_manager
+    if atlassian_service:
+        atlassian_service._config = app_config_manager
     try:
         debug_log("App", "main", "Criando GitHubService...")
         github_service = GitHubService(config_manager=app_config_manager)
@@ -435,7 +684,9 @@ def main():
         from src.database.worklog_db import WorklogDatabase
 
         debug_log("App", "main", "Criando WorklogDatabase...")
-        worklog_db = WorklogDatabase()
+        worklog_db = WorklogDatabase(
+            db_path=app_config_manager.get_config_dir() / "worklogs.db"
+        )
         debug_log("App", "main", "WorklogDatabase criado com sucesso")
 
         debug_log("App", "main", "Criando TimerModel...")
@@ -511,6 +762,27 @@ def main():
                 )
                 worklog_service = None
                 timesheet_model = None
+
+        # JiraMetadataConfigModel para wizard de configuração de metadata (Issue #25)
+        jira_metadata_config_model = None
+        try:
+            from src.models.jira_metadata_config_model import JiraMetadataConfigModel
+
+            jira_metadata_config_model = JiraMetadataConfigModel(
+                jira_client=jira_client,
+                config_manager=app_config_manager,
+            )
+            jira_metadata_config_model.loadConfiguration()
+            debug_log(
+                "App",
+                "main",
+                "JiraMetadataConfigModel criado e jira_metadata carregado",
+            )
+        except Exception as e:
+            print(
+                f"⚠ Aviso: Erro ao criar JiraMetadataConfigModel: {e}",
+                file=sys.stderr,
+            )
 
         # Criar TimerTrayManager para ícone separado do timer
         timer_tray_manager = None
@@ -627,193 +899,87 @@ def main():
         print(f"⚠ Aviso: Erro ao criar VoiceInputService: {e}", file=sys.stderr)
         voice_input_service = None
 
-    # Expor ao contexto QML
-    debug_log("App", "main", "Expondo modelos ao contexto QML...")
+    # voiceTranscriptionService: segunda instância para abas work item (7 e 8)
+    voice_transcription_service = None
     try:
-        engine.rootContext().setContextProperty("issueModel", issue_model)
-        debug_log("App", "main", "issueModel exposto ao contexto QML")
-    except Exception as e:
-        print(f"✗ Erro ao expor issueModel: {e}", file=sys.stderr)
-        raise
-
-    try:
-        engine.rootContext().setContextProperty(
-            "editingIssueModel", editing_issue_model
+        from config.config_manager import ConfigManager as _VoiceTranscriptionConfig
+        from src.services.voice_input_service import (
+            VoiceInputService as _VoiceInputServiceClass,
         )
-        debug_log("App", "main", "editingIssueModel exposto ao contexto QML")
-    except Exception as e:
-        print(f"✗ Erro ao expor editingIssueModel: {e}", file=sys.stderr)
-        raise
 
-    try:
-        engine.rootContext().setContextProperty("myIssuesModel", my_issues_model)
-        debug_log("App", "main", "myIssuesModel exposto ao contexto QML")
-    except Exception as e:
-        print(f"✗ Erro ao expor myIssuesModel: {e}", file=sys.stderr)
-        raise
-
-    try:
-        engine.rootContext().setContextProperty("jiraService", jira_service)
-        debug_log("App", "main", "jiraService exposto ao contexto QML")
-    except Exception as e:
-        print(f"✗ Erro ao expor jiraService: {e}", file=sys.stderr)
-        raise
-
-    try:
-        engine.rootContext().setContextProperty(
-            "githubService", github_service if github_service else None
+        _vts_config = _VoiceTranscriptionConfig()
+        voice_transcription_service = _VoiceInputServiceClass(
+            work_item_model,
+            _vts_config,
+            editing_issue_model=editing_work_item_model,
+            expand_overlay_on_process_transcription=True,
         )
-        if github_service:
-            debug_log("App", "main", "githubService exposto ao contexto QML")
+        if voice_transcription_service.isAvailable():
+            debug_log("App", "main", "voiceTranscriptionService criado com sucesso")
+        else:
+            debug_log(
+                "App",
+                "main",
+                "voiceTranscriptionService criado (deps de voz não instaladas)",
+            )
     except Exception as e:
-        print(f"⚠ Aviso: Erro ao expor githubService: {e}", file=sys.stderr)
+        print(f"⚠ Aviso: Erro ao criar voiceTranscriptionService: {e}", file=sys.stderr)
+        voice_transcription_service = None
 
-    # Google services: Opção B - criados após load e atribuídos ao root
-
-    try:
-        engine.rootContext().setContextProperty("settingsModel", settings_model)
-        debug_log("App", "main", "settingsModel exposto ao contexto QML")
-    except Exception as e:
-        print(f"✗ Erro ao expor settingsModel: {e}", file=sys.stderr)
-        raise
-
-    try:
-        engine.rootContext().setContextProperty(
-            "clipboardHelper", clipboard_helper if clipboard_helper else None
-        )
-        if clipboard_helper:
-            debug_log("App", "main", "clipboardHelper exposto ao contexto QML")
-    except Exception as e:
-        print(f"⚠ Aviso: Erro ao expor clipboardHelper: {e}", file=sys.stderr)
-
-    try:
-        engine.rootContext().setContextProperty(
-            "gitCommandHelper",
-            git_command_helper if git_command_helper else None,
-        )
-        if git_command_helper:
-            debug_log("App", "main", "gitCommandHelper exposto ao contexto QML")
-    except Exception as e:
-        print(f"⚠ Aviso: Erro ao expor gitCommandHelper: {e}", file=sys.stderr)
-
-    try:
-        engine.rootContext().setContextProperty(
-            "voiceInputService",
-            voice_input_service if voice_input_service else None,
-        )
-        if voice_input_service:
-            debug_log("App", "main", "voiceInputService exposto ao contexto QML")
-    except Exception as e:
-        print(f"⚠ Aviso: Erro ao expor voiceInputService: {e}", file=sys.stderr)
-
-    # MarkdownPreviewRenderer para modo Edit/Preview em description e comentários
+    # MarkdownPreviewRenderer (usado em AppContext)
+    markdown_preview_renderer = None
     try:
         from src.services.markdown_preview_renderer import MarkdownPreviewRenderer
 
         markdown_preview_renderer = MarkdownPreviewRenderer()
-        engine.rootContext().setContextProperty(
-            "markdownPreviewRenderer", markdown_preview_renderer
-        )
-        debug_log("App", "main", "markdownPreviewRenderer exposto ao contexto QML")
+        debug_log("App", "main", "markdownPreviewRenderer criado")
     except Exception as e:
-        print(f"⚠ Aviso: Erro ao expor markdownPreviewRenderer: {e}", file=sys.stderr)
-        engine.rootContext().setContextProperty("markdownPreviewRenderer", None)
+        print(f"⚠ Aviso: Erro ao criar markdownPreviewRenderer: {e}", file=sys.stderr)
 
-    try:
-        engine.rootContext().setContextProperty("trayManager", tray_manager)
-        debug_log("App", "main", "trayManager exposto ao contexto QML")
-    except Exception as e:
-        print(f"✗ Erro ao expor trayManager: {e}", file=sys.stderr)
-        raise
-
-    # Expor serviços de timer ao contexto QML
-    # IMPORTANTE: Sempre expor, mesmo se None, para evitar erros no QML
-    try:
-        engine.rootContext().setContextProperty("timerModel", timer_model)
-        if timer_model:
-            debug_log("App", "main", "timerModel exposto ao contexto QML")
-        else:
-            debug_log("App", "main", "timerModel é None - não foi criado")
-            print(
-                "⚠ Aviso: timerModel não está disponível (timer é feature opcional)",
-                file=sys.stderr,
-            )
-    except Exception as e:
-        print(f"✗ Erro ao expor timerModel: {e}", file=sys.stderr)
-        import traceback
-
-        traceback.print_exc(file=sys.stderr)
-
-    try:
-        engine.rootContext().setContextProperty("timerService", timer_service)
-        if timer_service:
-            debug_log("App", "main", "timerService exposto ao contexto QML")
-        else:
-            debug_log("App", "main", "timerService é None - não foi criado")
-            print(
-                "⚠ Aviso: timerService não está disponível (timer é feature opcional)",
-                file=sys.stderr,
-            )
-    except Exception as e:
-        print(f"✗ Erro ao expor timerService: {e}", file=sys.stderr)
-        import traceback
-
-        traceback.print_exc(file=sys.stderr)
-
-    try:
-        engine.rootContext().setContextProperty(
-            "notificationService", notification_service
-        )
-        if notification_service:
-            debug_log("App", "main", "notificationService exposto ao contexto QML")
-        else:
-            debug_log("App", "main", "notificationService é None - não foi criado")
-    except Exception as e:
-        print(f"✗ Erro ao expor notificationService: {e}", file=sys.stderr)
-        import traceback
-
-        traceback.print_exc(file=sys.stderr)
-
-    try:
-        engine.rootContext().setContextProperty(
-            "worklogSyncService", worklog_sync_service
-        )
-        if worklog_sync_service:
-            debug_log("App", "main", "worklogSyncService exposto ao contexto QML")
-        else:
-            debug_log("App", "main", "worklogSyncService é None - não foi criado")
-    except Exception as e:
-        print(f"✗ Erro ao expor worklogSyncService: {e}", file=sys.stderr)
-        import traceback
-
-        traceback.print_exc(file=sys.stderr)
-
-    try:
-        engine.rootContext().setContextProperty("timesheetViewModel", timesheet_model)
-        if timesheet_model:
-            debug_log("App", "main", "timesheetViewModel exposto ao contexto QML")
-        else:
-            debug_log("App", "main", "timesheetViewModel é None - não foi criado")
-    except Exception as e:
-        print(f"⚠ Aviso: Erro ao expor timesheetViewModel: {e}", file=sys.stderr)
-
-    # Expor timerTrayManager ao contexto QML
-    try:
-        timer_tray_manager_var = (
-            timer_tray_manager if "timer_tray_manager" in locals() else None
-        )
-        engine.rootContext().setContextProperty(
-            "timerTrayManager", timer_tray_manager_var
-        )
-        if timer_tray_manager_var:
-            debug_log("App", "main", "timerTrayManager exposto ao contexto QML")
-        else:
-            debug_log("App", "main", "timerTrayManager é None - não foi criado")
-    except Exception as e:
-        print(f"⚠ Aviso: Erro ao expor timerTrayManager: {e}", file=sys.stderr)
-        import traceback
-
-        traceback.print_exc(file=sys.stderr)
+    # AppContext: único objeto exposto ao QML via setInitialProperties (antes de engine.load())
+    # Elimina context properties soltas e permite acesso qualificado (root.appContext.xxx) sem desativar qmllint
+    debug_log("App", "main", "Criando AppContext para QML...")
+    app_context = AppContext()
+    app_context._issue_model = issue_model
+    app_context._editing_issue_model = editing_issue_model
+    app_context._my_issues_model = my_issues_model
+    app_context._work_item_model = work_item_model
+    app_context._editing_work_item_model = editing_work_item_model
+    app_context._my_work_items_model = my_work_items_model
+    app_context._jira_service = jira_service
+    app_context._atlassian_service = atlassian_service
+    app_context._github_service = github_service if github_service else None
+    app_context._settings_model = settings_model
+    app_context._jira_metadata_config_model = (
+        jira_metadata_config_model if jira_metadata_config_model else None
+    )
+    app_context._atlassian_metadata_config_model = (
+        jira_metadata_config_model if jira_metadata_config_model else None
+    )
+    app_context._clipboard_helper = clipboard_helper if clipboard_helper else None
+    app_context._git_command_helper = git_command_helper if git_command_helper else None
+    app_context._voice_input_service = (
+        voice_input_service if voice_input_service else None
+    )
+    app_context._voice_transcription_service = (
+        voice_transcription_service if voice_transcription_service else None
+    )
+    app_context._markdown_preview_renderer = markdown_preview_renderer
+    app_context._tray_manager = tray_manager
+    app_context._timer_model = timer_model
+    app_context._timer_service = timer_service
+    app_context._notification_service = notification_service
+    app_context._worklog_sync_service = worklog_sync_service
+    app_context._timesheet_view_model = timesheet_model
+    app_context._timer_tray_manager = (
+        timer_tray_manager if "timer_tray_manager" in locals() else None
+    )
+    # _hide_window e _debug_log são atribuídos logo antes de engine.load()
+    debug_log(
+        "App",
+        "main",
+        "AppContext criado (hideWindow e debugLog definidos antes do load)",
+    )
 
     # Criar janela flutuante do timer (gerenciada em Python para drag suave)
     timer_floating_window = None
@@ -1288,8 +1454,12 @@ def main():
                 # Janela está escondida - mostrar
                 restore_window()
 
-    # Expor função para esconder janela ao QML (antes de carregar QML)
-    engine.rootContext().setContextProperty("hideWindow", hide_window)
+    # Completar AppContext com hideWindow e debugLog (definidos apenas aqui)
+    app_context._hide_window = hide_window
+    debug_logger = DebugLogger(app)
+    app_context._debug_log = debug_logger
+    engine.setInitialProperties({"appContext": app_context})
+    debug_log("App", "main", "setInitialProperties(appContext) definido")
 
     # Carregar QML principal
     # Usar caminho relativo ao arquivo app.py
@@ -1309,8 +1479,6 @@ def main():
     _write_debug_ndjson(
         "app.main:before_engine_load", "about to engine.load", hypothesis_id="A"
     )
-    debug_logger = DebugLogger(app)
-    engine.rootContext().setContextProperty("debugLog", debug_logger)
     # #endregion
     debug_log("App", "main", "Chamando engine.load()...")
     engine.load(url)
@@ -1408,17 +1576,21 @@ def main():
         auth_svc = GoogleAuthService(config_manager=app_config_manager)
         cal_svc = GoogleCalendarService(config_manager=app_config_manager)
         tasks_svc = GoogleTasksService(config_manager=app_config_manager)
-        drive_comments_svc = GoogleDriveCommentsService(config_manager=app_config_manager)
+        drive_comments_svc = GoogleDriveCommentsService(
+            config_manager=app_config_manager
+        )
         cal_svc.authRequired.connect(auth_svc._update_authorized)
         tasks_svc.authRequired.connect(auth_svc._update_authorized)
         drive_comments_svc.authRequired.connect(auth_svc._update_authorized)
 
         root_obj = root_objects[0]
-        root_obj.setProperty("_ctxGoogleAuthService", auth_svc)
-        root_obj.setProperty("_ctxGoogleCalendarService", cal_svc)
-        root_obj.setProperty("_ctxGoogleTasksService", tasks_svc)
-        root_obj.setProperty("_ctxGoogleDriveCommentsService", drive_comments_svc)
-        debug_log("App", "main", "Serviços Google atribuídos ao root")
+        app_ctx = root_obj.property("appContext")
+        if app_ctx:
+            app_ctx._set_google_auth_service(auth_svc)
+            app_ctx._set_google_calendar_service(cal_svc)
+            app_ctx._set_google_tasks_service(tasks_svc)
+            app_ctx._set_google_drive_comments_service(drive_comments_svc)
+        debug_log("App", "main", "Serviços Google atribuídos ao appContext")
     except Exception as e:
         print(f"⚠ Aviso: Erro ao criar serviços Google: {e}", file=sys.stderr)
 

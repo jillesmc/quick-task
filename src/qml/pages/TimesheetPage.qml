@@ -23,8 +23,8 @@ Kirigami.Page {
         target: page.timesheetViewModel || null
         function onWorklogDetailsRequested(details) {
             if (details && worklogDetailsDialog) {
-                worklogDetailsDialog.details = details
-                worklogDetailsDialog.open()
+                worklogDetailsDialog.details = details;
+                worklogDetailsDialog.open();
             }
         }
     }
@@ -43,9 +43,7 @@ Kirigami.Page {
 
             Controls.Label {
                 Layout.fillWidth: true
-                text: worklogDetailsDialog.details
-                    ? (worklogDetailsDialog.details.issueKey + " - " + worklogDetailsDialog.details.date)
-                    : ""
+                text: worklogDetailsDialog.details ? (worklogDetailsDialog.details.issueKey + " - " + worklogDetailsDialog.details.date) : ""
                 font.bold: true
                 wrapMode: Text.WordWrap
             }
@@ -75,9 +73,7 @@ Kirigami.Page {
             Controls.Label {
                 Layout.fillWidth: true
                 Layout.topMargin: Kirigami.Units.smallSpacing
-                text: worklogDetailsDialog.details
-                    ? (qsTr("Total: ") + (worklogDetailsDialog.details.total || "00:00"))
-                    : ""
+                text: worklogDetailsDialog.details ? (qsTr("Total: ") + (worklogDetailsDialog.details.total || "00:00")) : ""
                 font.bold: true
             }
 
@@ -121,7 +117,9 @@ Kirigami.Page {
                 Layout.minimumWidth: 140
             }
 
-            Item { Layout.fillWidth: true }
+            Item {
+                Layout.fillWidth: true
+            }
 
             Controls.Button {
                 text: qsTr("Hoje")
@@ -258,29 +256,26 @@ Kirigami.Page {
                                 property string cellTime: cellDelegate.modelData || "00:00"
                                 cursorShape: (cellTime !== "00:00" && cellTime !== "") ? Qt.PointingHandCursor : Qt.ArrowCursor
                                 onClicked: {
-                                    if (cellTime === "00:00" || cellTime === "") return
-                                    var dateHeaders = page.timesheetViewModel ? page.timesheetViewModel.dateHeaders : []
-                                    var dateStr = dateHeaders[index] ? dateHeaders[index].date : ""
-                                    var issueKey = rowDelegate ? rowDelegate.rowIssueKey : ""
+                                    if (cellTime === "00:00" || cellTime === "")
+                                        return;
+                                    var dateHeaders = page.timesheetViewModel ? page.timesheetViewModel.dateHeaders : [];
+                                    var dateStr = dateHeaders[index] ? dateHeaders[index].date : "";
+                                    var issueKey = rowDelegate ? rowDelegate.rowIssueKey : "";
                                     if (dateStr && issueKey && page.timesheetViewModel) {
-                                        page.timesheetViewModel.showWorklogDetails(issueKey, dateStr)
+                                        page.timesheetViewModel.showWorklogDetails(issueKey, dateStr);
                                     }
                                 }
 
                                 Rectangle {
                                     anchors.fill: parent
-                                    color: parent.containsMouse && (parent.cellTime !== "00:00" && parent.cellTime !== "")
-                                        ? Kirigami.Theme.highlightColor
-                                        : "transparent"
+                                    color: parent.containsMouse && (parent.cellTime !== "00:00" && parent.cellTime !== "") ? Kirigami.Theme.highlightColor : "transparent"
                                     radius: 2
                                 }
                                 Controls.Label {
                                     anchors.centerIn: parent
                                     text: parent.cellTime || "00:00"
                                     font.pixelSize: Kirigami.Theme.smallFont.pixelSize
-                                    color: (parent.cellTime !== "00:00" && parent.cellTime !== "")
-                                        ? Kirigami.Theme.textColor
-                                        : Kirigami.Theme.disabledTextColor
+                                    color: (parent.cellTime !== "00:00" && parent.cellTime !== "") ? Kirigami.Theme.textColor : Kirigami.Theme.disabledTextColor
                                     horizontalAlignment: Text.AlignHCenter
                                 }
                             }

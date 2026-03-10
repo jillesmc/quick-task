@@ -5,4 +5,6 @@ GitHubPage GitHubPage.qml
 GooglePage GooglePage.qml
 TimesheetPage TimesheetPage.qml
 SettingsPage SettingsPage.qml
+CreateWorkItemPage CreateWorkItemPage.qml
+MyWorkItemsPage MyWorkItemsPage.qml
 TimerPage TimerPage.qml

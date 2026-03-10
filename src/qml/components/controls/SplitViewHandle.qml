@@ -27,19 +27,23 @@ Item {
                 height: Kirigami.Units.smallSpacing
                 radius: Kirigami.Units.smallSpacing / 2
                 color: {
-                    var base = Kirigami.Theme.neutralTextColor
+                    var base = Kirigami.Theme.neutralTextColor;
                     if (SplitHandle.hovered) {
-                        return Qt.darker(base, 1.3)
+                        return Qt.darker(base, 1.3);
                     }
-                    return base
+                    return base;
                 }
                 opacity: SplitHandle.hovered ? 1.0 : 0.65
 
                 Behavior on color {
-                    ColorAnimation { duration: 150 }
+                    ColorAnimation {
+                        duration: 150
+                    }
                 }
                 Behavior on opacity {
-                    NumberAnimation { duration: 150 }
+                    NumberAnimation {
+                        duration: 150
+                    }
                 }
             }
         }

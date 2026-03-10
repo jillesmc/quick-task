@@ -10,6 +10,9 @@ from typing import Any, Dict, List, Optional
 
 from PySide6.QtCore import QObject, Signal, QThread, Slot  # type: ignore[import]
 
+from src.constants import SUMMARY_MAX_LENGTH
+from src.utils.http_retry import request_with_retry
+
 try:
     import requests
 
@@ -85,6 +88,38 @@ class _ImproveCommentWorker(QThread):
             self.error_occurred.emit(str(e))
 
 
+class _ProcessTaskWorker(QThread):
+    """Thread para processamento de tarefa a partir de transcrição (Expandir com IA)."""
+
+    finished = Signal(object)  # Dict[str, Any]
+    error_occurred = Signal(str)
+
+    def __init__(
+        self,
+        client: "LocalAIClient",
+        transcription: str,
+        tipo_atividade_values: List[str],
+        task_system_prompt: Optional[str],
+        parent=None,
+    ):
+        super().__init__(parent)
+        self._client = client
+        self._transcription = transcription
+        self._tipo_atividade_values = tipo_atividade_values
+        self._task_system_prompt = task_system_prompt
+
+    def run(self) -> None:
+        try:
+            result = self._client._process_task_sync(
+                self._transcription,
+                self._tipo_atividade_values,
+                self._task_system_prompt,
+            )
+            self.finished.emit(result)
+        except Exception as e:
+            self.error_occurred.emit(str(e))
+
+
 class LocalAIClient(QObject):
     """
     Cliente para LocalAI no host: check_connection, transcribe (Whisper), process_task (LLM).
@@ -109,6 +144,7 @@ class LocalAIClient(QObject):
         self._llm_model = llm_model or "qwen2.5:3b"
         self._worker: Optional[_TranscribeWorker] = None
         self._improve_worker: Optional["_ImproveCommentWorker"] = None
+        self._process_task_worker: Optional[_ProcessTaskWorker] = None
 
     def _get_models_url(self) -> str:
         return f"{self._base_url}/v1/models"
@@ -126,7 +162,10 @@ class LocalAIClient(QObject):
             return False
         url = self._get_models_url()
         try:
-            r = requests.get(url, timeout=LOCALAI_TIMEOUT_MODELS)
+            r = request_with_retry(
+                lambda: requests.get(url, timeout=LOCALAI_TIMEOUT_MODELS),
+                None,
+            )
             if r.status_code == 200:
                 return True
             try:
@@ -170,19 +209,22 @@ class LocalAIClient(QObject):
         if not path.exists():
             raise FileNotFoundError(f"Arquivo de áudio não encontrado: {audio_path}")
 
-        with open(path, "rb") as f:
-            files = {"file": (path.name or "audio.wav", f, "audio/wav")}
-            data = {
-                "model": self._whisper_model,
-                "language": "pt",
-                "response_format": "json",
-            }
-            r = requests.post(
-                self._get_transcriptions_url(),
-                files=files,
-                data=data,
-                timeout=LOCALAI_TIMEOUT_TRANSCRIBE,
-            )
+        def _do_transcribe():
+            with open(path, "rb") as f:
+                files = {"file": (path.name or "audio.wav", f, "audio/wav")}
+                data = {
+                    "model": self._whisper_model,
+                    "language": "pt",
+                    "response_format": "json",
+                }
+                return requests.post(
+                    self._get_transcriptions_url(),
+                    files=files,
+                    data=data,
+                    timeout=LOCALAI_TIMEOUT_TRANSCRIBE,
+                )
+
+        r = request_with_retry(_do_transcribe, None)
 
         if r.status_code != 200:
             raise RuntimeError(f"Transcrição falhou: HTTP {r.status_code}")
@@ -226,17 +268,20 @@ class LocalAIClient(QObject):
             comment_improvement_prompt or ""
         ).strip() or DEFAULT_COMMENT_IMPROVEMENT_PROMPT
         try:
-            r = requests.post(
-                self._get_chat_completions_url(),
-                json={
-                    "model": self._llm_model,
-                    "messages": [
-                        {"role": "system", "content": prompt},
-                        {"role": "user", "content": text},
-                    ],
-                    "temperature": 0.3,
-                },
-                timeout=LOCALAI_TIMEOUT_IMPROVE_COMMENT,
+            r = request_with_retry(
+                lambda: requests.post(
+                    self._get_chat_completions_url(),
+                    json={
+                        "model": self._llm_model,
+                        "messages": [
+                            {"role": "system", "content": prompt},
+                            {"role": "user", "content": text},
+                        ],
+                        "temperature": 0.3,
+                    },
+                    timeout=LOCALAI_TIMEOUT_IMPROVE_COMMENT,
+                ),
+                None,
             )
             if r.status_code != 200:
                 return text
@@ -282,16 +327,17 @@ class LocalAIClient(QObject):
     def _on_improve_error(self, msg: str) -> None:
         self.error.emit(msg)
 
-    def process_task_from_voice(
+    def _process_task_sync(
         self,
         transcription: str,
         tipo_atividade_values: List[str],
         task_system_prompt: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
-        Processa transcrição com LLM (LocalAI chat completions) e retorna dict com
-        summary, description, tipo_atividade, utilizacaoIA.
-        task_system_prompt: instrução de sistema (se None, usa default).
+        Processa transcrição com LLM (HTTP + parse). Bloqueante; não emite sinais.
+        Retorna dict com summary, description, tipo_atividade, utilizacaoIA.
+        Em falha "soft" (HTTP != 200, parse falhou) retorna heuristic_fallback.
+        Em exceção (rede, etc.) deixa propagar para o worker emitir error_occurred.
         """
         transcription = (transcription or "").strip()
         if not tipo_atividade_values:
@@ -304,8 +350,8 @@ class LocalAIClient(QObject):
             task_system_prompt or ""
         ).strip() or DEFAULT_TASK_SYSTEM_PROMPT
         prompt = self._build_llm_prompt(transcription, tipo_atividade_values)
-        try:
-            r = requests.post(
+        r = request_with_retry(
+            lambda: requests.post(
                 self._get_chat_completions_url(),
                 json={
                     "model": self._llm_model,
@@ -317,37 +363,76 @@ class LocalAIClient(QObject):
                     "response_format": {"type": "json_object"},
                 },
                 timeout=LOCALAI_TIMEOUT_GENERATE,
-            )
-            if r.status_code != 200:
-                return self._heuristic_fallback(transcription, tipo_atividade_values)
-            data = r.json()
-            raw = ""
-            try:
-                raw = (
-                    data.get("choices", [{}])[0].get("message", {}).get("content") or ""
-                ).strip()
-            except (IndexError, KeyError, TypeError):
-                pass
-            parsed = self._extract_json(raw)
-            if parsed:
-                summary = (parsed.get("summary") or "").strip()[:255]
-                description = (parsed.get("description") or transcription).strip()
-                tipo = (parsed.get("tipo_atividade") or "").strip()
-                if tipo not in tipo_atividade_values:
-                    tipo = tipo_atividade_values[0]
-                result = {
-                    "summary": summary or self._heuristic_summary(transcription),
-                    "description": description or transcription,
-                    "tipo_atividade": tipo,
-                    "utilizacaoIA": "Sim",
-                }
-                self.processingComplete.emit(result)
-                return result
-        except Exception as e:
-            self.error.emit(str(e))
-        result = self._heuristic_fallback(transcription, tipo_atividade_values)
+            ),
+            None,
+        )
+        if r.status_code != 200:
+            return self._heuristic_fallback(transcription, tipo_atividade_values)
+        data = r.json()
+        raw = ""
+        try:
+            raw = (
+                data.get("choices", [{}])[0].get("message", {}).get("content") or ""
+            ).strip()
+        except (IndexError, KeyError, TypeError):
+            pass
+        parsed = self._extract_json(raw)
+        if parsed:
+            summary = (parsed.get("summary") or "").strip()[:SUMMARY_MAX_LENGTH]
+            description = (parsed.get("description") or transcription).strip()
+            tipo = (parsed.get("tipo_atividade") or "").strip()
+            if tipo not in tipo_atividade_values:
+                tipo = tipo_atividade_values[0]
+            return {
+                "summary": summary or self._heuristic_summary(transcription),
+                "description": description or transcription,
+                "tipo_atividade": tipo,
+                "utilizacaoIA": "Sim",
+            }
+        return self._heuristic_fallback(transcription, tipo_atividade_values)
+
+    @Slot()
+    def process_task_from_voice(
+        self,
+        transcription: str,
+        tipo_atividade_values: List[str],
+        task_system_prompt: Optional[str] = None,
+    ) -> None:
+        """
+        Inicia processamento em thread (Expandir com IA).
+        Emite processingComplete(dict) ou error(str) quando o worker terminar.
+        """
+        if (
+            self._process_task_worker is not None
+            and self._process_task_worker.isRunning()
+        ):
+            self.error.emit("Expandir com IA já em andamento")
+            return
+        transcription = (transcription or "").strip()
+        if not tipo_atividade_values:
+            tipo_atividade_values = ["Suporte Dúvidas/Suporte uso incorreto"]
+        self._process_task_worker = _ProcessTaskWorker(
+            self,
+            transcription,
+            tipo_atividade_values,
+            task_system_prompt,
+            parent=self,
+        )
+        self._process_task_worker.finished.connect(self._on_process_task_finished)
+        self._process_task_worker.error_occurred.connect(self._on_process_task_error)
+        self._process_task_worker.finished.connect(
+            lambda: setattr(self, "_process_task_worker", None)
+        )
+        self._process_task_worker.error_occurred.connect(
+            lambda: setattr(self, "_process_task_worker", None)
+        )
+        self._process_task_worker.start()
+
+    def _on_process_task_finished(self, result: Dict[str, Any]) -> None:
         self.processingComplete.emit(result)
-        return result
+
+    def _on_process_task_error(self, msg: str) -> None:
+        self.error.emit(msg)
 
     def _build_llm_prompt(
         self,
@@ -432,8 +517,9 @@ Exemplo de resposta:
         transcription: str,
         tipo_atividade_values: List[str],
     ) -> Dict[str, Any]:
+        summary = (self._heuristic_summary(transcription))[:SUMMARY_MAX_LENGTH]
         return {
-            "summary": self._heuristic_summary(transcription),
+            "summary": summary,
             "description": transcription,
             "tipo_atividade": self._heuristic_tipo(
                 transcription, tipo_atividade_values

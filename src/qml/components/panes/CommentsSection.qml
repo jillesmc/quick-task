@@ -31,8 +31,9 @@ Item {
     /** Issue key do pedido "load more" em curso; ao receber commentsLoaded, só aplicar se for a issue atual. */
     property string _pendingCommentsIssueKey: ""
     property bool _editCommentDialogOpen: false
-    property var _voiceInputService: (typeof voiceInputService !== "undefined" ? voiceInputService : null) // qmllint disable unqualified
-    property bool voiceInputAvailable: _voiceInputService ? _voiceInputService.isAvailable() : false
+    /** Serviço de voz injetado pelo pai (pane); não usa contexto global. */
+    property var voiceInputService: null
+    property bool voiceInputAvailable: voiceInputService ? voiceInputService.isAvailable() : false
     property bool improvingNewComment: false
     property string newCommentText: ""
     property real commentInputHeight: 200
@@ -46,10 +47,11 @@ Item {
     /** olderComments em ordem de exibição (mais novo primeiro). */
     property var displayOlderComments: []
     onOlderCommentsChanged: {
-        var o = olderComments || []
-        var out = []
-        for (var i = o.length - 1; i >= 0; i--) out.push(o[i])
-        displayOlderComments = out
+        var o = olderComments || [];
+        var out = [];
+        for (var i = o.length - 1; i >= 0; i--)
+            out.push(o[i]);
+        displayOlderComments = out;
     }
 
     /** Número exibido no título. */
@@ -60,14 +62,14 @@ Item {
     property string _currentUserAccountId: ""
     onJiraServiceChanged: {
         if (jiraService && typeof jiraService.getAccountId === "function") {
-            _currentUserAccountId = String(jiraService.getAccountId())
+            _currentUserAccountId = String(jiraService.getAccountId());
         } else {
-            _currentUserAccountId = ""
+            _currentUserAccountId = "";
         }
     }
     Component.onCompleted: {
         if (jiraService && typeof jiraService.getAccountId === "function") {
-            _currentUserAccountId = String(jiraService.getAccountId())
+            _currentUserAccountId = String(jiraService.getAccountId());
         }
     }
 
@@ -78,23 +80,27 @@ Item {
     readonly property bool _isLastCommentByCurrentUser: _lastCommentAuthorAccountId !== "" && _currentUserAccountId !== "" && _lastCommentAuthorAccountId === _currentUserAccountId
 
     function _authorAccountIdFromComment(commentDict) {
-        if (!commentDict) return ""
-        var author = commentDict.author
-        if (!author) return ""
-        if (author.accountId !== undefined && author.accountId !== null) return String(author.accountId)
-        if (author["accountId"] !== undefined && author["accountId"] !== null) return String(author["accountId"])
-        return ""
+        if (!commentDict)
+            return "";
+        var author = commentDict.author;
+        if (!author)
+            return "";
+        if (author.accountId !== undefined && author.accountId !== null)
+            return String(author.accountId);
+        if (author["accountId"] !== undefined && author["accountId"] !== null)
+            return String(author["accountId"]);
+        return "";
     }
 
     onSelectedIssueKeyChanged: {
-        lastComment = null
-        _lastCommentAuthorAccountId = ""
-        olderComments = []
-        commentsTotal = -1
-        _pendingCommentsIssueKey = ""
+        lastComment = null;
+        _lastCommentAuthorAccountId = "";
+        olderComments = [];
+        commentsTotal = -1;
+        _pendingCommentsIssueKey = "";
         if (commentsSectionRoot.selectedIssueKey && commentsSectionRoot.jiraService) {
-            _latestCommentLoading = true
-            commentsSectionRoot.jiraService.getLatestCommentAsync(commentsSectionRoot.selectedIssueKey)
+            _latestCommentLoading = true;
+            commentsSectionRoot.jiraService.getLatestCommentAsync(commentsSectionRoot.selectedIssueKey);
         }
     }
 
@@ -126,8 +132,8 @@ Item {
                 }
                 EditPreviewToggle {
                     isEditMode: commentsSectionRoot._newCommentEditMode
-                    onModeChanged: function(editMode) {
-                        commentsSectionRoot._newCommentEditMode = editMode
+                    onModeChanged: function (editMode) {
+                        commentsSectionRoot._newCommentEditMode = editMode;
                     }
                 }
             }
@@ -144,25 +150,25 @@ Item {
 
                     DropArea {
                         enabled: commentsSectionRoot.selectedIssueKey !== "" && commentsSectionRoot.jiraService
-                        onDropped: function(drop) {
-                            if (!commentsSectionRoot.jiraService || !commentsSectionRoot.selectedIssueKey || !drop.urls || drop.urls.length === 0) return
-                            var extList = (typeof commentsSectionRoot.jiraService.getAllowedAttachmentExtensions === "function")
-                                ? commentsSectionRoot.jiraService.getAllowedAttachmentExtensions() : []
-                            var imageExtList = (typeof commentsSectionRoot.jiraService.getAllowedImageExtensions === "function")
-                                ? commentsSectionRoot.jiraService.getAllowedImageExtensions() : []
+                        onDropped: function (drop) {
+                            if (!commentsSectionRoot.jiraService || !commentsSectionRoot.selectedIssueKey || !drop.urls || drop.urls.length === 0)
+                                return;
+                            var extList = (typeof commentsSectionRoot.jiraService.getAllowedAttachmentExtensions === "function") ? commentsSectionRoot.jiraService.getAllowedAttachmentExtensions() : [];
+                            var imageExtList = (typeof commentsSectionRoot.jiraService.getAllowedImageExtensions === "function") ? commentsSectionRoot.jiraService.getAllowedImageExtensions() : [];
                             for (var i = 0; i < drop.urls.length; i++) {
-                                var urlStr = drop.urls[i].toString()
-                                var path = urlStr.replace(/^file:\/\//, "")
-                                var filename = path.split("/").pop() || path.split("\\").pop() || "file"
-                                var ext = filename.indexOf(".") >= 0 ? filename.split(".").pop().toLowerCase() : ""
-                                if (extList.indexOf(ext) < 0) continue
-                                var pathToUse = (commentsSectionRoot.clipboardHelper && typeof commentsSectionRoot.clipboardHelper.copyFileToTemp === "function")
-                                    ? commentsSectionRoot.clipboardHelper.copyFileToTemp(path) : path
-                                if (!pathToUse) pathToUse = path
+                                var urlStr = drop.urls[i].toString();
+                                var path = urlStr.replace(/^file:\/\//, "");
+                                var filename = path.split("/").pop() || path.split("\\").pop() || "file";
+                                var ext = filename.indexOf(".") >= 0 ? filename.split(".").pop().toLowerCase() : "";
+                                if (extList.indexOf(ext) < 0)
+                                    continue;
+                                var pathToUse = (commentsSectionRoot.clipboardHelper && typeof commentsSectionRoot.clipboardHelper.copyFileToTemp === "function") ? commentsSectionRoot.clipboardHelper.copyFileToTemp(path) : path;
+                                if (!pathToUse)
+                                    pathToUse = path;
                                 if (imageExtList.indexOf(ext) >= 0) {
-                                    commentsSectionRoot._openEmbedDialogForComment(pathToUse, filename)
+                                    commentsSectionRoot._openEmbedDialogForComment(pathToUse, filename);
                                 } else {
-                                    commentsSectionRoot.jiraService.uploadAttachment(commentsSectionRoot.selectedIssueKey, pathToUse, "comment")
+                                    commentsSectionRoot.jiraService.uploadAttachment(commentsSectionRoot.selectedIssueKey, pathToUse, "comment");
                                 }
                             }
                         }
@@ -182,24 +188,24 @@ Item {
                                 text: commentsSectionRoot.newCommentText
                                 onTextChanged: commentsSectionRoot.newCommentText = text
 
-                                Keys.onPressed: function(event) {
+                                Keys.onPressed: function (event) {
                                     if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_V) {
                                         if (commentsSectionRoot.clipboardHelper && commentsSectionRoot.clipboardHelper.hasClipboardImage() && commentsSectionRoot.jiraService && commentsSectionRoot.selectedIssueKey) {
-                                            var tempPath = commentsSectionRoot.clipboardHelper.getClipboardImageAsTempFile()
+                                            var tempPath = commentsSectionRoot.clipboardHelper.getClipboardImageAsTempFile();
                                             if (tempPath) {
-                                                commentsSectionRoot._openEmbedDialogForComment(tempPath, "paste.png")
-                                                event.accepted = true
+                                                commentsSectionRoot._openEmbedDialogForComment(tempPath, "paste.png");
+                                                event.accepted = true;
                                             }
                                         }
                                     } else if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_E) {
-                                        commentsSectionRoot._newCommentEditMode = true
-                                        event.accepted = true
+                                        commentsSectionRoot._newCommentEditMode = true;
+                                        event.accepted = true;
                                     } else if ((event.modifiers & (Qt.ControlModifier | Qt.ShiftModifier)) === (Qt.ControlModifier | Qt.ShiftModifier) && event.key === Qt.Key_P) {
-                                        commentsSectionRoot._newCommentEditMode = false
-                                        event.accepted = true
+                                        commentsSectionRoot._newCommentEditMode = false;
+                                        event.accepted = true;
                                     } else if (event.key === Qt.Key_Escape) {
-                                        commentsSectionRoot._newCommentEditMode = true
-                                        event.accepted = true
+                                        commentsSectionRoot._newCommentEditMode = true;
+                                        event.accepted = true;
                                     }
                                 }
                             }
@@ -212,13 +218,13 @@ Item {
                         border.width: 0.5
                         radius: Kirigami.Units.smallSpacing
 
-                        Keys.onPressed: function(event) {
+                        Keys.onPressed: function (event) {
                             if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_E) {
-                                commentsSectionRoot._newCommentEditMode = true
-                                event.accepted = true
+                                commentsSectionRoot._newCommentEditMode = true;
+                                event.accepted = true;
                             } else if (event.key === Qt.Key_Escape) {
-                                commentsSectionRoot._newCommentEditMode = true
-                                event.accepted = true
+                                commentsSectionRoot._newCommentEditMode = true;
+                                event.accepted = true;
                             }
                         }
 
@@ -237,12 +243,12 @@ Item {
                                 textFormat: Text.RichText
                                 color: Kirigami.Theme.textColor
                                 // qmllint disable unqualified
-                                text: (typeof markdownPreviewRenderer !== "undefined" && markdownPreviewRenderer)
-                                    ? markdownPreviewRenderer.render(commentsSectionRoot.newCommentText)
-                                    : commentsSectionRoot.newCommentText
+                                text: (typeof markdownPreviewRenderer !== "undefined" && markdownPreviewRenderer) ? markdownPreviewRenderer.render(commentsSectionRoot.newCommentText) : commentsSectionRoot.newCommentText
                                 // qmllint enable unqualified
                                 wrapMode: Text.Wrap
-                                onLinkActivated: function(link) { Qt.openUrlExternally(link) }
+                                onLinkActivated: function (link) {
+                                    Qt.openUrlExternally(link);
+                                }
                             }
                         }
                     }
@@ -260,20 +266,22 @@ Item {
                     visible: commentsSectionRoot.voiceInputAvailable
                     enabled: !commentsSectionRoot.improvingNewComment && (commentsSectionRoot.newCommentText || "").trim() !== ""
                     onClicked: {
-                        if (commentsSectionRoot._voiceInputService && (commentsSectionRoot.newCommentText || "").trim() !== "") {
-                            commentsSectionRoot.improvingNewComment = true
-                            commentsSectionRoot._voiceInputService.improveCommentText(commentsSectionRoot.newCommentText)
+                        if (commentsSectionRoot.voiceInputService && (commentsSectionRoot.newCommentText || "").trim() !== "") {
+                            commentsSectionRoot.improvingNewComment = true;
+                            commentsSectionRoot.voiceInputService.improveCommentText(commentsSectionRoot.newCommentText);
                         }
                     }
                 }
-                Item { Layout.fillWidth: true }
+                Item {
+                    Layout.fillWidth: true
+                }
                 Controls.Button {
                     text: qsTr("Publicar")
                     enabled: commentsSectionRoot.jiraService && commentsSectionRoot.selectedIssueKey !== "" && (commentsSectionRoot.newCommentText || "").trim() !== ""
                     onClicked: {
                         if (commentsSectionRoot.jiraService && commentsSectionRoot.selectedIssueKey) {
-                            commentsSectionRoot.jiraService.addComment(commentsSectionRoot.selectedIssueKey, commentsSectionRoot.newCommentText.trim())
-                            commentsSectionRoot.newCommentText = ""
+                            commentsSectionRoot.jiraService.addComment(commentsSectionRoot.selectedIssueKey, commentsSectionRoot.newCommentText.trim());
+                            commentsSectionRoot.newCommentText = "";
                         }
                     }
                 }
@@ -294,7 +302,9 @@ Item {
                 Layout.preferredWidth: Kirigami.Units.iconSizes.small
                 Layout.preferredHeight: Kirigami.Units.iconSizes.small
             }
-            Item { Layout.fillWidth: true }
+            Item {
+                Layout.fillWidth: true
+            }
         }
 
         Rectangle {
@@ -325,7 +335,9 @@ Item {
                         font.pointSize: Kirigami.Theme.smallFont.pointSize
                         color: Kirigami.Theme.disabledTextColor
                     }
-                    Item { Layout.fillWidth: true }
+                    Item {
+                        Layout.fillWidth: true
+                    }
                     Row {
                         spacing: Kirigami.Units.smallSpacing
                         visible: commentsSectionRoot._isLastCommentByCurrentUser
@@ -400,7 +412,9 @@ Item {
                                 font.pointSize: Kirigami.Theme.smallFont.pointSize
                                 color: Kirigami.Theme.disabledTextColor
                             }
-                            Item { Layout.fillWidth: true }
+                            Item {
+                                Layout.fillWidth: true
+                            }
                             Row {
                                 spacing: Kirigami.Units.smallSpacing
                                 visible: commentsSectionRoot.jiraService && olderDelegate.modelData.author && String(olderDelegate.modelData.author.accountId || "") === String(commentsSectionRoot.jiraService.getAccountId ? commentsSectionRoot.jiraService.getAccountId() : "")
@@ -430,191 +444,212 @@ Item {
     }
 
     Connections {
-        target: commentsSectionRoot._voiceInputService || null
-        enabled: commentsSectionRoot._voiceInputService !== null
+        target: commentsSectionRoot.voiceInputService || null
+        enabled: commentsSectionRoot.voiceInputService !== null
         function onCommentTextImproved(text) {
-            commentsSectionRoot.improvingNewComment = false
+            commentsSectionRoot.improvingNewComment = false;
             if (text)
-                commentsSectionRoot.newCommentText = text
+                commentsSectionRoot.newCommentText = text;
         }
         function onError(message) {
-            commentsSectionRoot.improvingNewComment = false
-            commentsSectionRoot.errorOccurred(message)
+            commentsSectionRoot.improvingNewComment = false;
+            commentsSectionRoot.errorOccurred(message);
         }
     }
 
     Connections {
         target: commentsSectionRoot.jiraService || null
         function onAttachmentUploaded(uploadedIssueKey, contentUrl, filename, embedTarget) {
-            if (uploadedIssueKey !== commentsSectionRoot.selectedIssueKey || !contentUrl || !filename || embedTarget !== "comment") return
-            if (!newCommentField) return
-            var w = 760
-            var markdown = "![" + filename + "](" + contentUrl + "){: width=\"" + w + "\" }"
-            newCommentField.insert(newCommentField.cursorPosition, markdown)
-            commentsSectionRoot.newCommentText = newCommentField.text
+            if (uploadedIssueKey !== commentsSectionRoot.selectedIssueKey || !contentUrl || !filename || embedTarget !== "comment")
+                return;
+            if (!newCommentField)
+                return;
+            var w = 760;
+            var markdown = "![" + filename + "](" + contentUrl + "){: width=\"" + w + "\" }";
+            newCommentField.insert(newCommentField.cursorPosition, markdown);
+            commentsSectionRoot.newCommentText = newCommentField.text;
         }
     }
 
     function _openEmbedDialogForComment(filePath, filename) {
-        if (!commentsSectionRoot.jiraService || !commentsSectionRoot.selectedIssueKey) return
-        var comp = Qt.createComponent("../dialogs/AttachmentEmbedPreviewDialog.qml")
-        var win = commentsSectionRoot.applicationWindow || commentsSectionRoot.parent || commentsSectionRoot
+        if (!commentsSectionRoot.jiraService || !commentsSectionRoot.selectedIssueKey)
+            return;
+        var comp = Qt.createComponent("../dialogs/AttachmentEmbedPreviewDialog.qml");
+        var win = commentsSectionRoot.applicationWindow || commentsSectionRoot.parent || commentsSectionRoot;
         if (comp.status !== Component.Ready) {
-            if (comp.status === Component.Error) console.error("CommentsSection: AttachmentEmbedPreviewDialog error:", comp.errorString())
+            if (comp.status === Component.Error)
+                console.error("CommentsSection: AttachmentEmbedPreviewDialog error:", comp.errorString());
             comp.statusChanged.connect(function () {
-                if (comp.status === Component.Ready) _openEmbedDialogForComment(filePath, filename)
-            })
-            return
+                if (comp.status === Component.Ready)
+                    _openEmbedDialogForComment(filePath, filename);
+            });
+            return;
         }
-        var dlg = comp.createObject(win)
-        if (!dlg) return
-        dlg.filePath = filePath
-        dlg.showPositionOptions = false
-        dlg.defaultDisplayWidth = (commentsSectionRoot.jiraService && typeof commentsSectionRoot.jiraService.getEmbedMaxDisplayWidth === "function")
-            ? commentsSectionRoot.jiraService.getEmbedMaxDisplayWidth() : 760
-        dlg.applicationWindow = commentsSectionRoot.applicationWindow
-        dlg.clipboardHelper = commentsSectionRoot.clipboardHelper
-        dlg.embedTarget = "comment"
+        var dlg = comp.createObject(win);
+        if (!dlg)
+            return;
+        dlg.filePath = filePath;
+        dlg.showPositionOptions = false;
+        dlg.defaultDisplayWidth = (commentsSectionRoot.jiraService && typeof commentsSectionRoot.jiraService.getEmbedMaxDisplayWidth === "function") ? commentsSectionRoot.jiraService.getEmbedMaxDisplayWidth() : 760;
+        dlg.applicationWindow = commentsSectionRoot.applicationWindow;
+        dlg.clipboardHelper = commentsSectionRoot.clipboardHelper;
+        dlg.embedTarget = "comment";
         dlg.acceptedEmbed.connect(function () {
-            commentsSectionRoot.jiraService.uploadAttachment(commentsSectionRoot.selectedIssueKey, filePath, "comment")
-        })
+            commentsSectionRoot.jiraService.uploadAttachment(commentsSectionRoot.selectedIssueKey, filePath, "comment");
+        });
         dlg.acceptedAttachOnly.connect(function () {
-            commentsSectionRoot.jiraService.uploadAttachment(commentsSectionRoot.selectedIssueKey, filePath, "comment")
-        })
-        dlg.rejected.connect(function () {})
-        dlg.closed.connect(function () { dlg.destroy() })
-        dlg.open()
+            commentsSectionRoot.jiraService.uploadAttachment(commentsSectionRoot.selectedIssueKey, filePath, "comment");
+        });
+        dlg.rejected.connect(function () {});
+        dlg.closed.connect(function () {
+            dlg.destroy();
+        });
+        dlg.open();
     }
 
     function loadMoreComments() {
-        if (!commentsSectionRoot.jiraService || !commentsSectionRoot.selectedIssueKey) return
-        commentsSectionRoot._pendingCommentsIssueKey = commentsSectionRoot.selectedIssueKey
-        commentsSectionRoot.commentsLoading = true
-        commentsSectionRoot.jiraService.getCommentsAsync(
-            commentsSectionRoot.selectedIssueKey,
-            (commentsSectionRoot.olderComments || []).length,
-            50
-        )
+        if (!commentsSectionRoot.jiraService || !commentsSectionRoot.selectedIssueKey)
+            return;
+        commentsSectionRoot._pendingCommentsIssueKey = commentsSectionRoot.selectedIssueKey;
+        commentsSectionRoot.commentsLoading = true;
+        commentsSectionRoot.jiraService.getCommentsAsync(commentsSectionRoot.selectedIssueKey, (commentsSectionRoot.olderComments || []).length, 50);
     }
 
     function openEditDialog(commentId, body) {
-        var comp = Qt.createComponent("../dialogs/EditCommentDialog.qml")
-        if (comp.status !== Component.Ready) return
-        var win = commentsSectionRoot.applicationWindow || commentsSectionRoot.parent || commentsSectionRoot
-        var dlg = comp.createObject(win)
-        if (!dlg) return
-        commentsSectionRoot._editCommentDialogOpen = true
-        dlg.applicationWindow = commentsSectionRoot.applicationWindow
-        dlg.issueKey = commentsSectionRoot.selectedIssueKey
-        dlg.jiraService = commentsSectionRoot.jiraService
-        dlg.clipboardHelper = commentsSectionRoot.clipboardHelper
-        dlg.voiceInputService = commentsSectionRoot._voiceInputService
-        dlg.voiceInputAvailable = commentsSectionRoot.voiceInputAvailable
+        var comp = Qt.createComponent("../dialogs/EditCommentDialog.qml");
+        if (comp.status !== Component.Ready)
+            return;
+        var win = commentsSectionRoot.applicationWindow || commentsSectionRoot.parent || commentsSectionRoot;
+        var dlg = comp.createObject(win);
+        if (!dlg)
+            return;
+        commentsSectionRoot._editCommentDialogOpen = true;
+        dlg.applicationWindow = commentsSectionRoot.applicationWindow;
+        dlg.issueKey = commentsSectionRoot.selectedIssueKey;
+        dlg.jiraService = commentsSectionRoot.jiraService;
+        dlg.clipboardHelper = commentsSectionRoot.clipboardHelper;
+        dlg.voiceInputService = commentsSectionRoot.voiceInputService;
+        dlg.voiceInputAvailable = commentsSectionRoot.voiceInputAvailable;
         dlg.accepted.connect(function (cid, newBody) {
             if (commentsSectionRoot.jiraService && commentsSectionRoot.selectedIssueKey) {
-                commentsSectionRoot.jiraService.updateComment(commentsSectionRoot.selectedIssueKey, cid, newBody)
+                commentsSectionRoot.jiraService.updateComment(commentsSectionRoot.selectedIssueKey, cid, newBody);
             }
-        })
+        });
         dlg.closed.connect(function () {
-            commentsSectionRoot._editCommentDialogOpen = false
-            dlg.destroy()
-        })
-        dlg.openWith(commentId, body)
-        dlg.open()
+            commentsSectionRoot._editCommentDialogOpen = false;
+            dlg.destroy();
+        });
+        dlg.openWith(commentId, body);
+        dlg.open();
     }
 
     function openDeleteDialog(commentId) {
-        var comp = Qt.createComponent("../dialogs/ConfirmDeleteCommentDialog.qml")
-        if (comp.status !== Component.Ready) return
-        var win = commentsSectionRoot.applicationWindow || commentsSectionRoot.parent || commentsSectionRoot
-        var dlg = comp.createObject(win)
-        if (!dlg) return
+        var comp = Qt.createComponent("../dialogs/ConfirmDeleteCommentDialog.qml");
+        if (comp.status !== Component.Ready)
+            return;
+        var win = commentsSectionRoot.applicationWindow || commentsSectionRoot.parent || commentsSectionRoot;
+        var dlg = comp.createObject(win);
+        if (!dlg)
+            return;
         dlg.confirmed.connect(function (cid) {
             if (commentsSectionRoot.jiraService && commentsSectionRoot.selectedIssueKey) {
-                commentsSectionRoot.jiraService.deleteComment(commentsSectionRoot.selectedIssueKey, cid)
+                commentsSectionRoot.jiraService.deleteComment(commentsSectionRoot.selectedIssueKey, cid);
             }
-        })
-        dlg.closed.connect(function () { dlg.destroy() })
-        dlg.openWith(commentId)
-        dlg.open()
+        });
+        dlg.closed.connect(function () {
+            dlg.destroy();
+        });
+        dlg.openWith(commentId);
+        dlg.open();
     }
 
     function formatCommentDate(isoString) {
-        if (!isoString) return ""
-        var s = String(isoString)
-        var idx = s.indexOf("T")
+        if (!isoString)
+            return "";
+        var s = String(isoString);
+        var idx = s.indexOf("T");
         if (idx >= 0) {
-            var datePart = s.substring(0, idx)
-            var timePart = s.substring(idx + 1, idx + 6)
-            return datePart + " " + timePart
+            var datePart = s.substring(0, idx);
+            var timePart = s.substring(idx + 1, idx + 6);
+            return datePart + " " + timePart;
         }
-        return s
+        return s;
     }
 
     Connections {
         target: commentsSectionRoot.jiraService || null
         function onLatestCommentLoaded(issueKey, commentDict, total) {
-            commentsSectionRoot._latestCommentLoading = false
-            if (issueKey !== commentsSectionRoot.selectedIssueKey) return
+            commentsSectionRoot._latestCommentLoading = false;
+            if (issueKey !== commentsSectionRoot.selectedIssueKey)
+                return;
             if (commentsSectionRoot.jiraService && typeof commentsSectionRoot.jiraService.getAccountId === "function") {
-                commentsSectionRoot._currentUserAccountId = String(commentsSectionRoot.jiraService.getAccountId())
+                commentsSectionRoot._currentUserAccountId = String(commentsSectionRoot.jiraService.getAccountId());
             }
-            commentsSectionRoot._lastCommentAuthorAccountId = commentsSectionRoot._authorAccountIdFromComment(commentDict)
-            commentsSectionRoot.lastComment = commentDict
-            commentsSectionRoot.olderComments = []
-            commentsSectionRoot.commentsTotal = total >= 0 ? total : 0
+            commentsSectionRoot._lastCommentAuthorAccountId = commentsSectionRoot._authorAccountIdFromComment(commentDict);
+            commentsSectionRoot.lastComment = commentDict;
+            commentsSectionRoot.olderComments = [];
+            commentsSectionRoot.commentsTotal = total >= 0 ? total : 0;
         }
         function onCommentsLoaded(list, startAt, total) {
-            commentsSectionRoot.commentsLoading = false
-            if (commentsSectionRoot._pendingCommentsIssueKey !== commentsSectionRoot.selectedIssueKey) return
-            var newList = list || []
-            var lastId = (commentsSectionRoot.lastComment && commentsSectionRoot.lastComment.id) ? String(commentsSectionRoot.lastComment.id) : ""
-            var older = commentsSectionRoot.olderComments || []
+            commentsSectionRoot.commentsLoading = false;
+            if (commentsSectionRoot._pendingCommentsIssueKey !== commentsSectionRoot.selectedIssueKey)
+                return;
+            var newList = list || [];
+            var lastId = (commentsSectionRoot.lastComment && commentsSectionRoot.lastComment.id) ? String(commentsSectionRoot.lastComment.id) : "";
+            var older = commentsSectionRoot.olderComments || [];
             for (var i = 0; i < newList.length; i++) {
-                var c = newList[i]
-                if (lastId !== "" && c && String(c.id) === lastId) continue
-                older.push(c)
+                var c = newList[i];
+                if (lastId !== "" && c && String(c.id) === lastId)
+                    continue;
+                older.push(c);
             }
-            commentsSectionRoot.olderComments = older
-            if (total >= 0) commentsSectionRoot.commentsTotal = total
+            commentsSectionRoot.olderComments = older;
+            if (total >= 0)
+                commentsSectionRoot.commentsTotal = total;
         }
         function onCommentAdded(issueKey, commentDict) {
-            if (issueKey !== commentsSectionRoot.selectedIssueKey || !commentDict) return
-            commentsSectionRoot._lastCommentAuthorAccountId = commentsSectionRoot._authorAccountIdFromComment(commentDict)
-            commentsSectionRoot.lastComment = commentDict
-            commentsSectionRoot.commentsTotal = (commentsSectionRoot.commentsTotal >= 0 ? commentsSectionRoot.commentsTotal : 0) + 1
+            if (issueKey !== commentsSectionRoot.selectedIssueKey || !commentDict)
+                return;
+            commentsSectionRoot._lastCommentAuthorAccountId = commentsSectionRoot._authorAccountIdFromComment(commentDict);
+            commentsSectionRoot.lastComment = commentDict;
+            commentsSectionRoot.commentsTotal = (commentsSectionRoot.commentsTotal >= 0 ? commentsSectionRoot.commentsTotal : 0) + 1;
         }
         function onCommentUpdated(issueKey, commentId, commentDict) {
-            if (issueKey !== commentsSectionRoot.selectedIssueKey || !commentDict) return
+            if (issueKey !== commentsSectionRoot.selectedIssueKey || !commentDict)
+                return;
             if (commentsSectionRoot.lastComment && commentsSectionRoot.lastComment.id === commentId) {
-                commentsSectionRoot._lastCommentAuthorAccountId = commentsSectionRoot._authorAccountIdFromComment(commentDict)
-                commentsSectionRoot.lastComment = commentDict
-                return
+                commentsSectionRoot._lastCommentAuthorAccountId = commentsSectionRoot._authorAccountIdFromComment(commentDict);
+                commentsSectionRoot.lastComment = commentDict;
+                return;
             }
-            var o = commentsSectionRoot.olderComments || []
-            var out = []
+            var o = commentsSectionRoot.olderComments || [];
+            var out = [];
             for (var i = 0; i < o.length; i++) {
-                out.push(o[i].id === commentId ? commentDict : o[i])
+                out.push(o[i].id === commentId ? commentDict : o[i]);
             }
-            commentsSectionRoot.olderComments = out
+            commentsSectionRoot.olderComments = out;
         }
         function onCommentDeleted(issueKey, commentId) {
-            if (issueKey !== commentsSectionRoot.selectedIssueKey) return
+            if (issueKey !== commentsSectionRoot.selectedIssueKey)
+                return;
             if (commentsSectionRoot.lastComment && commentsSectionRoot.lastComment.id === commentId) {
-                commentsSectionRoot.lastComment = null
-                commentsSectionRoot._lastCommentAuthorAccountId = ""
-                commentsSectionRoot.commentsTotal = Math.max(0, commentsSectionRoot.commentsTotal - 1)
-                return
+                commentsSectionRoot.lastComment = null;
+                commentsSectionRoot._lastCommentAuthorAccountId = "";
+                commentsSectionRoot.commentsTotal = Math.max(0, commentsSectionRoot.commentsTotal - 1);
+                return;
             }
-            var out = (commentsSectionRoot.olderComments || []).filter(function (c) { return c.id !== commentId })
-            commentsSectionRoot.olderComments = out
-            commentsSectionRoot.commentsTotal = Math.max(0, commentsSectionRoot.commentsTotal - 1)
+            var out = (commentsSectionRoot.olderComments || []).filter(function (c) {
+                return c.id !== commentId;
+            });
+            commentsSectionRoot.olderComments = out;
+            commentsSectionRoot.commentsTotal = Math.max(0, commentsSectionRoot.commentsTotal - 1);
         }
         function onErrorOccurred(message) {
-            commentsSectionRoot.commentsLoading = false
-            commentsSectionRoot._latestCommentLoading = false
-            commentsSectionRoot.errorOccurred(message)
+            commentsSectionRoot.commentsLoading = false;
+            commentsSectionRoot._latestCommentLoading = false;
+            commentsSectionRoot.errorOccurred(message);
         }
-        function onAttachmentUploaded(issueKey, contentUrl, filename, embedTarget) {}
+        function onAttachmentUploaded(issueKey, contentUrl, filename, embedTarget) {
+        }
     }
 }

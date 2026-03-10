@@ -245,7 +245,7 @@ def test_transition_issue_success(mock_request, mock_config_file):
 @patch("core.jira_client.time.sleep")
 @patch("core.jira_client.requests.request")
 def test_transition_issue_retry(mock_request, mock_sleep, mock_config_file):
-    """Testa retry em caso de falha"""
+    """Testa retry em caso de falha (503 é retentado por request_with_retry)."""
     transitions_response = Mock()
     transitions_response.status_code = 200
     transitions_response.json.return_value = {
@@ -253,18 +253,19 @@ def test_transition_issue_retry(mock_request, mock_sleep, mock_config_file):
             {"id": "21", "name": "In Progress", "to": {"name": "In Progress"}}
         ]
     }
-    # Primeira tentativa falha, segunda sucede
+    # 503 é retentado pelo request_with_retry; primeira POST falha, segunda sucede
     transition_response_fail = Mock()
-    transition_response_fail.status_code = 500
-    transition_response_fail.text = "Internal Server Error"
+    transition_response_fail.status_code = 503
+    transition_response_fail.text = "Service Unavailable"
+    transition_response_fail.json.return_value = {}
     transition_response_success = Mock()
     transition_response_success.status_code = 204
 
-    # 1 GET para buscar transições + 2 POSTs (falha + sucesso)
+    # 1 GET para buscar transições + 2 POSTs (falha 503 + sucesso)
     mock_request.side_effect = [
-        transitions_response,  # GET transitions (uma vez no início)
-        transition_response_fail,  # POST transition (primeira tentativa - falha)
-        transition_response_success,  # POST transition (segunda tentativa - sucesso)
+        transitions_response,  # GET transitions
+        transition_response_fail,  # POST (503 -> retry)
+        transition_response_success,  # POST (204)
     ]
 
     client = JiraClient(jira_cli_config_path=mock_config_file)
@@ -704,6 +705,55 @@ def test_adf_to_markdown_bullet_list():
     assert "One" in result and "Two" in result
 
 
+def test_adf_to_markdown_nested_bullet_list():
+    """ADF com listItem que contém paragraph + bulletList → markdown com sublista (4 espaços)."""
+    adf = {
+        "type": "bulletList",
+        "content": [
+            {
+                "type": "listItem",
+                "content": [
+                    {
+                        "type": "paragraph",
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": "IDP Keycloak: Algumas rotas públicas do Keycloak utilizam a CDN Azion.",
+                            }
+                        ],
+                    },
+                    {
+                        "type": "bulletList",
+                        "content": [
+                            {
+                                "type": "listItem",
+                                "content": [
+                                    {
+                                        "type": "paragraph",
+                                        "content": [
+                                            {
+                                                "type": "text",
+                                                "text": "Bot Manager - Implementado para tudo que passa na CDN.",
+                                            }
+                                        ],
+                                    }
+                                ],
+                            }
+                        ],
+                    },
+                ],
+            },
+        ],
+    }
+    result = JiraClient._adf_to_markdown(adf)
+    assert "IDP Keycloak" in result
+    assert "Bot Manager" in result
+    # Item principal com '- '; sublista com 4 espaços antes do '- '
+    lines = result.strip().split("\n")
+    assert any(line.startswith("- ") and "IDP" in line for line in lines)
+    assert any(line.startswith("    - ") and "Bot" in line for line in lines)
+
+
 def test_adf_to_markdown_ordered_list():
     """ADF com orderedList de dois itens → '1. ...' e '2. ...'."""
     adf = {
@@ -949,7 +999,9 @@ def test_get_latest_issue_comment_multiple(mock_request, mock_config_file):
     """get_latest_issue_comment com vários comentários faz 2 requests e retorna o último."""
     first_resp = Mock(status_code=200)
     first_resp.json.return_value = {
-        "comments": [{"id": "1", "author": {}, "body": {}, "created": "", "updated": ""}],
+        "comments": [
+            {"id": "1", "author": {}, "body": {}, "created": "", "updated": ""}
+        ],
         "total": 3,
         "startAt": 0,
         "maxResults": 1,
@@ -1300,3 +1352,730 @@ def test_search_issues_with_worklogs_in_period(mock_request, mock_config_file):
     assert "test@example.com" in jql
     assert "2025-01-01" in jql
     assert "2025-01-31" in jql
+
+
+# --- Discovery (metadata) ---
+
+
+@patch("core.jira_client.requests.request")
+def test_get_projects_success(mock_request, mock_config_file):
+    """get_projects retorna lista de JiraProject parseados."""
+    mock_request.return_value.status_code = 200
+    mock_request.return_value.json.return_value = [
+        {
+            "id": "10001",
+            "key": "QTASK",
+            "name": "Quick Task",
+            "projectTypeKey": "software",
+            "avatarUrls": {"48x48": "https://a.png"},
+            "description": "Desc",
+            "lead": {"displayName": "Lead"},
+        }
+    ]
+    from core.jira_metadata import JiraProject
+
+    client = JiraClient(jira_cli_config_path=mock_config_file)
+    result = client.get_projects()
+    assert len(result) == 1
+    assert isinstance(result[0], JiraProject)
+    assert result[0].key == "QTASK"
+    assert result[0].name == "Quick Task"
+    assert result[0].lead == "Lead"
+    call_args = mock_request.call_args
+    assert call_args[0][0] == "GET"
+    assert "project" in call_args[0][1].lower() or call_args[1]["params"]
+
+
+@patch("core.jira_client.requests.request")
+def test_get_project_issue_types_success(mock_request, mock_config_file):
+    """get_project_issue_types retorna lista de JiraIssueType."""
+    mock_request.return_value.status_code = 200
+    mock_request.return_value.json.return_value = [
+        {"id": "1", "name": "Task", "subtask": False, "hierarchyLevel": 0},
+    ]
+    from core.jira_metadata import JiraIssueType
+
+    client = JiraClient(jira_cli_config_path=mock_config_file)
+    result = client.get_project_issue_types("10001")
+    assert len(result) == 1
+    assert isinstance(result[0], JiraIssueType)
+    assert result[0].name == "Task"
+    assert (
+        "issuetype" in mock_request.call_args[0][1].lower()
+        or "project" in mock_request.call_args[0][1].lower()
+    )
+
+
+@patch("core.jira_client.requests.request")
+def test_get_issue_createmeta_success(mock_request, mock_config_file):
+    """get_issue_createmeta retorna dict com projects/issuetypes/fields."""
+    mock_request.return_value.status_code = 200
+    mock_request.return_value.json.return_value = {
+        "projects": [
+            {
+                "key": "X",
+                "issuetypes": [
+                    {
+                        "id": "1",
+                        "name": "Task",
+                        "fields": {
+                            "summary": {
+                                "name": "Summary",
+                                "required": True,
+                                "schema": {"type": "string"},
+                            }
+                        },
+                    },
+                ],
+            }
+        ]
+    }
+    client = JiraClient(jira_cli_config_path=mock_config_file)
+    result = client.get_issue_createmeta(project_keys="X", issuetype_ids="1")
+    assert "projects" in result
+    assert len(result["projects"]) == 1
+    assert "issuetypes" in result["projects"][0]
+    assert len(result["projects"][0]["issuetypes"]) == 1
+    assert "summary" in result["projects"][0]["issuetypes"][0]["fields"]
+
+
+@patch("core.jira_client.requests.request")
+def test_get_createmeta_fields_for_issue_type_returns_parsed_list(
+    mock_request, mock_config_file
+):
+    """get_createmeta_fields_for_issue_type retorna List[JiraFieldMetadata]."""
+    mock_request.return_value.status_code = 200
+    mock_request.return_value.json.return_value = {
+        "projects": [
+            {
+                "key": "X",
+                "issuetypes": [
+                    {
+                        "id": "1",
+                        "fields": {
+                            "summary": {
+                                "fieldId": "summary",
+                                "name": "Summary",
+                                "required": True,
+                                "schema": {"type": "string"},
+                            },
+                        },
+                    },
+                ],
+            }
+        ]
+    }
+    from core.jira_metadata import JiraFieldMetadata
+
+    client = JiraClient(jira_cli_config_path=mock_config_file)
+    result = client.get_createmeta_fields_for_issue_type(
+        project_key="X", issuetype_id="1"
+    )
+    assert len(result) == 1
+    assert isinstance(result[0], JiraFieldMetadata)
+    assert result[0].key == "summary"
+    assert result[0].required is True
+
+
+@patch("core.jira_client.requests.request")
+def test_get_createmeta_fields_for_issue_type_matches_by_key_and_id(
+    mock_request, mock_config_file
+):
+    """get_createmeta_fields_for_issue_type localiza projeto por key e issuetype por id."""
+    mock_request.return_value.status_code = 200
+    mock_request.return_value.json.return_value = {
+        "projects": [
+            {
+                "key": "X",
+                "issuetypes": [
+                    {
+                        "id": "1",
+                        "fields": {
+                            "summary": {
+                                "fieldId": "summary",
+                                "name": "Summary",
+                                "required": True,
+                                "schema": {"type": "string"},
+                            }
+                        },
+                    },
+                    {
+                        "id": "2",
+                        "fields": {
+                            "description": {
+                                "fieldId": "description",
+                                "name": "Description",
+                                "required": False,
+                                "schema": {"type": "string"},
+                            }
+                        },
+                    },
+                ],
+            },
+            {
+                "key": "Y",
+                "issuetypes": [
+                    {
+                        "id": "1",
+                        "fields": {
+                            "priority": {
+                                "fieldId": "priority",
+                                "name": "Priority",
+                                "required": False,
+                                "schema": {"type": "priority"},
+                            }
+                        },
+                    },
+                    {
+                        "id": "2",
+                        "fields": {
+                            "customfield_10001": {
+                                "fieldId": "customfield_10001",
+                                "name": "Sprint",
+                                "required": False,
+                                "schema": {"type": "array"},
+                            }
+                        },
+                    },
+                ],
+            },
+        ]
+    }
+    from core.jira_metadata import JiraFieldMetadata
+
+    client = JiraClient(jira_cli_config_path=mock_config_file)
+    result = client.get_createmeta_fields_for_issue_type(
+        project_key="Y", issuetype_id="2"
+    )
+    assert len(result) == 1
+    assert isinstance(result[0], JiraFieldMetadata)
+    assert result[0].key == "customfield_10001"
+    assert result[0].name == "Sprint"
+
+
+@patch("core.jira_client.requests.request")
+def test_get_createmeta_fields_for_issue_type_returns_empty_when_no_match(
+    mock_request, mock_config_file
+):
+    """get_createmeta_fields_for_issue_type retorna [] se projeto ou issuetype não existir."""
+    mock_request.return_value.status_code = 200
+    mock_request.return_value.json.return_value = {
+        "projects": [
+            {
+                "key": "X",
+                "issuetypes": [
+                    {
+                        "id": "1",
+                        "fields": {
+                            "summary": {
+                                "fieldId": "summary",
+                                "name": "Summary",
+                                "schema": {},
+                            }
+                        },
+                    }
+                ],
+            }
+        ]
+    }
+    client = JiraClient(jira_cli_config_path=mock_config_file)
+    assert client.get_createmeta_fields_for_issue_type("Z", "1") == []
+    assert client.get_createmeta_fields_for_issue_type("X", "99") == []
+
+
+@patch("core.jira_client.requests.request")
+def test_get_editmeta_fields_returns_parsed_list(mock_request, mock_config_file):
+    """get_editmeta_fields retorna List[JiraFieldMetadata] a partir de GET issue/{key}/editmeta."""
+    mock_request.return_value.status_code = 200
+    mock_request.return_value.json.return_value = {
+        "fields": {
+            "summary": {
+                "fieldId": "summary",
+                "name": "Summary",
+                "required": True,
+                "schema": {"type": "string"},
+            },
+        },
+    }
+    from core.jira_metadata import JiraFieldMetadata
+
+    client = JiraClient(jira_cli_config_path=mock_config_file)
+    result = client.get_editmeta_fields("PROJ-1")
+    assert len(result) == 1
+    assert isinstance(result[0], JiraFieldMetadata)
+    assert result[0].key == "summary"
+    assert result[0].required is True
+    call_url = mock_request.call_args[0][1]
+    assert "editmeta" in call_url
+    assert "PROJ-1" in call_url
+
+
+@patch("core.jira_client.requests.request")
+def test_get_editmeta_fields_empty_when_empty_issue_key(mock_request, mock_config_file):
+    """get_editmeta_fields retorna [] para issue_id_or_key vazio."""
+    client = JiraClient(jira_cli_config_path=mock_config_file)
+    assert client.get_editmeta_fields("") == []
+    assert client.get_editmeta_fields("   ") == []
+
+
+@patch("core.jira_client.requests.request")
+def test_get_fields_for_issue_type_uses_editmeta_when_issue_found(
+    mock_request, mock_config_file
+):
+    """get_fields_for_issue_type usa editmeta quando JQL retorna uma issue."""
+    from core.jira_metadata import JiraFieldMetadata
+
+    mock_request.return_value.status_code = 200
+    search_response = {"issues": [{"key": "PROJ-42"}]}
+    editmeta_response = {
+        "fields": {
+            "description": {
+                "fieldId": "description",
+                "name": "Description",
+                "required": False,
+                "schema": {"type": "string"},
+            },
+        },
+    }
+    mock_request.return_value.json.side_effect = [search_response, editmeta_response]
+
+    client = JiraClient(jira_cli_config_path=mock_config_file)
+    result = client.get_fields_for_issue_type(project_key="PROJ", issuetype_id="10001")
+    assert len(result) == 1
+    assert isinstance(result[0], JiraFieldMetadata)
+    assert result[0].key == "description"
+    assert mock_request.call_count == 2
+    urls = [mock_request.call_args_list[i][0][1] for i in range(2)]
+    assert any("search" in u or "jql" in u for u in urls)
+    assert any("editmeta" in u and "PROJ-42" in u for u in urls)
+
+
+@patch("core.jira_client.requests.request")
+def test_get_fields_for_issue_type_fallback_to_createmeta_when_no_issue(
+    mock_request, mock_config_file
+):
+    """get_fields_for_issue_type usa createmeta quando JQL não retorna issue."""
+    from core.jira_metadata import JiraFieldMetadata
+
+    mock_request.return_value.status_code = 200
+    search_response = {"issues": []}
+    createmeta_response = {
+        "projects": [
+            {
+                "key": "NEW",
+                "issuetypes": [
+                    {
+                        "id": "1",
+                        "fields": {
+                            "summary": {
+                                "fieldId": "summary",
+                                "name": "Summary",
+                                "required": True,
+                                "schema": {"type": "string"},
+                            },
+                        },
+                    },
+                ],
+            }
+        ]
+    }
+    mock_request.return_value.json.side_effect = [search_response, createmeta_response]
+
+    client = JiraClient(jira_cli_config_path=mock_config_file)
+    result = client.get_fields_for_issue_type(project_key="NEW", issuetype_id="1")
+    assert len(result) == 1
+    assert isinstance(result[0], JiraFieldMetadata)
+    assert result[0].key == "summary"
+    assert mock_request.call_count == 2
+
+
+@patch("core.jira_client.requests.request")
+def test_get_fields_success(mock_request, mock_config_file):
+    """get_fields retorna lista de JiraFieldMetadata."""
+    mock_request.return_value.status_code = 200
+    mock_request.return_value.json.return_value = [
+        {
+            "id": "summary",
+            "name": "Summary",
+            "key": "summary",
+            "custom": False,
+            "schema": {"type": "string"},
+        },
+    ]
+    from core.jira_metadata import JiraFieldMetadata
+
+    client = JiraClient(jira_cli_config_path=mock_config_file)
+    result = client.get_fields()
+    assert len(result) == 1
+    assert isinstance(result[0], JiraFieldMetadata)
+    assert result[0].id == "summary"
+
+
+@patch("core.jira_client.requests.request")
+def test_get_field_contexts_success(mock_request, mock_config_file):
+    """get_field_contexts retorna lista de contextos."""
+    mock_request.return_value.status_code = 200
+    mock_request.return_value.json.return_value = {
+        "values": [
+            {"id": "10100", "name": "Default", "isGlobalContext": True},
+        ],
+        "maxResults": 50,
+        "startAt": 0,
+        "total": 1,
+    }
+    client = JiraClient(jira_cli_config_path=mock_config_file)
+    result = client.get_field_contexts("customfield_10001")
+    assert len(result) == 1
+    assert result[0]["id"] == "10100"
+    assert "field/10001/context" in mock_request.call_args[0][
+        1
+    ] or "customfield_10001" in str(mock_request.call_args)
+
+
+@patch("core.jira_client.requests.request")
+def test_get_field_contexts_empty_for_invalid_field_id(mock_request, mock_config_file):
+    """get_field_contexts retorna [] para field_id vazio."""
+    client = JiraClient(jira_cli_config_path=mock_config_file)
+    assert client.get_field_contexts("") == []
+    assert client.get_field_contexts("   ") == []
+    mock_request.assert_not_called()
+
+
+@patch("core.jira_client.requests.request")
+def test_get_field_context_mapping_success(mock_request, mock_config_file):
+    """get_field_context_mapping retorna contextId por par project/issuetype."""
+    mock_request.return_value.status_code = 200
+    mock_request.return_value.json.return_value = {
+        "values": [
+            {"projectId": "10000", "issueTypeId": "10001", "contextId": "10100"},
+        ],
+        "maxResults": 50,
+        "startAt": 0,
+        "total": 1,
+    }
+    client = JiraClient(jira_cli_config_path=mock_config_file)
+    result = client.get_field_context_mapping(
+        "customfield_10002", project_ids=["10000"], issue_type_ids=["10001"]
+    )
+    assert len(result) == 1
+    assert result[0]["contextId"] == "10100"
+    call_kw = mock_request.call_args[1]
+    assert call_kw.get("json") == {
+        "mappings": [{"projectId": "10000", "issueTypeId": "10001"}]
+    }
+
+
+@patch("core.jira_client.requests.request")
+def test_get_field_context_mapping_empty_when_length_mismatch(
+    mock_request, mock_config_file
+):
+    """get_field_context_mapping retorna [] quando listas têm tamanhos diferentes."""
+    client = JiraClient(jira_cli_config_path=mock_config_file)
+    assert client.get_field_context_mapping("cf1", ["p1"], ["i1", "i2"]) == []
+    mock_request.assert_not_called()
+
+
+@patch("core.jira_client.requests.request")
+def test_get_workflow_schemes_for_projects_success(mock_request, mock_config_file):
+    """get_workflow_schemes_for_projects retorna lista de schemes com workflowsForIssueTypes."""
+    mock_request.return_value.status_code = 200
+    mock_request.return_value.json.return_value = [
+        {
+            "id": "101",
+            "name": "Default",
+            "workflowsForIssueTypes": [
+                {
+                    "issueTypeIds": ["10001"],
+                    "workflow": {
+                        "id": "wf-uuid-1",
+                        "name": "Software Development",
+                    },
+                },
+            ],
+        },
+    ]
+    client = JiraClient(jira_cli_config_path=mock_config_file)
+    result = client.get_workflow_schemes_for_projects(["10047"])
+    assert len(result) == 1
+    assert result[0]["workflowsForIssueTypes"][0]["workflow"]["id"] == "wf-uuid-1"
+    call_kw = mock_request.call_args[1]
+    assert call_kw.get("json") == {"projectIds": ["10047"]}
+    assert "workflowscheme/read" in mock_request.call_args[0][1]
+
+
+@patch("core.jira_client.requests.request")
+def test_get_workflow_schemes_for_projects_empty_for_empty_ids(
+    mock_request, mock_config_file
+):
+    """get_workflow_schemes_for_projects retorna [] quando project_ids vazio."""
+    client = JiraClient(jira_cli_config_path=mock_config_file)
+    assert client.get_workflow_schemes_for_projects([]) == []
+    mock_request.assert_not_called()
+
+
+@patch("core.jira_client.requests.request")
+def test_get_workflow_schemes_for_projects_returns_empty_on_403(
+    mock_request, mock_config_file
+):
+    """get_workflow_schemes_for_projects retorna [] em 403 (sem permissão)."""
+    mock_request.return_value.status_code = 403
+    mock_request.return_value.text = "Forbidden"
+    mock_request.return_value.json.return_value = {"errorMessages": ["Forbidden"]}
+    client = JiraClient(jira_cli_config_path=mock_config_file)
+    result = client.get_workflow_schemes_for_projects(["10047"])
+    assert result == []
+
+
+@patch("core.jira_client.requests.request")
+def test_get_project_statuses_success(mock_request, mock_config_file):
+    """get_project_statuses retorna lista por issue type."""
+    mock_request.return_value.status_code = 200
+    mock_request.return_value.json.return_value = [
+        {
+            "id": "10001",
+            "name": "Task",
+            "statuses": [
+                {"id": "1", "name": "To Do", "statusCategory": {"key": "new"}},
+                {"id": "2", "name": "Done", "statusCategory": {"key": "done"}},
+            ],
+        },
+    ]
+    client = JiraClient(jira_cli_config_path=mock_config_file)
+    result = client.get_project_statuses("10047")
+    assert len(result) == 1
+    assert result[0]["id"] == "10001"
+    assert len(result[0]["statuses"]) == 2
+    assert "project/10047/statuses" in mock_request.call_args[0][1]
+
+
+@patch("core.jira_client.requests.request")
+def test_get_project_statuses_returns_empty_on_403(mock_request, mock_config_file):
+    """get_project_statuses retorna [] em 403."""
+    mock_request.return_value.status_code = 403
+    mock_request.return_value.text = "Forbidden"
+    mock_request.return_value.json.return_value = {"errorMessages": ["Forbidden"]}
+    client = JiraClient(jira_cli_config_path=mock_config_file)
+    result = client.get_project_statuses("PROJ")
+    assert result == []
+
+
+@patch("core.jira_client.requests.request")
+def test_get_workflows_search_success(mock_request, mock_config_file):
+    """get_workflows_search retorna values com workflows (statuses/transitions se expand)."""
+    mock_request.return_value.status_code = 200
+    mock_request.return_value.json.return_value = {
+        "values": [
+            {
+                "id": "wf-uuid-1",
+                "name": "Software Development",
+                "statuses": [{"id": "1", "name": "To Do"}, {"id": "2", "name": "Done"}],
+                "transitions": [
+                    {"id": "21", "name": "Done", "to": {"id": "2", "name": "Done"}},
+                ],
+            },
+        ],
+        "startAt": 0,
+        "maxResults": 50,
+    }
+    client = JiraClient(jira_cli_config_path=mock_config_file)
+    result = client.get_workflows_search(query_string="Software")
+    assert "values" in result
+    assert len(result["values"]) == 1
+    assert result["values"][0]["id"] == "wf-uuid-1"
+    call_kw = mock_request.call_args[1]
+    assert call_kw.get("params", {}).get("expand") == "values.transitions"
+    assert call_kw.get("params", {}).get("isActive") is True
+    assert call_kw.get("params", {}).get("queryString") == "Software"
+
+
+@patch("core.jira_client.requests.request")
+def test_get_workflows_search_returns_empty_values_on_403(
+    mock_request, mock_config_file
+):
+    """get_workflows_search retorna {values: []} em 403."""
+    mock_request.return_value.status_code = 403
+    mock_request.return_value.text = "Forbidden"
+    mock_request.return_value.json.return_value = {"errorMessages": ["Forbidden"]}
+    client = JiraClient(jira_cli_config_path=mock_config_file)
+    result = client.get_workflows_search()
+    assert result == {"values": []}
+
+
+@patch("core.jira_client.requests.request")
+def test_get_field_context_default_value_success(mock_request, mock_config_file):
+    """get_field_context_default_value retorna lista de defaults."""
+    mock_request.return_value.status_code = 200
+    mock_request.return_value.json.return_value = {
+        "values": [
+            {"contextId": "10100", "optionId": "10001", "type": "option.single"},
+        ],
+        "maxResults": 50,
+        "startAt": 0,
+        "total": 1,
+    }
+    client = JiraClient(jira_cli_config_path=mock_config_file)
+    result = client.get_field_context_default_value(
+        "customfield_10003", context_id="10100"
+    )
+    assert len(result) == 1
+    assert result[0]["optionId"] == "10001"
+    assert result[0]["type"] == "option.single"
+    # Deve ter passado contextId na query
+    call_args = mock_request.call_args
+    assert call_args[1].get("params") == {"contextId": ["10100"]}
+
+
+@patch("core.jira_client.requests.request")
+def test_get_field_context_default_value_without_context_id(
+    mock_request, mock_config_file
+):
+    """get_field_context_default_value sem context_id não envia params."""
+    mock_request.return_value.status_code = 200
+    mock_request.return_value.json.return_value = {"values": [], "total": 0}
+    client = JiraClient(jira_cli_config_path=mock_config_file)
+    client.get_field_context_default_value("customfield_10004")
+    call_kw = mock_request.call_args[1]
+    assert call_kw.get("params") is None or "contextId" not in (
+        call_kw.get("params") or {}
+    )
+
+
+@patch("core.jira_client.requests.request")
+def test_get_field_context_default_value_returns_empty_on_400(
+    mock_request, mock_config_file
+):
+    """get_field_context_default_value retorna [] quando API retorna 400 (ex.: Assets)."""
+    mock_request.return_value.status_code = 400
+    mock_request.return_value.json.return_value = {
+        "errorMessages": [
+            "Retrieving default value for provided custom field is not supported."
+        ],
+    }
+    client = JiraClient(jira_cli_config_path=mock_config_file)
+    result = client.get_field_context_default_value(
+        "customfield_24569", context_id="25791"
+    )
+    assert result == []
+
+
+@patch("core.jira_client.requests.request")
+def test_get_field_context_options_success(mock_request, mock_config_file):
+    """get_field_context_options retorna lista de opções (id, value)."""
+    mock_request.return_value.status_code = 200
+    mock_request.return_value.json.return_value = {
+        "values": [
+            {"id": "10001", "value": "Sim"},
+            {"id": "10002", "value": "Não"},
+        ],
+        "maxResults": 100,
+        "startAt": 0,
+        "total": 2,
+        "isLast": True,
+    }
+    client = JiraClient(jira_cli_config_path=mock_config_file)
+    result = client.get_field_context_options("customfield_14841", "15499")
+    assert len(result) == 2
+    assert result[0]["id"] == "10001" and result[0]["value"] == "Sim"
+    assert result[1]["id"] == "10002" and result[1]["value"] == "Não"
+    call_url = mock_request.call_args[0][1]
+    assert "field/customfield_14841/context/15499/option" in call_url or "15499" in str(
+        mock_request.call_args
+    )
+
+
+@patch("core.jira_client.requests.request")
+def test_get_field_context_options_empty_for_invalid_ids(
+    mock_request, mock_config_file
+):
+    """get_field_context_options retorna [] para field_id ou context_id vazios."""
+    client = JiraClient(jira_cli_config_path=mock_config_file)
+    assert client.get_field_context_options("", "123") == []
+    assert client.get_field_context_options("cf1", "") == []
+    mock_request.assert_not_called()
+
+
+@patch("core.jira_client.requests.request")
+def test_get_assets_object_schemas_success(mock_request, mock_config_file):
+    """get_assets_object_schemas retorna lista de dicts com id, name, objectSchemaKey."""
+    mock_request.return_value.status_code = 200
+    mock_request.return_value.json.return_value = {
+        "startAt": 0,
+        "maxResults": 100,
+        "total": 2,
+        "values": [
+            {"id": "1", "name": "ITSM", "objectSchemaKey": "ITSM", "workspaceId": "w1"},
+            {
+                "id": "27",
+                "name": "Services",
+                "objectSchemaKey": "SVC",
+                "workspaceId": "w1",
+            },
+        ],
+        "isLast": True,
+    }
+    client = JiraClient(jira_cli_config_path=mock_config_file)
+    result = client.get_assets_object_schemas("cloud-123", "workspace-456")
+    assert len(result) == 2
+    assert (
+        result[0]["id"] == "1"
+        and result[0]["name"] == "ITSM"
+        and result[0]["objectSchemaKey"] == "ITSM"
+    )
+    assert result[1]["id"] == "27" and result[1]["name"] == "Services"
+    call_url = mock_request.call_args[0][1]
+    assert "api.atlassian.com" in call_url
+    assert "objectschema/list" in call_url
+    assert "cloud-123" in call_url and "workspace-456" in call_url
+
+
+@patch("core.jira_client.requests.request")
+def test_get_assets_object_schemas_empty_when_no_cloud_or_workspace(
+    mock_request, mock_config_file
+):
+    """get_assets_object_schemas retorna [] quando cloud_id ou workspace_id vazios."""
+    client = JiraClient(jira_cli_config_path=mock_config_file)
+    assert client.get_assets_object_schemas("", "w1") == []
+    assert client.get_assets_object_schemas("c1", "") == []
+    mock_request.assert_not_called()
+
+
+@patch("core.jira_client.requests.request")
+def test_get_assets_object_schemas_returns_empty_on_request_error(
+    mock_request, mock_config_file
+):
+    """get_assets_object_schemas retorna [] em caso de exceção na requisição."""
+    mock_request.side_effect = RuntimeError("Network error")
+    client = JiraClient(jira_cli_config_path=mock_config_file)
+    result = client.get_assets_object_schemas("cloud-123", "workspace-456")
+    assert result == []
+
+
+@patch("core.jira_client.requests.request")
+def test_get_assets_object_types_success(mock_request, mock_config_file):
+    """get_assets_object_types retorna lista de dicts com id, name."""
+    mock_request.return_value.status_code = 200
+    mock_request.return_value.json.return_value = {
+        "entries": [
+            {"id": "19", "name": "Employee", "objectSchemaId": "6"},
+            {"id": "23", "name": "Office", "objectSchemaId": "6"},
+        ],
+    }
+    client = JiraClient(jira_cli_config_path=mock_config_file)
+    result = client.get_assets_object_types("cloud-123", "workspace-456", "6")
+    assert len(result) == 2
+    assert result[0]["id"] == "19" and result[0]["name"] == "Employee"
+    assert result[1]["id"] == "23" and result[1]["name"] == "Office"
+    call_url = mock_request.call_args[0][1]
+    assert "objectschema/6/objecttypes" in call_url
+
+
+@patch("core.jira_client.requests.request")
+def test_get_assets_object_types_empty_when_missing_params(
+    mock_request, mock_config_file
+):
+    """get_assets_object_types retorna [] quando schema_id ou outros params vazios."""
+    client = JiraClient(jira_cli_config_path=mock_config_file)
+    assert client.get_assets_object_types("", "w", "6") == []
+    assert client.get_assets_object_types("c", "", "6") == []
+    assert client.get_assets_object_types("c", "w", "") == []
+    mock_request.assert_not_called()

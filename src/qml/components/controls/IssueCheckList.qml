@@ -23,17 +23,24 @@ ColumnLayout {
     spacing: Kirigami.Units.smallSpacing
 
     function itemValue(data) {
-        if (!data) return ""
-        if (typeof data.value !== "undefined") return String(data.value)
-        if (typeof data.col1 !== "undefined") return String(data.col1)
-        return String(data)
+        if (!data)
+            return "";
+        if (typeof data.value !== "undefined")
+            return String(data.value);
+        if (typeof data.col1 !== "undefined")
+            return String(data.col1);
+        return String(data);
     }
     function itemLabel(data) {
-        if (!data) return ""
-        if (typeof data.label !== "undefined") return String(data.label)
-        if (typeof data.col2 !== "undefined") return String(data.col2)
-        if (typeof data.col1 !== "undefined") return String(data.col1)
-        return String(data)
+        if (!data)
+            return "";
+        if (typeof data.label !== "undefined")
+            return String(data.label);
+        if (typeof data.col2 !== "undefined")
+            return String(data.col2);
+        if (typeof data.col1 !== "undefined")
+            return String(data.col1);
+        return String(data);
     }
 
     ListView {
@@ -50,8 +57,8 @@ ColumnLayout {
             width: ListView.view ? ListView.view.width : 0
             enabled: checkList.enabled
             checked: {
-                var vals = checkList.selectedValues || []
-                return vals.indexOf(checkList.itemValue(checkDelegate.modelData)) >= 0
+                var vals = checkList.selectedValues || [];
+                return vals.indexOf(checkList.itemValue(checkDelegate.modelData)) >= 0;
             }
 
             contentItem: Controls.Label {
@@ -60,15 +67,17 @@ ColumnLayout {
             }
 
             onCheckedChanged: {
-                var vals = (checkList.selectedValues || []).slice()
-                var v = checkList.itemValue(checkDelegate.modelData)
-                var idx = vals.indexOf(v)
+                var vals = (checkList.selectedValues || []).slice();
+                var v = checkList.itemValue(checkDelegate.modelData);
+                var idx = vals.indexOf(v);
                 if (checked) {
-                    if (idx < 0) vals.push(v)
+                    if (idx < 0)
+                        vals.push(v);
                 } else {
-                    if (idx >= 0) vals.splice(idx, 1)
+                    if (idx >= 0)
+                        vals.splice(idx, 1);
                 }
-                checkList.selectionChanged(vals)
+                checkList.selectionChanged(vals);
             }
         }
     }

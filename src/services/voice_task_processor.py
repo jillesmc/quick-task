@@ -7,6 +7,9 @@ import json
 import re
 from typing import Any, Dict, List, Optional
 
+from src.constants import SUMMARY_MAX_LENGTH
+from src.utils.http_retry import request_with_retry
+
 try:
     import requests
 
@@ -32,7 +35,10 @@ class VoiceTaskProcessor:
         if not REQUESTS_AVAILABLE:
             return False
         try:
-            r = requests.get(f"{self._ollama_base}/api/tags", timeout=5)
+            r = request_with_retry(
+                lambda: requests.get(f"{self._ollama_base}/api/tags", timeout=5),
+                None,
+            )
             return r.status_code == 200
         except Exception:
             return False
@@ -41,10 +47,17 @@ class VoiceTaskProcessor:
         if not REQUESTS_AVAILABLE:
             return None
         try:
-            r = requests.post(
-                f"{self._ollama_base}/api/generate",
-                json={"model": self._ollama_model, "prompt": prompt, "stream": False},
-                timeout=OLLAMA_TIMEOUT,
+            r = request_with_retry(
+                lambda: requests.post(
+                    f"{self._ollama_base}/api/generate",
+                    json={
+                        "model": self._ollama_model,
+                        "prompt": prompt,
+                        "stream": False,
+                    },
+                    timeout=OLLAMA_TIMEOUT,
+                ),
+                None,
             )
             if r.status_code != 200:
                 return None
@@ -137,7 +150,7 @@ class VoiceTaskProcessor:
             if response:
                 parsed = self._extract_json_from_response(response)
                 if parsed:
-                    summary = (parsed.get("summary") or "").strip()[:255]
+                    summary = (parsed.get("summary") or "").strip()[:SUMMARY_MAX_LENGTH]
                     description = (parsed.get("description") or transcription).strip()
                     tipo = (parsed.get("tipo_atividade") or "").strip()
                     if tipo not in tipo_atividade_values:
@@ -149,8 +162,8 @@ class VoiceTaskProcessor:
                         "utilizacaoIA": "Sim",
                     }
 
-        # Fallback heurístico
-        summary = self._heuristic_summary(transcription)
+        # Fallback heurístico (cap summary ao limite único da app)
+        summary = (self._heuristic_summary(transcription))[:SUMMARY_MAX_LENGTH]
         tipo = self._heuristic_tipo_atividade(transcription, tipo_atividade_values)
         return {
             "summary": summary,

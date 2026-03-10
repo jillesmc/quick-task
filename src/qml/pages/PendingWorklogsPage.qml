@@ -48,7 +48,8 @@ Kirigami.Page {
 
     // Função para integração com MainHeader (botão Sincronizar no header)
     function syncAllFromToolbar() {
-        if (!page.worklogSyncService || page.filteredWorklogs.length === 0) return;
+        if (!page.worklogSyncService || page.filteredWorklogs.length === 0)
+            return;
         var hasFilters = page.filterIssueKey !== "" || page.filterDateFrom !== "" || page.filterDateTo !== "";
         if (hasFilters) {
             var sessionIds = [];

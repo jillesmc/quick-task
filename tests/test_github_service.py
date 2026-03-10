@@ -92,7 +92,7 @@ def test_fetch_search_issues_success():
 
 
 def test_fetch_search_issues_rate_limit():
-    """_fetch_search_issues returns error on 429."""
+    """_fetch_search_issues returns error on 429 (no retries so test stays fast)."""
     session = MagicMock()
     session.get.return_value = MagicMock(
         status_code=429,
@@ -100,7 +100,10 @@ def test_fetch_search_issues_rate_limit():
         text='{"message": "rate limited"}',
         json=lambda: {"message": "rate limited"},
     )
-    items, err = _fetch_search_issues(session, "is:pr", "pr")
+    # max_retries=1 avoids request_with_retry sleeping 60s per attempt (Retry-After: 60)
+    items, err = _fetch_search_issues(
+        session, "is:pr", "pr", retry_config={"max_retries": 1}
+    )
     assert items == []
     assert err is not None
     assert "60" in err or "rate" in err.lower()

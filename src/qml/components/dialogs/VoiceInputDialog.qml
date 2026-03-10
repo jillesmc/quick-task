@@ -2,7 +2,7 @@
  * VoiceInputDialog.qml
  *
  * Diálogo para criar tarefa por voz: gravar áudio, transcrição e processar com IA.
- * Só deve ser aberto quando voiceInputService !== null && voiceInputService.isAvailable().
+ * O serviço de voz deve ser passado pelo pai (voiceInputService); não usa contexto global.
  */
 import QtQuick
 import QtQuick.Controls as Controls
@@ -20,40 +20,52 @@ Controls.Dialog {
     closePolicy: Controls.Popup.CloseOnEscape
     standardButtons: Controls.Dialog.Cancel
 
+    /** Serviço de voz injetado pelo pai (aba 0/1: voiceInputService; aba 7/8: voiceTranscriptionService). */
+    property var voiceInputService: null
+    /** SettingsModel (opcional); usado para esconder o botão "Enriquecer com IA" quando processamento automático está ativo. */
+    property var settingsModel: null
+    readonly property bool _enrichButtonVisible: !(settingsModel && settingsModel.voiceInputAutoProcessAfterStop)
+
     property real recordingSeconds: 0
     property bool isRecording: false
+    property bool _isTranscribing: false
     property string transcriptionText: ""
-    property var _voiceSvc: (typeof voiceInputService !== "undefined" ? voiceInputService : null) // qmllint disable unqualified
 
-    signal fieldsFilled()
+    signal fieldsFilled
     signal errorMessage(string message)
 
     onOpened: {
-        recordingSeconds = 0
-        transcriptionText = ""
+        recordingSeconds = 0;
+        transcriptionText = "";
+        _isTranscribing = false;
     }
 
     Connections {
-        target: root._voiceSvc || null
+        target: root.voiceInputService || null
         function onRecordingStarted() {
-            root.isRecording = true
-            root.recordingSeconds = 0
+            root.isRecording = true;
+            root.recordingSeconds = 0;
         }
         function onRecordingStopped() {
-            root.isRecording = false
+            root.isRecording = false;
+            root._isTranscribing = true;
         }
         function onRecordingProgress(seconds) {
-            root.recordingSeconds = seconds
+            root.recordingSeconds = seconds;
         }
         function onTranscriptionReady(text) {
-            root.transcriptionText = text || ""
+            root._isTranscribing = false;
+            root.transcriptionText = text || "";
+            if (root.settingsModel && root.settingsModel.voiceInputAutoProcessAfterStop) {
+                root.close();
+            }
         }
         function onFieldsFilled() {
-            root.fieldsFilled()
-            root.close()
+            root.fieldsFilled();
+            root.close();
         }
         function onError(message) {
-            root.errorMessage(message || "")
+            root.errorMessage(message || "");
         }
     }
 
@@ -79,15 +91,19 @@ Controls.Dialog {
                     SequentialAnimation on opacity {
                         running: root.isRecording
                         loops: Animation.Infinite
-                        NumberAnimation { to: 0.3; duration: 500 }
-                        NumberAnimation { to: 1.0; duration: 500 }
+                        NumberAnimation {
+                            to: 0.3
+                            duration: 500
+                        }
+                        NumberAnimation {
+                            to: 1.0
+                            duration: 500
+                        }
                     }
                 }
 
                 Controls.Label {
-                    text: root.isRecording
-                        ? qsTr("Gravando… (%1)").arg(Math.floor(root.recordingSeconds))
-                        : qsTr("Pronto para gravar")
+                    text: root._isTranscribing ? qsTr("Transcrevendo o áudio...") : (root.isRecording ? qsTr("Gravando… (%1)").arg(Math.floor(root.recordingSeconds)) : qsTr("Pronto para gravar"))
                 }
             }
 
@@ -108,9 +124,9 @@ Controls.Dialog {
                     wrapMode: Controls.TextArea.Wrap
                     placeholderText: qsTr("Transcrição aparecerá aqui após gravar…")
                     text: root.transcriptionText
-                    onTextChanged: function() {
+                    onTextChanged: function () {
                         if (root.transcriptionText !== text) {
-                            root.transcriptionText = text
+                            root.transcriptionText = text;
                         }
                     }
                 }
@@ -124,23 +140,24 @@ Controls.Dialog {
                     text: root.isRecording ? qsTr("Parar") : qsTr("Gravar")
                     icon.name: root.isRecording ? "media-playback-pause" : "audio-input-microphone"
                     onClicked: {
-                        if (root._voiceSvc) {
+                        if (root.voiceInputService) {
                             if (root.isRecording) {
-                                root._voiceSvc.stopRecording()
+                                root.voiceInputService.stopRecording();
                             } else {
-                                root._voiceSvc.startRecording()
+                                root.voiceInputService.startRecording();
                             }
                         }
                     }
                 }
 
                 Controls.Button {
-                    text: qsTr("Processar com IA")
+                    text: qsTr("Enriquecer com IA")
                     icon.name: "edit-find"
+                    visible: root._enrichButtonVisible
                     enabled: root.transcriptionText.length > 0
                     onClicked: {
-                        if (root._voiceSvc && root.transcriptionText.length > 0) {
-                            root._voiceSvc.processTranscription(root.transcriptionText)
+                        if (root.voiceInputService && root.transcriptionText.length > 0) {
+                            root.voiceInputService.processTranscription(root.transcriptionText);
                         }
                     }
                 }

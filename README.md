@@ -100,7 +100,7 @@ Ou: `flatpak run org.kde.jira-quick-task --debug`. Ver [DEBUG.md](DEBUG.md).
 | PySide6/Kirigami não encontrado | Use Docker (`make dev-build`) ou Flatpak (`make build`) |
 | Campos customizados vazios | Verifique IDs em `config.json`; use `GET /rest/api/3/field` no Jira |
 | Erro ao transicionar status | Nome do status em `config.json` deve coincidir exatamente com o Jira |
-| Worklog não registrado | Marque "Registrar worklog"; formato YYYY-MM-DD HH:MM:SS; só após transição para IN DEVELOPMENT |
+| Worklog não registrado | Marque "Registrar worklog"; formato YYYY-MM-DD HH:MM:SS. Em Work Items (abas 7/8) a regra é por **status category** (workflow em `jira_metadata.json`): habilitado quando status não é To Do; configure o workflow na aplicação se o botão estiver desabilitado. |
 | Nome do space nas Google Tasks aparece só "Chat Space" | No projeto Google Cloud (onde criou o OAuth): [Chat API → Configuration](https://console.cloud.google.com/apis/api/chat.googleapis.com/hangouts-chat), preencha **App name**, **Avatar URL** e **Description** e guarde. Reabra a aba Google na app para carregar de novo. |
 
 ## Certificados SSL no Flatpak

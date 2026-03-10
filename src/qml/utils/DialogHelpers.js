@@ -10,6 +10,13 @@
  * Paths for createComponent are relative to the calling QML file.
  */
 
+// Contador global de chamadas a showError (para diagnóstico de múltiplos ErrorDialogs)
+var _showErrorCallCount = 0;
+// Deduplicação: última mensagem e timestamp para ignorar chamadas duplicadas no mesmo intervalo
+var _showErrorLastMessage = "";
+var _showErrorLastTime = 0;
+var _showErrorDedupIntervalMs = 2000;
+
 /**
  * Show progress dialog. Caller should store return value and pass to hideProgress.
  * If the component loads asynchronously, onReady(dialog) is called when the dialog is created and opened.
@@ -69,10 +76,11 @@ function hideProgress(dialog) {
  * @param {boolean} isUpdate - true for update, false for create
  * @param {object} timerService - Optional timer service for "Iniciar Timer" button
  * @param {object} timerModel - Optional timer model for "Iniciar Timer" button
- * @param {object} jiraService - Optional Jira service (para transição automática para IN DEVELOPMENT ao iniciar timer)
+ * @param {object} jiraService - Optional Jira service (para transição automática para IN PROGRESS ao iniciar timer)
  * @param {object} applicationWindow - Optional root window (para flag _jiraErrorShownInCreateFlow, evita diálogos duplicados)
+ * @param {array} workflowStatusSequence - Optional workflow status name list (jira_metadata) for transitionToInProgressIfNeeded; use from CreateWorkItemPage
  */
-function showSuccess(parent, componentPath, issueKey, issueUrl, isUpdate, timerService, timerModel, jiraService, applicationWindow) {
+function showSuccess(parent, componentPath, issueKey, issueUrl, isUpdate, timerService, timerModel, jiraService, applicationWindow, workflowStatusSequence) {
     var component = Qt.createComponent(componentPath);
     var window = parent && parent.parent ? parent.parent : parent;
     function createAndShow() {
@@ -83,6 +91,7 @@ function showSuccess(parent, componentPath, issueKey, issueUrl, isUpdate, timerS
             if (timerModel !== undefined) dialog.timerModel = timerModel;
             if (jiraService !== undefined) dialog.jiraService = jiraService;
             if (applicationWindow !== undefined) dialog.applicationWindow = applicationWindow;
+            if (workflowStatusSequence !== undefined) dialog.workflowStatusSequence = workflowStatusSequence;
             dialog.show(issueKey, issueUrl || "", isUpdate);
         }
     }
@@ -108,9 +117,14 @@ function showSuccess(parent, componentPath, issueKey, issueUrl, isUpdate, timerS
  * @param {string} callerId - Optional identifier of the call site (e.g. "MyIssuesPage.myIssuesModel") for diagnostics
  */
 function showError(parent, componentPath, message, callerId) {
-    if (typeof console !== "undefined" && console.log) {
-        console.log("[DialogHelpers.showError] ABRINDO ErrorDialog (botão OK). callerId=", callerId || "(não informado)", "parent=", parent ? "set" : "null", "message(primeiros 80)=", (message || "").slice(0, 80));
+    _showErrorCallCount += 1;
+    var now = (typeof Date !== "undefined" && Date.now) ? Date.now() : 0;
+    if (message && _showErrorLastMessage === message && (now - _showErrorLastTime) < _showErrorDedupIntervalMs) {
+        return;
     }
+    _showErrorLastMessage = message || "";
+    _showErrorLastTime = now;
+
     var component = Qt.createComponent(componentPath);
     var window = parent && parent.parent ? parent.parent : parent;
     function createAndShow() {

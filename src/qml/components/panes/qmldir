@@ -1,2 +1,3 @@
 MyIssuesDetailPane MyIssuesDetailPane.qml
+WorkItemDetailPane WorkItemDetailPane.qml
 DevelopmentHeaderBar DevelopmentHeaderBar.qml

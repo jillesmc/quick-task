@@ -37,31 +37,32 @@ Controls.Dialog {
     /** Se true, não mostrar / desativar "Continuar sem sincronizar" */
     property bool blockTransitionIfPending: false
 
-    signal cancelClicked()
-    signal skipSyncClicked()
-    signal syncClicked()
+    signal cancelClicked
+    signal skipSyncClicked
+    signal syncClicked
 
     function openWith(worklogs, totalFormattedStr, targetStatusStr, blockIfPending) {
-        worklogInfo = worklogs || []
-        totalFormatted = totalFormattedStr || ""
-        targetStatus = targetStatusStr || ""
-        blockTransitionIfPending = blockIfPending || false
-        open()
-        Qt.callLater(centerDialog)
+        worklogInfo = worklogs || [];
+        totalFormatted = totalFormattedStr || "";
+        targetStatus = targetStatusStr || "";
+        blockTransitionIfPending = blockIfPending || false;
+        open();
+        Qt.callLater(centerDialog);
     }
 
     function centerDialog() {
-        var cw = (applicationWindow && applicationWindow.width > 0) ? applicationWindow.width : (parent ? parent.width : 0)
-        var ch = (applicationWindow && applicationWindow.height > 0) ? applicationWindow.height : (parent ? parent.height : 0)
+        var cw = (applicationWindow && applicationWindow.width > 0) ? applicationWindow.width : (parent ? parent.width : 0);
+        var ch = (applicationWindow && applicationWindow.height > 0) ? applicationWindow.height : (parent ? parent.height : 0);
         if (width > 0 && height > 0 && cw > 0 && ch > 0) {
-            x = Math.max(0, (cw - width) / 2)
-            y = Math.max(0, (ch - height) / 2)
+            x = Math.max(0, (cw - width) / 2);
+            y = Math.max(0, (ch - height) / 2);
         }
     }
 
     function formatDurationSeconds(seconds) {
-        if (seconds == null || isNaN(seconds)) return ""
-        return FormatUtils.formatDuration(Math.floor(Number(seconds) / 60))
+        if (seconds == null || isNaN(seconds))
+            return "";
+        return FormatUtils.formatDuration(Math.floor(Number(seconds) / 60));
     }
 
     Component.onCompleted: Qt.callLater(centerDialog)
@@ -74,9 +75,7 @@ Controls.Dialog {
         spacing: Kirigami.Units.mediumSpacing
 
         Controls.Label {
-            text: dialog.targetStatus
-                ? qsTr("Esta issue tem worklogs pendentes (%1). É recomendado sincronizar antes de transitar para %2.").arg(dialog.totalFormatted).arg(dialog.targetStatus)
-                : qsTr("Esta issue tem worklogs pendentes (%1). É recomendado sincronizar antes de continuar.").arg(dialog.totalFormatted)
+            text: dialog.targetStatus ? qsTr("Esta issue tem worklogs pendentes (%1). É recomendado sincronizar antes de transitar para %2.").arg(dialog.totalFormatted).arg(dialog.targetStatus) : qsTr("Esta issue tem worklogs pendentes (%1). É recomendado sincronizar antes de continuar.").arg(dialog.totalFormatted)
             wrapMode: Text.Wrap
             Layout.fillWidth: true
         }
@@ -128,29 +127,31 @@ Controls.Dialog {
             Layout.bottomMargin: Kirigami.Units.smallSpacing
             spacing: Kirigami.Units.smallSpacing
 
-            Item { Layout.fillWidth: true }
+            Item {
+                Layout.fillWidth: true
+            }
 
             Controls.Button {
                 text: qsTr("Cancelar")
                 onClicked: {
-                    dialog.cancelClicked()
-                    dialog.close()
+                    dialog.cancelClicked();
+                    dialog.close();
                 }
             }
             Controls.Button {
                 visible: !dialog.blockTransitionIfPending
                 text: qsTr("Continuar sem sincronizar")
                 onClicked: {
-                    dialog.skipSyncClicked()
-                    dialog.close()
+                    dialog.skipSyncClicked();
+                    dialog.close();
                 }
             }
             Controls.Button {
                 text: qsTr("Sincronizar")
                 highlighted: true
                 onClicked: {
-                    dialog.syncClicked()
-                    dialog.close()
+                    dialog.syncClicked();
+                    dialog.close();
                 }
             }
         }

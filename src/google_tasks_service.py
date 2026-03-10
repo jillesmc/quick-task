@@ -77,7 +77,9 @@ class GoogleTasksLoadWorker(QThread):
         # https://console.cloud.google.com/apis/api/chat.googleapis.com/hangouts-chat
         # Fallback quando não há displayName: não usar ID; o QML mostra "Chat Space" se vazio.
         space_display_names: Dict[str, str] = {}
-        chat_skipped = False  # True após 404 "Chat app not found" para não repetir chamadas
+        chat_skipped = (
+            False  # True após 404 "Chat app not found" para não repetir chamadas
+        )
         try:
             from google_auth_httplib2 import AuthorizedHttp
             from googleapiclient.discovery import build
@@ -93,11 +95,7 @@ class GoogleTasksLoadWorker(QThread):
                 if chat_skipped:
                     continue
                 try:
-                    resp = (
-                        chat_service.spaces()
-                        .get(name=name)
-                        .execute()
-                    )
+                    resp = chat_service.spaces().get(name=name).execute()
                     display = (resp.get("displayName") or "").strip()
                     if display:
                         space_display_names[name] = display

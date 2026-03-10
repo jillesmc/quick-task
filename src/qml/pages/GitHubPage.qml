@@ -33,7 +33,8 @@ Kirigami.Page {
     property bool hasCachedData: false
 
     function reload() {
-        if (!page.githubService) return;
+        if (!page.githubService)
+            return;
         page.errorMessagePRs = "";
         page.errorMessageIssues = "";
         page.isLoadingPRs = true;
@@ -50,27 +51,18 @@ Kirigami.Page {
         if (isPr) {
             return {
                 summary: "Revisão de código do PR - " + url,
-                description: "É necessário fazer a revisão de código do PR\n"
-                    + title + "\n"
-                    + url + "\n\n"
-                    + "Abaixo temos a descrição do que foi feito nesse PR:\n"
-                    + "---\n"
-                    + body
+                description: "É necessário fazer a revisão de código do PR\n" + title + "\n" + url + "\n\n" + "Abaixo temos a descrição do que foi feito nesse PR:\n" + "---\n" + body
             };
         }
         return {
             summary: "Implementação da issue - " + url,
-            description: "É necessário fazer a implementação da issue descrita em:\n"
-                + title + "\n"
-                + url + "\n\n"
-                + "Abaixo temos a descrição da issue:\n"
-                + "---\n"
-                + body
+            description: "É necessário fazer a implementação da issue descrita em:\n" + title + "\n" + url + "\n\n" + "Abaixo temos a descrição da issue:\n" + "---\n" + body
         };
     }
 
     function importToJira(item) {
-        if (!page.issueModel || !page.tabBar || !item) return;
+        if (!page.issueModel || !page.tabBar || !item)
+            return;
         var built = page.buildTitleAndDescription(item);
         page.issueModel.summary = built.summary;
         page.issueModel.description = built.description;
@@ -94,26 +86,30 @@ Kirigami.Page {
             page.prsRequestedForTeam = prsTeam || [];
             page.isLoadingPRs = false;
             page.errorMessagePRs = "";
-            if (page.isLoadingIssues === false) page.hasCachedData = true;
+            if (page.isLoadingIssues === false)
+                page.hasCachedData = true;
         }
 
         function onPrsErrorOccurred(msg) {
             page.isLoadingPRs = false;
             page.errorMessagePRs = msg || qsTr("Erro ao carregar PRs.");
-            if (page.isLoadingIssues === false) page.hasCachedData = true;
+            if (page.isLoadingIssues === false)
+                page.hasCachedData = true;
         }
 
         function onIssuesReady(issuesList) {
             page.issues = issuesList || [];
             page.isLoadingIssues = false;
             page.errorMessageIssues = "";
-            if (page.isLoadingPRs === false) page.hasCachedData = true;
+            if (page.isLoadingPRs === false)
+                page.hasCachedData = true;
         }
 
         function onIssuesErrorOccurred(msg) {
             page.isLoadingIssues = false;
             page.errorMessageIssues = msg || qsTr("Erro ao carregar issues.");
-            if (page.isLoadingPRs === false) page.hasCachedData = true;
+            if (page.isLoadingPRs === false)
+                page.hasCachedData = true;
         }
     }
 
@@ -134,7 +130,7 @@ Kirigami.Page {
             Layout.fillWidth: true
             Layout.fillHeight: true
             visible: page.githubService && page.githubService.available
-            handle: SplitViewHandle { }
+            handle: SplitViewHandle {}
 
             // Coluna esquerda: PRs (review para você + review para o time)
             Controls.ScrollView {
@@ -181,7 +177,7 @@ Kirigami.Page {
                                 id: prDelegate
                                 itemData: parent.modelData
                                 width: parent.width - Kirigami.Units.smallSpacing * 2
-                                onImportToJiraRequested: (item) => page.importToJira(item)
+                                onImportToJiraRequested: item => page.importToJira(item)
                             }
                         }
                     }
@@ -222,7 +218,7 @@ Kirigami.Page {
                                 width: parent.width - Kirigami.Units.smallSpacing * 2
                                 showReviewKind: true
                                 reviewKindLabel: qsTr("Time")
-                                onImportToJiraRequested: (item) => page.importToJira(item)
+                                onImportToJiraRequested: item => page.importToJira(item)
                             }
                         }
                     }
@@ -275,7 +271,7 @@ Kirigami.Page {
                                 itemData: parent.modelData
                                 width: parent.width - Kirigami.Units.smallSpacing * 2
                                 isIssue: true
-                                onImportToJiraRequested: (item) => page.importToJira(item)
+                                onImportToJiraRequested: item => page.importToJira(item)
                             }
                         }
                     }

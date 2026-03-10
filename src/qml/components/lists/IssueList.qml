@@ -36,7 +36,7 @@ Controls.Frame {
 
     function requestStartTimer(issueKey) {
         if (issueKey && typeof issueKey === "string" && issueKey.length > 0)
-            issueListRoot.startTimerRequested(issueKey)
+            issueListRoot.startTimerRequested(issueKey);
     }
 
     // Larguras: Tipo, Pri, (priorityId oculto), Chave, Resumo, Status, Parent, Timer
@@ -44,32 +44,48 @@ Controls.Frame {
 
     TableModel {
         id: issueTableModel
-        TableModelColumn { display: "issueType" }
-        TableModelColumn { display: "priority" }
-        TableModelColumn { display: "priorityId" }
-        TableModelColumn { display: "key" }
-        TableModelColumn { display: "summary" }
-        TableModelColumn { display: "status" }
-        TableModelColumn { display: "parentKey" }
-        TableModelColumn { display: "timerKey" }  // col 7: key para timer (mesmo valor que key)
+        TableModelColumn {
+            display: "issueType"
+        }
+        TableModelColumn {
+            display: "priority"
+        }
+        TableModelColumn {
+            display: "priorityId"
+        }
+        TableModelColumn {
+            display: "key"
+        }
+        TableModelColumn {
+            display: "summary"
+        }
+        TableModelColumn {
+            display: "status"
+        }
+        TableModelColumn {
+            display: "parentKey"
+        }
+        TableModelColumn {
+            display: "timerKey"
+        }  // col 7: key para timer (mesmo valor que key)
     }
 
     function syncIssueModel() {
-        issueListRoot._syncing = true
-        var prevSelected = issueListRoot.selectedIssueKey
-        var data = (issueListRoot.sourceModel && issueListRoot.sourceModel.issues) ? issueListRoot.sourceModel.issues : issueListRoot.model
-        issueTableModel.clear()
+        issueListRoot._syncing = true;
+        var prevSelected = issueListRoot.selectedIssueKey;
+        var data = (issueListRoot.sourceModel && issueListRoot.sourceModel.issues) ? issueListRoot.sourceModel.issues : issueListRoot.model;
+        issueTableModel.clear();
         if (!data || !data.length) {
-            issueListRoot._syncing = false
-            issueListRoot.activeRow = -1
+            issueListRoot._syncing = false;
+            issueListRoot.activeRow = -1;
             if (prevSelected && issuesTableView.selectionModel) {
-                issuesTableView.selectionModel.clearCurrentIndex()
+                issuesTableView.selectionModel.clearCurrentIndex();
             }
-            return
+            return;
         }
         for (var i = 0; i < data.length; i++) {
-            var it = data[i] || {}
-            var keyVal = (it.key !== undefined || it["key"] !== undefined) ? String(it.key || it["key"] || "") : ""
+            var it = data[i] || {};
+            var keyVal = (it.key !== undefined || it["key"] !== undefined) ? String(it.key || it["key"] || "") : "";
             issueTableModel.appendRow({
                 issueType: (it.issueType !== undefined || it["issueType"] !== undefined) ? String(it.issueType || it["issueType"] || "") : "",
                 priority: (it.priority !== undefined || it["priority"] !== undefined) ? String(it.priority || it["priority"] || "") : "",
@@ -79,109 +95,117 @@ Controls.Frame {
                 status: (it.status !== undefined || it["status"] !== undefined) ? String(it.status || it["status"] || "") : "",
                 parentKey: (it.parentKey !== undefined || it["parentKey"] !== undefined) ? String(it.parentKey || it["parentKey"] || "") : "",
                 timerKey: keyVal
-            })
+            });
         }
         if (prevSelected && data && data.length > 0) {
-            Qt.callLater(function() {
+            Qt.callLater(function () {
                 for (var j = 0; j < data.length; j++) {
-                    var it2 = data[j]
-                    var k = (it2 && (it2.key !== undefined || it2["key"] !== undefined)) ? String(it2.key || it2["key"] || "") : ""
+                    var it2 = data[j];
+                    var k = (it2 && (it2.key !== undefined || it2["key"] !== undefined)) ? String(it2.key || it2["key"] || "") : "";
                     if (k === prevSelected) {
-                        _setCurrentRow(j)
-                        break
+                        _setCurrentRow(j);
+                        break;
                     }
                 }
-                issueListRoot._syncing = false
-            })
+                issueListRoot._syncing = false;
+            });
         } else if (data && data.length > 0) {
             // Carregamento inicial: selecionar primeira linha
-            Qt.callLater(function() {
-                _setCurrentRow(0)
-                issueListRoot._syncing = false
-            })
+            Qt.callLater(function () {
+                _setCurrentRow(0);
+                issueListRoot._syncing = false;
+            });
         } else {
-            issueListRoot._syncing = false
+            issueListRoot._syncing = false;
         }
     }
 
     function _setCurrentRow(row) {
-        if (!issuesTableView.selectionModel || !issueTableModel) return
-        issueListRoot.activeRow = row >= 0 ? row : -1
-        var idx = issueTableModel.index(row, 0)
+        if (!issuesTableView.selectionModel || !issueTableModel)
+            return;
+        issueListRoot.activeRow = row >= 0 ? row : -1;
+        var idx = issueTableModel.index(row, 0);
         if (idx.valid) {
-            var sm = issuesTableView.selectionModel
-            sm.select(idx, ItemSelectionModel.ClearAndSelect | ItemSelectionModel.Rows)
-            sm.setCurrentIndex(idx, ItemSelectionModel.Current)
+            var sm = issuesTableView.selectionModel;
+            sm.select(idx, ItemSelectionModel.ClearAndSelect | ItemSelectionModel.Rows);
+            sm.setCurrentIndex(idx, ItemSelectionModel.Current);
         }
     }
 
     // Chamado pelo MouseArea do delegate ao clicar na célula. activeRow dá feedback visual
     // instantâneo; a seleção e o emit seguem.
     function _selectRowByIndex(row) {
-        issueListRoot._selecting = true
-        if (row < 0 || !issueTableModel || row >= issueTableModel.rowCount) return
-        issueListRoot.activeRow = row
-        var idx = issueTableModel.index(row, 0)
-        if (!idx.valid || !issuesTableView.selectionModel) return
-        var sm = issuesTableView.selectionModel
-        sm.select(idx, ItemSelectionModel.ClearAndSelect | ItemSelectionModel.Rows)
-        sm.setCurrentIndex(idx, ItemSelectionModel.Current)
+        issueListRoot._selecting = true;
+        if (row < 0 || !issueTableModel || row >= issueTableModel.rowCount)
+            return;
+        issueListRoot.activeRow = row;
+        var idx = issueTableModel.index(row, 0);
+        if (!idx.valid || !issuesTableView.selectionModel)
+            return;
+        var sm = issuesTableView.selectionModel;
+        sm.select(idx, ItemSelectionModel.ClearAndSelect | ItemSelectionModel.Rows);
+        sm.setCurrentIndex(idx, ItemSelectionModel.Current);
         // Emit explícito: setCurrentIndex pode não disparar onCurrentIndexChanged imediatamente no TableView
-        var rowData = issueTableModel.getRow(row)
-        var k = rowData && rowData.key ? String(rowData.key) : ""
-        var data = (issueListRoot.sourceModel && issueListRoot.sourceModel.issues) ? issueListRoot.sourceModel.issues : issueListRoot.model
-        var issueData = (data && row >= 0 && row < data.length) ? data[row] : rowData
-        issueListRoot.selectedIssueKey = k
-        issueListRoot.issueSelected(k, issueData)
+        var rowData = issueTableModel.getRow(row);
+        var k = rowData && rowData.key ? String(rowData.key) : "";
+        var data = (issueListRoot.sourceModel && issueListRoot.sourceModel.issues) ? issueListRoot.sourceModel.issues : issueListRoot.model;
+        var issueData = (data && row >= 0 && row < data.length) ? data[row] : rowData;
+        issueListRoot.selectedIssueKey = k;
+        issueListRoot.issueSelected(k, issueData);
     }
 
     function _onCurrentRowChanged() {
         if (issueListRoot._syncing)
-            return
-        var r = issuesTableView.currentRow
+            return;
+        var r = issuesTableView.currentRow;
         if (issueListRoot._selecting) {
-            issueListRoot._selecting = false
-            return
+            issueListRoot._selecting = false;
+            return;
         }
         if (r < 0 || !issueTableModel || r >= issueTableModel.rowCount) {
             if (issueListRoot._syncing || issueListRoot._selecting)
-                return
-            issueListRoot.activeRow = -1
-            if (issuesTableView.selectionModel) issuesTableView.selectionModel.clearCurrentIndex()
+                return;
+            issueListRoot.activeRow = -1;
+            if (issuesTableView.selectionModel)
+                issuesTableView.selectionModel.clearCurrentIndex();
             if (issueListRoot.selectedIssueKey !== "") {
-                issueListRoot.selectedIssueKey = ""
-                issueListRoot.issueSelected("", null)
+                issueListRoot.selectedIssueKey = "";
+                issueListRoot.issueSelected("", null);
             }
-            return
+            return;
         }
-        issueListRoot._selecting = false
-        issueListRoot.activeRow = r
-        var idx = issueTableModel.index(r, 0)
+        issueListRoot._selecting = false;
+        issueListRoot.activeRow = r;
+        var idx = issueTableModel.index(r, 0);
         if (idx.valid && issuesTableView.selectionModel) {
-            issuesTableView.selectionModel.select(idx, ItemSelectionModel.ClearAndSelect | ItemSelectionModel.Rows)
+            issuesTableView.selectionModel.select(idx, ItemSelectionModel.ClearAndSelect | ItemSelectionModel.Rows);
         }
-        var rowData = issueTableModel.getRow(r)
-        var k = rowData && rowData.key ? String(rowData.key) : ""
+        var rowData = issueTableModel.getRow(r);
+        var k = rowData && rowData.key ? String(rowData.key) : "";
         if (issueListRoot.selectedIssueKey !== k) {
-            issueListRoot.selectedIssueKey = k
-            var data = (issueListRoot.sourceModel && issueListRoot.sourceModel.issues) ? issueListRoot.sourceModel.issues : issueListRoot.model
-            var issueData = (data && r >= 0 && r < data.length) ? data[r] : rowData
-            issueListRoot.issueSelected(k, issueData)
+            issueListRoot.selectedIssueKey = k;
+            var data = (issueListRoot.sourceModel && issueListRoot.sourceModel.issues) ? issueListRoot.sourceModel.issues : issueListRoot.model;
+            var issueData = (data && r >= 0 && r < data.length) ? data[r] : rowData;
+            issueListRoot.issueSelected(k, issueData);
         }
     }
 
     Connections {
         target: issueListRoot
-        function onModelChanged() { issueListRoot.syncIssueModel() }
+        function onModelChanged() {
+            issueListRoot.syncIssueModel();
+        }
     }
     Connections {
         target: issueListRoot.sourceModel || null
         function onIssuesChanged() {
-            if (issueListRoot.sourceModel) issueListRoot.syncIssueModel()
+            if (issueListRoot.sourceModel)
+                issueListRoot.syncIssueModel();
         }
     }
     onSourceModelChanged: {
-        if (issueListRoot.sourceModel) issueListRoot.syncIssueModel()
+        if (issueListRoot.sourceModel)
+            issueListRoot.syncIssueModel();
     }
     Component.onCompleted: issueListRoot.syncIssueModel()
 
@@ -217,29 +241,35 @@ Controls.Frame {
             columnSpacing: 1
             rowSpacing: 1
             resizableColumns: true
-            selectionModel: ItemSelectionModel { model: issueTableModel }
+            selectionModel: ItemSelectionModel {
+                model: issueTableModel
+            }
             selectionBehavior: TableView.SelectRows
             pointerNavigationEnabled: false  // Tratamos clique no delegate (Qt 6 não seleciona linha no tap)
             model: issueTableModel
 
-            columnWidthProvider: function(column) {
-                var explicitW = issuesTableView.explicitColumnWidth(column)
+            columnWidthProvider: function (column) {
+                var explicitW = issuesTableView.explicitColumnWidth(column);
                 if (explicitW >= 0)
-                    return explicitW
+                    return explicitW;
                 if (column >= 0 && column < issueListRoot._colWidths.length) {
-                    var w = issueListRoot._colWidths[column]
-                    return w >= 0 ? w : 100
+                    var w = issueListRoot._colWidths[column];
+                    return w >= 0 ? w : 100;
                 }
-                return 100
+                return 100;
             }
-            rowHeightProvider: function(row) { return 36 }
+            rowHeightProvider: function (row) {
+                return 36;
+            }
 
-            Controls.ScrollBar.vertical: Controls.ScrollBar { policy: Controls.ScrollBar.AsNeeded }
+            Controls.ScrollBar.vertical: Controls.ScrollBar {
+                policy: Controls.ScrollBar.AsNeeded
+            }
 
             Connections {
                 target: issuesTableView.selectionModel
                 function onCurrentIndexChanged() {
-                    issueListRoot._onCurrentRowChanged()
+                    issueListRoot._onCurrentRowChanged();
                 }
             }
 
@@ -263,12 +293,16 @@ Controls.Frame {
                         Controls.Label {
                             anchors.centerIn: parent
                             text: {
-                                var t = (tipoCell.model && tipoCell.model.display) ? String(tipoCell.model.display).toLowerCase() : ""
-                                if (t.includes("task")) return "✓"
-                                if (t.includes("bug")) return "🐛"
-                                if (t.includes("story")) return "📖"
-                                if (t.includes("epic")) return "📋"
-                                return "○"
+                                var t = (tipoCell.model && tipoCell.model.display) ? String(tipoCell.model.display).toLowerCase() : "";
+                                if (t.includes("task"))
+                                    return "✓";
+                                if (t.includes("bug"))
+                                    return "🐛";
+                                if (t.includes("story"))
+                                    return "📖";
+                                if (t.includes("epic"))
+                                    return "📋";
+                                return "○";
                             }
                             font.pointSize: Kirigami.Theme.defaultFont.pointSize + 2
                         }
@@ -290,24 +324,34 @@ Controls.Frame {
                         property string _priority: _row && _row.priority !== undefined ? String(_row.priority) : ""
                         property string _priorityId: _row && _row.priorityId !== undefined ? String(_row.priorityId) : ""
                         property string _priorityIcon: {
-                            var p = _priority.toLowerCase()
-                            var id = _priorityId
-                            if (p.includes("highest") || id === "1" || id === "10000") return "flag-red"
-                            if ((p.includes("high") && !p.includes("lowest")) || id === "2" || id === "10001") return "flag-yellow"
-                            if (p.includes("medium") || p.includes("médio") || id === "3" || id === "10002") return "flag"
-                            if ((p.includes("low") && !p.includes("lowest")) || id === "4" || id === "10003") return "flag-green"
-                            if (p.includes("lowest") || id === "5" || id === "10004") return "flag-blue"
-                            return ""
+                            var p = _priority.toLowerCase();
+                            var id = _priorityId;
+                            if (p.includes("highest") || id === "1" || id === "10000")
+                                return "flag-red";
+                            if ((p.includes("high") && !p.includes("lowest")) || id === "2" || id === "10001")
+                                return "flag-yellow";
+                            if (p.includes("medium") || p.includes("médio") || id === "3" || id === "10002")
+                                return "flag";
+                            if ((p.includes("low") && !p.includes("lowest")) || id === "4" || id === "10003")
+                                return "flag-green";
+                            if (p.includes("lowest") || id === "5" || id === "10004")
+                                return "flag-blue";
+                            return "";
                         }
                         property string _priorityDisplay: {
-                            var p = _priority.toLowerCase()
-                            var id = _priorityId
-                            if (p.includes("highest") || id === "1" || id === "10000") return "Máx"
-                            if ((p.includes("high") && !p.includes("lowest")) || id === "2" || id === "10001") return "Alta"
-                            if (p.includes("medium") || p.includes("médio") || id === "3" || id === "10002") return "Média"
-                            if ((p.includes("low") && !p.includes("lowest")) || id === "4" || id === "10003") return "Baixa"
-                            if (p.includes("lowest") || id === "5" || id === "10004") return "Mín"
-                            return p ? (p.length > 6 ? p.substring(0, 6) + "…" : p) : "Média"
+                            var p = _priority.toLowerCase();
+                            var id = _priorityId;
+                            if (p.includes("highest") || id === "1" || id === "10000")
+                                return "Máx";
+                            if ((p.includes("high") && !p.includes("lowest")) || id === "2" || id === "10001")
+                                return "Alta";
+                            if (p.includes("medium") || p.includes("médio") || id === "3" || id === "10002")
+                                return "Média";
+                            if ((p.includes("low") && !p.includes("lowest")) || id === "4" || id === "10003")
+                                return "Baixa";
+                            if (p.includes("lowest") || id === "5" || id === "10004")
+                                return "Mín";
+                            return p ? (p.length > 6 ? p.substring(0, 6) + "…" : p) : "Média";
                         }
                         MouseArea {
                             anchors.fill: parent
@@ -413,15 +457,22 @@ Controls.Frame {
                         }
                         property string _status: statusCell.model && statusCell.model.display ? String(statusCell.model.display).toUpperCase() : ""
                         property string _statusDisplay: {
-                            var s = _status
-                            if (!s) return "—"
-                            if (s.indexOf("DONE") >= 0 || s.indexOf("CLOSED") >= 0) return "Done"
-                            if (s.indexOf("REVIEW") >= 0 || s.indexOf("CODE REVIEW") >= 0) return "Review"
-                            if (s.indexOf("DEVELOPMENT") >= 0 || s.indexOf("PROGRESS") >= 0) return "Dev"
-                            if (s.indexOf("HOMOLOG") >= 0 || s.indexOf("TEST") >= 0) return "Homolog"
-                            if (s.indexOf("TO DO") >= 0 || s.indexOf("BACKLOG") >= 0) return "To Do"
-                            if (s.indexOf("BLOCKED") >= 0 || s.indexOf("WAITING") >= 0) return "Wait"
-                            return s.length > 8 ? s.substring(0, 8) + "…" : s
+                            var s = _status;
+                            if (!s)
+                                return "—";
+                            if (s.indexOf("DONE") >= 0 || s.indexOf("CLOSED") >= 0)
+                                return "Done";
+                            if (s.indexOf("REVIEW") >= 0 || s.indexOf("CODE REVIEW") >= 0)
+                                return "Review";
+                            if (s.indexOf("DEVELOPMENT") >= 0 || s.indexOf("PROGRESS") >= 0)
+                                return "Dev";
+                            if (s.indexOf("HOMOLOG") >= 0 || s.indexOf("TEST") >= 0)
+                                return "Homolog";
+                            if (s.indexOf("TO DO") >= 0 || s.indexOf("BACKLOG") >= 0)
+                                return "To Do";
+                            if (s.indexOf("BLOCKED") >= 0 || s.indexOf("WAITING") >= 0)
+                                return "Wait";
+                            return s.length > 8 ? s.substring(0, 8) + "…" : s;
                         }
                         Controls.Label {
                             anchors.fill: parent
@@ -480,45 +531,49 @@ Controls.Frame {
                             Controls.ToolButton {
                                 icon.name: {
                                     if (issueListRoot.timerModel && issueListRoot.timerModel.issueKey === timerCell._issueKey && issueListRoot.timerModel.state === "running")
-                                        return "media-playback-stop"
+                                        return "media-playback-stop";
                                     if (issueListRoot.timerModel && issueListRoot.timerModel.issueKey === timerCell._issueKey && issueListRoot.timerModel.state === "paused")
-                                        return "media-playback-start"
+                                        return "media-playback-start";
                                     if (issueListRoot.timerModel && issueListRoot.timerModel.isOnBreak)
-                                        return "media-playback-start"
-                                    return "chronometer"
+                                        return "media-playback-start";
+                                    return "chronometer";
                                 }
                                 Layout.preferredWidth: 40
                                 Layout.alignment: Qt.AlignVCenter
                                 enabled: issueListRoot.timerService && issueListRoot.timerModel
                                 onClicked: {
-                                    issueListRoot._selectRowByIndex(timerCell.row)
-                                    if (!issueListRoot.timerModel || !timerCell._issueKey) return
-                                    function doStart() { issueListRoot.requestStartTimer(timerCell._issueKey) }
+                                    issueListRoot._selectRowByIndex(timerCell.row);
+                                    if (!issueListRoot.timerModel || !timerCell._issueKey)
+                                        return;
+                                    function doStart() {
+                                        issueListRoot.requestStartTimer(timerCell._issueKey);
+                                    }
                                     if (issueListRoot.timerService && issueListRoot.timerModel && issueListRoot.timerModel.isOnBreak) {
-                                        issueListRoot.timerService.cancelBreak()
-                                        Qt.callLater(doStart)
-                                        return
+                                        issueListRoot.timerService.cancelBreak();
+                                        Qt.callLater(doStart);
+                                        return;
                                     }
                                     if (issueListRoot.timerModel.issueKey === timerCell._issueKey && issueListRoot.timerModel.state !== "idle") {
                                         if (issueListRoot.timerModel.state === "running" && issueListRoot.timerService)
-                                            issueListRoot.timerService.stop()
+                                            issueListRoot.timerService.stop();
                                     } else if (issueListRoot.timerModel.state !== "idle" && issueListRoot.timerModel.issueKey !== timerCell._issueKey && issueListRoot.timerService) {
-                                        issueListRoot.timerService.stop()
-                                        Qt.callLater(doStart)
+                                        issueListRoot.timerService.stop();
+                                        Qt.callLater(doStart);
                                     } else {
-                                        doStart()
+                                        doStart();
                                     }
                                 }
                             }
                             Controls.Label {
                                 text: "⏱"
-                                visible: issueListRoot.timerModel && issueListRoot.timerModel.issueKey === timerCell._issueKey &&
-                                         (issueListRoot.timerModel.state === "running" || issueListRoot.timerModel.state === "paused")
+                                visible: issueListRoot.timerModel && issueListRoot.timerModel.issueKey === timerCell._issueKey && (issueListRoot.timerModel.state === "running" || issueListRoot.timerModel.state === "paused")
                                 color: issueListRoot.timerModel && issueListRoot.timerModel.state === "running" ? "#3daee9" : "#808080"
                                 Layout.preferredWidth: 20
                                 Layout.alignment: Qt.AlignVCenter
                             }
-                            Item { Layout.fillWidth: true }
+                            Item {
+                                Layout.fillWidth: true
+                            }
                         }
                     }
                 }
@@ -541,27 +596,28 @@ Controls.Frame {
 
     function selectIssue(issueKey) {
         if (!issueKey) {
-            clearSelection()
-            return
+            clearSelection();
+            return;
         }
-        if (!issueTableModel) return
+        if (!issueTableModel)
+            return;
         for (var i = 0; i < issueTableModel.rowCount; i++) {
-            var row = issueTableModel.getRow(i)
+            var row = issueTableModel.getRow(i);
             if (row && row.key === issueKey) {
-                _setCurrentRow(i)
-                var data = (issueListRoot.sourceModel && issueListRoot.sourceModel.issues) ? issueListRoot.sourceModel.issues : issueListRoot.model
-                var issueData = (data && i < data.length) ? data[i] : row
-                issueListRoot.selectedIssueKey = issueKey
-                issueSelected(issueKey, issueData)
-                return
+                _setCurrentRow(i);
+                var data = (issueListRoot.sourceModel && issueListRoot.sourceModel.issues) ? issueListRoot.sourceModel.issues : issueListRoot.model;
+                var issueData = (data && i < data.length) ? data[i] : row;
+                issueListRoot.selectedIssueKey = issueKey;
+                issueSelected(issueKey, issueData);
+                return;
             }
         }
     }
 
     function clearSelection() {
-        issueListRoot.activeRow = -1
+        issueListRoot.activeRow = -1;
         if (issuesTableView.selectionModel) {
-            issuesTableView.selectionModel.clearCurrentIndex()
+            issuesTableView.selectionModel.clearCurrentIndex();
             // _onCurrentRowChanged será chamado e emitirá issueSelected("", null)
         }
     }

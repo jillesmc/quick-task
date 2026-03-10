@@ -17,6 +17,7 @@ sys.path.insert(0, str(ROOT_DIR))
 
 from config.config_manager import ConfigManager
 from src.utils.debug import debug_log
+from src.utils.http_retry import request_with_retry
 
 
 class SettingsModel(QObject):
@@ -74,6 +75,11 @@ class SettingsModel(QObject):
             self._worklog_check_enabled = True
             self._worklog_check_show_dialog = True
             self._worklog_check_block_if_pending = False
+
+            # Propriedades de http_retry (retry com backoff para chamadas HTTP externas)
+            self._http_retry_max_retries = 3
+            self._http_retry_base_delay_seconds = 1.0
+            self._http_retry_max_delay_seconds = 60.0
 
             # Propriedades de development_panel (painel de Development em Minhas Issues)
             self._development_panel_enabled = True
@@ -225,6 +231,15 @@ class SettingsModel(QObject):
         self._worklog_check_block_if_pending = worklog_check_config.get(
             "block_transition_if_pending", False
         )
+        # Carregar configurações de http_retry
+        http_retry_config = self._config_manager.get_http_retry_config()
+        self._http_retry_max_retries = int(http_retry_config.get("max_retries", 3))
+        self._http_retry_base_delay_seconds = float(
+            http_retry_config.get("base_delay_seconds", 1.0)
+        )
+        self._http_retry_max_delay_seconds = float(
+            http_retry_config.get("max_delay_seconds", 60.0)
+        )
         # Carregar configurações de development_panel
         dev_panel_config = self._config_manager.get_development_panel_config()
         self._development_panel_enabled = dev_panel_config.get("enabled", True)
@@ -254,9 +269,7 @@ class SettingsModel(QObject):
         self._google_oauth_project_id = goauth.get("project_id", "") or ""
         self._google_oauth_client_secret = goauth.get("client_secret", "") or ""
 
-        drive_comments_config = (
-            self._config_manager.get_google_drive_comments_config()
-        )
+        drive_comments_config = self._config_manager.get_google_drive_comments_config()
         self._drive_comments_enabled = drive_comments_config.get("enabled", True)
         self._drive_comments_max_comments = drive_comments_config.get(
             "max_comments", 50
@@ -427,7 +440,10 @@ class SettingsModel(QObject):
                 )
 
                 auth = HTTPBasicAuth(self._email, self._api_token)
-                response = requests.get(url, auth=auth, timeout=10)
+                response = request_with_retry(
+                    lambda: requests.get(url, auth=auth, timeout=10),
+                    None,
+                )
 
                 debug_log(
                     "SettingsModel._AccountIdWorker",
@@ -670,6 +686,19 @@ class SettingsModel(QObject):
                 "Configurações de worklog_check salvas no arquivo",
             )
 
+            # 4c1. Salvar configurações de http_retry
+            http_retry_config = {
+                "max_retries": self._http_retry_max_retries,
+                "base_delay_seconds": self._http_retry_base_delay_seconds,
+                "max_delay_seconds": self._http_retry_max_delay_seconds,
+            }
+            self._config_manager.save_http_retry_config(http_retry_config)
+            debug_log(
+                "SettingsModel",
+                "save",
+                "Configurações de http_retry salvas no arquivo",
+            )
+
             # 4c2. Salvar configurações de development_panel
             development_panel_config = {
                 "enabled": self._development_panel_enabled,
@@ -773,6 +802,11 @@ class SettingsModel(QObject):
     worklogCheckEnabledChanged = Signal()
     worklogCheckShowDialogChanged = Signal()
     worklogCheckBlockIfPendingChanged = Signal()
+
+    # Sinais para http_retry
+    httpRetryMaxRetriesChanged = Signal()
+    httpRetryBaseDelaySecondsChanged = Signal()
+    httpRetryMaxDelaySecondsChanged = Signal()
 
     # Sinais para development_panel
     developmentPanelEnabledChanged = Signal()
@@ -1128,6 +1162,43 @@ class SettingsModel(QObject):
         if self._worklog_check_block_if_pending != value:
             self._worklog_check_block_if_pending = value
             self.worklogCheckBlockIfPendingChanged.emit()
+
+    # Propriedades QML para http_retry (retry com backoff para chamadas HTTP externas)
+    @Property(int, notify=httpRetryMaxRetriesChanged)
+    def httpRetryMaxRetries(self) -> int:
+        """Número máximo de tentativas (incluindo a primeira) em chamadas HTTP"""
+        return self._http_retry_max_retries
+
+    @httpRetryMaxRetries.setter
+    def httpRetryMaxRetries(self, value: int):
+        val = max(1, min(int(value) if value is not None else 3, 20))
+        if self._http_retry_max_retries != val:
+            self._http_retry_max_retries = val
+            self.httpRetryMaxRetriesChanged.emit()
+
+    @Property(float, notify=httpRetryBaseDelaySecondsChanged)
+    def httpRetryBaseDelaySeconds(self) -> float:
+        """Delay base em segundos para backoff exponencial"""
+        return self._http_retry_base_delay_seconds
+
+    @httpRetryBaseDelaySeconds.setter
+    def httpRetryBaseDelaySeconds(self, value: float):
+        val = max(0.1, min(float(value) if value is not None else 1.0, 300.0))
+        if self._http_retry_base_delay_seconds != val:
+            self._http_retry_base_delay_seconds = val
+            self.httpRetryBaseDelaySecondsChanged.emit()
+
+    @Property(float, notify=httpRetryMaxDelaySecondsChanged)
+    def httpRetryMaxDelaySeconds(self) -> float:
+        """Teto do delay em segundos entre tentativas"""
+        return self._http_retry_max_delay_seconds
+
+    @httpRetryMaxDelaySeconds.setter
+    def httpRetryMaxDelaySeconds(self, value: float):
+        val = max(1.0, min(float(value) if value is not None else 60.0, 600.0))
+        if self._http_retry_max_delay_seconds != val:
+            self._http_retry_max_delay_seconds = val
+            self.httpRetryMaxDelaySecondsChanged.emit()
 
     @Property(bool, notify=developmentPanelEnabledChanged)
     def developmentPanelEnabled(self) -> bool:

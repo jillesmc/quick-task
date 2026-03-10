@@ -262,9 +262,14 @@ def create_media_single_node(
 
     attrs: dict = {"layout": resolved_layout}
     # ADF mediaSingle: width/widthType control display size (pixel or percentage)
-    if display_width is not None and display_width > 0 and resolved_layout not in (
-        "wide",
-        "full-width",
+    if (
+        display_width is not None
+        and display_width > 0
+        and resolved_layout
+        not in (
+            "wide",
+            "full-width",
+        )
     ):
         attrs["width"] = display_width
         attrs["widthType"] = "pixel"
@@ -329,9 +334,7 @@ _MD_IMAGE_ATTACHMENT = re.compile(
     r"!\[(.*?)\]\(([^)]*?/attachment/content/(\d+)[^)]*)\)"
 )
 # Pattern for links [alt](url) to attachments - missing ! causes link instead of image
-_MD_LINK_ATTACHMENT = re.compile(
-    r"\[(.*?)\]\(([^)]*?/attachment/content/(\d+)[^)]*)\)"
-)
+_MD_LINK_ATTACHMENT = re.compile(r"\[(.*?)\]\(([^)]*?/attachment/content/(\d+)[^)]*)\)")
 # Pattern for pending link (non-image file): [filename](pending:id)
 _MD_LINK_PENDING = re.compile(r"\[(.*?)\]\(pending:(\w+)\)")
 # Regex para attr_list {: width="N" } após imagem
@@ -379,10 +382,14 @@ def build_description_adf_with_media(
 
         m = _MD_IMAGE_PENDING.search(txt, start)
         if m:
-            candidates.append((m.start(), m.end(), m.group(1) or "", m.group(2), "pending"))
+            candidates.append(
+                (m.start(), m.end(), m.group(1) or "", m.group(2), "pending")
+            )
         m = _MD_LINK_PENDING.search(txt, start)
         if m:
-            candidates.append((m.start(), m.end(), m.group(1) or "", m.group(2), "pending"))
+            candidates.append(
+                (m.start(), m.end(), m.group(1) or "", m.group(2), "pending")
+            )
         m = _MD_IMAGE_ATTACHMENT.search(txt, start)
         if m:
             end = m.end()
@@ -390,7 +397,9 @@ def build_description_adf_with_media(
             attr_match = _RE_ATTR_WIDTH.match(rest)
             if attr_match:
                 end += attr_match.end()
-            candidates.append((m.start(), end, m.group(1) or "", m.group(3), "attachment"))
+            candidates.append(
+                (m.start(), end, m.group(1) or "", m.group(3), "attachment")
+            )
         m = _MD_LINK_ATTACHMENT.search(txt, start)
         if m:
             end = m.end()
@@ -398,7 +407,9 @@ def build_description_adf_with_media(
             attr_match = _RE_ATTR_WIDTH.match(rest)
             if attr_match:
                 end += attr_match.end()
-            candidates.append((m.start(), end, m.group(1) or "", m.group(3), "attachment"))
+            candidates.append(
+                (m.start(), end, m.group(1) or "", m.group(3), "attachment")
+            )
 
         if not candidates:
             return None

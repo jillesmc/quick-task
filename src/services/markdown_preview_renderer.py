@@ -12,7 +12,7 @@ from typing import Optional
 import markdown
 from PySide6.QtCore import QObject, Slot  # type: ignore[import]
 
-from src.utils.debug import debug_log
+from src.utils.debug import debug_log, is_debug_enabled
 
 # Regex para placeholders de imagem pendente: ![alt](pending:xxx)
 _PENDING_IMAGE_PATTERN = re.compile(
@@ -66,6 +66,7 @@ def _replace_jira_attachment_imgs(html: str) -> str:
     o placeholder por <img src="data:..."> quando attachmentDataUrlReady for emitido.
     Preserva width quando presente (attr_list); fallback: busca width no contexto pai.
     """
+
     def _replacer(match: re.Match) -> str:
         full = match.group(0)
         src = match.group(1)
@@ -96,6 +97,7 @@ def _replace_jira_attachment_links(html: str) -> str:
     Substitui <a href="...attachment/content/..."> por placeholder de imagem.
     Markdown [alt](url) sem ! produz link; tratamos como imagem para exibição.
     """
+
     def _replacer(match: re.Match) -> str:
         href = match.group(1)
         alt = (match.group(2) or "").strip() or "imagem"
@@ -107,6 +109,47 @@ def _replace_jira_attachment_links(html: str) -> str:
         )
 
     return _JIRA_ATTACHMENT_LINK.sub(_replacer, html)
+
+
+# Qt RichText: -qt-list-indent por nível (1=raiz, 2=sublista, ...) para indentação e •/◦.
+_UL_OL_OPEN = re.compile(r"<(ul|ol)(?:\s[^>]*)?>")
+_UL_OL_CLOSE = re.compile(r"</(ul|ol)>")
+
+
+def _add_qt_list_indent(html: str) -> str:
+    """
+    Adiciona -qt-list-indent a cada <ul> e <ol> conforme o nível de aninhamento
+    (1 = lista raiz, 2 = sublista, 3 = sub-sublista, ...) para o Qt desenhar
+    indentação e marcadores distintos (• vs ◦) no preview (Text.RichText).
+    """
+    # Coletar todas as tags <ul>/<ol> e </ul>/</ol> em ordem
+    events: list[tuple[int, int, str, bool, str]] = (
+        []
+    )  # (start, end, raw, is_open, tag)
+    for m in _UL_OL_OPEN.finditer(html):
+        events.append((m.start(), m.end(), m.group(0), True, m.group(1)))
+    for m in _UL_OL_CLOSE.finditer(html):
+        events.append((m.start(), m.end(), m.group(0), False, m.group(1)))
+    events.sort(key=lambda x: x[0])
+
+    result: list[str] = []
+    pos = 0
+    depth = 0
+    for start, end, raw, is_open, tag in events:
+        result.append(html[pos:start])
+        if is_open:
+            if "style=" in raw and "-qt-list-indent" in raw:
+                result.append(raw)
+            else:
+                depth += 1
+                result.append(f'<{tag} style="-qt-list-indent: {depth}">')
+            pos = end
+        else:
+            result.append(raw)
+            depth = max(0, depth - 1)
+            pos = end
+    result.append(html[pos:])
+    return "".join(result)
 
 
 class MarkdownPreviewRenderer(QObject):
@@ -151,6 +194,17 @@ class MarkdownPreviewRenderer(QObject):
             converter.reset()
             html = converter.convert(cleaned)
             raw = html.strip() or "<p><em>Nenhum conteúdo</em></p>"
+            # Listas: Qt RichText precisa de -qt-list-indent para indentar ul/ol no preview
+            raw = _add_qt_list_indent(raw)
+            if is_debug_enabled() and (
+                "<ul>" in raw or "<ol>" in raw or "<ul " in raw or "<ol " in raw
+            ):
+                debug_log(
+                    "MarkdownPreviewRenderer",
+                    "render",
+                    "HTML com listas (ul/ol), len=%d",
+                    len(raw),
+                )
             # Substituir img de attachment Jira por placeholder (Qt falha ao carregar sem auth)
             raw = _replace_jira_attachment_imgs(raw)
             # Substituir links [alt](url) sem ! para attachment/content por placeholder de imagem

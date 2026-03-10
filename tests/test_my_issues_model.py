@@ -137,13 +137,13 @@ def test_update_issue_in_list_with_priority(MockJiraClient, MockConfigManager):
     model.updateIssueInList(
         "PLATFORM-14891",
         "test updated",
-        "IN DEVELOPMENT",
+        "IN PROGRESS",
         "Highest",
         "1",
     )
 
     issue = model.getIssue("PLATFORM-14891")
     assert issue["summary"] == "test updated"
-    assert issue["status"] == "IN DEVELOPMENT"
+    assert issue["status"] == "IN PROGRESS"
     assert issue["priority"] == "Highest"
     assert issue["priorityId"] == "1"

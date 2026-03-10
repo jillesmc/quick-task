@@ -16,12 +16,15 @@ RowLayout {
     property var stack: null
     property var createPage: null
     property var issuesPage: null
+    property var createWorkItemPage: null
+    property var myWorkItemsPage: null
     property var settingsPage: null
     property var pendingWorklogsPage: null
     property var timesheetPage: null
     property var githubPage: null
     property var googlePage: null
     property var issueModel: null
+    property var workItemModel: null
     property var jiraService: null
     property var timerModel: null
     property var timerService: null
@@ -49,7 +52,7 @@ RowLayout {
         Controls.TabButton {
             id: googleTabButton
             text: qsTr("Google")
-            enabled: root.googlePage && root.googlePage.googleAuthService
+            enabled: !!(root.googlePage && root.googlePage.googleAuthService)
             icon.name: (root.googlePage && root.googlePage.googleAuthService) ? "" : "process-working"
         }
 
@@ -71,49 +74,110 @@ RowLayout {
         Controls.TabButton {
             icon.name: "configure"
         }
+
+        Controls.TabButton {
+            icon.name: "document-new"
+            text: ""
+            Controls.ToolTip.text: qsTr("Criar Issue")
+            Controls.ToolTip.visible: hovered
+        }
+
+        Controls.TabButton {
+            icon.name: "view-list-details"
+            text: ""
+            Controls.ToolTip.text: qsTr("Minhas Issues")
+            Controls.ToolTip.visible: hovered
+        }
     }
 
     Controls.ToolButton {
         id: globalActionButton
         text: {
-            if (root.currentTabIndex === 0) return qsTr("Criar");
-            if (root.currentTabIndex === 1) return qsTr("Atualizar task");
+            if (root.currentTabIndex === 0)
+                return qsTr("Criar");
+            if (root.currentTabIndex === 1)
+                return qsTr("Atualizar task");
             if (root.currentTabIndex === 6) {
                 if (root.settingsPage && root.settingsPage.isSaving !== undefined && root.settingsPage.isSaving) {
                     return qsTr("Salvando...");
                 }
                 return qsTr("Salvar");
             }
+            if (root.currentTabIndex === 7)
+                return qsTr("Criar");
+            if (root.currentTabIndex === 8)
+                return qsTr("Atualizar task");
             return "";
         }
         icon.name: {
-            if (root.currentTabIndex === 0) return "document-new";
-            if (root.currentTabIndex === 1) return "document-save";
-            if (root.currentTabIndex === 6) return "document-save";
+            if (root.currentTabIndex === 0)
+                return "document-new";
+            if (root.currentTabIndex === 1)
+                return "document-save";
+            if (root.currentTabIndex === 6)
+                return "document-save";
+            if (root.currentTabIndex === 7)
+                return "document-new";
+            if (root.currentTabIndex === 8)
+                return "document-save";
             return "";
         }
         visible: root.currentTabIndex >= 0 && root.currentTabIndex !== 2 && root.currentTabIndex !== 3 && root.currentTabIndex !== 4 && root.currentTabIndex !== 5
         enabled: {
             if (root.currentTabIndex === 0) {
-                if (!root.createPage) return false;
-                if (root.createPage.isProcessing !== undefined && root.createPage.isProcessing) return false;
-                if (!root.issueModel) return false;
+                if (!root.createPage)
+                    return false;
+                if (root.createPage.isProcessing !== undefined && root.createPage.isProcessing)
+                    return false;
+                if (!root.issueModel)
+                    return false;
                 var s = root.issueModel.summary ? root.issueModel.summary.trim() : "";
                 return s.length > 0;
             }
             if (root.currentTabIndex === 1) {
-                if (!root.issuesPage) return false;
-                if (!root.issuesPage.controller) return false;
-                if (!root.issuesPage.selectedIssueKey) return false;
-                if (root.issuesPage.isProcessing !== undefined && root.issuesPage.isProcessing) return false;
-                if (!root.jiraService || typeof root.jiraService.isAvailable !== "function") return false;
+                if (!root.issuesPage)
+                    return false;
+                if (!root.issuesPage.controller)
+                    return false;
+                if (!root.issuesPage.selectedIssueKey)
+                    return false;
+                if (root.issuesPage.isProcessing !== undefined && root.issuesPage.isProcessing)
+                    return false;
+                if (!root.jiraService || typeof root.jiraService.isAvailable !== "function")
+                    return false;
                 return root.jiraService.isAvailable();
             }
             if (root.currentTabIndex === 6) {
-                if (!root.settingsPage) return false;
-                if (root.settingsPage.isSaving !== undefined && root.settingsPage.isSaving) return false;
-                if (root.settingsPage.isValid !== undefined && !root.settingsPage.isValid) return false;
+                if (!root.settingsPage)
+                    return false;
+                if (root.settingsPage.isSaving !== undefined && root.settingsPage.isSaving)
+                    return false;
+                if (root.settingsPage.isValid !== undefined && !root.settingsPage.isValid)
+                    return false;
                 return true;
+            }
+            if (root.currentTabIndex === 7) {
+                if (!root.createWorkItemPage)
+                    return false;
+                if (root.createWorkItemPage.isProcessing !== undefined && root.createWorkItemPage.isProcessing)
+                    return false;
+                if (!root.workItemModel)
+                    return false;
+                var s7 = root.workItemModel.summary ? root.workItemModel.summary.trim() : "";
+                return s7.length > 0;
+            }
+            if (root.currentTabIndex === 8) {
+                if (!root.myWorkItemsPage)
+                    return false;
+                if (!root.myWorkItemsPage.controller)
+                    return false;
+                if (!root.myWorkItemsPage.selectedIssueKey)
+                    return false;
+                if (root.myWorkItemsPage.isProcessing !== undefined && root.myWorkItemsPage.isProcessing)
+                    return false;
+                if (!root.jiraService || typeof root.jiraService.isAvailable !== "function")
+                    return false;
+                return root.jiraService.isAvailable();
             }
             return false;
         }
@@ -124,55 +188,10 @@ RowLayout {
                 root.issuesPage.updateIssue();
             } else if (root.currentTabIndex === 6 && root.settingsPage && root.settingsPage.saveSettingsFromToolbar) {
                 root.settingsPage.saveSettingsFromToolbar();
-            }
-        }
-    }
-
-    Controls.ToolButton {
-        id: blockIssueButton
-        text: qsTr("Bloquear")
-        icon.name: "lock"
-        visible: root.currentTabIndex === 1 && root.issuesPage && root.issuesPage.selectedIssueKey !== ""
-            && !(root.issuesPage.isProcessing || false)
-            && (root.issuesPage._quickActionStatus || "") !== "BLOCKED"
-        Controls.ToolTip.visible: hovered
-        Controls.ToolTip.text: qsTr("Bloquear issue")
-        onClicked: {
-            if (root.issuesPage && root.issuesPage.detailPane && typeof root.issuesPage.detailPane.openBlockDialog === "function") {
-                root.issuesPage.detailPane.openBlockDialog();
-            }
-        }
-    }
-
-    Controls.ToolButton {
-        id: unblockIssueButton
-        text: qsTr("Desbloquear")
-        icon.name: "unlock"
-        visible: root.currentTabIndex === 1 && root.issuesPage && root.issuesPage.selectedIssueKey !== ""
-            && !(root.issuesPage.isProcessing || false)
-            && (root.issuesPage._quickActionStatus || "") === "BLOCKED"
-        Controls.ToolTip.visible: hovered
-        Controls.ToolTip.text: qsTr("Desbloquear e retornar para IN DEVELOPMENT")
-        onClicked: {
-            if (root.issuesPage && root.issuesPage.detailPane && typeof root.issuesPage.detailPane.openUnblockDialog === "function") {
-                root.issuesPage.detailPane.openUnblockDialog();
-            }
-        }
-    }
-
-    Controls.ToolButton {
-        id: cancelIssueButton
-        text: qsTr("Cancelar")
-        icon.name: "dialog-cancel"
-        visible: root.currentTabIndex === 1 && root.issuesPage && root.issuesPage.selectedIssueKey !== ""
-            && !(root.issuesPage.isProcessing || false)
-            && (root.issuesPage._quickActionStatus || "") !== "CANCELED"
-            && (root.issuesPage._quickActionStatus || "") !== "DONE"
-        Controls.ToolTip.visible: hovered
-        Controls.ToolTip.text: qsTr("Cancelar issue")
-        onClicked: {
-            if (root.issuesPage && root.issuesPage.detailPane && typeof root.issuesPage.detailPane.openCancelDialog === "function") {
-                root.issuesPage.detailPane.openCancelDialog();
+            } else if (root.currentTabIndex === 7 && root.createWorkItemPage && root.createWorkItemPage.createIssueFromToolbar) {
+                root.createWorkItemPage.createIssueFromToolbar();
+            } else if (root.currentTabIndex === 8 && root.myWorkItemsPage && root.myWorkItemsPage.updateIssue) {
+                root.myWorkItemsPage.updateIssue();
             }
         }
     }
@@ -182,8 +201,7 @@ RowLayout {
         text: qsTr("Atualizar")
         icon.name: "view-refresh"
         visible: root.currentTabIndex === 2
-        enabled: root.googlePage && root.googlePage.googleAuthService
-            && root.googlePage.googleAuthService.isAuthorized && !root.googlePage.isLoading
+        enabled: !!(root.googlePage && root.googlePage.googleAuthService && root.googlePage.googleAuthService.isAuthorized && !root.googlePage.isLoading)
         onClicked: {
             if (root.currentTabIndex === 2 && root.googlePage && typeof root.googlePage.reload === "function") {
                 root.googlePage.reload();
@@ -212,7 +230,7 @@ RowLayout {
         enabled: root.timesheetPage && root.timesheetPage.timesheetViewModel && !root.timesheetPage.timesheetViewModel.loading
         onClicked: {
             if (root.currentTabIndex === 5 && root.timesheetPage && root.timesheetPage.timesheetViewModel) {
-                root.timesheetPage.timesheetViewModel.refresh()
+                root.timesheetPage.timesheetViewModel.refresh();
             }
         }
     }
@@ -222,11 +240,9 @@ RowLayout {
         text: qsTr("Sincronizar")
         icon.name: "document-send"
         visible: root.currentTabIndex === 4
-        enabled: root.pendingWorklogsPage && root.pendingWorklogsPage.filteredWorklogs
-                 && root.pendingWorklogsPage.filteredWorklogs.length > 0
+        enabled: root.pendingWorklogsPage && root.pendingWorklogsPage.filteredWorklogs && root.pendingWorklogsPage.filteredWorklogs.length > 0
         onClicked: {
-            if (root.currentTabIndex === 4 && root.pendingWorklogsPage
-                    && typeof root.pendingWorklogsPage.syncAllFromToolbar === "function") {
+            if (root.currentTabIndex === 4 && root.pendingWorklogsPage && typeof root.pendingWorklogsPage.syncAllFromToolbar === "function") {
                 root.pendingWorklogsPage.syncAllFromToolbar();
             }
         }
@@ -236,16 +252,19 @@ RowLayout {
         id: createBranchButton
         text: qsTr("Criar branch")
         icon.name: "vcs-branch"
-        visible: root.currentTabIndex === 1
+        visible: root.currentTabIndex === 1 || root.currentTabIndex === 8
         enabled: {
-            if (root.currentTabIndex !== 1) return false;
-            if (!root.issuesPage || !root.issuesPage.selectedIssueKey) return false;
-            if (!root.githubService || !root.githubService.available) return false;
+            var page = (root.currentTabIndex === 1) ? root.issuesPage : ((root.currentTabIndex === 8) ? root.myWorkItemsPage : null);
+            if (!page || !page.selectedIssueKey)
+                return false;
+            if (!root.githubService || !root.githubService.available)
+                return false;
             return true;
         }
         onClicked: {
-            if (root.currentTabIndex === 1 && root.issuesPage && typeof root.issuesPage.openCreateBranchDialog === "function") {
-                root.issuesPage.openCreateBranchDialog();
+            var page = (root.currentTabIndex === 1) ? root.issuesPage : ((root.currentTabIndex === 8) ? root.myWorkItemsPage : null);
+            if (page && typeof page.openCreateBranchDialog === "function") {
+                page.openCreateBranchDialog();
             }
         }
     }
@@ -253,36 +272,55 @@ RowLayout {
     Controls.ToolButton {
         id: startTimerButton
         text: {
-            if (root.currentTabIndex !== 1) return "";
-            if (!root.issuesPage) return "";
-            if (root.timerModel && root.timerModel.state === "running" && root.timerModel.issueKey === root.issuesPage.selectedIssueKey) {
+            var page = (root.currentTabIndex === 1) ? root.issuesPage : ((root.currentTabIndex === 8) ? root.myWorkItemsPage : null);
+            if (!page)
+                return "";
+            if (root.timerModel && root.timerModel.state === "running" && root.timerModel.issueKey === page.selectedIssueKey) {
                 return qsTr("Parar Timer");
             }
-            if (root.timerModel && root.timerModel.isOnBreak) return qsTr("Cancelar Pausa e Iniciar");
-            if (root.timerModel && root.timerModel.state !== "idle" && root.timerModel.issueKey !== root.issuesPage.selectedIssueKey) {
+            if (root.timerModel && root.timerModel.isOnBreak)
+                return qsTr("Cancelar Pausa e Iniciar");
+            if (root.timerModel && root.timerModel.state !== "idle" && root.timerModel.issueKey !== page.selectedIssueKey) {
                 return qsTr("Parar e Iniciar");
             }
             return qsTr("Iniciar Timer");
         }
         icon.name: {
-            if (root.currentTabIndex !== 1) return "";
-            if (root.timerModel && root.timerModel.state === "running" && root.timerModel.issueKey === root.issuesPage.selectedIssueKey) {
+            var page = (root.currentTabIndex === 1) ? root.issuesPage : ((root.currentTabIndex === 8) ? root.myWorkItemsPage : null);
+            if (!page)
+                return "";
+            if (root.timerModel && root.timerModel.state === "running" && root.timerModel.issueKey === page.selectedIssueKey) {
                 return "media-playback-stop";
             }
-            if (root.timerModel && root.timerModel.isOnBreak) return "media-playback-start";
+            if (root.timerModel && root.timerModel.isOnBreak)
+                return "media-playback-start";
             return "chronometer";
         }
-        visible: root.currentTabIndex === 1
+        visible: root.currentTabIndex === 1 || root.currentTabIndex === 8
         enabled: {
-            if (root.currentTabIndex !== 1) return false;
-            if (!root.issuesPage || !root.issuesPage.selectedIssueKey) return false;
-            if (root.issuesPage.isProcessing !== undefined && root.issuesPage.isProcessing) return false;
-            if (!root.timerService || !root.timerModel) return false;
+            var page = (root.currentTabIndex === 1) ? root.issuesPage : ((root.currentTabIndex === 8) ? root.myWorkItemsPage : null);
+            if (!page || !page.selectedIssueKey)
+                return false;
+            if (page.isProcessing !== undefined && page.isProcessing)
+                return false;
+            if (!root.timerService || !root.timerModel)
+                return false;
+            if (root.currentTabIndex === 8 && page.hasWorkflowForActions !== undefined && !page.hasWorkflowForActions)
+                return false;
             return true;
         }
+        Controls.ToolTip.visible: startTimerButton.hovered
+        Controls.ToolTip.text: {
+            if (root.currentTabIndex !== 8 || !root.myWorkItemsPage)
+                return startTimerButton.text || qsTr("Iniciar Timer");
+            if (!startTimerButton.enabled && root.myWorkItemsPage.hasWorkflowForActions !== undefined && !root.myWorkItemsPage.hasWorkflowForActions)
+                return qsTr("Configure o workflow na aplicação para usar o timer.");
+            return startTimerButton.text || qsTr("Iniciar Timer");
+        }
         onClicked: {
-            if (root.currentTabIndex === 1 && root.issuesPage && root.issuesPage.startTimerFromToolbar) {
-                root.issuesPage.startTimerFromToolbar();
+            var page = (root.currentTabIndex === 1) ? root.issuesPage : ((root.currentTabIndex === 8) ? root.myWorkItemsPage : null);
+            if (page && page.startTimerFromToolbar) {
+                page.startTimerFromToolbar();
             }
         }
     }

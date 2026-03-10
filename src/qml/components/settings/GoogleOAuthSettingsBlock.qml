@@ -89,15 +89,9 @@ Rectangle {
         }
 
         Controls.Label {
-            text: !root.googleAuthService
-                ? qsTr("Carregando serviços Google...")
-                : (root.googleAuthService.isAuthorized
-                    ? qsTr("Autorizado (token salvo localmente)")
-                    : qsTr("Não autorizado"))
+            text: !root.googleAuthService ? qsTr("Carregando serviços Google...") : (root.googleAuthService.isAuthorized ? qsTr("Autorizado (token salvo localmente)") : qsTr("Não autorizado"))
             font.pointSize: Kirigami.Theme.smallFont.pointSize
-            color: root.googleAuthService && root.googleAuthService.isAuthorized
-                ? Kirigami.Theme.positiveTextColor
-                : Kirigami.Theme.disabledTextColor
+            color: root.googleAuthService && root.googleAuthService.isAuthorized ? Kirigami.Theme.positiveTextColor : Kirigami.Theme.disabledTextColor
             Layout.fillWidth: true
         }
 
@@ -105,18 +99,15 @@ Rectangle {
             text: qsTr("Autorizar")
             icon.name: "dialog-password"
             Layout.alignment: Qt.AlignRight
-            enabled: root.googleAuthService
-                && root.settingsModel
-                && (root.settingsModel.googleOAuthClientId || "").trim().length > 0
-                && (root.settingsModel.googleOAuthClientSecret || "").trim().length > 0
-                && !(root.googleAuthService && root.googleAuthService.isAuthorized)
+            enabled: !!(root.googleAuthService && root.settingsModel && (root.settingsModel.googleOAuthClientId || "").trim().length > 0 && (root.settingsModel.googleOAuthClientSecret || "").trim().length > 0 && !(root.googleAuthService && root.googleAuthService.isAuthorized))
             onClicked: {
-                if (!root.googleAuthService || typeof root.googleAuthService.authorize !== "function") return
+                if (!root.googleAuthService || typeof root.googleAuthService.authorize !== "function")
+                    return;
                 // Salvar client_id e client_secret apenas se ainda não estiverem no config (fluxo OAuth lê do arquivo)
                 if (root.settingsModel && typeof root.settingsModel.saveGoogleOAuthOnly === "function") {
-                    root.settingsModel.saveGoogleOAuthOnly()
+                    root.settingsModel.saveGoogleOAuthOnly();
                 }
-                root.googleAuthService.authorize()
+                root.googleAuthService.authorize();
             }
         }
     }

@@ -70,6 +70,7 @@ help:
 	@echo "  $(YELLOW)make clean$(RESET)    - Remove arquivos gerados (__pycache__, .pyc, .qmlc, etc)"
 	@echo "  $(YELLOW)make qml-lint$(RESET)    - Executa qmllint em todos os arquivos QML"
 	@echo "  $(YELLOW)make qml-lint FILES=\"...\"$(RESET)  - qmllint nos arquivos indicados"
+	@echo "  $(YELLOW)make qml-format$(RESET)  - Formata todos os .qml em src/ com qmlformat6 (Docker)"
 	@echo "  $(YELLOW)make python-lint$(RESET) - Verifica Python (ruff ou py_compile)"
 	@echo ""
 
@@ -251,6 +252,13 @@ qml-lint: check-docker
 			QT_QPA_PLATFORM=offscreen \
 			/usr/lib64/qt6/bin/qmllint $(FILES)" 2>&1 || true; \
 	fi
+
+.PHONY: qml-format
+qml-format: check-docker
+	@echo "$(CYAN)Formatando QML em src/ com qmlformat no Docker...$(RESET)"
+	@$(DOCKER_COMPOSE) run $(DOCKER_USER) --rm dev bash -c \
+		"cd /app && find src -name '*.qml' -exec /usr/lib64/qt6/bin/qmlformat -i {} \;"
+	@echo "$(GREEN)✓ QML formatado$(RESET)"
 
 .PHONY: python-lint
 python-lint:

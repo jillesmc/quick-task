@@ -102,9 +102,7 @@ class GoogleDriveCommentsLoadWorker(QThread):
         quoted = comment_data.get("quotedFileContent") or {}
         quoted_value = (quoted.get("value") if isinstance(quoted, dict) else None) or ""
         comment_id = comment_data.get("id", "")
-        file_url = _build_comment_url(
-            file_web_view_link, comment_id, file_mime_type
-        )
+        file_url = _build_comment_url(file_web_view_link, comment_id, file_mime_type)
         return {
             "id": comment_id,
             "content": (comment_data.get("content") or "").strip(),
@@ -190,9 +188,7 @@ class GoogleDriveCommentsLoadWorker(QThread):
                     if not self._is_user_mentioned(c, user_email):
                         continue
                     comments.append(
-                        self._parse_comment(
-                            c, file_id, file_name, file_mime, file_link
-                        )
+                        self._parse_comment(c, file_id, file_name, file_mime, file_link)
                     )
                     if len(comments) >= self._max_results:
                         break
@@ -322,7 +318,9 @@ class GoogleDriveCommentsService(QObject):
         if not self._is_authorized():
             self.authRequired.emit()
             return
-        max_results = max(1, min(100, int(cfg.get("max_comments", DEFAULT_MAX_COMMENTS))))
+        max_results = max(
+            1, min(100, int(cfg.get("max_comments", DEFAULT_MAX_COMMENTS)))
+        )
         unresolved_only = cfg.get("unresolved_only", True)
         self._worker = GoogleDriveCommentsLoadWorker(
             self._auth_manager,

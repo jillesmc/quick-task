@@ -14,6 +14,8 @@ Item {
     property var tabBar: null
     property var createPage: null
     property var issuesPage: null
+    property var createWorkItemPage: null
+    property var myWorkItemsPage: null
     property var settingsPage: null
     property var pendingWorklogsPage: null
     property var timesheetPage: null
@@ -21,15 +23,16 @@ Item {
     property var settingsModel: null
     property bool googleTabEnabled: false
 
-    signal hideRequested()
+    signal hideRequested
 
     Shortcut {
         id: shortcutCreateOrUpdate
-        sequences: [ "Ctrl+Return", "Ctrl+Enter" ]
+        sequences: ["Ctrl+Return", "Ctrl+Enter"]
         onActivated: {
-            if (!root.stack) return;
-            if (root.stack.currentIndex === 2 || root.stack.currentIndex === 3
-                || root.stack.currentIndex === 4 || root.stack.currentIndex === 5) return;
+            if (!root.stack)
+                return;
+            if (root.stack.currentIndex === 2 || root.stack.currentIndex === 3 || root.stack.currentIndex === 4 || root.stack.currentIndex === 5)
+                return;
             if (root.stack.currentIndex === 6) {
                 if (root.settingsPage && root.settingsPage.saveSettingsFromToolbar) {
                     root.settingsPage.saveSettingsFromToolbar();
@@ -43,6 +46,14 @@ Item {
             } else if (root.stack.currentIndex === 1) {
                 if (root.issuesPage && root.issuesPage.updateIssue) {
                     root.issuesPage.updateIssue();
+                }
+            } else if (root.stack.currentIndex === 7) {
+                if (root.createWorkItemPage && root.createWorkItemPage.createIssueFromToolbar) {
+                    root.createWorkItemPage.createIssueFromToolbar();
+                }
+            } else if (root.stack.currentIndex === 8) {
+                if (root.myWorkItemsPage && root.myWorkItemsPage.updateIssue) {
+                    root.myWorkItemsPage.updateIssue();
                 }
             }
         }
@@ -58,8 +69,8 @@ Item {
         sequence: "Alt+1"
         onActivated: {
             if (root.stack && root.tabBar) {
-                root.stack.currentIndex = 0
-                root.tabBar.currentIndex = 0
+                root.stack.currentIndex = 0;
+                root.tabBar.currentIndex = 0;
             }
         }
     }
@@ -67,18 +78,19 @@ Item {
         sequence: "Alt+2"
         onActivated: {
             if (root.stack && root.tabBar) {
-                root.stack.currentIndex = 1
-                root.tabBar.currentIndex = 1
+                root.stack.currentIndex = 1;
+                root.tabBar.currentIndex = 1;
             }
         }
     }
     Shortcut {
         sequence: "Alt+3"
         onActivated: {
-            if (!root.googleTabEnabled) return
+            if (!root.googleTabEnabled)
+                return;
             if (root.stack && root.tabBar) {
-                root.stack.currentIndex = 2
-                root.tabBar.currentIndex = 2
+                root.stack.currentIndex = 2;
+                root.tabBar.currentIndex = 2;
             }
         }
     }
@@ -86,8 +98,8 @@ Item {
         sequence: "Alt+4"
         onActivated: {
             if (root.stack && root.tabBar) {
-                root.stack.currentIndex = 3
-                root.tabBar.currentIndex = 3
+                root.stack.currentIndex = 3;
+                root.tabBar.currentIndex = 3;
             }
         }
     }
@@ -95,8 +107,8 @@ Item {
         sequence: "Alt+5"
         onActivated: {
             if (root.stack && root.tabBar) {
-                root.stack.currentIndex = 4
-                root.tabBar.currentIndex = 4
+                root.stack.currentIndex = 4;
+                root.tabBar.currentIndex = 4;
             }
         }
     }
@@ -104,8 +116,8 @@ Item {
         sequence: "Alt+6"
         onActivated: {
             if (root.stack && root.tabBar) {
-                root.stack.currentIndex = 5
-                root.tabBar.currentIndex = 5
+                root.stack.currentIndex = 5;
+                root.tabBar.currentIndex = 5;
             }
         }
     }
@@ -113,8 +125,26 @@ Item {
         sequence: "Alt+7"
         onActivated: {
             if (root.stack && root.tabBar) {
-                root.stack.currentIndex = 6
-                root.tabBar.currentIndex = 6
+                root.stack.currentIndex = 6;
+                root.tabBar.currentIndex = 6;
+            }
+        }
+    }
+    Shortcut {
+        sequence: "Alt+8"
+        onActivated: {
+            if (root.stack && root.tabBar) {
+                root.stack.currentIndex = 7;
+                root.tabBar.currentIndex = 7;
+            }
+        }
+    }
+    Shortcut {
+        sequence: "Alt+9"
+        onActivated: {
+            if (root.stack && root.tabBar) {
+                root.stack.currentIndex = 8;
+                root.tabBar.currentIndex = 8;
             }
         }
     }
@@ -123,24 +153,25 @@ Item {
         id: shortcutSwitchTab
         sequence: "Ctrl+Tab"
         onActivated: {
-            if (!root.stack || !root.tabBar) return;
-            var contentTabs = root.googleTabEnabled ? [0, 1, 2, 3] : [0, 1, 3]
-            var currentIdx = root.stack.currentIndex
-            var idx = contentTabs.indexOf(currentIdx)
-            var nextIdx = (idx >= 0) ? contentTabs[(idx + 1) % contentTabs.length] : 0
-            root.stack.currentIndex = nextIdx
-            root.tabBar.currentIndex = nextIdx
+            if (!root.stack || !root.tabBar)
+                return;
+            var contentTabs = root.googleTabEnabled ? [0, 1, 2, 3] : [0, 1, 3];
+            var currentIdx = root.stack.currentIndex;
+            var idx = contentTabs.indexOf(currentIdx);
+            var nextIdx = (idx >= 0) ? contentTabs[(idx + 1) % contentTabs.length] : 0;
+            root.stack.currentIndex = nextIdx;
+            root.tabBar.currentIndex = nextIdx;
         }
     }
 
     Shortcut {
         id: shortcutVoiceInput
-        sequence: (root.settingsModel && root.settingsModel.voiceInputKeyboardShortcut)
-            ? root.settingsModel.voiceInputKeyboardShortcut
-            : "Meta+F"
+        sequence: (root.settingsModel && root.settingsModel.voiceInputKeyboardShortcut) ? root.settingsModel.voiceInputKeyboardShortcut : "Meta+F"
         onActivated: {
             if (root.stack && root.stack.currentIndex === 0 && root.createPage && root.createPage.openVoiceDialog) {
                 root.createPage.openVoiceDialog();
+            } else if (root.stack && root.stack.currentIndex === 7 && root.createWorkItemPage && root.createWorkItemPage.openVoiceDialog) {
+                root.createWorkItemPage.openVoiceDialog();
             }
         }
     }
@@ -149,13 +180,14 @@ Item {
         id: shortcutSwitchTabBack
         sequence: "Ctrl+Shift+Tab"
         onActivated: {
-            if (!root.stack || !root.tabBar) return;
-            var contentTabs = root.googleTabEnabled ? [0, 1, 2, 3] : [0, 1, 3]
-            var currentIdx = root.stack.currentIndex
-            var idx = contentTabs.indexOf(currentIdx)
-            var prevIdx = (idx >= 0) ? contentTabs[(idx - 1 + contentTabs.length) % contentTabs.length] : contentTabs[contentTabs.length - 1]
-            root.stack.currentIndex = prevIdx
-            root.tabBar.currentIndex = prevIdx
+            if (!root.stack || !root.tabBar)
+                return;
+            var contentTabs = root.googleTabEnabled ? [0, 1, 2, 3] : [0, 1, 3];
+            var currentIdx = root.stack.currentIndex;
+            var idx = contentTabs.indexOf(currentIdx);
+            var prevIdx = (idx >= 0) ? contentTabs[(idx - 1 + contentTabs.length) % contentTabs.length] : contentTabs[contentTabs.length - 1];
+            root.stack.currentIndex = prevIdx;
+            root.tabBar.currentIndex = prevIdx;
         }
     }
 }

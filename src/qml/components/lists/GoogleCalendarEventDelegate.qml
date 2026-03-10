@@ -24,12 +24,13 @@ Rectangle {
     radius: Kirigami.Units.smallSpacing
 
     function formatTime(isoStr) {
-        if (!isoStr || typeof isoStr !== "string") return ""
+        if (!isoStr || typeof isoStr !== "string")
+            return "";
         if (isoStr.indexOf("T") >= 0) {
-            var t = isoStr.split("T")[1] || ""
-            return t.replace(/[+-]\d{2}:\d{2}$/, "").substring(0, 5)
+            var t = isoStr.split("T")[1] || "";
+            return t.replace(/[+-]\d{2}:\d{2}$/, "").substring(0, 5);
         }
-        return ""
+        return "";
     }
 
     ColumnLayout {

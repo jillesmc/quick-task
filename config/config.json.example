@@ -18,12 +18,7 @@
   ],
   "status_sequence": [
     "TO DO",
-    "WAITING DEVELOPMENT",
-    "IN DEVELOPMENT",
-    "CODE REVIEW",
-    "WAITING FOR HOMOLOG",
-    "IN HOMOLOGATION",
-    "READY FOR DEPLOY",
+    "IN PROGRESS",
     "DONE"
   ],
   "assets": {
@@ -60,12 +55,24 @@
     "project_platform": true,
     "exclude_done": true
   },
+  "parent_work_item_filters": {
+    "created_by_me": false,
+    "assigned_to_me": false,
+    "project_platform": true,
+    "exclude_done": true,
+    "selected_project_keys": []
+  },
   "status_transitions": {
     "worklog_check": {
       "enabled": true,
       "show_confirmation_dialog": true,
       "block_transition_if_pending": false
     }
+  },
+  "http_retry": {
+    "max_retries": 3,
+    "base_delay_seconds": 1.0,
+    "max_delay_seconds": 60.0
   },
   "timesheet": {
     "enabled": true,

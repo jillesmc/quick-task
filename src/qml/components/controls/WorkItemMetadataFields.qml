@@ -1,0 +1,331 @@
+/**
+ * WorkItemMetadataFields.qml
+ *
+ * Grid de metadados para work items (abas 7 e 8): Prioridade (via PriorityBlock),
+ * Status, Documentação anexa, Utilização de IA, Tipo de atividade, Valor Entregue,
+ * Plataformas afetadas. Binds to workItemModel. Não modificar IssueMetadataFields (abas 0/1).
+ */
+import QtQuick
+import QtQuick.Layouts
+import QtQuick.Controls as Controls
+import org.kde.kirigami as Kirigami
+import "../fields"
+
+ColumnLayout {
+    id: metadataFieldsRoot
+
+    property var workItemModel: null
+    property bool enabled: true
+    /** Se true, desabilita status anteriores ao atual na sequência (regra de não voltar atrás). Use false na tela de criar issue. */
+    property bool restrictStatusBySequence: true
+    /** Status persistido (ex.: do Jira); quando definido, a desativação usa só este valor, não o escolhido no formulário. Use na Minhas Issues. */
+    property string statusForRestriction: ""
+    /** Quando true, considera todos os caminhos a partir do initial como liberados (ex.: CreateWorkItemPage). Passa currentStatusName vazio para o cálculo de enabled. */
+    property bool allPathsFromInitial: false
+    /** Transições disponíveis da API (GET issue/transitions). Quando definido, o status usa esta lista para enabled em vez de reachable. */
+    property var availableTransitions: null
+    /** Model de metadata (atlassianMetadataConfigModel); usado para workflow_metadata nas abas 7/8. */
+    property var atlassianMetadataConfigModel: null
+    /** Chave do projeto (ex.: PLATFORM); com issuetypeId obtém workflow entry. */
+    property string projectKey: ""
+    /** ID do tipo de issue (ex.: 10008); com projectKey obtém workflow entry. */
+    property string issuetypeId: ""
+
+    /** Workflow entry para o par projectKey/issuetypeId; null se metadata não disponível. Usa primeiro projeto/tipo da metadata quando projectKey/issuetypeId vazios (ex.: CreateWorkItemPage). */
+    readonly property var _workflowEntry: {
+        if (!metadataFieldsRoot.atlassianMetadataConfigModel)
+            return null;
+        var meta = metadataFieldsRoot.atlassianMetadataConfigModel.getLoadedMetadata();
+        var wm = meta && meta.workflow_metadata ? meta.workflow_metadata : null;
+        if (!wm)
+            return null;
+        var pk = (metadataFieldsRoot.projectKey || "").toString().trim();
+        var itid = (metadataFieldsRoot.issuetypeId || "").toString().trim();
+        if (!pk || !itid) {
+            var sp = meta.selected_projects;
+            if (sp && sp.length > 0 && sp[0] && sp[0].key)
+                pk = String(sp[0].key);
+            var sit = meta.selected_issue_types;
+            if (sit && pk && sit[pk] && sit[pk].length > 0 && sit[pk][0] && sit[pk][0].id != undefined)
+                itid = String(sit[pk][0].id);
+        }
+        if (!pk || !itid || !wm[pk])
+            return null;
+        return wm[pk][itid] || null;
+    }
+
+    /** Lista de nomes de status do workflow (para índices e fallback). Sem workflow: []. */
+    readonly property var statusNameList: {
+        var entry = metadataFieldsRoot._workflowEntry;
+        if (!entry || !entry.statuses)
+            return [];
+        var out = [];
+        for (var i = 0; i < entry.statuses.length; i++)
+            out.push(entry.statuses[i].name || "");
+        return out;
+    }
+
+    /** Índice do status atual no formulário (statusInicial). Usa statusNameList (workflow). */
+    property int statusCurrentIndex: {
+        if (!metadataFieldsRoot.workItemModel)
+            return -1;
+        var seq = metadataFieldsRoot.statusNameList || [];
+        var current = String(metadataFieldsRoot.workItemModel.statusInicial || "").trim().toUpperCase();
+        for (var i = 0; i < seq.length; i++) {
+            if (String(seq[i] || "").trim().toUpperCase() === current)
+                return i;
+        }
+        return -1;
+    }
+    /** Índice do status persistido (statusForRestriction) na sequência; usado para minEnabledIndex quando definido. Usa statusNameList (workflow). */
+    property int statusRestrictionIndex: {
+        if (!metadataFieldsRoot.statusForRestriction)
+            return -1;
+        var seq = metadataFieldsRoot.statusNameList || [];
+        var saved = String(metadataFieldsRoot.statusForRestriction || "").trim().toUpperCase();
+        for (var i = 0; i < seq.length; i++) {
+            if (String(seq[i] || "").trim().toUpperCase() === saved)
+                return i;
+        }
+        return -1;
+    }
+    property int _statusMinEnabledIndex: {
+        if (!metadataFieldsRoot.restrictStatusBySequence)
+            return -1;
+        var idx = metadataFieldsRoot.statusForRestriction ? metadataFieldsRoot.statusRestrictionIndex : metadataFieldsRoot.statusCurrentIndex;
+        return idx >= 0 ? idx : -1;
+    }
+
+    spacing: Kirigami.Units.largeSpacing
+
+    GridLayout {
+        id: metadataGrid
+        Layout.fillWidth: true
+        columnSpacing: Kirigami.Units.largeSpacing
+        rowSpacing: Kirigami.Units.largeSpacing * 1.5
+        columns: width > 650 ? 2 : 1
+
+        // Prioridade (componente reutilizável para abas 7 e 8)
+        PriorityBlock {
+            Layout.fillWidth: true
+            Layout.alignment: Qt.AlignTop
+            model: metadataFieldsRoot.workItemModel
+            enabled: metadataFieldsRoot.enabled
+            labelText: qsTr("Prioridade:")
+        }
+
+        // Status (workflow por reachable quando metadata disponível; sem workflow: model vazio, sem fallback config)
+        ColumnLayout {
+            id: statusColumnLayout
+            Layout.fillWidth: true
+            Layout.alignment: Qt.AlignTop
+            spacing: Kirigami.Units.smallSpacing
+
+            Controls.Label {
+                text: qsTr("Status:")
+                font.bold: true
+                Layout.fillWidth: true
+            }
+
+            WorkItemStatusField {
+                id: workflowStatusField
+                Layout.fillWidth: true
+                workflowEntry: metadataFieldsRoot._workflowEntry
+                currentStatusName: metadataFieldsRoot.allPathsFromInitial ? "" : (metadataFieldsRoot.statusForRestriction || (metadataFieldsRoot.workItemModel ? metadataFieldsRoot.workItemModel.statusInicial : ""))
+                allPathsFromInitial: metadataFieldsRoot.allPathsFromInitial
+                availableTransitions: metadataFieldsRoot.availableTransitions
+                selectedValue: metadataFieldsRoot.workItemModel ? metadataFieldsRoot.workItemModel.statusInicial : ""
+                enabled: metadataFieldsRoot.enabled
+                visible: !!metadataFieldsRoot._workflowEntry
+                onValueChanged: function (value) {
+                    if (metadataFieldsRoot.workItemModel) {
+                        metadataFieldsRoot.workItemModel.statusInicial = value;
+                    }
+                }
+            }
+
+            IssueRadioGroup {
+                id: statusRadioGroupFallback
+                Layout.fillWidth: true
+                visible: !metadataFieldsRoot._workflowEntry
+                model: metadataFieldsRoot.statusNameList || []
+                enabled: metadataFieldsRoot.enabled
+                selectedValue: metadataFieldsRoot.workItemModel ? metadataFieldsRoot.workItemModel.statusInicial : ""
+                minEnabledIndex: metadataFieldsRoot._statusMinEnabledIndex
+                onValueChanged: function (value) {
+                    if (metadataFieldsRoot.workItemModel) {
+                        metadataFieldsRoot.workItemModel.statusInicial = value;
+                    }
+                }
+            }
+
+            Controls.Label {
+                Layout.fillWidth: true
+                visible: !metadataFieldsRoot._workflowEntry
+                text: qsTr("Carregue o workflow em Configurações para escolher o status.")
+                wrapMode: Text.WordWrap
+                font.italic: true
+                opacity: 0.8
+            }
+        }
+
+        // Documentação e IA
+        ColumnLayout {
+            Layout.fillWidth: true
+            Layout.alignment: Qt.AlignTop
+            spacing: Kirigami.Units.largeSpacing
+
+            // Documentação anexa
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: Kirigami.Units.smallSpacing
+
+                Controls.Label {
+                    text: qsTr("Documentação anexa:")
+                    font.bold: true
+                    Layout.fillWidth: true
+                }
+
+                Row {
+                    spacing: Kirigami.Units.largeSpacing
+                    Controls.RadioButton {
+                        text: qsTr("Não")
+                        enabled: metadataFieldsRoot.enabled
+                        checked: metadataFieldsRoot.workItemModel && metadataFieldsRoot.workItemModel.documentacaoAnexa === "Não"
+                        onCheckedChanged: {
+                            if (checked && metadataFieldsRoot.workItemModel) {
+                                metadataFieldsRoot.workItemModel.documentacaoAnexa = "Não";
+                            }
+                        }
+                    }
+                    Controls.RadioButton {
+                        text: qsTr("Sim")
+                        enabled: metadataFieldsRoot.enabled
+                        checked: metadataFieldsRoot.workItemModel && metadataFieldsRoot.workItemModel.documentacaoAnexa === "Sim"
+                        onCheckedChanged: {
+                            if (checked && metadataFieldsRoot.workItemModel) {
+                                metadataFieldsRoot.workItemModel.documentacaoAnexa = "Sim";
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Utilização de IA
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: Kirigami.Units.smallSpacing
+
+                Controls.Label {
+                    text: qsTr("Utilização de IA:")
+                    font.bold: true
+                    Layout.fillWidth: true
+                }
+
+                Row {
+                    spacing: Kirigami.Units.largeSpacing
+                    Controls.RadioButton {
+                        text: qsTr("Não")
+                        enabled: metadataFieldsRoot.enabled
+                        checked: metadataFieldsRoot.workItemModel && metadataFieldsRoot.workItemModel.utilizacaoIA === "Não"
+                        onCheckedChanged: {
+                            if (checked && metadataFieldsRoot.workItemModel) {
+                                metadataFieldsRoot.workItemModel.utilizacaoIA = "Não";
+                            }
+                        }
+                    }
+                    Controls.RadioButton {
+                        text: qsTr("Sim")
+                        enabled: metadataFieldsRoot.enabled
+                        checked: metadataFieldsRoot.workItemModel && metadataFieldsRoot.workItemModel.utilizacaoIA === "Sim"
+                        onCheckedChanged: {
+                            if (checked && metadataFieldsRoot.workItemModel) {
+                                metadataFieldsRoot.workItemModel.utilizacaoIA = "Sim";
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Tipo de Atividade
+        ColumnLayout {
+            id: tipoAtividadeColumnLayout
+            Layout.fillWidth: true
+            Layout.alignment: Qt.AlignTop
+            spacing: Kirigami.Units.smallSpacing
+
+            Controls.Label {
+                text: qsTr("Tipo de atividade:")
+                font.bold: true
+                Layout.fillWidth: true
+            }
+
+            IssueRadioGroup {
+                id: tipoAtividadeRadioGroup
+                Layout.fillWidth: true
+                model: metadataFieldsRoot.workItemModel ? metadataFieldsRoot.workItemModel.tipoAtividadeValues : []
+                enabled: metadataFieldsRoot.enabled
+                selectedValue: metadataFieldsRoot.workItemModel ? metadataFieldsRoot.workItemModel.tipoAtividade : ""
+                onValueChanged: function (value) {
+                    if (metadataFieldsRoot.workItemModel) {
+                        metadataFieldsRoot.workItemModel.tipoAtividade = value;
+                    }
+                }
+            }
+        }
+
+        // Valor Entregue
+        ColumnLayout {
+            id: valorEntregueColumnLayout
+            Layout.fillWidth: true
+            Layout.alignment: Qt.AlignTop
+            spacing: Kirigami.Units.smallSpacing
+
+            Controls.Label {
+                text: qsTr("Valor Entregue:")
+                font.bold: true
+                Layout.fillWidth: true
+            }
+
+            IssueRadioGroup {
+                id: valorEntregueRadioGroup
+                Layout.fillWidth: true
+                model: metadataFieldsRoot.workItemModel ? metadataFieldsRoot.workItemModel.valorEntregueOptions : []
+                enabled: metadataFieldsRoot.enabled
+                selectedValue: metadataFieldsRoot.workItemModel ? metadataFieldsRoot.workItemModel.valorEntregue : ""
+                onValueChanged: function (value) {
+                    if (metadataFieldsRoot.workItemModel) {
+                        metadataFieldsRoot.workItemModel.valorEntregue = value;
+                    }
+                }
+            }
+        }
+    }
+
+    // Plataformas Afetadas
+    ColumnLayout {
+        id: plataformasColumnLayout
+        Layout.fillWidth: true
+        spacing: Kirigami.Units.smallSpacing
+
+        Controls.Label {
+            text: qsTr("Plataformas afetadas:")
+            font.bold: true
+            Layout.fillWidth: true
+        }
+
+        IssueCheckList {
+            id: plataformasCheckList
+            Layout.fillWidth: true
+            model: metadataFieldsRoot.workItemModel ? metadataFieldsRoot.workItemModel.plataformasAfetadasOptions : []
+            enabled: metadataFieldsRoot.enabled
+            selectedValues: metadataFieldsRoot.workItemModel ? (metadataFieldsRoot.workItemModel.plataformasAfetadas || []) : []
+            onSelectionChanged: function (values) {
+                if (metadataFieldsRoot.workItemModel) {
+                    metadataFieldsRoot.workItemModel.plataformasAfetadas = values;
+                }
+            }
+        }
+    }
+}

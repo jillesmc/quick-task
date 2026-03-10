@@ -31,23 +31,27 @@ Controls.Popup {
 
     // Branch: gh repo clone + git checkout
     readonly property string ghBranchCloneCommand: {
-        if (!root.isBranch || !root.itemData || !root.gitCommandHelper) return ""
-        return root.gitCommandHelper.getGhBranchCloneCommand(root.itemData.url || "", root.itemData.name || "")
+        if (!root.isBranch || !root.itemData || !root.gitCommandHelper)
+            return "";
+        return root.gitCommandHelper.getGhBranchCloneCommand(root.itemData.url || "", root.itemData.name || "");
     }
     readonly property string ghBranchCheckoutCommand: {
-        if (!root.isBranch || !root.itemData || !root.gitCommandHelper) return ""
-        return root.gitCommandHelper.getGhBranchCheckoutCommand(root.itemData.name || "")
+        if (!root.isBranch || !root.itemData || !root.gitCommandHelper)
+            return "";
+        return root.gitCommandHelper.getGhBranchCheckoutCommand(root.itemData.name || "");
     }
     readonly property bool showBranchCommands: root.isBranch && root.ghBranchCloneCommand !== ""
 
     // PR: gh repo clone + gh pr checkout
     readonly property string ghPrCloneCommand: {
-        if (!root.isPr || !root.itemData || !root.gitCommandHelper) return ""
-        return root.gitCommandHelper.getGhPrCloneCommand(root.itemData.url || "", root.itemData.number || "")
+        if (!root.isPr || !root.itemData || !root.gitCommandHelper)
+            return "";
+        return root.gitCommandHelper.getGhPrCloneCommand(root.itemData.url || "", root.itemData.number || "");
     }
     readonly property string ghPrCheckoutCommand: {
-        if (!root.isPr || !root.itemData || !root.gitCommandHelper) return ""
-        return root.gitCommandHelper.getGhPrCheckoutCommand(root.itemData.url || "", root.itemData.number || "")
+        if (!root.isPr || !root.itemData || !root.gitCommandHelper)
+            return "";
+        return root.gitCommandHelper.getGhPrCheckoutCommand(root.itemData.url || "", root.itemData.number || "");
     }
     readonly property bool showPrCommands: root.isPr && root.ghPrCloneCommand !== ""
 
@@ -95,11 +99,14 @@ Controls.Popup {
                 font.pixelSize: Kirigami.Theme.smallFont.pixelSize
                 font.bold: true
                 color: {
-                    if (!root.itemData) return Kirigami.Theme.textColor
-                    var s = (root.itemData.state || "").toLowerCase()
-                    if (s === "open") return Kirigami.Theme.positiveTextColor
-                    if (s === "merged") return Kirigami.Theme.disabledTextColor
-                    return Kirigami.Theme.textColor
+                    if (!root.itemData)
+                        return Kirigami.Theme.textColor;
+                    var s = (root.itemData.state || "").toLowerCase();
+                    if (s === "open")
+                        return Kirigami.Theme.positiveTextColor;
+                    if (s === "merged")
+                        return Kirigami.Theme.disabledTextColor;
+                    return Kirigami.Theme.textColor;
                 }
             }
             Controls.Label {
@@ -133,12 +140,16 @@ Controls.Popup {
         Controls.Label {
             visible: root.isPr && root.enrichedPr && (root.enrichedPr.approvalsCount !== undefined || root.enrichedPr.changesRequested || root.enrichedPr.mergeableState)
             text: {
-                if (!root.enrichedPr) return ""
-                var parts = []
-                if (root.enrichedPr.approvalsCount !== undefined) parts.push(qsTr("%1 approval(s)").arg(root.enrichedPr.approvalsCount))
-                if (root.enrichedPr.changesRequested) parts.push(qsTr("Changes requested"))
-                if (root.enrichedPr.mergeableState) parts.push(root.enrichedPr.mergeableState)
-                return parts.join(" • ")
+                if (!root.enrichedPr)
+                    return "";
+                var parts = [];
+                if (root.enrichedPr.approvalsCount !== undefined)
+                    parts.push(qsTr("%1 approval(s)").arg(root.enrichedPr.approvalsCount));
+                if (root.enrichedPr.changesRequested)
+                    parts.push(qsTr("Changes requested"));
+                if (root.enrichedPr.mergeableState)
+                    parts.push(root.enrichedPr.mergeableState);
+                return parts.join(" • ");
             }
             font.pixelSize: Kirigami.Theme.smallFont.pixelSize
             color: Kirigami.Theme.disabledTextColor
@@ -196,9 +207,9 @@ Controls.Popup {
                     Layout.alignment: Qt.AlignLeft
                     onClicked: {
                         if (root.clipboardHelper && root.ghBranchCloneCommand) {
-                            root.clipboardHelper.setText(root.ghBranchCloneCommand)
+                            root.clipboardHelper.setText(root.ghBranchCloneCommand);
                             if (root.applicationWindow && typeof root.applicationWindow.showPassiveNotification === "function") {
-                                root.applicationWindow.showPassiveNotification(qsTr("Comando clone copiado!"), 2000)
+                                root.applicationWindow.showPassiveNotification(qsTr("Comando clone copiado!"), 2000);
                             }
                         }
                     }
@@ -236,9 +247,9 @@ Controls.Popup {
                     Layout.alignment: Qt.AlignLeft
                     onClicked: {
                         if (root.clipboardHelper && root.ghBranchCheckoutCommand) {
-                            root.clipboardHelper.setText(root.ghBranchCheckoutCommand)
+                            root.clipboardHelper.setText(root.ghBranchCheckoutCommand);
                             if (root.applicationWindow && typeof root.applicationWindow.showPassiveNotification === "function") {
-                                root.applicationWindow.showPassiveNotification(qsTr("Comando checkout copiado!"), 2000)
+                                root.applicationWindow.showPassiveNotification(qsTr("Comando checkout copiado!"), 2000);
                             }
                         }
                     }
@@ -282,9 +293,9 @@ Controls.Popup {
                     Layout.alignment: Qt.AlignLeft
                     onClicked: {
                         if (root.clipboardHelper && root.ghPrCloneCommand) {
-                            root.clipboardHelper.setText(root.ghPrCloneCommand)
+                            root.clipboardHelper.setText(root.ghPrCloneCommand);
                             if (root.applicationWindow && typeof root.applicationWindow.showPassiveNotification === "function") {
-                                root.applicationWindow.showPassiveNotification(qsTr("Comando clone copiado!"), 2000)
+                                root.applicationWindow.showPassiveNotification(qsTr("Comando clone copiado!"), 2000);
                             }
                         }
                     }
@@ -322,9 +333,9 @@ Controls.Popup {
                     Layout.alignment: Qt.AlignLeft
                     onClicked: {
                         if (root.clipboardHelper && root.ghPrCheckoutCommand) {
-                            root.clipboardHelper.setText(root.ghPrCheckoutCommand)
+                            root.clipboardHelper.setText(root.ghPrCheckoutCommand);
                             if (root.applicationWindow && typeof root.applicationWindow.showPassiveNotification === "function") {
-                                root.applicationWindow.showPassiveNotification(qsTr("Comando checkout copiado!"), 2000)
+                                root.applicationWindow.showPassiveNotification(qsTr("Comando checkout copiado!"), 2000);
                             }
                         }
                     }
@@ -338,9 +349,10 @@ Controls.Popup {
             icon.name: "globe"
             flat: true
             onClicked: {
-                var url = root.itemData ? root.itemData.url : ""
-                if (url) Qt.openUrlExternally(url)
-                root.close()
+                var url = root.itemData ? root.itemData.url : "";
+                if (url)
+                    Qt.openUrlExternally(url);
+                root.close();
             }
         }
     }

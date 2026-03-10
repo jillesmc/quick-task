@@ -80,7 +80,7 @@ def test_get_issue_details_maps_fields_and_uppercases_status(
         "fields": {
             "summary": "Test summary",
             "description": "Test description",
-            "status": {"name": "In Development"},
+            "status": {"name": "In Progress"},
             # parent
             "parent": {
                 "key": "PLATFORM-1",
@@ -95,7 +95,7 @@ def test_get_issue_details_maps_fields_and_uppercases_status(
     assert details["summary"] == "Test summary"
     assert details["description"] == "Test description"
     # status deve ser uppercased
-    assert details["status"] == "IN DEVELOPMENT"
+    assert details["status"] == "IN PROGRESS"
     assert details["parentKey"] == "PLATFORM-1"
     assert details["parentSummary"] == "Epic summary"
 

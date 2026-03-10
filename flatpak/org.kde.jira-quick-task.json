@@ -53,6 +53,7 @@
         "mkdir -p /app/share/jira-quick-task/config",
         "cp config/.jira-config.yml.example /app/share/jira-quick-task/config/.jira-config.yml.example || true",
         "cp config/config.json.example /app/share/jira-quick-task/config/config.json.example || true",
+        "cp config/jira_metadata.json /app/share/jira-quick-task/config/jira_metadata.json || true",
         "cp config/.jira-config.yml.example /app/share/jira-quick-task/config/.jira-config.yml || true",
         "cp config/config.json.example /app/share/jira-quick-task/config/config.json || true",
         "install -Dm644 assets/jira-quick-task.svg /app/share/icons/hicolor/scalable/apps/org.kde.jira-quick-task.svg || true",

@@ -7,3 +7,4 @@ TimesheetSettingsBlock TimesheetSettingsBlock.qml
 GitHubSettingsBlock GitHubSettingsBlock.qml
 DevelopmentPanelSettingsBlock DevelopmentPanelSettingsBlock.qml
 GoogleOAuthSettingsBlock GoogleOAuthSettingsBlock.qml
+HttpRetrySettingsBlock HttpRetrySettingsBlock.qml

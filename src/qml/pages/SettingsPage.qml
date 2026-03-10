@@ -23,12 +23,13 @@ Kirigami.Page {
     property var jiraService: null
     property var myIssuesModel: null
     property var googleAuthService: null
+    property var jiraMetadataConfigModel: null
+    property var voiceInputService: null
     property bool isSaving: false
     property bool isValid: connectionBlock ? connectionBlock.valid : false
 
-    // Entrada por voz: context property (pode ser null se dependências não instaladas)
-    property var _ctxVoiceInputService: (typeof voiceInputService !== "undefined" ? voiceInputService : null) // qmllint disable unqualified
-    property bool voiceInputAvailable: _ctxVoiceInputService ? _ctxVoiceInputService.isAvailable() : false
+    property bool voiceInputAvailable: voiceInputService ? voiceInputService.isAvailable() : false
+    property bool hasWorkflowMetadata: false
 
     // Função pública para integração com Main.qml (botão global no header)
     function saveSettingsFromToolbar() {
@@ -44,6 +45,23 @@ Kirigami.Page {
 
     Component.onCompleted: {
         // Blocks load their own initial values from settingsModel
+        if (page.jiraMetadataConfigModel)
+            page.jiraMetadataConfigModel.loadConfiguration();
+    }
+
+    // Recarregar metadata quando o model ficar disponível (pode ser após onCompleted)
+    onJiraMetadataConfigModelChanged: {
+        if (page.jiraMetadataConfigModel) {
+            page.jiraMetadataConfigModel.loadConfiguration();
+        } else {
+            page.hasWorkflowMetadata = false;
+        }
+    }
+
+    // Recarregar ao abrir a página (garante estado correto ao navegar para Definições)
+    onVisibleChanged: {
+        if (page.visible && page.jiraMetadataConfigModel)
+            page.jiraMetadataConfigModel.loadConfiguration();
     }
 
     // Conectar sinais do modelo (só quando o modelo existir)
@@ -94,7 +112,7 @@ Kirigami.Page {
         id: splitView
         anchors.fill: parent
         orientation: Qt.Horizontal
-        handle: SplitViewHandle { }
+        handle: SplitViewHandle {}
 
         // Coluna Esquerda: Conexões com plataformas e dados do Jira
         Controls.ScrollView {
@@ -140,6 +158,122 @@ Kirigami.Page {
                         settingsModel: page.settingsModel
                     }
 
+                    // Metadata do Jira (projetos, issue types, campos) - Issue #25
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: Kirigami.Units.smallSpacing
+                        visible: !!page.jiraMetadataConfigModel
+
+                        Kirigami.Heading {
+                            text: qsTr("Metadata do Jira")
+                            level: 3
+                            Layout.fillWidth: true
+                        }
+                        Controls.Label {
+                            text: qsTr("Configure quais projetos, tipos de issue e campos usar na aplicação.")
+                            wrapMode: Text.WordWrap
+                            Layout.fillWidth: true
+                        }
+                        Controls.Button {
+                            text: qsTr("Configurar projetos e campos")
+                            Layout.fillWidth: true
+                            enabled: page.jiraMetadataConfigModel && page.jiraMetadataConfigModel.isAvailable()
+                            onClicked: {
+                                var comp = Qt.createComponent("../components/dialogs/JiraMetadataWizard.qml");
+                                if (comp.status !== Component.Ready) {
+                                    if (comp.status === Component.Error && typeof console !== "undefined")
+                                        console.warn("[SettingsPage] JiraMetadataWizard load error:", comp.errorString());
+                                    return;
+                                }
+                                var parent = (typeof page.applicationWindow !== "undefined" ? page.applicationWindow : null) || page.parent || page; // qmllint disable missing-property
+                                var dlg = comp.createObject(parent, {
+                                    jiraMetadataConfigModel: page.jiraMetadataConfigModel
+                                });
+                                if (dlg) {
+                                    dlg.closed.connect(function () {
+                                        dlg.destroy();
+                                    });
+                                    dlg.open();
+                                }
+                            }
+                        }
+                        Controls.Label {
+                            visible: page.jiraMetadataConfigModel && !page.jiraMetadataConfigModel.isAvailable()
+                            text: qsTr("Configure a conexão Jira acima primeiro.")
+                            color: Kirigami.Theme.negativeTextColor
+                            wrapMode: Text.WordWrap
+                            Layout.fillWidth: true
+                        }
+                        Controls.Button {
+                            text: qsTr("Definir caminho feliz")
+                            Layout.fillWidth: true
+                            enabled: !!page.jiraMetadataConfigModel && page.hasWorkflowMetadata
+                            Accessible.name: text
+                            Accessible.description: enabled ? qsTr("Abre o assistente para definir a sequência de status até Done.") : qsTr("Salve primeiro a configuração de projetos e campos para desbloquear.")
+                            onClicked: {
+                                var comp = Qt.createComponent("../components/dialogs/HappyPathWizard.qml");
+                                if (comp.status !== Component.Ready) {
+                                    if (comp.status === Component.Error && typeof console !== "undefined")
+                                        console.warn("[SettingsPage] HappyPathWizard load error:", comp.errorString());
+                                    return;
+                                }
+                                var parent = (typeof page.applicationWindow !== "undefined" ? page.applicationWindow : null) || page.parent || page; // qmllint disable missing-property
+                                var dlg = comp.createObject(parent, {
+                                    jiraMetadataConfigModel: page.jiraMetadataConfigModel
+                                });
+                                if (dlg) {
+                                    dlg.closed.connect(function () {
+                                        dlg.destroy();
+                                    });
+                                    dlg.open();
+                                }
+                            }
+                        }
+                        Controls.Label {
+                            visible: !!page.jiraMetadataConfigModel && !page.hasWorkflowMetadata && page.jiraMetadataConfigModel.isAvailable()
+                            text: qsTr("Salve primeiro a configuração de projetos e campos para desbloquear.")
+                            color: Kirigami.Theme.negativeTextColor
+                            wrapMode: Text.WordWrap
+                            Layout.fillWidth: true
+                        }
+                    }
+
+                    Connections {
+                        target: page.jiraMetadataConfigModel
+                        enabled: !!page.jiraMetadataConfigModel
+                        function onLoadFinished(success) {
+                            if (!success) {
+                                page.hasWorkflowMetadata = false;
+                                return;
+                            }
+                            var meta = page.jiraMetadataConfigModel.getLoadedMetadata();
+                            var wm = meta.workflow_metadata;
+                            if (!wm || typeof wm !== "object") {
+                                page.hasWorkflowMetadata = false;
+                                return;
+                            }
+                            // Listas vindas do Python (QVariantList) podem não ser Array em QML; aceitar array-like (length > 0)
+                            function hasNonEmptyList(val) {
+                                if (!val || typeof val.length !== "number")
+                                    return false;
+                                return val.length > 0;
+                            }
+                            for (var pk in wm) {
+                                var byType = wm[pk];
+                                if (!byType || typeof byType !== "object")
+                                    continue;
+                                for (var it in byType) {
+                                    var entry = byType[it];
+                                    if (entry && (hasNonEmptyList(entry.transitions) || hasNonEmptyList(entry.statuses))) {
+                                        page.hasWorkflowMetadata = true;
+                                        return;
+                                    }
+                                }
+                            }
+                            page.hasWorkflowMetadata = false;
+                        }
+                    }
+
                     // Recarregar opções de Assets (Valor entregue, Plataformas afetadas)
                     ColumnLayout {
                         Layout.fillWidth: true
@@ -177,9 +311,7 @@ Kirigami.Page {
                         function onAssetsCacheLoaded(success, message) {
                             assetsReloadStatus.visible = true;
                             assetsReloadStatus.text = message;
-                            assetsReloadStatus.color = success
-                                ? Kirigami.Theme.positiveTextColor
-                                : Kirigami.Theme.negativeTextColor;
+                            assetsReloadStatus.color = success ? Kirigami.Theme.positiveTextColor : Kirigami.Theme.negativeTextColor;
                         }
                     }
                 }
@@ -236,6 +368,18 @@ Kirigami.Page {
                         settingsModel: page.settingsModel
                     }
                     DevelopmentPanelSettingsBlock {
+                        Layout.fillWidth: true
+                        settingsModel: page.settingsModel
+                    }
+
+                    // Chamadas externas (HTTP retry)
+                    Kirigami.Heading {
+                        text: qsTr("Chamadas externas")
+                        level: 2
+                        Layout.fillWidth: true
+                        Layout.topMargin: Kirigami.Units.largeSpacing
+                    }
+                    HttpRetrySettingsBlock {
                         Layout.fillWidth: true
                         settingsModel: page.settingsModel
                     }

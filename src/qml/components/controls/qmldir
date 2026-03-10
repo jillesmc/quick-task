@@ -2,6 +2,8 @@ EditPreviewContainer EditPreviewContainer.qml
 EditPreviewToggle EditPreviewToggle.qml
 RichTextWithJiraImages RichTextWithJiraImages.qml
 IssueMetadataFields IssueMetadataFields.qml
+WorkItemMetadataFields WorkItemMetadataFields.qml
+WorkItemStatusField WorkItemStatusField.qml
 IssueRadioGroup IssueRadioGroup.qml
 IssueCheckList IssueCheckList.qml
 DividerBar DividerBar.qml

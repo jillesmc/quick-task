@@ -22,47 +22,52 @@ Item {
     property var applicationWindow: null
     property var gitCommandHelper: null
     /** Chamado quando o usuário clica em Atualizar; recarrega detalhes da issue. */
-    signal reloadRequested()
+    signal reloadRequested
 
     readonly property var branches: {
-        var d = root.developmentData
-        if (!d || !d.branches) return []
-        return Array.isArray(d.branches) ? d.branches : Array.from(d.branches)
+        var d = root.developmentData;
+        if (!d || !d.branches)
+            return [];
+        return Array.isArray(d.branches) ? d.branches : Array.from(d.branches);
     }
     readonly property var pullRequests: {
-        var d = root.developmentData
-        if (!d || !d.pullRequests) return []
-        return Array.isArray(d.pullRequests) ? d.pullRequests : Array.from(d.pullRequests)
+        var d = root.developmentData;
+        if (!d || !d.pullRequests)
+            return [];
+        return Array.isArray(d.pullRequests) ? d.pullRequests : Array.from(d.pullRequests);
     }
     readonly property bool hasData: branches.length > 0 || pullRequests.length > 0
     readonly property bool hasAny: developmentData !== null && typeof developmentData === "object"
     readonly property string singleRepoForBranch: {
-        var repos = (developmentData && developmentData.repositories) ? developmentData.repositories : []
-        if (!repos || repos.length !== 1) return ""
-        var r = Array.isArray(repos) ? repos[0] : (repos[0] !== undefined ? repos[0] : null)
-        return (r && r.name) ? r.name : ""
+        var repos = (developmentData && developmentData.repositories) ? developmentData.repositories : [];
+        if (!repos || repos.length !== 1)
+            return "";
+        var r = Array.isArray(repos) ? repos[0] : (repos[0] !== undefined ? repos[0] : null);
+        return (r && r.name) ? r.name : "";
     }
 
     visible: issueKey !== "" || hasAny
     implicitHeight: visible ? barRow.implicitHeight : 0
 
     function openPopoverForItem(chip, itemData, itemType, enrichedData) {
-        var overlay = Controls.Overlay.overlay
-        if (!overlay || !chip) return
-        if (!popoverLoader.item) return
-        popoverLoader.item.itemData = itemData
-        popoverLoader.item.itemType = itemType
-        popoverLoader.item.enrichedPr = (itemType === "pr" ? enrichedData : null) || null
-        popoverLoader.item.enrichedBranch = (itemType === "branch" ? enrichedData : null) || null
-        popoverLoader.item.clipboardHelper = root.clipboardHelper
-        popoverLoader.item.applicationWindow = root.applicationWindow
-        popoverLoader.item.gitCommandHelper = root.gitCommandHelper
-        var pos = chip.mapToItem(overlay, 0, chip.height)
-        popoverLoader.item.x = pos.x
-        popoverLoader.item.y = pos.y
+        var overlay = Controls.Overlay.overlay;
+        if (!overlay || !chip)
+            return;
+        if (!popoverLoader.item)
+            return;
+        popoverLoader.item.itemData = itemData;
+        popoverLoader.item.itemType = itemType;
+        popoverLoader.item.enrichedPr = (itemType === "pr" ? enrichedData : null) || null;
+        popoverLoader.item.enrichedBranch = (itemType === "branch" ? enrichedData : null) || null;
+        popoverLoader.item.clipboardHelper = root.clipboardHelper;
+        popoverLoader.item.applicationWindow = root.applicationWindow;
+        popoverLoader.item.gitCommandHelper = root.gitCommandHelper;
+        var pos = chip.mapToItem(overlay, 0, chip.height);
+        popoverLoader.item.x = pos.x;
+        popoverLoader.item.y = pos.y;
         // qmllint disable missing-property
-        popoverLoader.item.open()
-        // qmllint enable missing-property
+        popoverLoader.item.open();
+    // qmllint enable missing-property
     }
 
     Loader {
@@ -70,11 +75,12 @@ Item {
         active: root.hasAny || root.issueKey !== ""
         source: "../dialogs/DevelopmentItemPopover.qml"
         onLoaded: {
-            if (item && Controls.Overlay.overlay) item.parent = Controls.Overlay.overlay
+            if (item && Controls.Overlay.overlay)
+                item.parent = Controls.Overlay.overlay;
             if (item) {
-                item.clipboardHelper = root.clipboardHelper
-                item.applicationWindow = root.applicationWindow
-                item.gitCommandHelper = root.gitCommandHelper
+                item.clipboardHelper = root.clipboardHelper;
+                item.applicationWindow = root.applicationWindow;
+                item.gitCommandHelper = root.gitCommandHelper;
             }
         }
     }
@@ -98,8 +104,9 @@ Item {
             display: Controls.AbstractButton.TextBesideIcon
             onClicked: {
                 if (root.jiraService && root.issueKey && typeof root.jiraService.getIssueUrl === "function") {
-                    var url = root.jiraService.getIssueUrl(root.issueKey)
-                    if (url) Qt.openUrlExternally(url)
+                    var url = root.jiraService.getIssueUrl(root.issueKey);
+                    if (url)
+                        Qt.openUrlExternally(url);
                 }
             }
             Controls.ToolTip.visible: hovered
@@ -131,13 +138,13 @@ Item {
                 hoverEnabled: true
                 icon.name: "vcs-merge"
                 text: {
-                    var num = pr ? String(pr.number || "").replace(/^#+/, "") : ""
-                    return num ? "#" + num : ""
+                    var num = pr ? String(pr.number || "").replace(/^#+/, "") : "";
+                    return num ? "#" + num : "";
                 }
                 display: Controls.AbstractButton.TextBesideIcon
                 onClicked: {
-                    var e = root.enrichedPrs && (Array.isArray(root.enrichedPrs) ? root.enrichedPrs[prChip.index] : root.enrichedPrs[prChip.index])
-                    root.openPopoverForItem(prChip, pr, "pr", e)
+                    var e = root.enrichedPrs && (Array.isArray(root.enrichedPrs) ? root.enrichedPrs[prChip.index] : root.enrichedPrs[prChip.index]);
+                    root.openPopoverForItem(prChip, pr, "pr", e);
                 }
             }
         }
@@ -155,13 +162,13 @@ Item {
                 hoverEnabled: true
                 icon.name: "vcs-branch"
                 text: {
-                    var n = br ? br.name : ""
-                    return n.length > 35 ? n.slice(0, 32) + "..." : n
+                    var n = br ? br.name : "";
+                    return n.length > 35 ? n.slice(0, 32) + "..." : n;
                 }
                 display: Controls.AbstractButton.TextBesideIcon
                 onClicked: {
-                    var eb = root.enrichedBranches && (Array.isArray(root.enrichedBranches) ? root.enrichedBranches[brChip.index] : root.enrichedBranches[brChip.index])
-                    root.openPopoverForItem(brChip, br, "branch", eb)
+                    var eb = root.enrichedBranches && (Array.isArray(root.enrichedBranches) ? root.enrichedBranches[brChip.index] : root.enrichedBranches[brChip.index]);
+                    root.openPopoverForItem(brChip, br, "branch", eb);
                 }
             }
         }
