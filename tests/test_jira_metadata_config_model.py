@@ -549,6 +549,140 @@ def test_enrichment_worker_assets_sets_placeholders(mock_jira_client_for_enrichm
     mock_jira_client_for_enrichment.get_field_context_default_value.assert_not_called()
 
 
+def test_enrichment_worker_assets_does_not_fill_object_type_from_config(
+    mock_jira_client_for_enrichment,
+):
+    """EnrichmentWorker não preenche object_type nem object_type_id para Assets.
+    Comportamento atual: esses valores só vêm da etapa 4 do wizard; o worker não usa config.
+    """
+    from core.jira_metadata import JiraFieldMetadata, JiraFieldType
+    from src.models.jira_metadata_config_model import EnrichmentWorker
+
+    mock_jira_client_for_enrichment.get_fields.return_value = [
+        JiraFieldMetadata(
+            id="customfield_24569",
+            key="customfield_24569",
+            name="Qual_tipo_de_valor",
+            field_type=JiraFieldType.ARRAY,
+            custom=True,
+            required=False,
+            has_default_value=False,
+            default_value=None,
+            allowed_values=[],
+            schema_type="array",
+            schema_system=None,
+            schema_custom="com.atlassian.jira.plugins.cmdb:cmdb-object-cftype",
+            schema_raw={
+                "type": "array",
+                "items": "cmdb-object-field",
+                "custom": "com.atlassian.jira.plugins.cmdb:cmdb-object-cftype",
+            },
+        ),
+    ]
+    payload = {
+        "version": "2.0",
+        "selected_projects": [
+            {"id": "10000", "key": "P", "name": "P", "enabled": True}
+        ],
+        "selected_fields": {
+            "P": {
+                "10001": [
+                    {
+                        "id": "customfield_24569",
+                        "key": "customfield_24569",
+                        "name": "Qual_tipo_de_valor",
+                        "enabled": True,
+                    }
+                ]
+            }
+        },
+    }
+    worker = EnrichmentWorker(
+        payload=payload,
+        jira_client=mock_jira_client_for_enrichment,
+    )
+    result = []
+    worker.enriched.connect(result.append)
+    worker.run()
+
+    fields_list = result[0].get("selected_fields", {}).get("P", {}).get("10001", [])
+    assert len(fields_list) == 1
+    assert fields_list[0].get("real_type") == "Assets objects"
+    assert "object_type" not in fields_list[0]
+    assert "object_type_id" not in fields_list[0]
+
+
+def test_enrichment_worker_assets_fills_object_type_from_config_when_field_matches(
+    mock_jira_client_for_enrichment,
+):
+    """EnrichmentWorker preenche object_type/object_type_id/filter_scope_aql quando
+    config_manager está presente e o field id corresponde a plataformas_afetadas (ou valor_entregue).
+    """
+    from core.jira_metadata import JiraFieldMetadata, JiraFieldType
+    from src.models.jira_metadata_config_model import EnrichmentWorker
+
+    mock_config = MagicMock()
+    mock_config.get_custom_field.side_effect = lambda name: (
+        "customfield_24570" if name == "plataformas_afetadas" else ""
+    )
+    mock_config.get_assets_object_type_id_plataformas.return_value = 441
+    mock_config.get_assets_object_type_plataformas.return_value = "Plataforma Afetada"
+
+    mock_jira_client_for_enrichment.get_fields.return_value = [
+        JiraFieldMetadata(
+            id="customfield_24570",
+            key="customfield_24570",
+            name="Quais_Plataformas_Afetadas",
+            field_type=JiraFieldType.ARRAY,
+            custom=True,
+            required=False,
+            has_default_value=False,
+            default_value=None,
+            allowed_values=[],
+            schema_type="array",
+            schema_system=None,
+            schema_custom="cmdb",
+            schema_raw={
+                "type": "array",
+                "items": "cmdb-object-field",
+                "custom": "com.atlassian.jira.plugins.cmdb:cmdb-object-cftype",
+            },
+        ),
+    ]
+    payload = {
+        "version": "2.0",
+        "selected_projects": [
+            {"id": "10000", "key": "P", "name": "P", "enabled": True}
+        ],
+        "selected_fields": {
+            "P": {
+                "10001": [
+                    {
+                        "id": "customfield_24570",
+                        "key": "customfield_24570",
+                        "name": "Quais_Plataformas_Afetadas",
+                        "enabled": True,
+                    }
+                ]
+            }
+        },
+    }
+    worker = EnrichmentWorker(
+        payload=payload,
+        jira_client=mock_jira_client_for_enrichment,
+        config_manager=mock_config,
+    )
+    result = []
+    worker.enriched.connect(result.append)
+    worker.run()
+
+    fields_list = result[0].get("selected_fields", {}).get("P", {}).get("10001", [])
+    assert len(fields_list) == 1
+    assert fields_list[0].get("object_type_id") == "441"
+    assert fields_list[0].get("object_type") == "Plataforma Afetada"
+    assert fields_list[0].get("filter_scope_aql") == 'objectType = "Plataforma Afetada"'
+
+
 def test_enrichment_worker_assets_does_not_overwrite_when_already_set(
     mock_jira_client_for_enrichment,
 ):
@@ -616,6 +750,112 @@ def test_enrichment_worker_assets_does_not_overwrite_when_already_set(
     assert fields_list[0].get("filter_scope_aql") == 'objectType = "Plataforma Afetada"'
     assert fields_list[0].get("object_schema_id") == "13"
     assert fields_list[0].get("object_type") == "Plataforma Afetada"
+
+
+def test_enrichment_worker_preserves_mixed_asset_fields_object_type_values(
+    mock_jira_client_for_enrichment,
+):
+    """Após EnrichmentWorker: campo Asset com object_type preenchido mantém; com vazios mantém vazios.
+    Simula jira_metadata com 24570 (preenchido) e 24569 (object_type/object_type_id vazios).
+    """
+    from core.jira_metadata import JiraFieldMetadata, JiraFieldType
+    from src.models.jira_metadata_config_model import EnrichmentWorker
+
+    mock_jira_client_for_enrichment.get_fields.return_value = [
+        JiraFieldMetadata(
+            id="customfield_24570",
+            key="customfield_24570",
+            name="Quais_Plataformas_Afetadas",
+            field_type=JiraFieldType.ARRAY,
+            custom=True,
+            required=False,
+            has_default_value=False,
+            default_value=None,
+            allowed_values=[],
+            schema_type="array",
+            schema_system=None,
+            schema_custom="cmdb",
+            schema_raw={
+                "type": "array",
+                "items": "cmdb-object-field",
+                "custom": "com.atlassian.jira.plugins.cmdb:cmdb-object-cftype",
+            },
+        ),
+        JiraFieldMetadata(
+            id="customfield_24569",
+            key="customfield_24569",
+            name="Qual_tipo_de_valor",
+            field_type=JiraFieldType.ARRAY,
+            custom=True,
+            required=False,
+            has_default_value=False,
+            default_value=None,
+            allowed_values=[],
+            schema_type="array",
+            schema_system=None,
+            schema_custom="cmdb",
+            schema_raw={
+                "type": "array",
+                "items": "cmdb-object-field",
+                "custom": "com.atlassian.jira.plugins.cmdb:cmdb-object-cftype",
+            },
+        ),
+    ]
+    payload = {
+        "version": "2.0",
+        "selected_projects": [
+            {"id": "10000", "key": "P", "name": "P", "enabled": True}
+        ],
+        "selected_fields": {
+            "P": {
+                "10001": [
+                    {
+                        "id": "customfield_24570",
+                        "key": "customfield_24570",
+                        "name": "Quais_Plataformas_Afetadas",
+                        "enabled": True,
+                        "object_schema": "Plataforma ",
+                        "object_schema_id": "218",
+                        "object_type": "Plataforma Afetada",
+                        "object_type_id": "441",
+                        "filter_scope_aql": 'objectType = "Plataforma Afetada"',
+                        "field_can_store_multiple_objects": True,
+                    },
+                    {
+                        "id": "customfield_24569",
+                        "key": "customfield_24569",
+                        "name": "Qual_tipo_de_valor",
+                        "enabled": True,
+                        "object_schema": "Plataforma ",
+                        "object_schema_id": "218",
+                        "object_type": "",
+                        "object_type_id": "",
+                        "filter_scope_aql": "",
+                        "field_can_store_multiple_objects": False,
+                    },
+                ],
+            },
+        },
+    }
+    worker = EnrichmentWorker(
+        payload=payload,
+        jira_client=mock_jira_client_for_enrichment,
+    )
+    result = []
+    worker.enriched.connect(result.append)
+    worker.run()
+
+    fields_list = result[0].get("selected_fields", {}).get("P", {}).get("10001", [])
+    assert len(fields_list) == 2
+    by_id = {f["id"]: f for f in fields_list}
+    f70 = by_id["customfield_24570"]
+    f69 = by_id["customfield_24569"]
+    assert f70.get("object_type") == "Plataforma Afetada"
+    assert f70.get("object_type_id") == "441"
+    assert f70.get("filter_scope_aql") == 'objectType = "Plataforma Afetada"'
+    assert f69.get("object_type") == ""
+    assert f69.get("object_type_id") == ""
+    assert f69.get("filter_scope_aql") == ""
 
 
 def test_enrich_and_save_without_client_emits_error(config_manager):

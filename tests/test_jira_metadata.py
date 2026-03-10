@@ -145,6 +145,41 @@ def fixture_createmeta_empty_projects():
 
 
 @pytest.fixture
+def fixture_createmeta_fields_with_asset():
+    """Campos do createmeta incluindo um campo Asset (estilo customfield_24570).
+    Documenta que objectType/objectTypeId/objectSchemaId podem existir no raw
+    mas parse_createmeta_fields não os extrai (JiraFieldMetadata não tem esses atributos).
+    """
+    return {
+        "summary": {
+            "fieldId": "summary",
+            "name": "Summary",
+            "required": True,
+            "hasDefaultValue": False,
+            "schema": {"type": "string", "system": "summary"},
+            "operations": ["set"],
+        },
+        "customfield_24570": {
+            "fieldId": "customfield_24570",
+            "name": "Quais_Plataformas_Afetadas",
+            "required": False,
+            "hasDefaultValue": False,
+            "schema": {
+                "type": "array",
+                "items": "cmdb-object-field",
+                "custom": "com.atlassian.jira.plugin.system.customfieldtypes:cmdb-object-cftype",
+                "customId": 24570,
+            },
+            "operations": ["set"],
+            "allowedValues": [],
+            "objectType": "Plataforma Afetada",
+            "objectTypeId": "441",
+            "objectSchemaId": "218",
+        },
+    }
+
+
+@pytest.fixture
 def fixture_field_list_response():
     """GET /rest/api/3/field - lista de campos da instância."""
     return [
@@ -330,6 +365,98 @@ def test_parse_createmeta_fields_optional_absent():
     assert result[0].allowed_values == []
     assert result[0].default_value is None
     assert result[0].has_default_value is False
+
+
+def test_parse_createmeta_fields_asset_extracts_object_type_when_present(
+    fixture_createmeta_fields_with_asset,
+):
+    """parse_createmeta_fields extrai objectType/objectTypeId/objectSchemaId do raw quando presentes."""
+    result = parse_createmeta_fields(fixture_createmeta_fields_with_asset)
+    asset_field = next(f for f in result if f.key == "customfield_24570")
+    assert asset_field.name == "Quais_Plataformas_Afetadas"
+    assert asset_field.field_type == JiraFieldType.ARRAY
+    assert asset_field.object_type == "Plataforma Afetada"
+    assert asset_field.object_type_id == "441"
+    assert asset_field.object_schema_id == "218"
+
+
+def test_parse_createmeta_fields_asset_without_object_type_keeps_none():
+    """Quando o raw não tem objectType/objectTypeId, o campo parseado tem None e o dict não inclui as chaves."""
+    from core.jira_metadata import field_metadata_to_dict
+
+    fields = {
+        "customfield_24569": {
+            "fieldId": "customfield_24569",
+            "name": "Qual_tipo_de_valor",
+            "required": False,
+            "schema": {
+                "type": "array",
+                "items": "cmdb-object-field",
+                "custom": "com.atlassian.jira.plugin.system.customfieldtypes:cmdb-object-cftype",
+                "customId": 24569,
+            },
+        },
+    }
+    result = parse_createmeta_fields(fields)
+    assert len(result) == 1
+    assert result[0].object_type is None
+    assert result[0].object_type_id is None
+    assert result[0].object_schema_id is None
+    d = field_metadata_to_dict(result[0])
+    assert "object_type" not in d
+    assert "object_type_id" not in d
+    assert "object_schema_id" not in d
+
+
+def test_field_metadata_to_dict_does_not_include_asset_object_type_when_none():
+    """field_metadata_to_dict não inclui object_type/object_type_id quando são None (campo sem API)."""
+    from core.jira_metadata import field_metadata_to_dict
+
+    f = JiraFieldMetadata(
+        id="customfield_24570",
+        key="customfield_24570",
+        name="Quais_Plataformas_Afetadas",
+        field_type=JiraFieldType.ARRAY,
+        custom=True,
+        required=False,
+        has_default_value=False,
+        default_value=None,
+        allowed_values=[],
+        schema_type="array",
+        schema_custom="com.atlassian.jira.plugin.system.customfieldtypes:cmdb-object-cftype",
+    )
+    d = field_metadata_to_dict(f)
+    assert "object_type" not in d
+    assert "object_type_id" not in d
+    assert "filter_scope_aql" not in d
+    assert d["id"] == "customfield_24570"
+    assert d["name"] == "Quais_Plataformas_Afetadas"
+
+
+def test_field_metadata_to_dict_includes_asset_object_type_when_set():
+    """field_metadata_to_dict inclui object_type/object_type_id/object_schema_id quando preenchidos."""
+    from core.jira_metadata import field_metadata_to_dict
+
+    f = JiraFieldMetadata(
+        id="customfield_24570",
+        key="customfield_24570",
+        name="Quais_Plataformas_Afetadas",
+        field_type=JiraFieldType.ARRAY,
+        custom=True,
+        required=False,
+        has_default_value=False,
+        default_value=None,
+        allowed_values=[],
+        schema_type="array",
+        schema_custom="cmdb",
+        object_type="Plataforma Afetada",
+        object_type_id="441",
+        object_schema_id="218",
+    )
+    d = field_metadata_to_dict(f)
+    assert d["object_type"] == "Plataforma Afetada"
+    assert d["object_type_id"] == "441"
+    assert d["object_schema_id"] == "218"
 
 
 # --- Testes: parse_field_list_response ---

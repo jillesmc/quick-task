@@ -50,11 +50,13 @@ class EnrichmentWorker(QThread):
         self,
         payload: Dict[str, Any],
         jira_client: Any,
+        config_manager: Optional[Any] = None,
         parent=None,
     ):
         super().__init__(parent)
         self._payload = payload
         self._jira_client = jira_client
+        self._config_manager = config_manager
 
     def run(self):
         try:
@@ -178,13 +180,47 @@ class EnrichmentWorker(QThread):
                 pass
 
         # Assets: placeholders only when not already set (e.g. from wizard step 4).
-        # Do not overwrite object_schema, filter_scope_aql, or any other Assets keys
-        # (object_schema_id, object_type, object_type_id, etc.) when already present.
+        # Optionally fill object_type/object_type_id/filter_scope_aql from config when
+        # field id matches valor_entregue or plataformas_afetadas.
         if field_obj.get("real_type") == "Assets objects":
             if "object_schema" not in field_obj:
                 field_obj["object_schema"] = None
             if "filter_scope_aql" not in field_obj:
                 field_obj["filter_scope_aql"] = None
+            current_type_id = field_obj.get("object_type_id") or ""
+            if not str(current_type_id).strip() and self._config_manager:
+                self._fill_assets_from_config(field_obj, field_id)
+
+    def _fill_assets_from_config(
+        self, field_obj: Dict[str, Any], field_id: str
+    ) -> None:
+        """Preenche object_type, object_type_id e filter_scope_aql a partir do config quando o
+        field id corresponde a valor_entregue ou plataformas_afetadas.
+        """
+        config = self._config_manager
+        try:
+            valor_id = (config.get_custom_field("valor_entregue") or "").strip()
+            plataformas_id = (
+                config.get_custom_field("plataformas_afetadas") or ""
+            ).strip()
+        except Exception:
+            return
+        field_variants = _field_id_variants(field_id, field_obj.get("key") or "")
+        type_id = None
+        type_name = None
+        if valor_id and valor_id in field_variants:
+            type_id = config.get_assets_object_type_id_valor_entregue()
+            type_name = config.get_assets_object_type_valor_entregue()
+        elif plataformas_id and plataformas_id in field_variants:
+            type_id = config.get_assets_object_type_id_plataformas()
+            type_name = config.get_assets_object_type_plataformas()
+        if type_id is not None:
+            field_obj["object_type_id"] = str(type_id)
+        if type_name:
+            field_obj["object_type"] = type_name
+            field_obj["filter_scope_aql"] = f'objectType = "{type_name}"'
+        elif type_id is not None:
+            field_obj["filter_scope_aql"] = f"objectTypeId = {type_id}"
 
     def _fetch_workflow_metadata(
         self,
@@ -769,6 +805,7 @@ class JiraMetadataConfigModel(QObject):
         self._enrichment_worker = EnrichmentWorker(
             payload=data,
             jira_client=self._jira_client,
+            config_manager=self._config_manager,
             parent=self,
         )
         self._enrichment_worker.enriched.connect(self._on_enrichment_done)

@@ -72,6 +72,9 @@ class JiraFieldMetadata:
     schema_raw: Optional[Dict[str, Any]] = (
         None  # full schema from GET /field (for real_type)
     )
+    object_type: Optional[str] = None
+    object_type_id: Optional[str] = None
+    object_schema_id: Optional[str] = None
 
 
 def schema_to_real_type(schema: Optional[Dict[str, Any]]) -> str:
@@ -293,6 +296,15 @@ def parse_createmeta_fields(fields_dict: Dict[str, Any]) -> List[JiraFieldMetada
         is_custom = bool(raw.get("custom", False)) or bool(
             schema.get("custom") or schema.get("customId")
         )
+        object_type = raw.get("objectType")
+        object_type_id = raw.get("objectTypeId")
+        object_schema_id = raw.get("objectSchemaId")
+        if object_type is not None and not isinstance(object_type, str):
+            object_type = str(object_type)
+        if object_type_id is not None and not isinstance(object_type_id, str):
+            object_type_id = str(object_type_id)
+        if object_schema_id is not None and not isinstance(object_schema_id, str):
+            object_schema_id = str(object_schema_id)
         result.append(
             JiraFieldMetadata(
                 id=str(raw.get("fieldId", field_id)),
@@ -307,6 +319,9 @@ def parse_createmeta_fields(fields_dict: Dict[str, Any]) -> List[JiraFieldMetada
                 schema_type=str(schema.get("type", "")),
                 schema_system=schema.get("system"),
                 schema_custom=schema.get("custom"),
+                object_type=object_type,
+                object_type_id=object_type_id,
+                object_schema_id=object_schema_id,
             )
         )
     return result
@@ -382,7 +397,7 @@ def issue_type_to_dict(issue_type: JiraIssueType) -> Dict[str, Any]:
 
 def field_metadata_to_dict(field_meta: JiraFieldMetadata) -> Dict[str, Any]:
     """Converte JiraFieldMetadata para dict (QML/JSON)."""
-    return {
+    out = {
         "id": field_meta.id,
         "key": field_meta.key,
         "name": field_meta.name,
@@ -394,6 +409,13 @@ def field_metadata_to_dict(field_meta: JiraFieldMetadata) -> Dict[str, Any]:
         "allowed_values": list(field_meta.allowed_values),
         "schema_type": field_meta.schema_type,
     }
+    if field_meta.object_type is not None:
+        out["object_type"] = field_meta.object_type
+    if field_meta.object_type_id is not None:
+        out["object_type_id"] = field_meta.object_type_id
+    if field_meta.object_schema_id is not None:
+        out["object_schema_id"] = field_meta.object_schema_id
+    return out
 
 
 # --- Workflow / status / transitions (for jira_metadata.json workflow_metadata) ---
