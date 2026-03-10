@@ -30,6 +30,10 @@ Item {
 
     property var jiraService: null
     property var workItemModel: null
+    /** When set (e.g. by CreateWorkItemPage from workflow), used as statusSequence for createIssue; else workItemModel.statusSequence (config). */
+    property var workflowStatusSequence: []
+    /** Index (0-based) of first "in progress" status in the create sequence; -1 to use name-based detection. Set by CreateWorkItemPage from workflow. */
+    property int inProgressIndexInSequence: -1
     property bool enabled: true
     property bool isValid: false
 
@@ -81,7 +85,9 @@ Item {
             worklogComment: workItemModel.worklogComment || "",
             parentEpicKey: parentEpicKey,
             pendingAttachments: workItemModel.pendingAttachments || [],
-            prioridade: workItemModel.prioridade || "Medium"
+            prioridade: workItemModel.prioridade || "Medium",
+            statusSequence: (workflowStatusSequence && workflowStatusSequence.length > 0) ? workflowStatusSequence : [],
+            inProgressIndexInSequence: inProgressIndexInSequence
         };
     }
 
@@ -103,15 +109,19 @@ Item {
         createRequested();
         createStarted();
         _createInProgress = true;
+        if (jiraService && jiraService.currentOperationContext !== undefined)
+            jiraService.currentOperationContext = "create";
 
         var data = prepareCreateData();
         if (!data) {
             _createInProgress = false;
+            if (jiraService && jiraService.currentOperationContext !== undefined)
+                jiraService.currentOperationContext = "";
             createFailed("Erro ao preparar dados para criação");
             return;
         }
 
-        jiraService.createIssue(data.summary, data.description, data.tipoAtividade, data.statusInicial, data.documentacaoAnexa, data.utilizacaoIA, data.valorEntregue, data.plataformasAfetadas, data.registrarWorklog, data.worklogInicio, data.worklogDuracao, "", data.parentEpicKey, data.worklogComment, data.pendingAttachments || [], data.prioridade || "Medium");
+        jiraService.createIssue(data.summary, data.description, data.tipoAtividade, data.statusInicial, data.documentacaoAnexa, data.utilizacaoIA, data.valorEntregue, data.plataformasAfetadas, data.registrarWorklog, data.worklogInicio, data.worklogDuracao, "", data.parentEpicKey, data.worklogComment, data.pendingAttachments || [], data.prioridade || "Medium", data.statusSequence || [], data.inProgressIndexInSequence !== undefined ? data.inProgressIndexInSequence : -1);
     }
 
     function reset() {
@@ -124,6 +134,8 @@ Item {
 
         function onIssueCreated(issueKey, issueUrl) {
             root._createInProgress = false;
+            if (root.jiraService && root.jiraService.currentOperationContext !== undefined)
+                root.jiraService.currentOperationContext = "";
             root.createCompleted(issueKey, issueUrl);
         }
 
@@ -131,6 +143,8 @@ Item {
             if (!root._createInProgress)
                 return;
             root._createInProgress = false;
+            if (root.jiraService && root.jiraService.currentOperationContext !== undefined)
+                root.jiraService.currentOperationContext = "";
             root.createFailed(errorMessage);
         }
     }

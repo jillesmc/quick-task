@@ -12,6 +12,7 @@ import org.kde.kirigami as Kirigami
 import "../components/controls"
 import "../components/fields"
 import "../utils/DialogHelpers.js" as DialogHelpers
+import "../utils/StatusReachableLogic.js" as StatusReachableLogic
 
 Kirigami.Page {
     id: page
@@ -26,16 +27,96 @@ Kirigami.Page {
     // Estado do processamento
     property bool isProcessing: false
 
-    // Registrar worklog só permitido quando status inicial é IN PROGRESS ou posterior
+    /** Workflow entry para o par project/issuetype (primeiro selecionado quando vazio). Usado para registrarWorklogEnabled por status category. */
+    readonly property var _workflowEntry: {
+        if (!atlassianMetadataConfigModel)
+            return null;
+        var meta = atlassianMetadataConfigModel.getLoadedMetadata();
+        var wm = meta && meta.workflow_metadata ? meta.workflow_metadata : null;
+        if (!wm)
+            return null;
+        var pk = "";
+        var itid = "";
+        var sp = meta.selected_projects;
+        if (sp && sp.length > 0 && sp[0] && sp[0].key)
+            pk = String(sp[0].key);
+        var sit = meta.selected_issue_types;
+        if (sit && pk && sit[pk] && sit[pk].length > 0 && sit[pk][0] && sit[pk][0].id !== undefined)
+            itid = String(sit[pk][0].id);
+        if (!pk || !itid || !wm[pk])
+            return null;
+        return wm[pk][itid] || null;
+    }
+
+    /** Lista de nomes de status do workflow em ordem de exibição (completa). Para createIssue (status + worklog) e default statusInicial. */
+    readonly property var _workflowStatusNameList: {
+        var entry = page._workflowEntry;
+        if (!entry || !entry.statuses || !entry.transitions)
+            return [];
+        var order = StatusReachableLogic.statusDisplayOrder(entry);
+        if (order.length === 0)
+            return [];
+        var out = [];
+        for (var i = 0; i < order.length; i++) {
+            var st = StatusReachableLogic.getStatusByIdOrName(entry, order[i]);
+            out.push(st ? (st.name || "") : "");
+        }
+        return out;
+    }
+
+    /** Happy path: initial até primeiro In Progress. Usado só no dialog de sucesso para "Iniciar Timer" (evita To Do → Blocked). */
+    readonly property var _workflowStatusNameListForTimer: {
+        var entry = page._workflowEntry;
+        if (!entry || !entry.statuses || !entry.transitions)
+            return [];
+        var order = StatusReachableLogic.pathFromInitialToFirstInProgress(entry);
+        if (order.length === 0)
+            return [];
+        var out = [];
+        for (var i = 0; i < order.length; i++) {
+            var st = StatusReachableLogic.getStatusByIdOrName(entry, order[i]);
+            out.push(st ? (st.name || "") : "");
+        }
+        return out;
+    }
+
+    /** Caminho (happy path ou menor caminho) do initial até o status selecionado. Usado como statusSequence no create (evita To Do → Blocked). */
+    readonly property var _statusSequenceForCreate: {
+        var entry = page._workflowEntry;
+        if (!entry || !entry.statuses || !entry.transitions || !page.workItemModel)
+            return [];
+        var target = page.workItemModel.statusInicial || "";
+        if (target === "")
+            return [];
+        var order = StatusReachableLogic.pathFromInitialToTarget(entry, target);
+        if (order.length === 0)
+            return (page._workflowStatusNameList && page._workflowStatusNameList.length > 0) ? page._workflowStatusNameList : [];
+        var out = [];
+        for (var i = 0; i < order.length; i++) {
+            var st = StatusReachableLogic.getStatusByIdOrName(entry, order[i]);
+            out.push(st ? (st.name || "") : "");
+        }
+        return out;
+    }
+
+    /** Índice (0-based) do primeiro status "in progress" (category indeterminate) na sequência de create. -1 se nenhum. */
+    readonly property int _inProgressIndexInSequence: {
+        var entry = page._workflowEntry;
+        var seq = page._statusSequenceForCreate;
+        if (!entry || !seq || seq.length === 0)
+            return -1;
+        return StatusReachableLogic.indexOfFirstInProgressInSequence(entry, seq);
+    }
+
+    // Registrar worklog habilitado quando status category alvo ou atual é diferente de "new" (To Do); sem fallback para config/IN PROGRESS
     property bool registrarWorklogEnabled: {
-        if (!workItemModel || !workItemModel.statusSequence)
+        if (!workItemModel)
             return false;
-        var seq = workItemModel.statusSequence;
-        var inDevIdx = seq.indexOf("IN PROGRESS");
-        if (inDevIdx < 0)
+        var entry = page._workflowEntry;
+        if (!entry || !entry.statuses)
             return false;
-        var statusIdx = seq.indexOf(workItemModel.statusInicial || "");
-        return statusIdx >= inDevIdx;
+        var cat = StatusReachableLogic.getStatusCategory(entry, workItemModel.statusInicial || "");
+        return cat !== "" && cat !== "new";
     }
 
     // Propriedades compartilhadas para sincronizar epic entre abas
@@ -138,7 +219,7 @@ Kirigami.Page {
                 page.isProcessing = false;
                 DialogHelpers.hideProgress(page.progressDialog);
                 page.progressDialog = null;
-                DialogHelpers.showSuccess(page, "../components/dialogs/SuccessDialog.qml", issueKey, issueUrl || "", false, page.timerService, page.timerModel, page.jiraService, page.applicationWindow);
+                DialogHelpers.showSuccess(page, "../components/dialogs/WorkItemSuccessDialog.qml", issueKey, issueUrl || "", false, page.timerService, page.timerModel, page.jiraService, page.applicationWindow, page._workflowStatusNameListForTimer && page._workflowStatusNameListForTimer.length > 0 ? page._workflowStatusNameListForTimer : (page._workflowStatusNameList || []));
                 page.resetForm();
                 page.issueCreated(issueKey);
             });
@@ -150,6 +231,20 @@ Kirigami.Page {
                 DialogHelpers.showError(page, "../components/dialogs/ErrorDialog.qml", errorMessage, "CreateWorkItemPage.jiraService");
             });
         }
+    }
+
+    Binding {
+        target: page.controller
+        property: "workflowStatusSequence"
+        value: (page._statusSequenceForCreate && page._statusSequenceForCreate.length > 0) ? page._statusSequenceForCreate : (page._workflowStatusNameList || [])
+        when: page.controller !== null
+    }
+
+    Binding {
+        target: page.controller
+        property: "inProgressIndexInSequence"
+        value: page._inProgressIndexInSequence
+        when: page.controller !== null
     }
 
     // Conectar signals do jiraService para progresso
@@ -470,9 +565,11 @@ Kirigami.Page {
                 page.workItemModel.tipoAtividade = tipoValues[0];
             }
 
-            // Status inicial padrão
-            if (page.workItemModel.statusSequence && page.workItemModel.statusSequence.length > 0) {
-                page.workItemModel.statusInicial = page.workItemModel.statusSequence[0];
+            // Status inicial padrão (apenas do workflow; sem fallback para config)
+            if (page._workflowStatusNameList && page._workflowStatusNameList.length > 0) {
+                page.workItemModel.statusInicial = page._workflowStatusNameList[0];
+            } else {
+                page.workItemModel.statusInicial = "";
             }
 
             // Prioridade padrão

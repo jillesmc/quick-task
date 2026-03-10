@@ -11,7 +11,7 @@ Este documento especifica o campo **Registrar worklog** para reutilização nas 
 - **Propriedades**: `registrarWorklog` (bool), `worklogInicio` (string "yyyy-MM-dd HH:mm:ss"), `worklogDuracao` (int, minutos), `worklogComment` (string). Expostas ao QML com `Property(..., notify=...Changed)`.
 - **Sinais**: `registrarWorklogChanged`, `worklogInicioChanged`, `worklogDuracaoChanged`, `worklogCommentChanged`.
 - **Inicial e reset**: em `resetForNewIssue()` repõe-se `registrarWorklog = False`, `worklogInicio` com data/hora atual, `worklogDuracao = 30`, `worklogComment = ""`.
-- **Comportamento**: o worklog é **opcional**; habilitado apenas quando o status inicial (criação) ou o status alvo (edição/transição) é IN PROGRESS ou posterior. A página expõe uma propriedade derivada (ex.: `registrarWorklogEnabled`) para habilitar/desabilitar a UI.
+- **Comportamento**: o worklog é **opcional**. No fluxo Work Items (abas 7 e 8) a decisão é por **status category** (dados em memória a partir de `jira_metadata.json`): "Registrar worklog" é habilitado quando o **status category alvo ou atual é diferente de \"new\" (To Do)**. Desabilitado apenas quando ambos forem só To Do. Sem workflow carregado, a opção fica desabilitada. A página expõe uma propriedade derivada (`registrarWorklogEnabled`) para habilitar/desabilitar a UI.
 
 ### 1.2 Serviço (AtlassianService)
 
@@ -73,7 +73,7 @@ Comportamento interno (sem alterar contrato): formatação de data/hora com `For
 ### 3.1 CreateWorkItemPage (criação, aba 7)
 
 - **Posição**: coluna esquerda do SplitView, secção abaixo de summary/description e parent work item (ou conforme layout atual).
-- **Elementos**: Checkbox "Registrar worklog" (`registrarWorklogEnabled` só é true quando status inicial é IN PROGRESS ou posterior); `WorklogForm` visível quando checkbox marcado.
+- **Elementos**: Checkbox "Registrar worklog" (`registrarWorklogEnabled` é true quando o status inicial tem **status category** diferente de \"new\" (To Do), usando workflow em memória de `jira_metadata.json`; sem workflow fica desabilitado); `WorklogForm` visível quando checkbox marcado.
 - **Bindings**: form ↔ `page.workItemModel` (registrarWorklog, worklogInicio, worklogDuracao, worklogComment). Inicialização de worklogInicio com data/hora atual se vazio.
 - **Submit**: controller obtém do modelo (ou do form) os dados de worklog e chama o serviço de criação com esses parâmetros. Após sucesso: reset do modelo e `worklogForm.reset()`.
 
@@ -81,7 +81,7 @@ Comportamento interno (sem alterar contrato): formatação de data/hora com `For
 
 - **Painel de detalhe**: WorkItemDetailPane (ou equivalente) contém checkbox "Registrar worklog" e `WorklogForm`. Bindings para `pane.workItemModel`.
 - **Método exposto**: `detailPane.getWorklogData()` — usado pela página ao disparar update/transição; retorna objeto compatível com o esperado pelo controller (`shouldRegister`, `date`, `time`, `duration`, `comment`, `inicioStr`).
-- **Fluxo de update**: página obtém `fieldData` e `worklogData = detailPane.getWorklogData()`; pode verificar worklogs pendentes (worklogSyncService) e mostrar diálogo; em seguida chama `controller.updateIssue(issueKey, fieldData, worklogData, parentKey, originalStatus)` (ou fluxo em duas fases). O controller repassa worklogData ao serviço.
+- **Fluxo de update**: página obtém `fieldData` e `worklogData = detailPane.getWorklogData()`. A verificação de **worklogs pendentes** é exigida **sempre que for sair de um status com category IN PROGRESS para outro que não seja IN PROGRESS** (usando workflow em memória); a página pode então mostrar diálogo e chamar `controller.updateIssue(...)` (ou fluxo em duas fases). O controller repassa worklogData ao serviço. **Timer**: "Iniciar timer" usa apenas workflow (category IN PROGRESS para "já em progresso"); sem workflow o botão fica desabilitado (com tooltip). Fonte de dados: `jira_metadata.json` já armazenado (em memória); não se chama a API do Jira para metadata neste fluxo.
 
 ---
 

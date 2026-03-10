@@ -108,6 +108,20 @@ Kirigami.Page {
         return wm[pk][itid] || null;
     }
 
+    /** True quando há workflow com statuses (para habilitar Iniciar timer e ações por category). Sem workflow: desabilitar timer. */
+    readonly property bool hasWorkflowForActions: !!(_workflowEntry && _workflowEntry.statuses)
+
+    /** Lista de nomes de status do workflow (para transições e Slots). Sem workflow: []. */
+    readonly property var _workflowStatusNameList: {
+        var entry = page._workflowEntry;
+        if (!entry || !entry.statuses)
+            return [];
+        var out = [];
+        for (var i = 0; i < entry.statuses.length; i++)
+            out.push(entry.statuses[i].name || "");
+        return out;
+    }
+
     // Estado para diálogo de escolha de caminho (múltiplos paths)
     property bool _pathChoiceDialogVisible: false
     property var _pathChoicePaths: []       // array of path arrays (IDs)
@@ -154,26 +168,23 @@ Kirigami.Page {
         }
     }
 
-    // Inicia timer para issueKey; só tenta transição para IN PROGRESS se o status atual for *anterior* a IN PROGRESS.
-    // Se já estiver em IN PROGRESS ou posterior, inicia o timer diretamente.
+    // Inicia timer para issueKey; só tenta transição para primeiro status IN PROGRESS (por category) se o status atual não for IN PROGRESS.
+    // Se já estiver em status com category IN PROGRESS (indeterminate), inicia o timer diretamente. Usa apenas workflow (jira_metadata em memória).
     function _startTimerAfterInProgress(issueKey) {
         if (!page.timerService || !issueKey)
             return;
 
-        // Quando temos o status da issue (ex.: issue selecionada e detalhes carregados), evitar transição se já for IN PROGRESS ou depois
-        if (page.selectedIssueKey === issueKey && page.workItemModel && page.workItemModel.statusSequence && page.originalStatus) {
-            var seq = page.workItemModel.statusSequence;
-            var inDevIdx = seq.indexOf("IN PROGRESS");
-            if (inDevIdx >= 0) {
-                var currentIdx = seq.indexOf(page.originalStatus);
-                if (currentIdx >= inDevIdx) {
-                    page.timerService.start(issueKey);
-                    return;
-                }
+        // Quando temos workflow e status da issue: evitar transição se já for status com category IN PROGRESS (indeterminate)
+        var entry = page._workflowEntry;
+        if (page.selectedIssueKey === issueKey && entry && entry.statuses && page.originalStatus) {
+            var cat = StatusReachableLogic.getStatusCategory(entry, page.originalStatus);
+            if (cat === "indeterminate") {
+                page.timerService.start(issueKey);
+                return;
             }
         }
 
-        if (!page.jiraService || !page.jiraService.transitionToInProgressIfNeeded(issueKey)) {
+        if (!page.jiraService || !page.jiraService.transitionToInProgressIfNeeded(issueKey, page._workflowStatusNameList || [])) {
             page.timerService.start(issueKey);
             return;
         }
@@ -476,6 +487,13 @@ Kirigami.Page {
         }
     }
 
+    Binding {
+        target: page.controller
+        property: "workflowStatusSequence"
+        value: page._workflowStatusNameList || []
+        when: page.controller !== null
+    }
+
     // Mesma hierarquia que IssueFormPage: ScrollView > Item > ColumnLayout (margens no ColumnLayout)
     Controls.SplitView {
         id: splitView
@@ -724,7 +742,7 @@ Kirigami.Page {
                 page._pendingTwoPhaseTarget = "";
                 if (page._processDialog)
                     page._processDialog.updateProgress(0, qsTr("Transicionando para %1...").arg(targetStatus));
-                page.jiraService.transitionFromInProgressToTarget(issueKey, targetStatus);
+                page.jiraService.transitionFromInProgressToTarget(issueKey, targetStatus, page._workflowStatusNameList || []);
             }
         }
     }
@@ -901,7 +919,7 @@ Kirigami.Page {
                     return;
                 }
             }
-            if (page.jiraService.needsTwoPhaseTransition(originalStatus, targetStatus)) {
+            if (page.jiraService.needsTwoPhaseTransition(originalStatus, targetStatus, page._workflowStatusNameList || [])) {
                 page._pendingTwoPhaseTarget = targetStatus;
                 page._isTwoPhaseTransition = true;
                 page._ensureProcessDialogThen(function (dlg) {
@@ -911,7 +929,16 @@ Kirigami.Page {
                 return;
             }
             var checkEnabled = page.jiraService.worklogCheckEnabled && page.jiraService.worklogCheckEnabled();
-            var requiresCheck = page.jiraService.requiresWorklogCheckBeforeTransition && page.jiraService.requiresWorklogCheckBeforeTransition(originalStatus, targetStatus);
+            // Exigir verificação de worklogs pendentes sempre que sair de status com category IN PROGRESS para outro que não seja IN PROGRESS (usar workflow)
+            var requiresCheck;
+            var entry = page._workflowEntry;
+            if (entry && entry.statuses) {
+                var catCurrent = StatusReachableLogic.getStatusCategory(entry, originalStatus);
+                var catTarget = StatusReachableLogic.getStatusCategory(entry, targetStatus);
+                requiresCheck = (catCurrent === "indeterminate" && catTarget !== "indeterminate");
+            } else {
+                requiresCheck = page.jiraService.requiresWorklogCheckBeforeTransition && page.jiraService.requiresWorklogCheckBeforeTransition(originalStatus, targetStatus, page._workflowStatusNameList || []);
+            }
             if (typeof console !== "undefined" && console.log) {
                 console.log("[MyWorkItemsPage] updateIssue: checkEnabled=", checkEnabled, "requiresCheck=", requiresCheck, "worklogSyncService=", !!page.worklogSyncService);
             }
@@ -1099,7 +1126,7 @@ Kirigami.Page {
             var issueKey = page._pendingUpdateAfterSync.issueKey;
             page._pendingUpdateAfterSync = null;
             page._pendingTwoPhaseTarget = "";
-            page.jiraService.transitionFromInProgressToTarget(issueKey, targetStatus);
+            page.jiraService.transitionFromInProgressToTarget(issueKey, targetStatus, page._workflowStatusNameList || []);
         } else {
             page._finishPendingUpdateAfterSync();
         }
@@ -1132,7 +1159,7 @@ Kirigami.Page {
                 }
             }
             page._pendingTwoPhaseTarget = "";
-            page.jiraService.transitionFromInProgressToTarget(p.issueKey, p.targetStatus);
+            page.jiraService.transitionFromInProgressToTarget(p.issueKey, p.targetStatus, page._workflowStatusNameList || []);
         } else {
             // Fluxo único: sync já terminou; mostrar "Atualizando issue..." no mesmo dialog e depois "Task atualizada com sucesso"
             if (page._processDialog && page._processDialog.opened) {

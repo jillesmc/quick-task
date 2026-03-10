@@ -14,6 +14,7 @@ import "../controls"
 import "../fields"
 import "../../utils/DialogHelpers.js" as DialogHelpers
 import "../../utils/FormatUtils.js" as FormatUtils
+import "../../utils/StatusReachableLogic.js" as StatusReachableLogic
 
 Item {
     id: pane
@@ -29,16 +30,31 @@ Item {
     property string selectedIssueKey: ""
     property bool isProcessing: false
 
-    // Registrar worklog só permitido quando status alvo é IN PROGRESS ou posterior
+    /** Workflow entry para projectKey/issuetypeId; usado para registrarWorklogEnabled por status category. */
+    readonly property var _workflowEntry: {
+        if (!pane.atlassianMetadataConfigModel)
+            return null;
+        var meta = pane.atlassianMetadataConfigModel.getLoadedMetadata();
+        var wm = meta && meta.workflow_metadata ? meta.workflow_metadata : null;
+        if (!wm)
+            return null;
+        var pk = (pane.projectKey || "").toString().trim();
+        var itid = (pane.issuetypeId || "").toString().trim();
+        if (!pk || !itid || !wm[pk])
+            return null;
+        return wm[pk][itid] || null;
+    }
+
+    // Registrar worklog habilitado quando status category alvo ou atual é diferente de "new" (To Do); sem fallback para config/IN PROGRESS
     property bool registrarWorklogEnabled: {
-        if (!workItemModel || !workItemModel.statusSequence)
+        if (!workItemModel)
             return false;
-        var seq = workItemModel.statusSequence;
-        var inDevIdx = seq.indexOf("IN PROGRESS");
-        if (inDevIdx < 0)
+        var entry = pane._workflowEntry;
+        if (!entry || !entry.statuses)
             return false;
-        var statusIdx = seq.indexOf(workItemModel.statusInicial || "");
-        return statusIdx >= inDevIdx;
+        var catCurrent = StatusReachableLogic.getStatusCategory(entry, pane.savedStatus || "");
+        var catTarget = StatusReachableLogic.getStatusCategory(entry, workItemModel.statusInicial || "");
+        return (catCurrent !== "" && catCurrent !== "new") || (catTarget !== "" && catTarget !== "new");
     }
     property bool isDetailsLoading: false
     property var atlassianService: null
@@ -239,8 +255,9 @@ Item {
             } else {
                 workItemModel.tipoAtividade = "";
             }
-            if (workItemModel.statusSequence && workItemModel.statusSequence.length > 0) {
-                workItemModel.statusInicial = workItemModel.statusSequence[0];
+            var entry = pane._workflowEntry;
+            if (entry && entry.statuses && entry.statuses.length > 0) {
+                workItemModel.statusInicial = entry.statuses[0].name || "";
             } else {
                 workItemModel.statusInicial = "";
             }
@@ -465,6 +482,9 @@ Item {
                             onErrorOccurred: function (message) {
                                 if (typeof console !== "undefined" && console.log) {
                                     console.log("[WorkItemDetailPane] CommentsSection.onErrorOccurred. _jiraErrorShownInProcessDialog=", (pane.workItemsPage && pane.workItemsPage._jiraErrorShownInProcessDialog) || false, "_jiraErrorShownInCreateFlow=", (pane.workItemsPage && pane.workItemsPage.applicationWindow && pane.workItemsPage.applicationWindow._jiraErrorShownInCreateFlow) || false);
+                                }
+                                if (pane.atlassianService && pane.atlassianService.currentOperationContext === "create") {
+                                    return;
                                 }
                                 if (pane.workItemsPage && pane.workItemsPage._jiraErrorShownInProcessDialog) {
                                     if (typeof console !== "undefined" && console.log) {

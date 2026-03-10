@@ -137,9 +137,12 @@ def _register_worklog_if_needed(
     worklog: Optional[WorklogConfig],
     progress_callback: Optional[Callable[[str, int, str], None]],
     percentage: int,
+    skip_name_check: bool = False,
 ) -> None:
-    """Registra worklog se necessário após transição para IN PROGRESS"""
-    if next_status != "IN PROGRESS":
+    """Registra worklog se necessário após transição para IN PROGRESS.
+    Se skip_name_check=True (quando in_progress_index é usado), não valida o nome do status.
+    """
+    if not skip_name_check and (next_status or "").strip().upper() != "IN PROGRESS":
         return
     if not worklog or not worklog.registrar:
         return
@@ -239,10 +242,12 @@ def transition_sequentially(
     progress_callback: Optional[Callable[[str, int, str], None]] = None,
     worklog: Optional[WorklogConfig] = None,
     transition_fields: Optional[Dict[str, Any]] = None,
+    in_progress_index: Optional[int] = None,
 ) -> bool:
     """
     Transiciona uma issue sequencialmente pelos status até o status desejado.
-    Ao atingir IN PROGRESS, registra worklog imediatamente se worklog estiver configurado.
+    Ao atingir o primeiro status "In Progress" (por índice ou por nome), registra worklog
+    imediatamente se worklog estiver configurado.
     Descobre o estado atual da issue antes de começar as transições.
     Lança exceções em caso de erro.
 
@@ -252,11 +257,13 @@ def transition_sequentially(
         target_status: Status alvo desejado
         status_sequence: Lista sequencial de status
         progress_callback: Função callback(status_atual, porcentagem, mensagem)
-        worklog: Configuração para registro de worklog (opcional); registrado ao atingir IN PROGRESS
+        worklog: Configuração para registro de worklog (opcional); registrado ao atingir In Progress
         transition_fields: Campos a enviar em cada POST de transição (opcional)
+        in_progress_index: Índice (0-based) do primeiro status de categoria "in progress" na
+            sequência; quando fornecido, o worklog é registrado ao atingir esse índice (não pelo nome).
 
     Returns:
-        True se o worklog foi registrado ao atingir IN PROGRESS; False caso contrário.
+        True se o worklog foi registrado ao atingir In Progress; False caso contrário.
 
     Raises:
         ValueError: Se parâmetros inválidos ou status não encontrado
@@ -324,10 +331,16 @@ def transition_sequentially(
             transition_fields=transition_fields,
         )
 
-        # Registrar worklog logo após transicionar para IN PROGRESS (primeira opção de uso)
+        # Registrar worklog ao atingir o passo "in progress" (por índice ou por nome)
+        is_in_progress_step = (
+            in_progress_index is not None and next_index == in_progress_index
+        ) or (
+            in_progress_index is None
+            and (next_status or "").strip().upper() == "IN PROGRESS"
+        )
         if (
             worklog
-            and (next_status or "").upper() == "IN PROGRESS"
+            and is_in_progress_step
             and worklog.registrar
             and worklog.inicio
             and worklog.duracao > 0
@@ -339,6 +352,7 @@ def transition_sequentially(
                 worklog,
                 progress_callback,
                 percentage,
+                skip_name_check=(in_progress_index is not None),
             )
             worklog_registered = True
 

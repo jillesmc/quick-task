@@ -83,6 +83,18 @@ def test_transition_sequentially_multiple_transitions(mock_jira_client):
     assert calls[2][0][1] == "DONE"
 
 
+def test_transition_sequentially_happy_path_to_do_to_done(mock_jira_client):
+    """Contrato para o frontend: sequência happy path [To Do, In Progress, Done].
+    Issue em To Do, target Done: deve transicionar só In Progress e Done (nunca Blocked).
+    """
+    sequence = ["To Do", "In Progress", "Done"]
+    transition_sequentially(mock_jira_client, "TEST-123", "Done", sequence)
+    assert mock_jira_client.transition_issue.call_count == 2
+    calls = mock_jira_client.transition_issue.call_args_list
+    assert calls[0][0][1] == "In Progress"
+    assert calls[1][0][1] == "Done"
+
+
 def test_transition_sequentially_with_progress_callback(mock_jira_client):
     """Testa que callback de progresso é chamado"""
     sequence = ["TO DO", "WAITING", "DONE"]
@@ -169,6 +181,37 @@ def test_transition_sequentially_worklog_missing_data(mock_jira_client):
 
     # Não deve registrar worklog sem data
     mock_jira_client.register_worklog.assert_not_called()
+
+
+def test_transition_sequentially_worklog_by_in_progress_index(mock_jira_client):
+    """Worklog é registrado ao atingir o índice in_progress (status category), não pelo nome.
+    Sequência com nomes que não são 'IN PROGRESS' (ex.: 'Em Progresso'); in_progress_index=1.
+    """
+    mock_jira_client.get_issue_details.return_value = {"status": {"name": "To Do"}}
+    sequence = ["To Do", "Em Progresso", "Concluído"]
+    worklog = WorklogConfig(
+        registrar=True,
+        inicio=datetime(2024, 1, 1, 10, 0, 0),
+        duracao=60,
+        timezone="UTC",
+    )
+
+    result = transition_sequentially(
+        mock_jira_client,
+        "TEST-123",
+        "Concluído",
+        sequence,
+        worklog=worklog,
+        in_progress_index=1,
+    )
+
+    assert result is True
+    mock_jira_client.register_worklog.assert_called_once()
+    # Transições: To Do -> Em Progresso -> Concluído (2 chamadas)
+    assert mock_jira_client.transition_issue.call_count == 2
+    calls = mock_jira_client.transition_issue.call_args_list
+    assert calls[0][0][1] == "Em Progresso"
+    assert calls[1][0][1] == "Concluído"
 
 
 def test_register_worklog_if_needed_success(mock_jira_client):

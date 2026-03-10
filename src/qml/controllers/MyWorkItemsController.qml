@@ -34,6 +34,8 @@ Item {
     property var jiraService: null
     property var myWorkItemsModel: null
     property var workItemModel: null
+    /** Sequência de status do workflow (definida pela página). Usada em update/transition e defaults; sem fallback para config. */
+    property var workflowStatusSequence: []
     property bool enabled: true
 
     signal updateRequested(string issueKey)
@@ -88,7 +90,8 @@ Item {
             statusToUpdate = fieldData.status;
         }
         var path = (statusPath && typeof statusPath.length === "number") ? statusPath : [];
-        jiraService.updateIssue(issueKey, fieldData ? fieldData.summary || "" : "", fieldData ? fieldData.description || "" : "", fieldData ? fieldData.tipoAtividade || "" : "", statusToUpdate, fieldData ? fieldData.prioridade || "" : "", fieldData ? fieldData.documentacaoAnexa || "Não" : "Não", fieldData ? fieldData.utilizacaoIA || "Não" : "Não", fieldData ? fieldData.valorEntregue || "" : "", fieldData ? (fieldData.plataformasAfetadas || []) : [], epicKey || "", worklogData ? worklogData.shouldRegister || false : false, worklogInicioStr, worklogData ? Math.round(worklogData.duration || 0) : 0, "", worklogData ? worklogData.comment || "" : "", path);
+        var statusSeq = (root.workflowStatusSequence && root.workflowStatusSequence.length > 0) ? root.workflowStatusSequence : [];
+        jiraService.updateIssue(issueKey, fieldData ? fieldData.summary || "" : "", fieldData ? fieldData.description || "" : "", fieldData ? fieldData.tipoAtividade || "" : "", statusToUpdate, fieldData ? fieldData.prioridade || "" : "", fieldData ? fieldData.documentacaoAnexa || "Não" : "Não", fieldData ? fieldData.utilizacaoIA || "Não" : "Não", fieldData ? fieldData.valorEntregue || "" : "", fieldData ? (fieldData.plataformasAfetadas || []) : [], epicKey || "", worklogData ? worklogData.shouldRegister || false : false, worklogInicioStr, worklogData ? Math.round(worklogData.duration || 0) : 0, "", worklogData ? worklogData.comment || "" : "", path, statusSeq);
     }
 
     function startTwoPhaseUpdate(issueKey, fieldData, worklogData, epicKey, originalStatus) {
@@ -103,7 +106,8 @@ Item {
         }
         updateRequested(issueKey);
         updateStarted();
-        jiraService.transitionToInProgress(issueKey, fieldData ? fieldData.summary || "" : "", fieldData ? fieldData.description || "" : "", fieldData ? fieldData.tipoAtividade || "" : "", fieldData ? fieldData.status || "" : "", fieldData ? fieldData.prioridade || "" : "", fieldData ? fieldData.documentacaoAnexa || "Não" : "Não", fieldData ? fieldData.utilizacaoIA || "Não" : "Não", fieldData ? fieldData.valorEntregue || "" : "", fieldData ? (fieldData.plataformasAfetadas || []) : [], epicKey || "", worklogData ? worklogData.shouldRegister || false : false, worklogInicioStr, worklogData ? Math.round(worklogData.duration || 0) : 0, "", worklogData ? worklogData.comment || "" : "");
+        var statusSeq = (root.workflowStatusSequence && root.workflowStatusSequence.length > 0) ? root.workflowStatusSequence : [];
+        jiraService.transitionToInProgress(issueKey, fieldData ? fieldData.summary || "" : "", fieldData ? fieldData.description || "" : "", fieldData ? fieldData.tipoAtividade || "" : "", fieldData ? fieldData.status || "" : "", fieldData ? fieldData.prioridade || "" : "", fieldData ? fieldData.documentacaoAnexa || "Não" : "Não", fieldData ? fieldData.utilizacaoIA || "Não" : "Não", fieldData ? fieldData.valorEntregue || "" : "", fieldData ? (fieldData.plataformasAfetadas || []) : [], epicKey || "", worklogData ? worklogData.shouldRegister || false : false, worklogInicioStr, worklogData ? Math.round(worklogData.duration || 0) : 0, "", worklogData ? worklogData.comment || "" : "", statusSeq);
     }
 
     function updateIssue(issueKey, fieldData, worklogData, epicKey, originalStatus, statusPath) {
@@ -137,8 +141,8 @@ Item {
             if (workItemModel.tipoAtividadeValues && workItemModel.tipoAtividadeValues.length > 0) {
                 defaults.tipoAtividade = workItemModel.tipoAtividadeValues[0];
             }
-            if (workItemModel.statusSequence && workItemModel.statusSequence.length > 0) {
-                defaults.status = workItemModel.statusSequence[0];
+            if (root.workflowStatusSequence && root.workflowStatusSequence.length > 0) {
+                defaults.status = root.workflowStatusSequence[0];
             }
         }
 
@@ -157,6 +161,9 @@ Item {
         }
 
         function onErrorOccurred(errorMessage) {
+            if (root.jiraService && root.jiraService.currentOperationContext === "create") {
+                return;
+            }
             if (typeof console !== "undefined" && console.log) {
                 console.log("[MyWorkItemsController] jiraService.onErrorOccurred -> emit updateFailed");
             }

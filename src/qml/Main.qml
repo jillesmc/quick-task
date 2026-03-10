@@ -128,6 +128,17 @@ Kirigami.ApplicationWindow {
             issuesPage.issueList.selectIssue(issueKey);
     }
 
+    /** Navega para a aba MyWorkItems (índice 8) e seleciona/carrega a issue (ex.: após criar task e clicar Iniciar Timer ou Abrir). */
+    function navigateToWorkItem(issueKey) {
+        if (!issueKey || !myWorkItemsPage)
+            return;
+        tabBar.currentIndex = 8;
+        myWorkItemsPage.selectedIssueKey = issueKey;
+        myWorkItemsPage.loadIssueDetails(issueKey);
+        if (myWorkItemsPage.issueList)
+            myWorkItemsPage.issueList.selectIssue(issueKey);
+    }
+
     // -----------------------------------------------------------------
     // Conteúdo principal: abas empilhadas
     // Evolução opcional: um único ProcessDialog como filho da janela (dialog host)

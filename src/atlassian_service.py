@@ -7,7 +7,7 @@ import sys
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from PySide6.QtCore import QObject, Signal, Slot, QThread  # type: ignore[import]
+from PySide6.QtCore import Property, QObject, Signal, Slot, QThread  # type: ignore[import]
 
 # Adicionar diretório raiz ao path
 ROOT_DIR = Path(__file__).parent.parent
@@ -22,6 +22,7 @@ from core.status_transition import (
     requires_worklog_check_before_transition,
     _get_in_progress_index,
     _get_status_index,
+    _get_target_index,
 )
 from config.config_manager import ConfigManager
 from src.services.assets_cache import AssetsCacheService
@@ -80,6 +81,8 @@ class JiraWorker(QThread):
         assets_cache: Any = None,
         pending_attachments: Optional[List[Dict[str, Any]]] = None,
         priority: Optional[str] = None,
+        status_sequence_from_workflow: Optional[List[str]] = None,
+        in_progress_index_in_sequence: Optional[int] = None,
         parent=None,
     ):
         super().__init__(parent)
@@ -103,6 +106,14 @@ class JiraWorker(QThread):
         self.assets_cache = assets_cache
         self.pending_attachments = pending_attachments or []
         self.priority = priority
+        self.status_sequence_from_workflow = (
+            [str(x).strip() for x in status_sequence_from_workflow]
+            if status_sequence_from_workflow
+            and isinstance(status_sequence_from_workflow, (list, tuple))
+            and any(x for x in status_sequence_from_workflow if str(x).strip())
+            else None
+        )
+        self.in_progress_index_in_sequence = in_progress_index_in_sequence
 
     def run(self):
         """Executa a criação da issue e transições em thread separada"""
@@ -312,6 +323,16 @@ class JiraWorker(QThread):
 
             # Transicionar status se necessário (worklog é registrado ao atingir IN PROGRESS)
             if self.target_status != "TO DO":
+                sequence = (
+                    list(self.status_sequence_from_workflow)
+                    if self.status_sequence_from_workflow
+                    else []
+                )
+                if not sequence:
+                    self.errorOccurred.emit(
+                        "Sequência de status vazia. Execute o assistente de metadata em Configurações."
+                    )
+                    return
                 self.progressUpdated.emit(60, "Iniciando transições de status...")
 
                 # Callback para progresso de transições
@@ -319,13 +340,27 @@ class JiraWorker(QThread):
                     transition_progress = 60 + int((percentage * 40) / 100)
                     self.progressUpdated.emit(transition_progress, message)
 
-                sequence = self.config.get_status_sequence()
                 worklog_config = None
+                at_or_after_in_progress = False
+                if self.in_progress_index_in_sequence is not None:
+                    try:
+                        target_idx = _get_target_index(self.target_status, sequence)
+                        at_or_after_in_progress = (
+                            target_idx >= self.in_progress_index_in_sequence
+                        )
+                    except ValueError:
+                        at_or_after_in_progress = _is_status_at_or_after_in_progress(
+                            self.target_status, sequence
+                        )
+                else:
+                    at_or_after_in_progress = _is_status_at_or_after_in_progress(
+                        self.target_status, sequence
+                    )
                 if (
                     self.registrar_worklog
                     and self.worklog_inicio
                     and self.worklog_duracao
-                    and _is_status_at_or_after_in_progress(self.target_status, sequence)
+                    and at_or_after_in_progress
                 ):
                     worklog_config = WorklogConfig(
                         registrar=True,
@@ -341,16 +376,17 @@ class JiraWorker(QThread):
                     status_sequence=sequence,
                     progress_callback=progress_callback,
                     worklog=worklog_config,
+                    in_progress_index=self.in_progress_index_in_sequence,
                 )
 
-                # Registrar worklog no fim só se não foi registrado ao atingir IN PROGRESS
-                # (ex.: issue já estava em ou após IN PROGRESS e transitou para status posterior)
+                # Registrar worklog no fim só se não foi registrado ao atingir In Progress
+                # (ex.: issue já estava em ou após In Progress e transitou para status posterior)
                 if (
                     not worklog_registered
                     and self.registrar_worklog
                     and self.worklog_inicio
                     and self.worklog_duracao
-                    and _is_status_at_or_after_in_progress(self.target_status, sequence)
+                    and at_or_after_in_progress
                 ):
                     self.progressUpdated.emit(85, "Registrando worklog...")
                     time_spent = self.jira_client._format_duration_minutes(
@@ -546,6 +582,7 @@ class UpdateWorker(QThread):
         target_status_override: Optional[str] = None,
         priority: Optional[str] = None,
         status_path: Optional[List[str]] = None,
+        status_sequence_from_workflow: Optional[List[str]] = None,
         parent=None,
     ):
         super().__init__(parent)
@@ -570,6 +607,7 @@ class UpdateWorker(QThread):
         self.target_status_override = target_status_override
         self.priority = priority
         self.status_path = status_path or []
+        self.status_sequence_from_workflow = status_sequence_from_workflow
 
     def run(self):
         """Executa a atualização da issue e worklog opcional em thread separada"""
@@ -697,11 +735,23 @@ class UpdateWorker(QThread):
                 )
             )
             if transition_target:
-                sequence = self.config.get_status_sequence()
+                sequence = (
+                    list(self.status_sequence_from_workflow)
+                    if self.status_sequence_from_workflow
+                    else []
+                )
+                has_path = bool(self.status_path)
+                # Exigir sequência só quando não há status_path (transição direta/sequencial ou worklog)
+                if not has_path and not sequence:
+                    self.errorOccurred.emit(
+                        "Sequência de status vazia. Execute o assistente de metadata em Configurações."
+                    )
+                    return
                 worklog_config = None
                 worklog_registered = False
                 if (
-                    self.registrar_worklog
+                    sequence
+                    and self.registrar_worklog
                     and self.worklog_inicio
                     and self.worklog_duracao
                     and _is_status_at_or_after_in_progress(transition_target, sequence)
@@ -867,6 +917,7 @@ class TransitionFromInProgressWorker(QThread):
         config: ConfigManager,
         issue_key: str,
         target_status: str,
+        status_sequence_from_workflow: Optional[List[str]] = None,
         parent=None,
     ):
         super().__init__(parent)
@@ -874,13 +925,23 @@ class TransitionFromInProgressWorker(QThread):
         self._config = config
         self._issue_key = issue_key
         self._target_status = target_status.strip() if target_status else ""
+        self._status_sequence_from_workflow = status_sequence_from_workflow
 
     def run(self):
         try:
             if not self._target_status:
                 self.errorOccurred.emit("Status alvo não fornecido")
                 return
-            sequence = self._config.get_status_sequence()
+            sequence = (
+                list(self._status_sequence_from_workflow)
+                if self._status_sequence_from_workflow
+                else []
+            )
+            if not sequence:
+                self.errorOccurred.emit(
+                    "Sequência de status vazia. Execute o assistente de metadata em Configurações."
+                )
+                return
             self.progressUpdated.emit(
                 10, "Transicionando para " + self._target_status + "..."
             )
@@ -917,22 +978,35 @@ class EnsureInProgressWorker(QThread):
         jira_client: AtlassianClient,
         config: ConfigManager,
         issue_key: str,
+        status_sequence_from_workflow: Optional[List[str]] = None,
         parent=None,
     ):
         super().__init__(parent)
         self._jira_client = jira_client
         self._config = config
         self._issue_key = issue_key.strip() if issue_key else ""
+        self._status_sequence_from_workflow = status_sequence_from_workflow
 
     def run(self):
         try:
             if not self._issue_key:
                 self.errorOccurred.emit("Issue key não fornecido")
                 return
-            sequence = self._config.get_status_sequence()
+            sequence = (
+                list(self._status_sequence_from_workflow)
+                if self._status_sequence_from_workflow
+                else []
+            )
+            if not sequence:
+                self.errorOccurred.emit(
+                    "Sequência de status vazia. Execute o assistente de metadata em Configurações."
+                )
+                return
             in_progress_idx = _get_in_progress_index(sequence)
             if in_progress_idx is None:
-                self.inProgressReady.emit(self._issue_key)
+                self.errorOccurred.emit(
+                    "Status 'In Progress' não encontrado no workflow. Execute o assistente de metadata em Configurações."
+                )
                 return
             issue_data = self._jira_client.get_issue_details(self._issue_key)
             if not issue_data:
@@ -949,6 +1023,7 @@ class EnsureInProgressWorker(QThread):
             if current_idx is None or current_idx >= in_progress_idx:
                 self.inProgressReady.emit(self._issue_key)
                 return
+            target_status_name = sequence[in_progress_idx]
             self.progressUpdated.emit(10, "Transicionando para IN PROGRESS...")
 
             def progress_cb(_status, percentage, message):
@@ -957,7 +1032,7 @@ class EnsureInProgressWorker(QThread):
             transition_sequentially(
                 jira_client=self._jira_client,
                 issue_key=self._issue_key,
-                target_status="IN PROGRESS",
+                target_status=target_status_name,
                 status_sequence=sequence,
                 progress_callback=progress_cb,
                 worklog=None,
@@ -1080,6 +1155,8 @@ class AtlassianService(QObject):
     worklogRegistered = Signal()
     # Issue criada a partir de comentário do Drive (Issue #18): issue_key, issue_url, file_id, comment_id
     issueCreatedFromDriveComment = Signal(str, str, str, str)
+    # Contexto da operação atual para evitar múltiplos diálogos de erro ("create" = fluxo criar work item)
+    currentOperationContextChanged = Signal()
 
     def __init__(self, parent=None, config_manager: Optional[ConfigManager] = None):
         super().__init__(parent)
@@ -1155,6 +1232,22 @@ class AtlassianService(QObject):
         self._development_enrich_worker: Optional[QThread] = None
         self._development_branches_enrich_worker: Optional[QThread] = None
         self._drive_comment_worker: Optional[CreateIssueFromDriveCommentWorker] = None
+        self._current_operation_context: str = ""
+
+    def get_current_operation_context(self) -> str:
+        return self._current_operation_context
+
+    def set_current_operation_context(self, value: str) -> None:
+        if self._current_operation_context != (value or ""):
+            self._current_operation_context = value or ""
+            self.currentOperationContextChanged.emit()
+
+    currentOperationContext = Property(
+        str,
+        get_current_operation_context,
+        set_current_operation_context,
+        notify=currentOperationContextChanged,
+    )
 
     def get_assets_cache(self) -> Optional[AssetsCacheService]:
         """Retorna o serviço de cache de Assets (para IssueModel e payloads)."""
@@ -1326,6 +1419,8 @@ class AtlassianService(QObject):
         str,
         "QVariantList",
         str,
+        "QVariantList",
+        int,
         result=bool,
     )
     def createIssue(  # NOSONAR - camelCase necessário para compatibilidade com QML
@@ -1346,6 +1441,10 @@ class AtlassianService(QObject):
         worklogComment: str = "",  # NOSONAR - comentário opcional do worklog
         pendingAttachments: Optional[List[Any]] = None,  # NOSONAR
         prioridade: str = "Medium",  # NOSONAR - prioridade da issue
+        statusSequenceFromWorkflow: Optional[
+            List[Any]
+        ] = None,  # NOSONAR - sequência do workflow (Work Items)
+        inProgressIndexInSequence: int = -1,  # NOSONAR - índice do 1º status category in progress; -1 = usar nome
     ) -> bool:
         """
         Cria uma issue no Jira de forma assíncrona
@@ -1459,6 +1558,25 @@ class AtlassianService(QObject):
                         }
                     )
 
+        # Normalizar statusSequenceFromWorkflow: QML envia array; deve ser lista de strings não vazia
+        status_seq = None
+        if statusSequenceFromWorkflow and isinstance(
+            statusSequenceFromWorkflow, (list, tuple)
+        ):
+            status_seq = [
+                str(x).strip() for x in statusSequenceFromWorkflow if str(x).strip()
+            ]
+            if not status_seq:
+                status_seq = None
+
+        in_progress_idx = (
+            int(inProgressIndexInSequence)
+            if inProgressIndexInSequence is not None
+            and isinstance(inProgressIndexInSequence, (int, float))
+            and int(inProgressIndexInSequence) >= 0
+            else None
+        )
+
         # Criar novo worker (assets_cache para fallback com formato id/objectId/workspaceId)
         self._worker = JiraWorker(
             jira_client=self._jira_client,
@@ -1481,6 +1599,8 @@ class AtlassianService(QObject):
             assets_cache=self._assets_cache,
             pending_attachments=pending_list if pending_list else None,
             priority=prioridade.strip() if prioridade else None,
+            status_sequence_from_workflow=status_seq,
+            in_progress_index_in_sequence=in_progress_idx,
         )
 
         # Conectar signals do worker
@@ -2389,26 +2509,36 @@ class AtlassianService(QObject):
         str,
         result=bool,
     )
-    @Slot(str, str, result=bool)
+    @Slot(str, str, "QVariantList", result=bool)
     def needsTwoPhaseTransition(  # NOSONAR
-        self, currentStatus: str, targetStatus: str  # NOSONAR
+        self,
+        currentStatus: str,
+        targetStatus: str,
+        statusSequence: Optional[List[Any]] = None,
     ) -> bool:
-        """Retorna True se a transição deve ser em duas fases (parar em IN PROGRESS)."""
-        if not self._config:
+        """Retorna True se a transição deve ser em duas fases (parar em IN PROGRESS). Usa statusSequence do workflow quando fornecido; senão retorna False (sem config)."""
+        sequence = []
+        if statusSequence and isinstance(statusSequence, (list, tuple)):
+            sequence = [str(x).strip() for x in statusSequence if str(x).strip()]
+        if not sequence:
             return False
-        sequence = self._config.get_status_sequence()
         return needs_two_phase_transition(
             currentStatus or "", targetStatus or "", sequence
         )
 
-    @Slot(str, str, result=bool)
+    @Slot(str, str, "QVariantList", result=bool)
     def requiresWorklogCheckBeforeTransition(  # NOSONAR
-        self, currentStatus: str, targetStatus: str  # NOSONAR
+        self,
+        currentStatus: str,
+        targetStatus: str,
+        statusSequence: Optional[List[Any]] = None,
     ) -> bool:
-        """Retorna True se deve verificar worklogs pendentes (mostrar diálogo ou sync)."""
-        if not self._config:
+        """Retorna True se deve verificar worklogs pendentes. Usa statusSequence do workflow quando fornecido; senão retorna False (sem config)."""
+        sequence = []
+        if statusSequence and isinstance(statusSequence, (list, tuple)):
+            sequence = [str(x).strip() for x in statusSequence if str(x).strip()]
+        if not sequence:
             return False
-        sequence = self._config.get_status_sequence()
         return requires_worklog_check_before_transition(
             currentStatus or "", targetStatus or "", sequence
         )
@@ -2445,6 +2575,7 @@ class AtlassianService(QObject):
         int,
         str,
         str,
+        "QVariantList",
         result=bool,
     )
     def transitionToInProgress(  # NOSONAR - Fase 1: atualizar campos e transitar até IN PROGRESS
@@ -2465,6 +2596,7 @@ class AtlassianService(QObject):
         worklogDuracao: int,  # NOSONAR
         worklogTimezone: str,  # NOSONAR
         worklogComment: str,  # NOSONAR
+        statusSequenceFromWorkflow: Optional[List[Any]] = None,  # NOSONAR - Work Items
     ) -> bool:
         """Fase 1: atualiza campos da issue e transiciona até IN PROGRESS; emite reachedInProgress(issueKey)."""
         if (
@@ -2493,6 +2625,13 @@ class AtlassianService(QObject):
         worklogTimezone = (
             self._config.get_timezone() if self._config else "America/Sao_Paulo"
         )
+        seq = None
+        if statusSequenceFromWorkflow and isinstance(
+            statusSequenceFromWorkflow, (list, tuple)
+        ):
+            seq = [str(x).strip() for x in statusSequenceFromWorkflow if str(x).strip()]
+            if not seq:
+                seq = None
         self._update_worker = UpdateWorker(
             jira_client=self._jira_client,
             config=self._config,
@@ -2514,6 +2653,7 @@ class AtlassianService(QObject):
             assets_cache=self._assets_cache,
             target_status_override="IN PROGRESS",
             priority=prioridade.strip() if prioridade else None,
+            status_sequence_from_workflow=seq,
         )
         self._update_worker.progressUpdated.connect(self.progressUpdated.emit)
         self._update_worker.reachedInProgress.connect(self.reachedInProgress.emit)
@@ -2521,9 +2661,12 @@ class AtlassianService(QObject):
         self._update_worker.start()
         return True
 
-    @Slot(str, str, result=bool)
+    @Slot(str, str, "QVariantList", result=bool)
     def transitionFromInProgressToTarget(  # NOSONAR
-        self, issueKey: str, targetStatus: str  # NOSONAR
+        self,
+        issueKey: str,  # NOSONAR
+        targetStatus: str,  # NOSONAR
+        statusSequenceFromWorkflow: Optional[List[Any]] = None,  # NOSONAR - Work Items
     ) -> bool:
         """Fase 2: transiciona de IN PROGRESS até o status alvo (sem worklog)."""
         if (
@@ -2539,11 +2682,19 @@ class AtlassianService(QObject):
         ):
             self._transition_from_in_progress_worker.terminate()
             self._transition_from_in_progress_worker.wait()
+        seq = None
+        if statusSequenceFromWorkflow and isinstance(
+            statusSequenceFromWorkflow, (list, tuple)
+        ):
+            seq = [str(x).strip() for x in statusSequenceFromWorkflow if str(x).strip()]
+            if not seq:
+                seq = None
         self._transition_from_in_progress_worker = TransitionFromInProgressWorker(
             jira_client=self._jira_client,
             config=self._config,
             issue_key=issueKey.strip(),
             target_status=targetStatus or "",
+            status_sequence_from_workflow=seq,
             parent=self,
         )
         self._transition_from_in_progress_worker.progressUpdated.connect(
@@ -2558,9 +2709,11 @@ class AtlassianService(QObject):
         self._transition_from_in_progress_worker.start()
         return True
 
-    @Slot(str, result=bool)
+    @Slot(str, "QVariantList", result=bool)
     def transitionToInProgressIfNeeded(  # NOSONAR
-        self, issueKey: str  # NOSONAR
+        self,
+        issueKey: str,  # NOSONAR
+        statusSequenceFromWorkflow: Optional[List[Any]] = None,  # NOSONAR - Work Items
     ) -> bool:
         """
         Se a issue estiver em status anterior a IN PROGRESS, transita para IN PROGRESS.
@@ -2580,10 +2733,35 @@ class AtlassianService(QObject):
             and self._ensure_in_progress_worker.isRunning()
         ):
             return True
+        seq = None
+        if statusSequenceFromWorkflow and isinstance(
+            statusSequenceFromWorkflow, (list, tuple)
+        ):
+            seq = [str(x).strip() for x in statusSequenceFromWorkflow if str(x).strip()]
+            if not seq:
+                seq = None
+        try:
+            from src.utils.debug import debug_log
+
+            if seq:
+                debug_log(
+                    "AtlassianService",
+                    "transitionToInProgressIfNeeded",
+                    f"issueKey={issueKey.strip()!r} status_sequence len={len(seq)} first={seq[0]!r}",
+                )
+            else:
+                debug_log(
+                    "AtlassianService",
+                    "transitionToInProgressIfNeeded",
+                    f"issueKey={issueKey.strip()!r} status_sequence empty or invalid (worker will emit error)",
+                )
+        except Exception:
+            pass
         self._ensure_in_progress_worker = EnsureInProgressWorker(
             jira_client=self._jira_client,
             config=self._config,
             issue_key=issueKey.strip(),
+            status_sequence_from_workflow=seq,
             parent=self,
         )
         self._ensure_in_progress_worker.inProgressReady.connect(
@@ -2613,6 +2791,7 @@ class AtlassianService(QObject):
         int,
         str,
         str,
+        "QVariantList",
         result=bool,
     )
     def updateIssue(  # NOSONAR - camelCase necessário para compatibilidade com QML
@@ -2636,6 +2815,7 @@ class AtlassianService(QObject):
         statusPath: Optional[
             List[str]
         ] = None,  # NOSONAR - sequência de nomes de status (caminho do grafo)
+        statusSequenceFromWorkflow: Optional[List[Any]] = None,  # NOSONAR - Work Items
     ) -> bool:
         """
         Atualiza uma issue existente no Jira de forma assíncrona.
@@ -2693,6 +2873,17 @@ class AtlassianService(QObject):
             self._config.get_timezone() if self._config else "America/Sao_Paulo"
         )
 
+        # Normalizar statusSequenceFromWorkflow (Work Items)
+        status_seq = None
+        if statusSequenceFromWorkflow and isinstance(
+            statusSequenceFromWorkflow, (list, tuple)
+        ):
+            status_seq = [
+                str(x).strip() for x in statusSequenceFromWorkflow if str(x).strip()
+            ]
+            if not status_seq:
+                status_seq = None
+
         # Criar novo worker de atualização
         self._update_worker = UpdateWorker(
             jira_client=self._jira_client,
@@ -2715,6 +2906,7 @@ class AtlassianService(QObject):
             assets_cache=self._assets_cache,
             priority=prioridade.strip() if prioridade else None,
             status_path=statusPath if statusPath else None,
+            status_sequence_from_workflow=status_seq,
         )
 
         # Conectar signals do worker

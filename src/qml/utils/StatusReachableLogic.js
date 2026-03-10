@@ -251,6 +251,15 @@ function buildDirectedOnlyAdjacency(workflowEntry) {
 }
 
 /**
+ * Status tem category "indeterminate" (In Progress no Jira).
+ */
+function _isIndeterminate(statusObj) {
+    if (!statusObj)
+        return false;
+    return (statusObj.category || "").toLowerCase() === "indeterminate";
+}
+
+/**
  * Status é "done positivo" se category === "done" e nome normalizado é "done" (ou único done no workflow).
  * "Done negativo" = category "done" e não positivo (ex.: Canceled, Won't Do).
  */
@@ -273,6 +282,62 @@ function _getStatusById(workflowEntry, statusId) {
             return workflowEntry.statuses[i];
     }
     return null;
+}
+
+/**
+ * Encontra um status em workflowEntry por id ou por nome (case-insensitive).
+ * @param {Object} workflowEntry - { statuses, transitions }
+ * @param {string} statusIdOrName - ID do status ou nome (ex.: "To Do", "In Progress")
+ * @returns {Object|null} Objeto status ou null
+ */
+function getStatusByIdOrName(workflowEntry, statusIdOrName) {
+    if (!workflowEntry || !workflowEntry.statuses || statusIdOrName === undefined || statusIdOrName === null)
+        return null;
+    var key = String(statusIdOrName).trim();
+    if (key === "")
+        return null;
+    var statuses = workflowEntry.statuses;
+    for (var i = 0; i < statuses.length; i++) {
+        var s = statuses[i];
+        if (String(s.id) === key)
+            return s;
+        var name = (s.name || "").toString().trim();
+        if (name.toLowerCase() === key.toLowerCase())
+            return s;
+    }
+    return null;
+}
+
+/**
+ * Retorna a category do status (ex.: "new", "indeterminate", "done") a partir de workflowEntry.
+ * To Do = "new"; In Progress = "indeterminate"; Done/Canceled/Won't Do = "done".
+ * @param {Object} workflowEntry - { statuses, transitions }
+ * @param {string} statusIdOrName - ID do status ou nome
+ * @returns {string} Category em minúsculas ou "" se não encontrado
+ */
+function getStatusCategory(workflowEntry, statusIdOrName) {
+    var st = getStatusByIdOrName(workflowEntry, statusIdOrName);
+    if (!st)
+        return "";
+    return (st.category || "").toLowerCase();
+}
+
+/**
+ * Índice (0-based) do primeiro status na lista cuja category é "indeterminate" (In Progress).
+ * Usado para registrar worklog ao atingir esse passo, sem depender do nome do status.
+ * @param {Object} workflowEntry - { statuses, transitions }
+ * @param {string[]} statusNameList - Lista de nomes de status (ex.: sequência para create)
+ * @returns {number} Índice ou -1 se nenhum for indeterminate
+ */
+function indexOfFirstInProgressInSequence(workflowEntry, statusNameList) {
+    if (!workflowEntry || !statusNameList || typeof statusNameList.length !== "number" || statusNameList.length === 0)
+        return -1;
+    for (var i = 0; i < statusNameList.length; i++) {
+        var st = getStatusByIdOrName(workflowEntry, statusNameList[i]);
+        if (st && _isIndeterminate(st))
+            return i;
+    }
+    return -1;
 }
 
 /**
@@ -345,6 +410,147 @@ function statusDisplayOrderMainColumn(workflowEntry) {
 }
 
 /**
+ * Happy path: sequência de status IDs do initial até o primeiro status com category "indeterminate" (In Progress).
+ * Usa apenas transições directed. Serve para transicionar issue recém-criada (To Do) até In Progress.
+ * @param {Object} workflowEntry - { statuses, transitions }
+ * @returns {string[]} Caminho [initialId, ..., firstInProgressId] ou [initialId] se já indeterminate ou não houver In Progress.
+ */
+function pathFromInitialToFirstInProgress(workflowEntry) {
+    if (!workflowEntry || !workflowEntry.statuses)
+        return [];
+    var directed = buildDirectedOnlyAdjacency(workflowEntry);
+    var initialId = directed.initialToId;
+    if (!initialId)
+        return [];
+    var st0 = _getStatusById(workflowEntry, initialId);
+    if (st0 && _isIndeterminate(st0))
+        return [initialId];
+    var adj = directed.adjacency;
+    var queue = [[initialId]];
+    var visited = {};
+    while (queue.length > 0) {
+        var path = queue.shift();
+        var node = path[path.length - 1];
+        if (visited[node])
+            continue;
+        visited[node] = true;
+        var st = _getStatusById(workflowEntry, node);
+        if (st && _isIndeterminate(st))
+            return path;
+        var nextList = adj[node];
+        if (nextList && nextList.length > 0) {
+            for (var n = 0; n < nextList.length; n++) {
+                var nid = nextList[n];
+                if (!visited[nid])
+                    queue.push(path.concat([nid]));
+            }
+        }
+    }
+    return [initialId];
+}
+
+/**
+ * Happy path completo: sequência de status IDs do initial até o primeiro status com category "done" positivo (Done).
+ * Usa apenas transições directed. Usado para decidir se o alvo está no happy path e para truncar até o alvo.
+ * @param {Object} workflowEntry - { statuses, transitions }
+ * @returns {string[]} Caminho [initialId, ..., firstDoneId] ou [initialId] se não houver Done no grafo.
+ */
+function pathFromInitialToFirstDone(workflowEntry) {
+    if (!workflowEntry || !workflowEntry.statuses)
+        return [];
+    var directed = buildDirectedOnlyAdjacency(workflowEntry);
+    var initialId = directed.initialToId;
+    if (!initialId)
+        return [];
+    var st0 = _getStatusById(workflowEntry, initialId);
+    if (st0 && _isDonePositive(st0))
+        return [initialId];
+    var adj = directed.adjacency;
+    var queue = [[initialId]];
+    var visited = {};
+    while (queue.length > 0) {
+        var path = queue.shift();
+        var node = path[path.length - 1];
+        if (visited[node])
+            continue;
+        visited[node] = true;
+        var st = _getStatusById(workflowEntry, node);
+        if (st && _isDonePositive(st))
+            return path;
+        var nextList = adj[node];
+        if (nextList && nextList.length > 0) {
+            for (var n = 0; n < nextList.length; n++) {
+                var nid = nextList[n];
+                if (!visited[nid])
+                    queue.push(path.concat([nid]));
+            }
+        }
+    }
+    return [initialId];
+}
+
+/**
+ * Menor caminho (BFS) de initialToId até targetId usando apenas transições directed.
+ * @param {Object} workflowEntry - { statuses, transitions }
+ * @param {string} initialToId - ID do status initial
+ * @param {string} targetId - ID do status alvo
+ * @returns {string[]} Caminho [initialId, ..., targetId] ou [] se não houver caminho.
+ */
+function _shortestPathFromInitialToTarget(workflowEntry, initialToId, targetId) {
+    if (!initialToId || !targetId || initialToId === targetId)
+        return initialToId === targetId ? [initialToId] : [];
+    var directed = buildDirectedOnlyAdjacency(workflowEntry);
+    var adj = directed.adjacency;
+    var queue = [[initialToId]];
+    var visited = {};
+    while (queue.length > 0) {
+        var path = queue.shift();
+        var node = path[path.length - 1];
+        if (visited[node])
+            continue;
+        visited[node] = true;
+        if (node === targetId)
+            return path;
+        var nextList = adj[node];
+        if (nextList && nextList.length > 0) {
+            for (var n = 0; n < nextList.length; n++) {
+                var nid = nextList[n];
+                if (!visited[nid])
+                    queue.push(path.concat([nid]));
+            }
+        }
+    }
+    return [];
+}
+
+/**
+ * Caminho de status IDs do initial até o alvo: se alvo está no happy path, retorna happy path truncado;
+ * senão retorna menor caminho (BFS) até o alvo. Para uso no create (status + worklog).
+ * @param {Object} workflowEntry - { statuses, transitions }
+ * @param {string} targetStatusIdOrName - ID ou nome do status alvo (ex.: "Done", "Blocked")
+ * @returns {string[]} Caminho de IDs [initialId, ..., targetId] ou [] se alvo não encontrado/sem caminho.
+ */
+function pathFromInitialToTarget(workflowEntry, targetStatusIdOrName) {
+    if (!workflowEntry || !workflowEntry.statuses)
+        return [];
+    var directed = buildDirectedOnlyAdjacency(workflowEntry);
+    var initialToId = directed.initialToId;
+    if (!initialToId)
+        return [];
+    var targetSt = getStatusByIdOrName(workflowEntry, targetStatusIdOrName);
+    if (!targetSt || targetSt.id === undefined || targetSt.id === null)
+        return [];
+    var targetId = String(targetSt.id);
+    if (targetId === initialToId)
+        return [initialToId];
+    var happyPathIds = pathFromInitialToFirstDone(workflowEntry);
+    var idx = happyPathIds.indexOf(targetId);
+    if (idx >= 0)
+        return happyPathIds.slice(0, idx + 1);
+    return _shortestPathFromInitialToTarget(workflowEntry, initialToId, targetId);
+}
+
+/**
  * Encontra todos os caminhos de fromStatusId a toStatusId (máx. 20 caminhos, depth máx. 10).
  * Caminho = array de status IDs [from, ..., to].
  * Regras: (1) target = initial -> []; (2) existe global para target -> [[from, to]]; (3) senão subgrafo só directed.
@@ -373,7 +579,30 @@ function findPaths(workflowEntry, fromStatusId, toStatusId) {
         if (gToId === toId)
             return [[fromId, toId]];
     }
-    var adj = built.adjacency;
+    // Grafo directed + arestas de transições globais (de todo status para o destino da global)
+    var adj = {};
+    var orig = built.adjacency;
+    for (var k in orig) {
+        adj[k] = orig[k].slice();
+    }
+    var statuses = workflowEntry.statuses || [];
+    for (var si = 0; si < transitions.length; si++) {
+        if ((transitions[si].type || "").toLowerCase() !== "global")
+            continue;
+        var gToObj = transitions[si].to;
+        var gToIdEdge = gToObj && (gToObj.id !== undefined && gToObj.id !== null) ? String(gToObj.id) : "";
+        if (!gToIdEdge)
+            continue;
+        for (var s = 0; s < statuses.length; s++) {
+            var sid = statuses[s] && (statuses[s].id !== undefined && statuses[s].id !== null) ? String(statuses[s].id) : "";
+            if (!sid)
+                continue;
+            if (!adj[sid])
+                adj[sid] = [];
+            if (adj[sid].indexOf(gToIdEdge) < 0)
+                adj[sid].push(gToIdEdge);
+        }
+    }
     var paths = [];
     var maxPaths = 20;
     var maxDepth = 10;

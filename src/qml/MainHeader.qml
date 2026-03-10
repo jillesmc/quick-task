@@ -305,7 +305,17 @@ RowLayout {
                 return false;
             if (!root.timerService || !root.timerModel)
                 return false;
+            if (root.currentTabIndex === 8 && page.hasWorkflowForActions !== undefined && !page.hasWorkflowForActions)
+                return false;
             return true;
+        }
+        Controls.ToolTip.visible: startTimerButton.hovered
+        Controls.ToolTip.text: {
+            if (root.currentTabIndex !== 8 || !root.myWorkItemsPage)
+                return startTimerButton.text || qsTr("Iniciar Timer");
+            if (!startTimerButton.enabled && root.myWorkItemsPage.hasWorkflowForActions !== undefined && !root.myWorkItemsPage.hasWorkflowForActions)
+                return qsTr("Configure o workflow na aplicação para usar o timer.");
+            return startTimerButton.text || qsTr("Iniciar Timer");
         }
         onClicked: {
             var page = (root.currentTabIndex === 1) ? root.issuesPage : ((root.currentTabIndex === 8) ? root.myWorkItemsPage : null);

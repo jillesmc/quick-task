@@ -1,4 +1,4 @@
-// Diálogo de sucesso
+// Diálogo de sucesso para criação de Work Item (navega para MyWorkItemsPage)
 import QtQuick
 import QtQuick.Controls as Controls
 import QtQuick.Layouts
@@ -8,7 +8,7 @@ Controls.Dialog {
     id: dialog
 
     property bool isUpdate: false  // Se true, é uma atualização, senão é criação
-    title: isUpdate ? "Task Atualizada" : "Issue Criada"
+    title: isUpdate ? qsTr("Task Atualizada") : qsTr("Task criada")
     modal: true
     closePolicy: Controls.Popup.CloseOnEscape
 
@@ -72,7 +72,7 @@ Controls.Dialog {
         // Mensagem de sucesso (oculta quando há erro)
         Controls.Label {
             visible: dialog._errorMessage === ""
-            text: dialog.isUpdate ? "Task atualizada com sucesso!" : "Issue criada com sucesso!"
+            text: dialog.isUpdate ? qsTr("Task atualizada com sucesso!") : qsTr("Task criada com sucesso!")
             Layout.fillWidth: true
             Layout.leftMargin: Kirigami.Units.smallSpacing
             Layout.rightMargin: Kirigami.Units.smallSpacing
@@ -146,6 +146,7 @@ Controls.Dialog {
             Layout.rightMargin: Kirigami.Units.smallSpacing
             visible: dialog._errorMessage === "" && !dialog.isUpdate && dialog.issueKey !== "" && dialog.timerService && dialog.timerModel
             enabled: dialog.timerService && dialog.timerModel && !dialog._waitingForInProgress
+            Accessible.name: qsTr("Iniciar timer e ir para Minhas work items")
 
             onClicked: {
                 if (!dialog.timerService || !dialog.issueKey)
@@ -157,8 +158,8 @@ Controls.Dialog {
                     }
                 } else {
                     dialog.timerService.start(dialog.issueKey);
-                    if (!dialog.isUpdate && dialog.applicationWindow && typeof dialog.applicationWindow.navigateToIssue === "function") {
-                        dialog.applicationWindow.navigateToIssue(dialog.issueKey);
+                    if (!dialog.isUpdate && dialog.applicationWindow && typeof dialog.applicationWindow.navigateToWorkItem === "function") {
+                        dialog.applicationWindow.navigateToWorkItem(dialog.issueKey);
                     }
                     dialog.close();
                 }
@@ -175,8 +176,8 @@ Controls.Dialog {
                     }
                     if (dialog.timerService)
                         dialog.timerService.start(key);
-                    if (!dialog.isUpdate && dialog.applicationWindow && typeof dialog.applicationWindow.navigateToIssue === "function") {
-                        dialog.applicationWindow.navigateToIssue(key);
+                    if (!dialog.isUpdate && dialog.applicationWindow && typeof dialog.applicationWindow.navigateToWorkItem === "function") {
+                        dialog.applicationWindow.navigateToWorkItem(key);
                     }
                     dialog.close();
                 }
@@ -185,12 +186,12 @@ Controls.Dialog {
                 if (dialog._waitingForInProgress) {
                     dialog._waitingForInProgress = false;
                     dialog._errorMessage = message || qsTr("Erro ao transicionar");
-                    // Erro mostrado neste diálogo; Pane e MyIssuesPage não devem abrir ErrorDialog/ProcessDialog
+                    // Erro mostrado neste diálogo; Pane e MyWorkItemsPage não devem abrir ErrorDialog/ProcessDialog
                 }
             }
         }
 
-        // Botões: Abrir (quando há URL e sem erro), Fechar
+        // Botões: Abrir (ir para Minhas work items com task selecionada), Fechar
         RowLayout {
             Layout.fillWidth: true
             Layout.alignment: Qt.AlignHCenter
@@ -200,18 +201,21 @@ Controls.Dialog {
                 Layout.fillWidth: true
             }
             Controls.Button {
-                visible: dialog._errorMessage === "" && !dialog.isUpdate && dialog.issueUrl !== ""
+                visible: dialog._errorMessage === "" && !dialog.isUpdate && dialog.issueKey !== ""
                 text: qsTr("Abrir")
                 Layout.preferredWidth: 120
+                Accessible.name: qsTr("Abrir em Minhas work items")
                 onClicked: {
-                    if (dialog.issueUrl)
-                        Qt.openUrlExternally(dialog.issueUrl);
+                    if (dialog.applicationWindow && typeof dialog.applicationWindow.navigateToWorkItem === "function") {
+                        dialog.applicationWindow.navigateToWorkItem(dialog.issueKey);
+                    }
                     dialog.close();
                 }
             }
             Controls.Button {
                 text: qsTr("Fechar")
                 Layout.preferredWidth: 120
+                Accessible.name: qsTr("Fechar")
                 onClicked: dialog.close()
             }
             Item {

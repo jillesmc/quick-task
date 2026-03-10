@@ -54,11 +54,22 @@ ColumnLayout {
         return wm[pk][itid] || null;
     }
 
-    /** Índice do status atual no formulário (statusInicial). */
+    /** Lista de nomes de status do workflow (para índices e fallback). Sem workflow: []. */
+    readonly property var statusNameList: {
+        var entry = metadataFieldsRoot._workflowEntry;
+        if (!entry || !entry.statuses)
+            return [];
+        var out = [];
+        for (var i = 0; i < entry.statuses.length; i++)
+            out.push(entry.statuses[i].name || "");
+        return out;
+    }
+
+    /** Índice do status atual no formulário (statusInicial). Usa statusNameList (workflow). */
     property int statusCurrentIndex: {
-        if (!metadataFieldsRoot.workItemModel || !metadataFieldsRoot.workItemModel.statusSequence)
+        if (!metadataFieldsRoot.workItemModel)
             return -1;
-        var seq = metadataFieldsRoot.workItemModel.statusSequence;
+        var seq = metadataFieldsRoot.statusNameList || [];
         var current = String(metadataFieldsRoot.workItemModel.statusInicial || "").trim().toUpperCase();
         for (var i = 0; i < seq.length; i++) {
             if (String(seq[i] || "").trim().toUpperCase() === current)
@@ -66,11 +77,11 @@ ColumnLayout {
         }
         return -1;
     }
-    /** Índice do status persistido (statusForRestriction) na sequência; usado para minEnabledIndex quando definido. */
+    /** Índice do status persistido (statusForRestriction) na sequência; usado para minEnabledIndex quando definido. Usa statusNameList (workflow). */
     property int statusRestrictionIndex: {
-        if (!metadataFieldsRoot.workItemModel || !metadataFieldsRoot.workItemModel.statusSequence || !metadataFieldsRoot.statusForRestriction)
+        if (!metadataFieldsRoot.statusForRestriction)
             return -1;
-        var seq = metadataFieldsRoot.workItemModel.statusSequence;
+        var seq = metadataFieldsRoot.statusNameList || [];
         var saved = String(metadataFieldsRoot.statusForRestriction || "").trim().toUpperCase();
         for (var i = 0; i < seq.length; i++) {
             if (String(seq[i] || "").trim().toUpperCase() === saved)
@@ -103,7 +114,7 @@ ColumnLayout {
             labelText: qsTr("Prioridade:")
         }
 
-        // Status (workflow por reachable quando metadata disponível; senão fallback statusSequence)
+        // Status (workflow por reachable quando metadata disponível; sem workflow: model vazio, sem fallback config)
         ColumnLayout {
             id: statusColumnLayout
             Layout.fillWidth: true
@@ -137,7 +148,7 @@ ColumnLayout {
                 id: statusRadioGroupFallback
                 Layout.fillWidth: true
                 visible: !metadataFieldsRoot._workflowEntry
-                model: (metadataFieldsRoot.workItemModel && metadataFieldsRoot.workItemModel.statusSequence && metadataFieldsRoot.workItemModel.statusSequence.length > 0) ? metadataFieldsRoot.workItemModel.statusSequence : ["TO DO", "IN PROGRESS", "DONE"]
+                model: metadataFieldsRoot.statusNameList || []
                 enabled: metadataFieldsRoot.enabled
                 selectedValue: metadataFieldsRoot.workItemModel ? metadataFieldsRoot.workItemModel.statusInicial : ""
                 minEnabledIndex: metadataFieldsRoot._statusMinEnabledIndex
@@ -146,6 +157,15 @@ ColumnLayout {
                         metadataFieldsRoot.workItemModel.statusInicial = value;
                     }
                 }
+            }
+
+            Controls.Label {
+                Layout.fillWidth: true
+                visible: !metadataFieldsRoot._workflowEntry
+                text: qsTr("Carregue o workflow em Configurações para escolher o status.")
+                wrapMode: Text.WordWrap
+                font.italic: true
+                opacity: 0.8
             }
         }
 
